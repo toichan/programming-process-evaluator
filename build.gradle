@@ -1,0 +1,23 @@
+apply plugin: 'java'
+apply plugin: 'java-library'
+apply plugin: 'war'
+
+repositories {
+    jcenter()
+}
+
+dependencies {
+    implementation group: 'mysql', name: 'mysql-connector-java', version: '8.0.15' // mysql8系
+    implementation group: 'javax.servlet.jsp.jstl', name: 'jstl-api', version: '1.2'
+
+    runtimeOnly group: 'org.glassfish.web', name: 'jstl-impl', version: '1.2'
+    runtimeOnly "mysql:mysql-connector-java:8.0.15"
+
+    providedCompile 'org.apache.tomcat:tomcat-servlet-api:8.5.15'
+}
+
+jar {
+    manifest {
+        attributes 'Main-Class': ''
+    }
+}

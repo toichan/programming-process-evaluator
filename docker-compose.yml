@@ -1,0 +1,37 @@
+version: '3'
+
+services:
+  app:
+    build:
+      context: ./containers/app
+    working_dir: /${PROJECT_NAME}
+    depends_on:
+      - db
+      - gradle
+    volumes:
+      - ./build/libs/:/usr/local/tomcat/webapps/
+    ports:
+      - ${APP_PORT}:8080
+
+  db:
+    build:
+      context: ./containers/db
+    restart: always
+    environment:
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_ROOT_PASSWORD: root
+    volumes:
+      - mysql:/var/lib/mysql
+    ports:
+      - ${DB_PORT}:3306
+
+  gradle:
+    build:
+      context: ./containers/gradle
+    working_dir: /${PROJECT_NAME}
+    volumes:
+      - ./:/${PROJECT_NAME}
+    command: gradle -t build --warning-mode all
+
+volumes:
+  mysql: {}
