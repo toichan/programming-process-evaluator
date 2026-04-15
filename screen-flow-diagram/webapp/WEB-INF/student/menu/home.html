@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Programming Process Evaluator - ホーム</title>
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet"
+    integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB"
+    crossorigin="anonymous">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+  <link href="../../../css/template/template.css" rel="stylesheet">
+  <link href="../../../css/student/menu/home.css" rel="stylesheet">
+</head>
+<body>
+  <div id="header-placeholder"></div>
+
+  <main class="py-5">
+    <div class="container">
+      <section class="sample-section hero-section mb-4">
+        <div class="hero-copy">
+          <span class="hero-kicker">Student Home</span>
+          <h1 class="section-title mb-3">課題ホーム</h1>
+          <p class="hero-description mb-0">
+            取り組み中またはこれから挑戦する課題を一覧で確認できます。各課題ごとに、編集、評価、アンケートの画面へ進めます。
+          </p>
+        </div>
+        <div class="hero-status-card">
+          <div class="status-label">現在の状況</div>
+          <div class="status-value">仮データで表示中</div>
+          <div class="status-meta">課題内容が確定したらここを実データに置き換えます。</div>
+        </div>
+      </section>
+
+      <section class="sample-section">
+        <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3 mb-4">
+          <div>
+            <h2 class="card-title mb-2">課題一覧</h2>
+            <p class="text-muted mb-0">仮の課題を3件表示しています。</p>
+          </div>
+          <div class="task-summary-pill">3 Tasks</div>
+        </div>
+
+        <div class="row g-4">
+          <div class="col-12">
+            <article class="task-list-card task-card task-card-beginner">
+              <div class="task-header-row">
+                <div>
+                  <span class="task-level">初級</span>
+                  <h3>じゃんけん判定プログラム</h3>
+                </div>
+                <div class="task-id">TASK-001</div>
+              </div>
+              <p class="task-description">ユーザーの入力に応じて、勝敗結果を表示する条件分岐の基本課題です。</p>
+              <div class="task-meta-grid">
+                <div>
+                  <span class="meta-label">学習テーマ</span>
+                  <span class="meta-value">条件分岐 / 入力処理</span>
+                </div>
+                <div>
+                  <span class="meta-label">状態</span>
+                  <span class="meta-value">未着手</span>
+                </div>
+              </div>
+              <div class="button-group mt-4">
+                <a class="btn btn-primary" href="../editor/editor.html">編集</a>
+                <a class="btn btn-success" href="#">評価</a>
+                <a class="btn btn-info" href="#">アンケート</a>
+              </div>
+            </article>
+          </div>
+
+          <div class="col-12">
+            <article class="task-list-card task-card task-card-intermediate">
+              <div class="task-header-row">
+                <div>
+                  <span class="task-level">中級</span>
+                  <h3>点数集計と平均計算</h3>
+                </div>
+                <div class="task-id">TASK-002</div>
+              </div>
+              <p class="task-description">複数の入力値を受け取り、合計点と平均点を算出する繰り返し処理の練習課題です。</p>
+              <div class="task-meta-grid">
+                <div>
+                  <span class="meta-label">学習テーマ</span>
+                  <span class="meta-value">反復処理 / リスト</span>
+                </div>
+                <div>
+                  <span class="meta-label">状態</span>
+                  <span class="meta-value">作業中</span>
+                </div>
+              </div>
+              <div class="button-group mt-4">
+                <a class="btn btn-primary" href="../editor/editor.html">編集</a>
+                <a class="btn btn-success" href="#">評価</a>
+                <a class="btn btn-info" href="#">アンケート</a>
+              </div>
+            </article>
+          </div>
+
+          <div class="col-12">
+            <article class="task-list-card task-card task-card-advanced">
+              <div class="task-header-row">
+                <div>
+                  <span class="task-level">上級</span>
+                  <h3>売上データの分析レポート</h3>
+                </div>
+                <div class="task-id">TASK-003</div>
+              </div>
+              <p class="task-description">売上データを集計し、条件ごとに分析結果を出力する総合的なデータ処理課題です。</p>
+              <div class="task-meta-grid">
+                <div>
+                  <span class="meta-label">学習テーマ</span>
+                  <span class="meta-value">関数 / 集計 / 出力整形</span>
+                </div>
+                <div>
+                  <span class="meta-label">状態</span>
+                  <span class="meta-value">評価待ち</span>
+                </div>
+              </div>
+              <div class="button-group mt-4">
+                <a class="btn btn-primary" href="../editor/editor.html">編集</a>
+                <a class="btn btn-success" href="#">評価</a>
+                <a class="btn btn-info" href="#">アンケート</a>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <div id="footer-placeholder"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"
+    integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI"
+    crossorigin="anonymous"></script>
+  <script src="../../../js/template/components.js"></script>
+  <script src="../../../js/student/menu/home.js"></script>
+</body>
+</html>

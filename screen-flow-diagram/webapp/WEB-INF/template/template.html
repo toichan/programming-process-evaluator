@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Programming Process Evaluator</title>
+  
+  <!-- Bootstrap 5.3.8 -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" 
+    integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" 
+    crossorigin="anonymous">
+  
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+  
+  <!-- Custom CSS -->
+  <link href="../../css/template/template.css" rel="stylesheet">
+</head>
+<body>
+  <!-- ===================== -->
+  <!-- Navigation / Header -->
+  <!-- ===================== -->
+  <nav class="navbar navbar-expand-lg">
+    <div class="container-fluid">
+      <!-- Logo/Brand -->
+      <a class="navbar-brand d-flex align-items-center" href="#">
+        <svg class="me-2" width="32" height="32" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+          <path d="M4 4.5C4 3.67 4.67 3 5.5 3h13c.83 0 1.5.67 1.5 1.5v15c0 .83-.67 1.5-1.5 1.5h-13A1.5 1.5 0 0 1 4 19.5v-15zM5.5 4a.5.5 0 0 0-.5.5V8h15V4.5a.5.5 0 0 0-.5-.5h-14zM5 9v10.5c0 .28.22.5.5.5h13a.5.5 0 0 0 .5-.5V9H5z"/>
+          <path d="M8.75 13.5L7.25 12l1.5-1.5m6.5 3L16.75 12l-1.5-1.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M11 13.5h2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+        <div class="brand-text">
+          <span class="brand-line d-block">Programming</span>
+          <span class="brand-line d-block">Process</span>
+          <span class="brand-line d-block">Evaluator</span>
+        </div>
+      </a>
+
+      <!-- Mobile Toggle -->
+      <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+
+      <!-- Navigation Menu -->
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav me-auto">
+          <!-- Home -->
+          <li class="nav-item">
+            <a class="nav-link d-flex align-items-center" href="#">
+              <svg class="me-1" width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M8.707 1.5a1 1 0 0 0-1.414 0L.646 8.146a.5.5 0 0 0 .708.708L8 2.207l6.646 6.647a.5.5 0 0 0 .708-.708L13 5.793V2.5a.5.5 0 0 0-.5-.5h-1a.5.5 0 0 0-.5.5v1.293L8.707 1.5Z"/>
+                <path d="m8 3.293 6 6V13.5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 13.5V9.293l6-6Z"/>
+              </svg>
+              ホーム
+            </a>
+          </li>
+
+          <!-- Tasks (for students) -->
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" id="tasksDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <svg class="me-1" width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
+                <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
+              </svg>
+              課題
+              <span class="badge bg-warning text-dark ms-1">3</span>
+            </a>
+            <ul class="dropdown-menu border-0 shadow-lg" aria-labelledby="tasksDropdown">
+              <li><a class="dropdown-item d-flex align-items-center" href="#">
+                <span class="badge bg-success me-2">済</span>
+                変数とデータ型
+              </a></li>
+              <li><a class="dropdown-item d-flex align-items-center" href="#">
+                <span class="badge bg-warning me-2">中</span>
+                条件分岐
+              </a></li>
+              <li><a class="dropdown-item d-flex align-items-center" href="#">
+                <span class="badge bg-danger me-2">未</span>
+                繰り返し処理
+              </a></li>
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item text-primary fw-semibold" href="#">全ての課題を見る</a></li>
+            </ul>
+          </li>
+
+          <!-- Evaluation (for students) -->
+          <li class="nav-item">
+            <a class="nav-link d-flex align-items-center" href="#">
+              <svg class="me-1" width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M2 2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v13.5a.5.5 0 0 1-.777.416L8 13.101l-5.223 2.815A.5.5 0 0 1 2 15.5V2zm2-1a1 1 0 0 0-1 1v12.566l4.723-2.482a.5.5 0 0 1 .554 0L13 14.566V2a1 1 0 0 0-1-1H4z"/>
+              </svg>
+              評価
+            </a>
+          </li>
+
+          <!-- Survey (for students) -->
+          <li class="nav-item">
+            <a class="nav-link d-flex align-items-center" href="#">
+              <svg class="me-1" width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M8 1a2 2 0 0 0-2 2v2H5V3a3 3 0 1 1 6 0v2h-1V3a2 2 0 0 0-2-2z"/>
+                <path d="M5 5H3.5A1.5 1.5 0 0 0 2 6.5v7A1.5 1.5 0 0 0 3.5 15h9a1.5 1.5 0 0 0 1.5-1.5v-7A1.5 1.5 0 0 0 12.5 5H11v2h1.5a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-.5.5h-9a.5.5 0 0 1-.5-.5v-7a.5.5 0 0 1 .5-.5H5V5z"/>
+                <path d="M8 7.5a.5.5 0 0 1 .5.5v3a.5.5 0 0 1-1 0v-3a.5.5 0 0 1 .5-.5z"/>
+              </svg>
+              アンケート
+            </a>
+          </li>
+        </ul>
+
+        <!-- User Menu -->
+        <ul class="navbar-nav">
+          <!-- Notifications -->
+          <li class="nav-item dropdown">
+            <a class="nav-link position-relative" href="#" id="notificationsDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <svg width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M8 16a2 2 0 0 0 2-2H6a2 2 0 0 0 2 2z"/>
+                <path d="M8 1.918l-.797.161A4.002 4.002 0 0 0 4 6c0 .628-.134 2.197-.459 3.742-.16.767-.376 1.566-.663 2.258h10.244c-.287-.692-.502-1.49-.663-2.258C12.134 8.197 12 6.628 12 6a4.002 4.002 0 0 0-3.203-3.92L8 1.917zM14.22 12c.223.447.481.801.78 1H1c.299-.199.557-.553.78-1C2.68 10.2 3 6.88 3 6c0-2.42 1.72-4.44 4.005-4.901a1 1 0 1 1 1.99 0A5.002 5.002 0 0 1 13 6c0 .88.32 4.2 1.22 6z"/>
+              </svg>
+              <span class="notification-badge position-absolute top-0 start-100 translate-middle-y badge rounded-pill bg-danger" style="font-size: 0.6rem;">
+                2
+                <span class="visually-hidden">unread notifications</span>
+              </span>
+            </a>
+            <ul class="dropdown-menu dropdown-menu-end border-0 shadow-lg" aria-labelledby="notificationsDropdown">
+              <li class="dropdown-header fw-semibold">通知</li>
+              <li><a class="dropdown-item d-flex align-items-center" href="#">
+                <div class="me-2">
+                  <span class="badge bg-success">済</span>
+                </div>
+                <div>
+                  <div class="fw-semibold">課題完了</div>
+                  <small class="text-muted">変数とデータ型の課題が評価されました</small>
+                </div>
+              </a></li>
+              <li><a class="dropdown-item d-flex align-items-center" href="#">
+                <div class="me-2">
+                  <span class="badge bg-warning">新</span>
+                </div>
+                <div>
+                  <div class="fw-semibold">新しい課題</div>
+                  <small class="text-muted">条件分岐の課題が追加されました</small>
+                </div>
+              </a></li>
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item text-center text-primary fw-semibold" href="#">全ての通知を見る</a></li>
+            </ul>
+          </li>
+
+          <!-- User Profile -->
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <div class="bg-white rounded-circle d-flex align-items-center justify-content-center me-2" style="width: 32px; height: 32px;">
+                <svg width="16" height="16" fill="var(--bs-primary)" viewBox="0 0 16 16">
+                  <path d="M11 6a3 3 0 1 1-6 0 3 3 0 0 1 6 0z"/>
+                  <path fill-rule="evenodd" d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8zm8-7a7 7 0 0 0-5.468 11.37C3.242 11.226 4.805 10 8 10s4.757 1.225 5.468 2.37A7 7 0 0 0 8 1z"/>
+                </svg>
+              </div>
+              <span class="d-none d-lg-inline">山田太郎</span>
+            </a>
+            <ul class="dropdown-menu dropdown-menu-end border-0 shadow-lg" aria-labelledby="userDropdown">
+              <li class="dropdown-header fw-semibold">生徒: 山田太郎</li>
+              <li><a class="dropdown-item d-flex align-items-center" href="#">
+                <svg class="me-2" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                  <path d="M11 6a3 3 0 1 1-6 0 3 3 0 0 1 6 0z"/>
+                  <path fill-rule="evenodd" d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8zm8-7a7 7 0 0 0-5.468 11.37C3.242 11.226 4.805 10 8 10s4.757 1.225 5.468 2.37A7 7 0 0 0 8 1z"/>
+                </svg>
+                プロフィール
+              </a></li>
+              <li><a class="dropdown-item d-flex align-items-center" href="#">
+                <svg class="me-2" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                  <path d="M8 4.754a3.246 3.246 0 1 0 0 6.492 3.246 3.246 0 0 0 0-6.492zM5.754 8a2.246 2.246 0 1 1 4.492 0 2.246 2.246 0 0 1-4.492 0z"/>
+                  <path d="M9.796 1.343c-.527-1.79-3.065-1.79-3.592 0l-.094.319a.873.873 0 0 1-1.255.52l-.292-.16c-1.64-.892-3.433.902-2.54 2.541l.159.292a.873.873 0 0 1-.52 1.255l-.319.094c-1.79.527-1.79 3.065 0 3.592l.319.094a.873.873 0 0 1 .52 1.255l-.16.292c-.892 1.64.901 3.434 2.541 2.54l.292-.159a.873.873 0 0 1 1.255.52l.094.319c.527 1.79 3.065 1.79 3.592 0l.094-.319a.873.873 0 0 1 1.255-.52l.292.16c1.64.893 3.434-.902 2.54-2.541l-.159-.292a.873.873 0 0 1 .52-1.255l.319-.094c1.79-.527 1.79-3.065 0-3.592l-.319-.094a.873.873 0 0 1-.52-1.255l.16-.292c.893-1.64-.902-3.433-2.541-2.54l-.292.159a.873.873 0 0 1-1.255-.52l-.094-.319zm-2.633.283c.246-.835 1.428-.835 1.674 0l.094.319a1.873 1.873 0 0 0 2.693 1.115l.291-.16c.764-.415 1.6.42 1.184 1.185l-.159.292a1.873 1.873 0 0 0 1.116 2.692l.318.094c.835.246.835 1.428 0 1.674l-.319.094a1.873 1.873 0 0 0-1.115 2.693l.16.291c.415.764-.42 1.6-1.185 1.184l-.291-.159a1.873 1.873 0 0 0-2.693 1.116l-.094.318c-.246.835-1.428.835-1.674 0l-.094-.319a1.873 1.873 0 0 0-2.692-1.115l-.292.16c-.764.415-1.6-.42-1.184-1.185l.159-.291A1.873 1.873 0 0 0 1.945 8.93l-.319-.094c-.835-.246-.835-1.428 0-1.674l.319-.094A1.873 1.873 0 0 0 3.06 4.377l-.16-.292c-.415-.764.42-1.6 1.185-1.184l.292.159a1.873 1.873 0 0 0 2.692-1.115l.094-.319z"/>
+                </svg>
+                設定
+              </a></li>
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item d-flex align-items-center text-danger" href="#">
+                <svg class="me-2" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                  <path fill-rule="evenodd" d="M10 12.5a.5.5 0 0 1-.5.5h-8a.5.5 0 0 1-.5-.5v-9a.5.5 0 0 1 .5-.5h8a.5.5 0 0 1 .5.5v2a.5.5 0 0 0 1 0v-2A1.5 1.5 0 0 0 9.5 2h-8A1.5 1.5 0 0 0 0 3.5v9A1.5 1.5 0 0 0 1.5 14h8a1.5 1.5 0 0 0 1.5-1.5v-2a.5.5 0 0 0-1 0v2z"/>
+                  <path fill-rule="evenodd" d="M15.854 8.354a.5.5 0 0 0 0-.708l-3-3a.5.5 0 0 0-.708 0l-3 3a.5.5 0 0 0 0 .708l3 3a.5.5 0 0 0 .708 0l3-3zM8.646 7l.646.646.646-.646-.646-.646-.646.646z"/>
+                </svg>
+                ログアウト
+              </a></li>
+            </ul>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <main class="py-5">
+    <div class="container">
+
+      <!-- ===================== -->
+      <!-- 1. LOGIN FORM -->
+      <!-- ===================== -->
+      <section class="sample-section mb-5">
+        <h2 class="section-title">ログインフォーム</h2>
+        <div class="row">
+          <div class="col-md-6">
+            <div class="sample-card">
+              <h3 class="card-title">生徒ログイン</h3>
+              <form class="login-form">
+                <div class="mb-3">
+                  <label for="studentId" class="form-label">ID</label>
+                  <input type="text" class="form-control" id="studentId" placeholder="st000" required>
+                </div>
+                <div class="mb-3">
+                  <label for="studentPassword" class="form-label">パスワード</label>
+                  <input type="password" class="form-control" id="studentPassword" placeholder="••••••••" required>
+                </div>
+                <button type="submit" class="btn btn-primary w-100">ログイン</button>
+              </form>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="sample-card">
+              <h3 class="card-title">教師ログイン</h3>
+              <form class="login-form">
+                <div class="mb-3">
+                  <label for="teacherId" class="form-label">ID</label>
+                  <input type="text" class="form-control" id="teacherId" placeholder="t000" required>
+                </div>
+                <div class="mb-3">
+                  <label for="teacherPassword" class="form-label">パスワード</label>
+                  <input type="password" class="form-control" id="teacherPassword" placeholder="••••••••" required>
+                </div>
+                <button type="submit" class="btn btn-success w-100">ログイン</button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================== -->
+      <!-- 2. TASK SELECTION CARDS -->
+      <!-- ===================== -->
+      <section class="sample-section mb-5">
+        <h2 class="section-title">課題選択カード</h2>
+        <div class="row">
+          <div class="col-md-4">
+            <div class="task-card task-card-beginner">
+              <div class="task-level">初級</div>
+              <h4>課題1: 基本的な計算</h4>
+              <p class="task-description">与えられた整数値の合計を計算するプログラムを作成してください。</p>
+              <button class="btn btn-outline-primary btn-sm">選択</button>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="task-card task-card-intermediate">
+              <div class="task-level">中級</div>
+              <h4>課題2: リスト処理</h4>
+              <p class="task-description">与えられたリストから条件を満たす要素を抽出するプログラムを作成してください。</p>
+              <button class="btn btn-outline-warning btn-sm">選択</button>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="task-card task-card-advanced">
+              <div class="task-level">上級</div>
+              <h4>課題3: アルゴリズム実装</h4>
+              <p class="task-description">複雑なアルゴリズムを実装し、大規模データセットを処理するプログラムを作成してください。</p>
+              <button class="btn btn-outline-danger btn-sm">選択</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================== -->
+      <!-- 3. BUTTONS & CONTROLS -->
+      <!-- ===================== -->
+      <section class="sample-section mb-5">
+        <h2 class="section-title">ボタン・操作要素</h2>
+        <div class="row">
+          <div class="col-md-6">
+            <h4>基本ボタン</h4>
+            <div class="button-group mb-3">
+              <button class="btn btn-primary">実行</button>
+              <button class="btn btn-success">保存</button>
+              <button class="btn btn-info">リセット</button>
+              <button class="btn btn-warning">確認</button>
+              <button class="btn btn-danger">削除</button>
+              <button class="btn btn-secondary">キャンセル</button>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <h4>アウトラインボタン</h4>
+            <div class="button-group mb-3">
+              <button class="btn btn-outline-primary">同意する</button>
+              <button class="btn btn-outline-danger">同意しない</button>
+              <button class="btn btn-outline-info">詳細を表示</button>
+              <button class="btn btn-outline-secondary">戻る</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================== -->
+      <!-- 4. EVALUATION CARDS -->
+      <!-- ===================== -->
+      <section class="sample-section mb-5">
+        <h2 class="section-title">評価表示カード</h2>
+        <div class="row">
+          <div class="col-md-6">
+            <div class="evaluation-card">
+              <h4>思考力・判断力・表現力</h4>
+              <div class="evaluation-level">
+                <span class="level-badge level-4">レベル4</span>
+              </div>
+              <p class="evaluation-description">変数管理が効率的に行われています。複数の試行錯誤が確認できます。</p>
+              <div class="star-rating">
+                <span class="star filled">★</span>
+                <span class="star filled">★</span>
+                <span class="star filled">★</span>
+                <span class="star filled">★</span>
+                <span class="star">☆</span>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="evaluation-card">
+              <h4>主体的に学習に取り組む態度</h4>
+              <div class="evaluation-level">
+                <span class="level-badge level-3">レベル3</span>
+              </div>
+              <p class="evaluation-description">継続的な改善努力が見られます。提案された課題に積極的に取り組んでいます。</p>
+              <div class="star-rating">
+                <span class="star filled">★</span>
+                <span class="star filled">★</span>
+                <span class="star filled">★</span>
+                <span class="star">☆</span>
+                <span class="star">☆</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================== -->
+      <!-- 5. CONSENT FORM -->
+      <!-- ===================== -->
+      <section class="sample-section mb-5">
+        <h2 class="section-title">研究協力同意確認</h2>
+        <div class="row">
+          <div class="col-md-8 mx-auto">
+            <div class="consent-card">
+              <h3>研究への参加同意について</h3>
+              <div class="consent-text">
+                <p>このシステムは、プログラミング学習プロセスの可視化と自動評価手法に関する研究で使用されます。</p>
+                <p>本研究では、あなたのプログラミングコードおよび試行錯誤のプロセスについてのデータを収集・分析させていただきます。</p>
+                <p>収集されたデータは完全に匿名化され、あなた個人を特定できない形式で保存・利用されます。</p>
+                <p>この研究への参加は自発的なものであり、いつでも中止できます。</p>
+              </div>
+              <form class="mt-4">
+                <div class="form-check mb-3">
+                  <input type="radio" class="form-check-input" name="consent" id="agreeYes" value="yes" required>
+                  <label class="form-check-label" for="agreeYes">
+                    <strong>同意します。</strong>上記の内容に同意し、研究に参加します。
+                  </label>
+                </div>
+                <div class="form-check mb-4">
+                  <input type="radio" class="form-check-input" name="consent" id="agreeNo" value="no" required>
+                  <label class="form-check-label" for="agreeNo">
+                    <strong>同意しません。</strong>研究への参加を希望しません。
+                  </label>
+                </div>
+                <div class="button-group">
+                  <button type="submit" class="btn btn-primary">確認</button>
+                  <button type="reset" class="btn btn-secondary">リセット</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================== -->
+      <!-- 6. FORM ELEMENTS -->
+      <!-- ===================== -->
+      <section class="sample-section mb-5">
+        <h2 class="section-title">フォーム要素</h2>
+        <div class="row">
+          <div class="col-md-6">
+            <h4>課題作成フォーム</h4>
+            <form class="sample-form">
+              <div class="mb-3">
+                <label for="taskTitle" class="form-label">課題のタイトル</label>
+                <input type="text" class="form-control" id="taskTitle" placeholder="例：基本的な計算">
+              </div>
+              <div class="mb-3">
+                <label for="taskDifficulty" class="form-label">難易度</label>
+                <select class="form-select" id="taskDifficulty" required>
+                  <option value="">-- 選択 --</option>
+                  <option value="beginner">初級</option>
+                  <option value="intermediate">中級</option>
+                  <option value="advanced">上級</option>
+                </select>
+              </div>
+              <div class="mb-3">
+                <label for="taskDescription" class="form-label">課題の説明</label>
+                <textarea class="form-control" id="taskDescription" rows="4" placeholder="課題の詳細を記入してください"></textarea>
+              </div>
+              <button type="submit" class="btn btn-primary">保存</button>
+            </form>
+          </div>
+          <div class="col-md-6">
+            <h4>テストケース入力</h4>
+            <form class="sample-form">
+              <div class="mb-3">
+                <label for="testInput" class="form-label">入力例</label>
+                <input type="text" class="form-control" id="testInput" placeholder="1 2 3">
+              </div>
+              <div class="mb-3">
+                <label for="testOutput" class="form-label">期待される出力</label>
+                <input type="text" class="form-control" id="testOutput" placeholder="6">
+              </div>
+              <div class="mb-3">
+                <label for="testDescription" class="form-label">説明</label>
+                <input type="text" class="form-control" id="testDescription" placeholder="例：正常系">
+              </div>
+              <button type="submit" class="btn btn-success">追加</button>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================== -->
+      <!-- 7. TABLES -->
+      <!-- ===================== -->
+      <section class="sample-section mb-5">
+        <h2 class="section-title">テーブル表示例</h2>
+        
+        <h4>生徒アカウント一覧</h4>
+        <div class="table-responsive mb-4">
+          <table class="table table-striped table-hover">
+            <thead class="table-primary">
+              <tr>
+                <th>生徒ID</th>
+                <th>クラス</th>
+                <th>作成日時</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>st001</td>
+                <td>1年A組</td>
+                <td>2026-02-24 10:30:00</td>
+                <td><button class="btn btn-sm btn-info">詳細</button></td>
+              </tr>
+              <tr>
+                <td>st002</td>
+                <td>1年A組</td>
+                <td>2026-02-24 10:35:00</td>
+                <td><button class="btn btn-sm btn-info">詳細</button></td>
+              </tr>
+              <tr>
+                <td>st003</td>
+                <td>1年B組</td>
+                <td>2026-02-24 10:40:00</td>
+                <td><button class="btn btn-sm btn-info">詳細</button></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h4>学習履歴一覧</h4>
+        <div class="table-responsive mb-4">
+          <table class="table table-striped table-hover">
+            <thead class="table-info">
+              <tr>
+                <th>生徒ID</th>
+                <th>課題名</th>
+                <th>難易度</th>
+                <th>ステータス</th>
+                <th>経過時間</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>st001</td>
+                <td>基本的な計算</td>
+                <td><span class="badge bg-success">初級</span></td>
+                <td><span class="badge bg-primary">実施中</span></td>
+                <td>00:15:30</td>
+              </tr>
+              <tr>
+                <td>st002</td>
+                <td>リスト処理</td>
+                <td><span class="badge bg-warning">中級</span></td>
+                <td><span class="badge bg-success">完了</span></td>
+                <td>00:45:20</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h4>評価一覧</h4>
+        <div class="table-responsive">
+          <table class="table table-striped table-hover">
+            <thead class="table-success">
+              <tr>
+                <th>生徒ID</th>
+                <th>課題名</th>
+                <th>思考力</th>
+                <th>主体性</th>
+                <th>評価日時</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>st001</td>
+                <td>基本的な計算</td>
+                <td><span class="level-badge level-4">4</span></td>
+                <td><span class="level-badge level-3">3</span></td>
+                <td>2026-02-24 11:00:00</td>
+              </tr>
+              <tr>
+                <td>st002</td>
+                <td>リスト処理</td>
+                <td><span class="level-badge level-5">5</span></td>
+                <td><span class="level-badge level-4">4</span></td>
+                <td>2026-02-24 11:05:00</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ===================== -->
+      <!-- 8. SURVEY FORM -->
+      <!-- ===================== -->
+      <section class="sample-section mb-5">
+        <h2 class="section-title">アンケートフォーム</h2>
+        <div class="row">
+          <div class="col-md-8 mx-auto">
+            <form class="survey-form">
+              <div class="mb-4">
+                <h5>システム自己評価</h5>
+                <p>システムの評価に対して、あなたの自己評価をしてください。</p>
+                <div class="form-check">
+                  <input type="radio" class="form-check-input" name="selfEval" id="eval1" value="1" required>
+                  <label class="form-check-label" for="eval1">1: 強く否定する</label>
+                </div>
+                <div class="form-check">
+                  <input type="radio" class="form-check-input" name="selfEval" id="eval2" value="2">
+                  <label class="form-check-label" for="eval2">2: 否定する</label>
+                </div>
+                <div class="form-check">
+                  <input type="radio" class="form-check-input" name="selfEval" id="eval3" value="3">
+                  <label class="form-check-label" for="eval3">3: どちらでもない</label>
+                </div>
+                <div class="form-check">
+                  <input type="radio" class="form-check-input" name="selfEval" id="eval4" value="4">
+                  <label class="form-check-label" for="eval4">4: 肯定する</label>
+                </div>
+                <div class="form-check">
+                  <input type="radio" class="form-check-input" name="selfEval" id="eval5" value="5">
+                  <label class="form-check-label" for="eval5">5: 強く肯定する</label>
+                </div>
+              </div>
+
+              <div class="mb-4">
+                <label for="reason" class="form-label">理由（記述）</label>
+                <textarea class="form-control" id="reason" rows="3" placeholder="あなたの評価の理由を記入してください"></textarea>
+              </div>
+
+              <div class="mb-4">
+                <h5>試行錯誤プロセス評価に対する意識</h5>
+                <p>システムが試行錯誤のプロセスを評価することについて、あなたの考えをお聞かせください。</p>
+                <div class="form-check">
+                  <input type="radio" class="form-check-input" name="processEval" id="process1" value="1" required>
+                  <label class="form-check-label" for="process1">1: 強く否定する</label>
+                </div>
+                <div class="form-check">
+                  <input type="radio" class="form-check-input" name="processEval" id="process2" value="2">
+                  <label class="form-check-label" for="process2">2: 否定する</label>
+                </div>
+                <div class="form-check">
+                  <input type="radio" class="form-check-input" name="processEval" id="process3" value="3">
+                  <label class="form-check-label" for="process3">3: どちらでもない</label>
+                </div>
+                <div class="form-check">
+                  <input type="radio" class="form-check-input" name="processEval" id="process4" value="4">
+                  <label class="form-check-label" for="process4">4: 肯定する</label>
+                </div>
+                <div class="form-check">
+                  <input type="radio" class="form-check-input" name="processEval" id="process5" value="5">
+                  <label class="form-check-label" for="process5">5: 強く肯定する</label>
+                </div>
+              </div>
+
+              <div class="mb-4">
+                <h5>システム操作性評価</h5>
+                <p>エディターなどシステム全体の操作性について、5段階で評価してください。</p>
+                <div class="form-check">
+                  <input type="radio" class="form-check-input" name="usability" id="usab1" value="1" required>
+                  <label class="form-check-label" for="usab1">1: 非常に使いにくい</label>
+                </div>
+                <div class="form-check">
+                  <input type="radio" class="form-check-input" name="usability" id="usab2" value="2">
+                  <label class="form-check-label" for="usab2">2: やや使いにくい</label>
+                </div>
+                <div class="form-check">
+                  <input type="radio" class="form-check-input" name="usability" id="usab3" value="3">
+                  <label class="form-check-label" for="usab3">3: どちらでもない</label>
+                </div>
+                <div class="form-check">
+                  <input type="radio" class="form-check-input" name="usability" id="usab4" value="4">
+                  <label class="form-check-label" for="usab4">4: やや使いやすい</label>
+                </div>
+                <div class="form-check">
+                  <input type="radio" class="form-check-input" name="usability" id="usab5" value="5">
+                  <label class="form-check-label" for="usab5">5: 非常に使いやすい</label>
+                </div>
+              </div>
+
+              <div class="mb-4">
+                <label for="feedback" class="form-label">改善すべき点（記述）</label>
+                <textarea class="form-control" id="feedback" rows="3" placeholder="システムの改善点やご意見をお聞きします"></textarea>
+              </div>
+
+              <div>
+                <button type="submit" class="btn btn-primary">送信</button>
+                <button type="reset" class="btn btn-secondary">リセット</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================== -->
+      <!-- 9. ALERTS & BADGES -->
+      <!-- ===================== -->
+      <section class="sample-section mb-5">
+        <h2 class="section-title">アラートとバッジ</h2>
+        <div class="row">
+          <div class="col-md-6">
+            <h4>アラート</h4>
+            <div class="alert alert-info" role="alert">
+              <strong>情報：</strong> コードが正常に実行されました。
+            </div>
+            <div class="alert alert-success" role="alert">
+              <strong>成功：</strong> 変更が保存されました。
+            </div>
+            <div class="alert alert-warning" role="alert">
+              <strong>警告：</strong> 無限ループの可能性があります。
+            </div>
+            <div class="alert alert-danger" role="alert">
+              <strong>エラー：</strong> コード実行中にエラーが発生しました。
+            </div>
+          </div>
+          <div class="col-md-6">
+            <h4>バッジ</h4>
+            <p>
+              <span class="badge bg-success">初級</span>
+              <span class="badge bg-warning">中級</span>
+              <span class="badge bg-danger">上級</span>
+              <span class="badge bg-primary">実施中</span>
+              <span class="badge bg-secondary">完了</span>
+            </p>
+            <h4 class="mt-4">レベルバッジ</h4>
+            <p>
+              <span class="level-badge level-1">レベル1</span>
+              <span class="level-badge level-2">レベル2</span>
+              <span class="level-badge level-3">レベル3</span>
+              <span class="level-badge level-4">レベル4</span>
+              <span class="level-badge level-5">レベル5</span>
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================== -->
+      <!-- 10. MODAL EXAMPLE -->
+      <!-- ===================== -->
+      <section class="sample-section mb-5">
+        <h2 class="section-title">モーダル例</h2>
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#exampleModal">
+          ルーブリック表示
+        </button>
+        <button type="button" class="btn btn-info" data-bs-toggle="modal" data-bs-target="#confirmModal">
+          確認ダイアログ
+        </button>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- ===================== -->
+  <!-- MODALS -->
+  <!-- ===================== -->
+  <!-- Rubric Modal -->
+  <div class="modal fade" id="exampleModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header bg-primary text-white">
+          <h5 class="modal-title">ルーブリック</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <h6>思考力・判断力・表現力</h6>
+          <table class="table table-bordered table-sm">
+            <thead class="table-light">
+              <tr>
+                <th>レベル</th>
+                <th>説明</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><span class="level-badge level-1">1</span></td>
+                <td>要件の理解が不足しており、基本的な実装ができていない</td>
+              </tr>
+              <tr>
+                <td><span class="level-badge level-2">2</span></td>
+                <td>基本的な実装はできているが、不完全な部分がある</td>
+              </tr>
+              <tr>
+                <td><span class="level-badge level-3">3</span></td>
+                <td>要件を理解し、ほぼ正確に実装できている</td>
+              </tr>
+              <tr>
+                <td><span class="level-badge level-4">4</span></td>
+                <td>効率的な実装ができており、試行錯誇が見られる</td>
+              </tr>
+              <tr>
+                <td><span class="level-badge level-5">5</span></td>
+                <td>優れた解決策を実装的であり、高度な思考が示されている</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">閉じる</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Confirm Modal -->
+  <div class="modal fade" id="confirmModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header bg-warning text-dark">
+          <h5 class="modal-title">確認</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p>本当に削除してもよろしいですか？この操作は取り消せません。</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+          <button type="button" class="btn btn-danger">削除する</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== -->
+  <!-- FOOTER -->
+  <!-- ===================== -->
+  <footer class="bg-light py-4 mt-5 border-top">
+    <div class="container text-center">
+      <p class="text-muted mb-0">&copy; 2026 Takumi Toida. All rights reserved.</p>
+    </div>
+  </footer>
+
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" 
+    integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" 
+    crossorigin="anonymous"></script>
+</body>
