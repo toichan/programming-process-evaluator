@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Programming Process Evaluator - エディター</title>
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet"
+    integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB"
+    crossorigin="anonymous">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+  <link href="../../../css/template/template.css" rel="stylesheet">
+  <link href="../../../css/student/editor/editor.css" rel="stylesheet">
+</head>
+<body>
+  <div id="header-placeholder"></div>
+
+  <main class="py-5">
+    <div class="container">
+      <section class="sample-section editor-hero mb-4">
+        <div>
+          <span class="editor-kicker">Student Editor</span>
+          <h1 class="section-title mb-3">Pythonエディター</h1>
+          <p class="editor-description mb-0">コードの編集、保存、実行結果の確認、課題情報の参照を1つの画面で行う想定のプロトタイプです。</p>
+        </div>
+        <div class="editor-hero-status">
+          <div class="status-chip"><span class="status-dot"></span> 自動保存 30秒間隔</div>
+          <div class="status-note">最終保存: <span id="lastSavedAt">未保存</span></div>
+        </div>
+      </section>
+
+      <div class="row g-4 align-items-start">
+        <div class="col-xl-8">
+          <section class="sample-section editor-workspace-section">
+            <div class="editor-toolbar">
+              <div class="toolbar-left">
+                <span class="task-badge">課題: じゃんけん判定プログラム</span>
+                <span class="language-badge">Python 3.x</span>
+              </div>
+              <div class="button-group">
+                <button id="saveButton" class="btn btn-secondary" type="button">保存</button>
+                <button id="runButton" class="btn btn-primary" type="button">実行</button>
+              </div>
+            </div>
+
+            <div class="editor-shell">
+              <div class="editor-gutter" aria-hidden="true">
+                <span>1</span>
+                <span>2</span>
+                <span>3</span>
+                <span>4</span>
+                <span>5</span>
+                <span>6</span>
+                <span>7</span>
+                <span>8</span>
+                <span>9</span>
+                <span>10</span>
+                <span>11</span>
+                <span>12</span>
+              </div>
+              <textarea id="codeEditor" class="editor-textarea" spellcheck="false">player = input("あなたの手を入力してください: ")
+computer = "グー"
+
+if player == computer:
+    print("あいこ")
+elif player == "パー":
+    print("あなたの勝ち")
+elif player == "チョキ":
+    print("あなたの負け")
+else:
+    print("グー・チョキ・パーを入力してください")</textarea>
+            </div>
+
+            <div class="editor-status-row">
+              <div id="editorMessage" class="editor-message">編集中です。保存するとコードログに反映されます。</div>
+              <div class="editor-meta">手動保存と自動保存の両方を想定</div>
+            </div>
+          </section>
+
+          <section class="sample-section output-section mt-4">
+            <div class="section-header-row">
+              <div>
+                <h2 class="card-title mb-2">実行結果</h2>
+                <p class="text-muted mb-0">標準出力とエラーメッセージをここに表示します。</p>
+              </div>
+              <span class="console-badge">Console</span>
+            </div>
+            <pre id="outputConsole" class="output-console">実行待ちです。「実行」ボタンを押すと結果を表示します。</pre>
+          </section>
+
+          <section class="sample-section log-section mt-4">
+            <div class="section-header-row">
+              <div>
+                <h2 class="card-title mb-2">コードログ</h2>
+                <p class="text-muted mb-0">30秒ごとの自動保存と手動保存の履歴を時系列に表示する想定です。</p>
+              </div>
+              <span class="timeline-badge">Timeline</span>
+            </div>
+            <div id="codeLogList" class="code-log-list">
+              <article class="code-log-item">
+                <div class="log-time">10:05:00</div>
+                <div class="log-body">
+                  <div class="log-title">自動保存</div>
+                  <p class="log-text mb-0">初期コードを保存しました。</p>
+                </div>
+              </article>
+              <article class="code-log-item">
+                <div class="log-time">10:05:30</div>
+                <div class="log-body">
+                  <div class="log-title">実行結果記録</div>
+                  <p class="log-text mb-0">出力メッセージをログに紐付ける想定です。</p>
+                </div>
+              </article>
+            </div>
+          </section>
+        </div>
+
+        <div class="col-xl-4">
+          <section class="sample-section side-panel-section sticky-xl-top">
+            <div class="section-header-row mb-3">
+              <div>
+                <h2 class="card-title mb-2">課題情報</h2>
+                <p class="text-muted mb-0">課題・ルーブリック・ヒントを切り替えて参照します。</p>
+              </div>
+            </div>
+
+            <div class="nav nav-pills info-tabs" role="tablist" aria-label="editor side tabs">
+              <button class="nav-link active" type="button" data-panel-target="taskPanel">課題</button>
+              <button class="nav-link" type="button" data-panel-target="rubricPanel">ルーブリック</button>
+              <button class="nav-link" type="button" data-panel-target="hintPanel">ヒント</button>
+            </div>
+
+            <div class="info-panels mt-4">
+              <div id="taskPanel" class="info-panel is-active">
+                <h3>じゃんけん判定プログラム</h3>
+                <p>ユーザーの入力に応じて、勝敗または入力エラーを表示するプログラムを作成します。</p>
+                <div class="info-block">
+                  <div class="info-label">実装する機能</div>
+                  <ul>
+                    <li>入力値を受け取る</li>
+                    <li>条件分岐で勝敗を判定する</li>
+                    <li>不正な入力時に案内を表示する</li>
+                  </ul>
+                </div>
+                <div class="info-block">
+                  <div class="info-label">入力制限</div>
+                  <p class="mb-0">入力は「グー」「チョキ」「パー」のいずれかを想定します。</p>
+                </div>
+                <div class="info-block">
+                  <div class="info-label">想定入出力</div>
+                  <div class="case-card">
+                    <strong>入力:</strong> パー<br>
+                    <strong>出力:</strong> あなたの勝ち
+                  </div>
+                  <div class="case-card">
+                    <strong>入力:</strong> ぐー<br>
+                    <strong>出力:</strong> グー・チョキ・パーを入力してください
+                  </div>
+                </div>
+              </div>
+
+              <div id="rubricPanel" class="info-panel">
+                <h3>ルーブリック</h3>
+                <div class="rubric-card">
+                  <div class="info-label">思考力・判断力・表現力</div>
+                  <p class="mb-2">条件分岐の組み立て方や、入力に応じた適切な出力ができているかを評価します。</p>
+                  <ul>
+                    <li>レベル5: 条件設計が明確で、例外入力にも対応できている</li>
+                    <li>レベル3: 基本的な勝敗判定が実装できている</li>
+                    <li>レベル1: 判定条件が不足している</li>
+                  </ul>
+                </div>
+                <div class="rubric-card">
+                  <div class="info-label">主体的に学習に取り組む態度</div>
+                  <p class="mb-2">保存・実行・試行錯誤を通して、改善を継続しているかを確認します。</p>
+                  <ul>
+                    <li>レベル5: ログから複数の改善過程が確認できる</li>
+                    <li>レベル3: 実行と修正を繰り返している</li>
+                    <li>レベル1: 試行回数が少なく改善が見えにくい</li>
+                  </ul>
+                </div>
+              </div>
+
+              <div id="hintPanel" class="info-panel">
+                <h3>Pythonコマンド仕様</h3>
+                <div class="hint-card">
+                  <div class="info-label">input()</div>
+                  <p>文字列を受け取るための関数です。</p>
+                  <pre>player = input("手を入力してください: ")</pre>
+                </div>
+                <div class="hint-card">
+                  <div class="info-label">if / elif / else</div>
+                  <p>条件によって処理を分岐する構文です。</p>
+                  <pre>if player == "グー":
+    print("..." )
+elif player == "パー":
+    print("..." )
+else:
+    print("..." )</pre>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <div id="footer-placeholder"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"
+    integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI"
+    crossorigin="anonymous"></script>
+  <script src="../../../js/template/components.js"></script>
+  <script src="../../../js/student/editor/editor.js"></script>
+</body>
+</html>
