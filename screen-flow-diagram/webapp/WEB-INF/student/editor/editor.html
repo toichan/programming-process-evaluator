@@ -17,6 +17,21 @@
 
   <main class="py-5">
     <div class="container">
+      <section class="sample-section editor-hero-section mb-4">
+        <div class="hero-copy">
+          <span class="hero-kicker">Student Editor</span>
+          <h1 class="section-title mb-3">エディター</h1>
+          <p class="hero-description mb-0">
+            課題を確認し、コードを記述してください。ルーブリックやヒントも適宜確認してください。
+          </p>
+        </div>
+        <div class="hero-status-card">
+          <div class="status-label">現在の状況</div>
+          <div class="status-value">編集中</div>
+          <div class="status-meta">保存・実行・コードログの確認を行いながら、課題を編集中です。</div>
+        </div>
+      </section>
+
       <div class="row g-4 align-items-start">
         <div class="col-xl-8">
           <section class="sample-section editor-workspace-section">
@@ -28,6 +43,7 @@
               <div class="button-group">
                 <button id="saveButton" class="btn btn-secondary" type="button">保存</button>
                 <button id="runButton" class="btn btn-primary" type="button">実行</button>
+                <button id="submitButton" class="btn btn-success" type="button">提出する</button>
               </div>
             </div>
 
@@ -86,10 +102,17 @@ else:
               </div>
               <div class="log-header-actions">
                 <span class="timeline-badge">Timeline</span>
-                <button id="toggleLogButton" class="btn btn-outline-secondary btn-sm" type="button" aria-expanded="true" aria-controls="codeLogContent">折りたたむ</button>
+                <button
+                  id="toggleLogButton"
+                  class="btn btn-outline-secondary btn-sm log-toggle-button"
+                  type="button"
+                  data-bs-toggle="collapse"
+                  data-bs-target="#codeLogContent"
+                  aria-expanded="true"
+                  aria-controls="codeLogContent">折りたたむ</button>
               </div>
             </div>
-            <div id="codeLogContent" class="log-content">
+            <div id="codeLogContent" class="log-content collapse show">
               <div id="codeLogList" class="code-log-list">
                 <article class="code-log-item">
                   <div class="log-time">10:05:00</div>
@@ -156,23 +179,105 @@ else:
 
               <div id="rubricPanel" class="info-panel">
                 <h3>ルーブリック</h3>
-                <div class="rubric-card">
-                  <div class="info-label">思考力・判断力・表現力</div>
-                  <p class="mb-2">条件分岐の組み立て方や、入力に応じた適切な出力ができているかを評価します。</p>
-                  <ul>
-                    <li>レベル5: 条件設計が明確で、例外入力にも対応できている</li>
-                    <li>レベル3: 基本的な勝敗判定が実装できている</li>
-                    <li>レベル1: 判定条件が不足している</li>
-                  </ul>
+                <div class="rubric-switcher" role="tablist" aria-label="editor rubric switcher">
+                  <button class="rubric-tab is-active" type="button" data-rubric-target="editorThinkingRubric">思考・判断・表現</button>
+                  <button class="rubric-tab" type="button" data-rubric-target="editorAttitudeRubric">態度</button>
                 </div>
-                <div class="rubric-card">
-                  <div class="info-label">主体的に学習に取り組む態度</div>
-                  <p class="mb-2">保存・実行・試行錯誤を通して、改善を継続しているかを確認します。</p>
-                  <ul>
-                    <li>レベル5: ログから複数の改善過程が確認できる</li>
-                    <li>レベル3: 実行と修正を繰り返している</li>
-                    <li>レベル1: 試行回数が少なく改善が見えにくい</li>
-                  </ul>
+
+                <div class="rubric-panels mt-4">
+                  <div id="editorThinkingRubric" class="rubric-panel is-active">
+                    <div class="rubric-table-wrapper">
+                      <table class="rubric-table">
+                        <thead>
+                          <tr>
+                            <th>レベル</th>
+                            <th>文法デバッグ能力</th>
+                            <th>論理デバッグ能力</th>
+                            <th>アルゴリズムの設計と実装</th>
+                            <th>コードの可読性</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr>
+                            <th>5</th>
+                            <td>エラーメッセージを適切かつ正確に解釈できる。文法エラーを迅速に解決できる。</td>
+                            <td>効果的なテストを実施し、論理エラー箇所を解決する。論理エラーを迅速・正確に特定し、冗長性を含まずにコードを実装できる。</td>
+                            <td>課題のアルゴリズムを完全に設計し、効率性・正確性の高い解法を編み出せる。課題の特性に合わせてデータ構造を設計・実装できる。</td>
+                            <td>厳格な命名規則により変数・関数が命名されている。インデント・スペース・改行の入れ方が一貫しており読みやすい。</td>
+                          </tr>
+                          <tr>
+                            <th>4</th>
+                            <td>エラーメッセージを適切に解釈できる。文法エラーを解決するのに時間がかかる。</td>
+                            <td>効果的なテストを実施し、論理エラー箇所を探り当てる。修正が速く、方法も適切。</td>
+                            <td>課題のアルゴリズムを主要な構成要素を過不足なく設計し、解法を編み出せる。適切なデータ構造を選択し、実装できる。</td>
+                            <td>明確な命名規則により変数・関数が命名されている。インデント・スペース・改行の入れ方に一部ばらつきはあるが、全体として整っており読みやすい。</td>
+                          </tr>
+                          <tr>
+                            <th>3</th>
+                            <td>エラーメッセージの読み取りに時間がかかる。文法エラーを時間はかかるが解決できる。</td>
+                            <td>テストケースにより論理エラーを把握できる。修正に多少の時間を要する場合がある。</td>
+                            <td>課題のアルゴリズムを設計し、正しく実装できる。基本的なデータ構造の使用はできる。</td>
+                            <td>命名規則に一部改善の余地があるが、理解は可能。インデント・スペース・改行に軽微な乱れが見られるが、全体として読みやすさは維持されている。</td>
+                          </tr>
+                          <tr>
+                            <th>2</th>
+                            <td>エラーメッセージの解釈に苦労する。文法エラーを解決する過程で試行錯誤が多い。</td>
+                            <td>論理エラーの原因特定に試行錯誤が多く、非効率的。修正が部分的にしか行えないこともある。</td>
+                            <td>部分的な設計にとどまり、実装が不十分または非効率。データ構造の基本的な使い分けができていない。</td>
+                            <td>命名規則が統一されておらず可読性が低い。インデント・スペース・改行が不十分でわかりにくい部分が多い。</td>
+                          </tr>
+                          <tr>
+                            <th>1</th>
+                            <td>文法エラーを解決できていない。</td>
+                            <td>論理エラーを特定できないため、修正できない。</td>
+                            <td>課題に沿わない実装をしている。データ構造の選択が不適切で非効率。</td>
+                            <td>命名規則の一貫性がなく理解困難。インデント・スペース・改行がほぼ無く可読性が著しく低い。</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  <div id="editorAttitudeRubric" class="rubric-panel">
+                    <div class="rubric-table-wrapper">
+                      <table class="rubric-table rubric-table-attitude">
+                        <thead>
+                          <tr>
+                            <th>レベル</th>
+                            <th>課題への粘り強さ</th>
+                            <th>課題解決への意欲</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr>
+                            <th>5</th>
+                            <td>自力で多くの実行を繰り返しながら課題に取り組み、困難な問題も最後まで諦めずに解決しようと努力している。解決策を複数検討し、効果的なものを選択しようとしている。</td>
+                            <td>エラーメッセージや実行結果を分析し、問題の本質を理解しようと努めている。効率性や可読性を高めるためのコードの改善を積極的に行っている。</td>
+                          </tr>
+                          <tr>
+                            <th>4</th>
+                            <td>自力で課題に粘り強く取り組み、困難な問題も解決に向けて努力している。解決策をいくつか検討し、より良いものを選択しようとしている。</td>
+                            <td>エラーメッセージや実行結果を分析し、問題の理解に努めている。コードの改善への工夫が見られる。</td>
+                          </tr>
+                          <tr>
+                            <th>3</th>
+                            <td>指示された課題に自力で取り組み、問題解決に向けて努力している。問題解決のために、いくつかの解決策を検討している。</td>
+                            <td>エラーメッセージや実行結果から、問題点を把握しようとしている。コードの改善が見られる。</td>
+                          </tr>
+                          <tr>
+                            <th>2</th>
+                            <td>課題に自力で取り組むものの、途中で諦めてしまうことが多い。解決策を検討するものの、表面的な修正にとどまっている。</td>
+                            <td>エラーメッセージを正しく理解できてない。コードの改善に取り組んでいる。</td>
+                          </tr>
+                          <tr>
+                            <th>1</th>
+                            <td>課題にほとんど取り組もうとしない。解決策を検討せず、安易に人に聞いたり、答えを写したりする。</td>
+                            <td>エラーメッセージを無視する、または意味を理解しようとしない。コードの改善がほとんど見られない。</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
                 </div>
               </div>
 

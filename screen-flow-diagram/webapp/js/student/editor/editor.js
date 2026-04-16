@@ -7,11 +7,11 @@ window.addEventListener('DOMContentLoaded', () => {
   const editorMessage = document.querySelector('#editorMessage');
   const lastSavedAt = document.querySelector('#lastSavedAt');
   const codeLogList = document.querySelector('#codeLogList');
-  const codeLogContent = document.querySelector('#codeLogContent');
-  const toggleLogButton = document.querySelector('#toggleLogButton');
   const saveButton = document.querySelector('#saveButton');
   const runButton = document.querySelector('#runButton');
+  const submitButton = document.querySelector('#submitButton');
   const infoTabs = document.querySelectorAll('[data-panel-target]');
+  const rubricTabs = document.querySelectorAll('[data-rubric-target]');
 
   if (headerPlaceholder && header) {
     headerPlaceholder.innerHTML = header;
@@ -46,16 +46,6 @@ window.addEventListener('DOMContentLoaded', () => {
     codeLogList.prepend(item);
   }
 
-  function setLogCollapsed(collapsed) {
-    if (!codeLogContent || !toggleLogButton) {
-      return;
-    }
-
-    codeLogContent.classList.toggle('is-collapsed', collapsed);
-    toggleLogButton.setAttribute('aria-expanded', String(!collapsed));
-    toggleLogButton.textContent = collapsed ? '展開する' : '折りたたむ';
-  }
-
   function markSaved(prefix) {
     const time = nowTimeLabel();
     if (lastSavedAt) {
@@ -88,10 +78,15 @@ window.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  if (toggleLogButton) {
-    toggleLogButton.addEventListener('click', () => {
-      const collapsed = toggleLogButton.getAttribute('aria-expanded') === 'true';
-      setLogCollapsed(collapsed);
+  if (submitButton) {
+    submitButton.addEventListener('click', () => {
+      const confirmed = window.confirm('提出して評価を行います。よろしいですか？');
+
+      if (!confirmed) {
+        return;
+      }
+
+      window.location.href = '../evaluation/evaluation.html';
     });
   }
 
@@ -101,6 +96,16 @@ window.addEventListener('DOMContentLoaded', () => {
       infoTabs.forEach((button) => button.classList.remove('active'));
       document.querySelectorAll('.info-panel').forEach((panel) => panel.classList.remove('is-active'));
       tab.classList.add('active');
+      document.getElementById(targetId)?.classList.add('is-active');
+    });
+  });
+
+  rubricTabs.forEach((tab) => {
+    tab.addEventListener('click', () => {
+      const targetId = tab.getAttribute('data-rubric-target');
+      rubricTabs.forEach((button) => button.classList.remove('is-active'));
+      document.querySelectorAll('#rubricPanel .rubric-panel').forEach((panel) => panel.classList.remove('is-active'));
+      tab.classList.add('is-active');
       document.getElementById(targetId)?.classList.add('is-active');
     });
   });
