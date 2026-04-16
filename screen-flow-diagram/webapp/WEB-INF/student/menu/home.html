@@ -20,15 +20,15 @@
       <section class="sample-section hero-section mb-4">
         <div class="hero-copy">
           <span class="hero-kicker">Student Home</span>
-          <h1 class="section-title mb-3">課題ホーム</h1>
+          <h1 class="section-title mb-3">課題一覧</h1>
           <p class="hero-description mb-0">
-            取り組み中またはこれから挑戦する課題を一覧で確認できます。各課題ごとに、編集、評価、アンケートの画面へ進めます。
+            レベルを選択して課題に取り組んでください。初級から順番に進める必要はありません。
           </p>
         </div>
         <div class="hero-status-card">
           <div class="status-label">現在の状況</div>
-          <div class="status-value">仮データで表示中</div>
-          <div class="status-meta">課題内容が確定したらここを実データに置き換えます。</div>
+          <div class="status-value">1/3 完了</div>
+          <div class="status-meta">3つの課題のうち、1つが提出済みです。</div>
         </div>
       </section>
 
@@ -52,20 +52,33 @@
                 <div class="task-id">TASK-001</div>
               </div>
               <p class="task-description">ユーザーの入力に応じて、勝敗結果を表示する条件分岐の基本課題です。</p>
-              <div class="task-meta-grid">
-                <div>
+              <div class="task-content-grid">
+                <div class="task-main-column">
                   <span class="meta-label">学習テーマ</span>
                   <span class="meta-value">条件分岐 / 入力処理</span>
+                  <div class="button-group task-button-group">
+                    <a class="btn btn-primary task-action-btn" href="../editor/editor.html">課題に取り組む</a>
+                    <a class="btn btn-success" href="../evaluation/evaluation.html">評価</a>
+                    <a class="btn btn-info" href="../survey/survey.html">アンケート</a>
+                  </div>
                 </div>
-                <div>
+                <div class="task-status-column">
                   <span class="meta-label">状態</span>
-                  <span class="meta-value">未着手</span>
+                  <div class="task-status-list">
+                    <div class="task-status-item">
+                      <span class="task-status-name">課題</span>
+                      <span class="task-status-badge status-unstarted">未着手</span>
+                    </div>
+                    <div class="task-status-item">
+                      <span class="task-status-name">評価</span>
+                      <span class="task-status-badge status-unrated">思: 未/5　態: 未/5</span>
+                    </div>
+                    <div class="task-status-item">
+                      <span class="task-status-name">アンケート</span>
+                      <span class="task-status-badge status-pending">未回答</span>
+                    </div>
+                  </div>
                 </div>
-              </div>
-              <div class="button-group mt-4">
-                <a class="btn btn-primary" href="../editor/editor.html">編集</a>
-                <a class="btn btn-success" href="#">評価</a>
-                <a class="btn btn-info" href="#">アンケート</a>
               </div>
             </article>
           </div>
@@ -80,20 +93,33 @@
                 <div class="task-id">TASK-002</div>
               </div>
               <p class="task-description">複数の入力値を受け取り、合計点と平均点を算出する繰り返し処理の練習課題です。</p>
-              <div class="task-meta-grid">
-                <div>
+              <div class="task-content-grid">
+                <div class="task-main-column">
                   <span class="meta-label">学習テーマ</span>
                   <span class="meta-value">反復処理 / リスト</span>
+                  <div class="button-group task-button-group">
+                    <a class="btn btn-primary task-action-btn" href="../editor/editor.html">課題に取り組む</a>
+                    <a class="btn btn-success" href="../evaluation/evaluation.html">評価</a>
+                    <a class="btn btn-info" href="../survey/survey.html">アンケート</a>
+                  </div>
                 </div>
-                <div>
+                <div class="task-status-column">
                   <span class="meta-label">状態</span>
-                  <span class="meta-value">作業中</span>
+                  <div class="task-status-list">
+                    <div class="task-status-item">
+                      <span class="task-status-name">課題</span>
+                      <span class="task-status-badge status-editing">編集中</span>
+                    </div>
+                    <div class="task-status-item">
+                      <span class="task-status-name">評価</span>
+                      <span class="task-status-badge status-rated">思: 3/5　態: 2/5</span>
+                    </div>
+                    <div class="task-status-item">
+                      <span class="task-status-name">アンケート</span>
+                      <span class="task-status-badge status-pending">未回答</span>
+                    </div>
+                  </div>
                 </div>
-              </div>
-              <div class="button-group mt-4">
-                <a class="btn btn-primary" href="../editor/editor.html">編集</a>
-                <a class="btn btn-success" href="#">評価</a>
-                <a class="btn btn-info" href="#">アンケート</a>
               </div>
             </article>
           </div>
@@ -108,20 +134,33 @@
                 <div class="task-id">TASK-003</div>
               </div>
               <p class="task-description">売上データを集計し、条件ごとに分析結果を出力する総合的なデータ処理課題です。</p>
-              <div class="task-meta-grid">
-                <div>
+              <div class="task-content-grid">
+                <div class="task-main-column">
                   <span class="meta-label">学習テーマ</span>
                   <span class="meta-value">関数 / 集計 / 出力整形</span>
+                  <div class="button-group task-button-group">
+                    <a class="btn btn-primary task-action-btn" href="../editor/editor.html">課題に取り組む</a>
+                    <a class="btn btn-success" href="../evaluation/evaluation.html">評価</a>
+                    <a class="btn btn-info" href="../survey/survey.html">アンケート</a>
+                  </div>
                 </div>
-                <div>
+                <div class="task-status-column">
                   <span class="meta-label">状態</span>
-                  <span class="meta-value">評価待ち</span>
+                  <div class="task-status-list">
+                    <div class="task-status-item">
+                      <span class="task-status-name">課題</span>
+                      <span class="task-status-badge status-submitted">提出済み</span>
+                    </div>
+                    <div class="task-status-item">
+                      <span class="task-status-name">評価</span>
+                      <span class="task-status-badge status-rated">思: 4/5　態: 5/5</span>
+                    </div>
+                    <div class="task-status-item">
+                      <span class="task-status-name">アンケート</span>
+                      <span class="task-status-badge status-completed">回答済み</span>
+                    </div>
+                  </div>
                 </div>
-              </div>
-              <div class="button-group mt-4">
-                <a class="btn btn-primary" href="../editor/editor.html">編集</a>
-                <a class="btn btn-success" href="#">評価</a>
-                <a class="btn btn-info" href="#">アンケート</a>
               </div>
             </article>
           </div>

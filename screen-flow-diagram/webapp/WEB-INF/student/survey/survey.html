@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Programming Process Evaluator - アンケート</title>
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet"
+    integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB"
+    crossorigin="anonymous">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+  <link href="../../../css/template/template.css" rel="stylesheet">
+  <link href="../../../css/student/survey/survey.css" rel="stylesheet">
+</head>
+<body>
+  <div id="header-placeholder"></div>
+
+  <main class="py-5">
+    <div class="container">
+      <section class="sample-section survey-hero mb-4">
+        <div class="hero-copy">
+          <span class="hero-kicker">Student Survey</span>
+          <h1 class="section-title mb-3">アンケート</h1>
+          <p class="hero-description mb-0">
+            システムが出した評価を見ながら、自分の学習を振り返って回答してください。必須項目はすべて回答すると送信できる想定です。
+          </p>
+        </div>
+
+        <div class="hero-meta-card">
+          <div class="meta-label">対象課題</div>
+          <div class="meta-value">じゃんけん判定プログラム</div>
+          <div class="meta-subtext">TASK-001 / 初級 / 研究協力同意済み</div>
+          <div class="hero-meta-note">回答対象: システム評価を確認した生徒のみ</div>
+        </div>
+      </section>
+
+      <div class="row g-4 align-items-start">
+        <div class="col-xl-8">
+          <section class="sample-section system-evaluation-section mb-4">
+            <div class="section-heading-row">
+              <div>
+                <h2 class="card-title mb-2">システムが出した評価</h2>
+                <p class="text-muted mb-0">この内容を見たうえで、次の設問に回答してください。</p>
+              </div>
+              <span class="summary-pill">評価提示</span>
+            </div>
+
+            <div class="evaluation-summary-grid">
+              <article class="summary-card thinking-card">
+                <div class="summary-card-header">
+                  <span class="summary-label">思考力・判断力・表現力</span>
+                  <strong class="summary-score">4 / 5</strong>
+                </div>
+                <p class="mb-0">文法・論理の修正を重ねながら、正しい出力まで到達できています。</p>
+              </article>
+              <article class="summary-card attitude-card">
+                <div class="summary-card-header">
+                  <span class="summary-label">主体的に学習に取り組む態度</span>
+                  <strong class="summary-score">4 / 5</strong>
+                </div>
+                <p class="mb-0">保存・実行・修正を複数回行い、改善を継続できています。</p>
+              </article>
+            </div>
+
+            <div class="row g-4 mt-1">
+              <div class="col-lg-7">
+                <article class="detail-card">
+                  <h3 class="detail-title">システムコメント</h3>
+                  <ul class="detail-list mb-0">
+                    <li>if 文の構文エラーを自力で修正し、正常実行まで到達している</li>
+                    <li>条件分岐の誤りを複数回の実行で見直し、論理エラーを解消している</li>
+                    <li>保存と実行を繰り返し、課題を最後まで改善している</li>
+                  </ul>
+                </article>
+              </div>
+              <div class="col-lg-5">
+                <article class="detail-card">
+                  <h3 class="detail-title">ログ要約</h3>
+                  <div class="log-snippet-list">
+                    <div class="log-snippet">
+                      <div class="log-time">10:06</div>
+                      <p class="mb-0">構文エラー発生: if 文のコロン抜け</p>
+                    </div>
+                    <div class="log-snippet">
+                      <div class="log-time">10:11</div>
+                      <p class="mb-0">条件分岐を修正し、勝敗判定が改善</p>
+                    </div>
+                    <div class="log-snippet">
+                      <div class="log-time">10:18</div>
+                      <p class="mb-0">最終実行で想定どおりの出力を確認</p>
+                    </div>
+                  </div>
+                </article>
+              </div>
+            </div>
+          </section>
+
+          <section class="sample-section questionnaire-section">
+            <div class="section-heading-row questionnaire-heading">
+              <div>
+                <h2 class="card-title mb-2">回答フォーム</h2>
+                <p class="text-muted mb-0">設問は段階的に表示されます。前後の移動も可能です。</p>
+              </div>
+              <div id="stepIndicator" class="step-indicator">1 / 3</div>
+            </div>
+
+            <div class="step-progress" aria-hidden="true">
+              <span class="step-progress-item is-active"></span>
+              <span class="step-progress-item"></span>
+              <span class="step-progress-item"></span>
+            </div>
+
+            <form class="survey-form" action="#" method="post">
+              <section class="question-step is-active" data-step="1">
+                <div class="question-header">
+                  <span class="question-kicker">設問1</span>
+                  <h3>自己評価</h3>
+                </div>
+                <p class="question-description">
+                  システムが出した評価・コメント・ログを見たうえで、自分の取り組みを 5 段階で数値化し、その理由を記述してください。
+                </p>
+
+                <div class="question-block">
+                  <div class="field-header-row">
+                    <label class="field-label">自己評価の点数</label>
+                    <span class="required-badge">必須</span>
+                  </div>
+                  <div class="scale-grid" role="radiogroup" aria-label="自己評価の点数">
+                    <label class="scale-option">
+                      <input type="radio" name="selfScore" value="1">
+                      <span>1</span>
+                    </label>
+                    <label class="scale-option">
+                      <input type="radio" name="selfScore" value="2">
+                      <span>2</span>
+                    </label>
+                    <label class="scale-option">
+                      <input type="radio" name="selfScore" value="3">
+                      <span>3</span>
+                    </label>
+                    <label class="scale-option">
+                      <input type="radio" name="selfScore" value="4">
+                      <span>4</span>
+                    </label>
+                    <label class="scale-option">
+                      <input type="radio" name="selfScore" value="5">
+                      <span>5</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div class="question-block">
+                  <div class="field-header-row">
+                    <label class="field-label" for="selfReason">その理由</label>
+                    <span class="required-badge">必須</span>
+                  </div>
+                  <textarea id="selfReason" class="form-control survey-textarea" name="selfReason" rows="6" placeholder="なぜその点数にしたのか、コードの修正や実行結果をふまえて記述してください。"></textarea>
+                </div>
+              </section>
+
+              <section class="question-step" data-step="2">
+                <div class="question-header">
+                  <span class="question-kicker">設問2</span>
+                  <h3>試行錯誤の過程が評価されることについて</h3>
+                </div>
+                <p class="question-description">
+                  システムが試行錯誤の過程を評価することについて、どの程度そう思うかを選び、その理由を記述してください。
+                </p>
+
+                <div class="question-block">
+                  <div class="field-header-row">
+                    <label class="field-label">5段階評価</label>
+                    <span class="required-badge">必須</span>
+                  </div>
+                  <div class="likert-grid" role="radiogroup" aria-label="試行錯誤の過程の評価への考え">
+                    <label class="likert-option">
+                      <input type="radio" name="processOpinion" value="5">
+                      <span>強く肯定する</span>
+                    </label>
+                    <label class="likert-option">
+                      <input type="radio" name="processOpinion" value="4">
+                      <span>やや肯定する</span>
+                    </label>
+                    <label class="likert-option">
+                      <input type="radio" name="processOpinion" value="3">
+                      <span>どちらともいえない</span>
+                    </label>
+                    <label class="likert-option">
+                      <input type="radio" name="processOpinion" value="2">
+                      <span>やや否定する</span>
+                    </label>
+                    <label class="likert-option">
+                      <input type="radio" name="processOpinion" value="1">
+                      <span>強く否定する</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div class="question-block">
+                  <div class="field-header-row">
+                    <label class="field-label" for="processReason">その理由</label>
+                    <span class="required-badge">必須</span>
+                  </div>
+                  <textarea id="processReason" class="form-control survey-textarea" name="processReason" rows="6" placeholder="試行錯誤の過程を評価されることについて、そう考えた理由を記述してください。"></textarea>
+                </div>
+              </section>
+
+              <section class="question-step" data-step="3">
+                <div class="question-header">
+                  <span class="question-kicker">設問3</span>
+                  <h3>システムの操作性</h3>
+                </div>
+                <p class="question-description">
+                  エディター、評価画面、画面遷移などを含めて、システム全体の操作性を評価してください。
+                </p>
+
+                <div class="question-block">
+                  <div class="field-header-row">
+                    <label class="field-label">5段階評価</label>
+                    <span class="required-badge">必須</span>
+                  </div>
+                  <div class="scale-grid" role="radiogroup" aria-label="システム操作性の評価">
+                    <label class="scale-option wide-option">
+                      <input type="radio" name="usabilityScore" value="1">
+                      <span>1</span>
+                    </label>
+                    <label class="scale-option wide-option">
+                      <input type="radio" name="usabilityScore" value="2">
+                      <span>2</span>
+                    </label>
+                    <label class="scale-option wide-option">
+                      <input type="radio" name="usabilityScore" value="3">
+                      <span>3</span>
+                    </label>
+                    <label class="scale-option wide-option">
+                      <input type="radio" name="usabilityScore" value="4">
+                      <span>4</span>
+                    </label>
+                    <label class="scale-option wide-option">
+                      <input type="radio" name="usabilityScore" value="5">
+                      <span>5</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div class="question-block optional-block">
+                  <div class="field-header-row">
+                    <label class="field-label" for="usabilityComment">操作性に関するコメント</label>
+                    <span class="optional-badge">任意</span>
+                  </div>
+                  <textarea id="usabilityComment" class="form-control survey-textarea" name="usabilityComment" rows="5" placeholder="使いやすかった点、改善してほしい点があれば記述してください。"></textarea>
+                </div>
+              </section>
+
+              <div class="form-actions">
+                <button id="prevStepButton" class="btn btn-secondary" type="button">前の設問へ</button>
+                <button id="nextStepButton" class="btn btn-primary" type="button">次の設問へ</button>
+                <button id="submitSurveyButton" class="btn btn-success d-none" type="submit">アンケートを送信</button>
+              </div>
+            </form>
+          </section>
+        </div>
+
+        <div class="col-xl-4">
+          <div class="sticky-xl-top sidebar-stack">
+            <section class="sample-section sidebar-section mb-4">
+              <div class="section-heading-row mb-3">
+                <div>
+                  <h2 class="card-title mb-2">回答の流れ</h2>
+                  <p class="text-muted mb-0">回答前に確認しておくポイントです。</p>
+                </div>
+              </div>
+
+              <div class="guide-list">
+                <div class="guide-item">
+                  <div class="guide-number">1</div>
+                  <p class="mb-0">先にシステムが出した評価とログの要約を読みます。</p>
+                </div>
+                <div class="guide-item">
+                  <div class="guide-number">2</div>
+                  <p class="mb-0">自己評価と理由を入力します。</p>
+                </div>
+                <div class="guide-item">
+                  <div class="guide-number">3</div>
+                  <p class="mb-0">試行錯誤の評価と操作性について回答します。</p>
+                </div>
+              </div>
+
+              <div class="notice-card mt-4">
+                <div class="notice-title">入力ルール</div>
+                <ul class="notice-list mb-0">
+                  <li>必須項目は回答しないと送信できません</li>
+                  <li>理由欄は具体例を書くと振り返りに役立ちます</li>
+                  <li>回答は匿名で記録される想定です</li>
+                </ul>
+              </div>
+
+              <a class="btn btn-outline-secondary w-100 mt-4" href="../evaluation/evaluation.html">評価画面に戻る</a>
+            </section>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <div id="footer-placeholder"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"
+    integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI"
+    crossorigin="anonymous"></script>
+  <script src="../../../js/template/components.js"></script>
+  <script src="../../../js/student/survey/survey.js"></script>
+</body>
+</html>

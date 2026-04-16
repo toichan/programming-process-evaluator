@@ -17,18 +17,6 @@
 
   <main class="py-5">
     <div class="container">
-      <section class="sample-section editor-hero mb-4">
-        <div>
-          <span class="editor-kicker">Student Editor</span>
-          <h1 class="section-title mb-3">Pythonエディター</h1>
-          <p class="editor-description mb-0">コードの編集、保存、実行結果の確認、課題情報の参照を1つの画面で行う想定のプロトタイプです。</p>
-        </div>
-        <div class="editor-hero-status">
-          <div class="status-chip"><span class="status-dot"></span> 自動保存 30秒間隔</div>
-          <div class="status-note">最終保存: <span id="lastSavedAt">未保存</span></div>
-        </div>
-      </section>
-
       <div class="row g-4 align-items-start">
         <div class="col-xl-8">
           <section class="sample-section editor-workspace-section">
@@ -73,7 +61,6 @@ else:
 
             <div class="editor-status-row">
               <div id="editorMessage" class="editor-message">編集中です。保存するとコードログに反映されます。</div>
-              <div class="editor-meta">手動保存と自動保存の両方を想定</div>
             </div>
           </section>
 
@@ -92,25 +79,33 @@ else:
             <div class="section-header-row">
               <div>
                 <h2 class="card-title mb-2">コードログ</h2>
-                <p class="text-muted mb-0">30秒ごとの自動保存と手動保存の履歴を時系列に表示する想定です。</p>
+                <div class="log-status-row">
+                  <div class="status-chip"><span class="status-dot"></span> 自動保存 30秒間隔</div>
+                  <div class="status-note mb-0">最終保存: <span id="lastSavedAt">未保存</span></div>
+                </div>
               </div>
-              <span class="timeline-badge">Timeline</span>
+              <div class="log-header-actions">
+                <span class="timeline-badge">Timeline</span>
+                <button id="toggleLogButton" class="btn btn-outline-secondary btn-sm" type="button" aria-expanded="true" aria-controls="codeLogContent">折りたたむ</button>
+              </div>
             </div>
-            <div id="codeLogList" class="code-log-list">
-              <article class="code-log-item">
-                <div class="log-time">10:05:00</div>
-                <div class="log-body">
-                  <div class="log-title">自動保存</div>
-                  <p class="log-text mb-0">初期コードを保存しました。</p>
-                </div>
-              </article>
-              <article class="code-log-item">
-                <div class="log-time">10:05:30</div>
-                <div class="log-body">
-                  <div class="log-title">実行結果記録</div>
-                  <p class="log-text mb-0">出力メッセージをログに紐付ける想定です。</p>
-                </div>
-              </article>
+            <div id="codeLogContent" class="log-content">
+              <div id="codeLogList" class="code-log-list">
+                <article class="code-log-item">
+                  <div class="log-time">10:05:00</div>
+                  <div class="log-body">
+                    <div class="log-title">自動保存</div>
+                    <p class="log-text mb-0">初期コードを保存しました。</p>
+                  </div>
+                </article>
+                <article class="code-log-item">
+                  <div class="log-time">10:05:30</div>
+                  <div class="log-body">
+                    <div class="log-title">実行結果記録</div>
+                    <p class="log-text mb-0">出力メッセージをログに紐付ける想定です。</p>
+                  </div>
+                </article>
+              </div>
             </div>
           </section>
         </div>
