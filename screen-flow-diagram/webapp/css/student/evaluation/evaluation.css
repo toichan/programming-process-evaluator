@@ -1,0 +1,443 @@
+body {
+  background:
+    radial-gradient(circle at top left, rgba(251, 191, 36, 0.2), transparent 24%),
+    radial-gradient(circle at right 18%, rgba(14, 165, 233, 0.16), transparent 22%),
+    linear-gradient(135deg, #fff8eb 0%, #f8fafc 48%, #eef6ff 100%);
+}
+
+.evaluation-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(280px, 0.9fr);
+  gap: 1.5rem;
+  align-items: stretch;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.92), rgba(255, 247, 237, 0.95));
+}
+
+.hero-kicker,
+.score-caption,
+.inspection-pill,
+.hero-score-pill,
+.metric-group,
+.reason-chip,
+.evidence-pill,
+.rubric-mini-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.hero-kicker {
+  padding: 0.45rem 0.85rem;
+  background: rgba(217, 119, 6, 0.12);
+  color: #b45309;
+  text-transform: uppercase;
+  margin-bottom: 1rem;
+}
+
+.hero-description {
+  max-width: 45rem;
+  color: var(--bs-gray-600);
+  font-size: 1.05rem;
+}
+
+.hero-meta-card {
+  padding: 1.5rem;
+  border-radius: 1.25rem;
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.98), rgba(254, 243, 199, 0.72));
+  color: var(--bs-gray-900);
+  border: 1px solid rgba(245, 158, 11, 0.18);
+  box-shadow: 0 18px 36px rgba(245, 158, 11, 0.12);
+}
+
+.meta-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #b45309;
+  margin-bottom: 0.55rem;
+}
+
+.meta-value {
+  font-size: 1.5rem;
+  font-weight: 800;
+  line-height: 1.3;
+}
+
+.meta-subtext {
+  margin-top: 0.4rem;
+  color: var(--bs-gray-600);
+}
+
+.hero-score-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1.3rem;
+}
+
+.hero-score-pill {
+  padding: 0.6rem 0.95rem;
+}
+
+.hero-score-pill.thinking,
+.thinking,
+.thinking-panel .panel-score,
+.thinking-panel .panel-kicker,
+.reason-chip,
+.metric-score,
+.rubric-tab.is-active {
+  background: rgba(59, 130, 246, 0.14);
+  color: #1d4ed8;
+}
+
+.hero-score-pill.attitude,
+.attitude,
+.attitude-panel .panel-score,
+.attitude-panel .panel-kicker,
+.accent-chip,
+.accent-card .metric-score {
+  background: rgba(16, 185, 129, 0.14);
+  color: #047857;
+}
+
+.section-heading-row,
+.panel-score-row,
+.metric-header,
+.reason-title-row,
+.reasons-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+}
+
+.score-caption {
+  padding: 0.55rem 0.9rem;
+  background: var(--bs-gray-100);
+  color: var(--bs-gray-700);
+}
+
+.score-panel {
+  height: 100%;
+  padding: 1.6rem;
+  border: 1px solid var(--bs-gray-200);
+  border-radius: 1.25rem;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.92));
+}
+
+.panel-kicker {
+  display: inline-flex;
+  padding: 0.4rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+}
+
+.panel-score-row {
+  align-items: flex-start;
+}
+
+.panel-score {
+  width: 4.6rem;
+  height: 4.6rem;
+  border-radius: 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  font-weight: 800;
+  flex: 0 0 auto;
+}
+
+.panel-title {
+  font-size: 1.3rem;
+  margin-bottom: 0.45rem;
+}
+
+.panel-description {
+  color: var(--bs-gray-600);
+}
+
+.score-meter {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0.6rem;
+  margin-top: 1.25rem;
+}
+
+.score-meter span {
+  display: block;
+  height: 0.55rem;
+  border-radius: 999px;
+  background: var(--bs-gray-200);
+}
+
+.score-meter .is-filled {
+  background: linear-gradient(90deg, #f59e0b, #ef4444);
+}
+
+.breakdown-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.metric-card,
+.plagiarism-card,
+.reason-card,
+.rubric-level-card {
+  padding: 1.2rem 1.25rem;
+  border-radius: 1.1rem;
+  background: var(--bs-gray-100);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.metric-card h3,
+.reason-card h3 {
+  font-size: 1.15rem;
+  margin: 0.85rem 0 0.55rem;
+}
+
+.metric-group,
+.reason-chip,
+.evidence-pill,
+.rubric-mini-label,
+.inspection-pill {
+  padding: 0.35rem 0.7rem;
+}
+
+.metric-score {
+  min-width: 2.3rem;
+  height: 2.3rem;
+  border-radius: 0.8rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.accent-card {
+  background: linear-gradient(180deg, rgba(236, 253, 245, 0.94), rgba(243, 244, 246, 0.94));
+}
+
+.success {
+  background: rgba(5, 150, 105, 0.12);
+  color: #047857;
+}
+
+.plagiarism-title {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--bs-gray-500);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 0.7rem;
+}
+
+.reason-filter-group,
+.rubric-switcher {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.reason-filter,
+.rubric-tab {
+  border: 0;
+  border-radius: 999px;
+  padding: 0.58rem 0.95rem;
+  font-weight: 700;
+  background: var(--bs-gray-100);
+  color: var(--bs-gray-700);
+}
+
+.reason-filter.is-active {
+  background: linear-gradient(135deg, #f59e0b, #ea580c);
+  color: var(--bs-white);
+}
+
+.reason-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.reason-card {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.96));
+}
+
+.reason-card.is-hidden,
+.rubric-panel {
+  display: none;
+}
+
+.accent-reason {
+  border-color: rgba(16, 185, 129, 0.18);
+  background: linear-gradient(180deg, rgba(236, 253, 245, 0.92), rgba(255, 255, 255, 0.96));
+}
+
+.evidence-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-top: 0.9rem;
+}
+
+.evidence-pill {
+  background: rgba(15, 23, 42, 0.06);
+  color: var(--bs-gray-700);
+}
+
+.accent-evidence {
+  background: rgba(16, 185, 129, 0.14);
+  color: #047857;
+}
+
+.sidebar-stack {
+  top: 1.75rem;
+}
+
+.sidebar-section {
+  overflow: hidden;
+}
+
+.rubric-panel.is-active {
+  display: block;
+}
+
+.rubric-table-wrapper {
+  overflow-x: auto;
+  border: 1px solid var(--bs-gray-200);
+  border-radius: 1rem;
+  background: var(--bs-white);
+}
+
+.rubric-table {
+  width: 100%;
+  min-width: 780px;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.93rem;
+}
+
+.rubric-table th,
+.rubric-table td {
+  padding: 0.9rem 0.85rem;
+  vertical-align: top;
+  border-bottom: 1px solid var(--bs-gray-200);
+  border-right: 1px solid var(--bs-gray-200);
+}
+
+.rubric-table thead th {
+  position: sticky;
+  top: 0;
+  background: #fff7ed;
+  color: var(--bs-gray-900);
+  font-weight: 700;
+  z-index: 1;
+}
+
+.rubric-table th:first-child,
+.rubric-table td:first-child {
+  min-width: 4rem;
+  text-align: center;
+  font-weight: 800;
+}
+
+.rubric-table th:last-child,
+.rubric-table td:last-child {
+  border-right: 0;
+}
+
+.rubric-table tbody tr:last-child th,
+.rubric-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.rubric-table tbody th {
+  background: #fffaf0;
+}
+
+.rubric-table tbody td {
+  color: var(--bs-gray-700);
+  line-height: 1.7;
+}
+
+.current-row th,
+.current-row td {
+  background: rgba(59, 130, 246, 0.08);
+}
+
+.accent-row th,
+.accent-row td {
+  background: rgba(16, 185, 129, 0.08);
+}
+
+.rubric-table-attitude {
+  min-width: 560px;
+}
+
+@media (max-width: 1199px) {
+  .sidebar-stack {
+    position: static !important;
+  }
+}
+
+@media (max-width: 991px) {
+  .evaluation-hero,
+  .breakdown-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 767px) {
+  .section-heading-row,
+  .panel-score-row,
+  .reason-title-row,
+  .reasons-heading {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .sample-section {
+    padding: 1.5rem;
+  }
+
+  .hero-meta-card,
+  .score-panel,
+  .metric-card,
+  .plagiarism-card,
+  .reason-card,
+  .rubric-table-wrapper {
+    padding: 1rem;
+  }
+
+  .panel-score {
+    width: 4rem;
+    height: 4rem;
+    font-size: 1.7rem;
+  }
+
+  .reason-filter-group,
+  .rubric-switcher,
+  .hero-score-row {
+    width: 100%;
+  }
+
+  .reason-filter,
+  .rubric-tab {
+    width: 100%;
+  }
+
+  .rubric-table {
+    min-width: 640px;
+    font-size: 0.88rem;
+  }
+}

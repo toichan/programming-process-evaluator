@@ -98,10 +98,35 @@ body {
   white-space: nowrap;
 }
 
-.task-meta-grid {
+.task-content-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1rem;
+  grid-template-columns: minmax(0, 1.2fr) minmax(340px, 1fr);
+  gap: 0.75rem 1.5rem;
+  align-items: start;
+}
+
+.task-main-column {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.task-status-column {
+  min-width: 0;
+}
+
+.task-button-group {
+  margin-top: 1.25rem;
+}
+
+.task-action-btn {
+  background: linear-gradient(135deg, #ef4444, #db2777);
+  box-shadow: none;
+}
+
+.task-action-btn:hover {
+  background: linear-gradient(135deg, #dc2626, #be185d);
+  box-shadow: none;
 }
 
 .meta-label {
@@ -120,8 +145,86 @@ body {
   color: var(--bs-gray-800);
 }
 
+.task-status-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.task-status-item {
+  display: grid;
+  grid-template-columns: 5.5rem minmax(0, 1fr);
+  gap: 0.45rem;
+  align-items: start;
+}
+
+.task-status-name {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--bs-gray-700);
+  white-space: nowrap;
+}
+
+.task-status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  justify-self: start;
+  width: fit-content;
+  max-width: 100%;
+  min-width: 0;
+  padding: 0.3rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  white-space: normal;
+}
+
+.button-group.mt-4 {
+  margin-top: 1.5rem !important;
+}
+
+.status-unstarted {
+  background: #e5e7eb;
+  color: #374151;
+}
+
+.status-editing {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.status-submitted {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.status-unrated {
+  background: #f3f4f6;
+  color: #4b5563;
+}
+
+.status-rated {
+  background: #ede9fe;
+  color: #6d28d9;
+}
+
+.status-pending {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.status-completed {
+  background: #fef3c7;
+  color: #92400e;
+}
+
 @media (max-width: 991px) {
   .hero-section {
+    grid-template-columns: 1fr;
+  }
+
+  .task-meta-grid {
     grid-template-columns: 1fr;
   }
 }
@@ -143,5 +246,9 @@ body {
 
   .button-group .btn {
     width: 100%;
+  }
+
+  .task-status-item {
+    grid-template-columns: 4.25rem minmax(0, 1fr);
   }
 }

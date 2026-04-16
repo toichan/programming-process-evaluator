@@ -7,6 +7,8 @@ window.addEventListener('DOMContentLoaded', () => {
   const editorMessage = document.querySelector('#editorMessage');
   const lastSavedAt = document.querySelector('#lastSavedAt');
   const codeLogList = document.querySelector('#codeLogList');
+  const codeLogContent = document.querySelector('#codeLogContent');
+  const toggleLogButton = document.querySelector('#toggleLogButton');
   const saveButton = document.querySelector('#saveButton');
   const runButton = document.querySelector('#runButton');
   const infoTabs = document.querySelectorAll('[data-panel-target]');
@@ -44,6 +46,16 @@ window.addEventListener('DOMContentLoaded', () => {
     codeLogList.prepend(item);
   }
 
+  function setLogCollapsed(collapsed) {
+    if (!codeLogContent || !toggleLogButton) {
+      return;
+    }
+
+    codeLogContent.classList.toggle('is-collapsed', collapsed);
+    toggleLogButton.setAttribute('aria-expanded', String(!collapsed));
+    toggleLogButton.textContent = collapsed ? '展開する' : '折りたたむ';
+  }
+
   function markSaved(prefix) {
     const time = nowTimeLabel();
     if (lastSavedAt) {
@@ -73,6 +85,13 @@ window.addEventListener('DOMContentLoaded', () => {
         editorMessage.textContent = '実行が完了しました。エラーがあればこの下に表示されます。';
       }
       prependLog('実行', '実行結果を出力パネルへ反映しました。');
+    });
+  }
+
+  if (toggleLogButton) {
+    toggleLogButton.addEventListener('click', () => {
+      const collapsed = toggleLogButton.getAttribute('aria-expanded') === 'true';
+      setLogCollapsed(collapsed);
     });
   }
 
