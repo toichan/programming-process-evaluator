@@ -4,6 +4,93 @@ body {
     linear-gradient(135deg, #eef4ff 0%, #f8fafc 56%, #eef2ff 100%);
 }
 
+.editor-hero-section {
+  display: grid;
+  grid-template-columns: minmax(0, 1.8fr) minmax(260px, 0.95fr);
+  gap: 1.5rem;
+  align-items: stretch;
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.08), rgba(8, 145, 178, 0.08));
+}
+
+.hero-kicker {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.45rem 0.85rem;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.12);
+  color: var(--bs-primary);
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 1rem;
+}
+
+.hero-description {
+  max-width: 44rem;
+  font-size: 1.05rem;
+  color: var(--bs-gray-600);
+}
+
+.hero-status-card {
+  padding: 1.5rem;
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(37, 99, 235, 0.12);
+  box-shadow: 0 12px 28px rgba(37, 99, 235, 0.08);
+}
+
+.status-label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--bs-info);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 0.5rem;
+}
+
+.status-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--bs-gray-900);
+  margin-bottom: 0.5rem;
+}
+
+.status-meta {
+  color: var(--bs-gray-600);
+}
+
+.editor-status-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.editor-status-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.45rem 0.8rem;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.editor-status-pill.is-submitted {
+  background: rgba(16, 185, 129, 0.12);
+  color: #047857;
+}
+
+.editor-status-pill.is-unstarted {
+  background: rgba(239, 68, 68, 0.12);
+  color: #b91c1c;
+}
+
+.editor-status-pill.is-editing {
+  background: rgba(245, 158, 11, 0.14);
+  color: #b45309;
+}
+
 .status-chip {
   display: inline-flex;
   align-items: center;
@@ -149,8 +236,19 @@ body {
   gap: 1rem;
 }
 
-.log-content.is-collapsed {
-  display: none;
+.log-toggle-button {
+  flex-shrink: 0;
+  min-width: 7.5rem;
+}
+
+.log-toggle-button[aria-expanded="true"]::after {
+  content: "↑";
+  margin-left: 0.45rem;
+}
+
+.log-toggle-button[aria-expanded="false"]::after {
+  content: "↓";
+  margin-left: 0.45rem;
 }
 
 .code-log-item {
@@ -200,6 +298,96 @@ body {
   display: block;
 }
 
+.rubric-switcher {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.rubric-tab {
+  border: 0;
+  border-radius: 999px;
+  padding: 0.58rem 0.95rem;
+  font-weight: 700;
+  background: var(--bs-gray-100);
+  color: var(--bs-gray-700);
+}
+
+.rubric-tab.is-active {
+  background: linear-gradient(135deg, #f59e0b, #ea580c);
+  color: var(--bs-white);
+}
+
+.rubric-panel {
+  display: none;
+}
+
+.rubric-panel.is-active {
+  display: block;
+}
+
+.rubric-table-wrapper {
+  overflow-x: auto;
+  border: 1px solid var(--bs-gray-200);
+  border-radius: 1rem;
+  background: var(--bs-white);
+}
+
+.rubric-table {
+  width: 100%;
+  min-width: 780px;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.93rem;
+}
+
+.rubric-table th,
+.rubric-table td {
+  padding: 0.9rem 0.85rem;
+  vertical-align: top;
+  border-bottom: 1px solid var(--bs-gray-200);
+  border-right: 1px solid var(--bs-gray-200);
+}
+
+.rubric-table thead th {
+  position: sticky;
+  top: 0;
+  background: #fff7ed;
+  color: var(--bs-gray-900);
+  font-weight: 700;
+  z-index: 1;
+}
+
+.rubric-table th:first-child,
+.rubric-table td:first-child {
+  min-width: 4rem;
+  text-align: center;
+  font-weight: 800;
+}
+
+.rubric-table th:last-child,
+.rubric-table td:last-child {
+  border-right: 0;
+}
+
+.rubric-table tbody tr:last-child th,
+.rubric-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.rubric-table tbody th {
+  background: #fffaf0;
+}
+
+.rubric-table tbody td {
+  color: var(--bs-gray-700);
+  line-height: 1.7;
+}
+
+.rubric-table-attitude {
+  min-width: 560px;
+}
+
 .info-panel h3 {
   font-size: 1.35rem;
   margin-bottom: 1rem;
@@ -235,11 +423,16 @@ body {
 }
 
 @media (max-width: 767px) {
+  .editor-hero-section,
   .editor-toolbar,
   .section-header-row,
   .editor-status-row {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .log-toggle-button {
+    width: 100%;
   }
 
   .editor-shell {
@@ -253,6 +446,14 @@ body {
 
   .code-log-item {
     grid-template-columns: 1fr;
+  }
+
+  .rubric-switcher {
+    width: 100%;
+  }
+
+  .rubric-tab {
+    width: 100%;
   }
 
   .log-status-row,

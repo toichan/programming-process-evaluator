@@ -24,6 +24,10 @@
           <p class="hero-description mb-0">
             コードログと実行履歴をもとに、2つの観点で自動評価したサンプル表示です。各観点の総合点と、根拠になったログの要約を確認できます。
           </p>
+          <div class="hero-action-row mt-4">
+            <a class="btn btn-warning btn-lg hero-log-button" href="./log.html">ログを見る</a>
+            <a class="btn btn-primary btn-lg" href="../survey/survey.html">アンケートに答える</a>
+          </div>
         </div>
 
         <div class="hero-meta-card">
@@ -101,7 +105,7 @@
             <div class="breakdown-grid">
               <article class="metric-card">
                 <div class="metric-header">
-                  <span class="metric-group">思考力</span>
+                  <span class="metric-group">思考・判断・表現</span>
                   <span class="metric-score">4</span>
                 </div>
                 <h3>文法デバッグ能力</h3>
@@ -109,7 +113,7 @@
               </article>
               <article class="metric-card">
                 <div class="metric-header">
-                  <span class="metric-group">思考力</span>
+                  <span class="metric-group">思考・判断・表現</span>
                   <span class="metric-score">4</span>
                 </div>
                 <h3>論理デバッグ能力</h3>
@@ -117,7 +121,7 @@
               </article>
               <article class="metric-card">
                 <div class="metric-header">
-                  <span class="metric-group">思考力</span>
+                  <span class="metric-group">思考・判断・表現</span>
                   <span class="metric-score">4</span>
                 </div>
                 <h3>アルゴリズムの設計と実装</h3>
@@ -125,7 +129,7 @@
               </article>
               <article class="metric-card">
                 <div class="metric-header">
-                  <span class="metric-group">思考力</span>
+                  <span class="metric-group">思考・判断・表現</span>
                   <span class="metric-score">4</span>
                 </div>
                 <h3>コードの可読性</h3>
@@ -133,7 +137,7 @@
               </article>
               <article class="metric-card accent-card">
                 <div class="metric-header">
-                  <span class="metric-group">主体的態度</span>
+                  <span class="metric-group">態度</span>
                   <span class="metric-score">4</span>
                 </div>
                 <h3>課題への粘り強さ</h3>
@@ -141,27 +145,12 @@
               </article>
               <article class="metric-card accent-card">
                 <div class="metric-header">
-                  <span class="metric-group">主体的態度</span>
+                  <span class="metric-group">態度</span>
                   <span class="metric-score">4</span>
                 </div>
                 <h3>課題解決への意欲</h3>
                 <p class="mb-0">実行結果を受けてコード改善を続けており、理解しようとする姿勢が見られます。</p>
               </article>
-            </div>
-          </section>
-
-          <section class="sample-section plagiarism-section mb-4">
-            <div class="section-heading-row">
-              <div>
-                <h2 class="card-title mb-2">コピペの検出とその詳細</h2>
-                <p class="text-muted mb-0">外部ソースとの高類似コードや不自然な貼り付けを確認した結果です。</p>
-              </div>
-              <span class="inspection-pill success">なし</span>
-            </div>
-
-            <div class="plagiarism-card">
-              <div class="plagiarism-title">判定結果</div>
-              <p class="mb-0">今回のサンプルでは、急激なコード量の増加や、既知ソースとの高一致を示す記録は検出されていません。</p>
             </div>
           </section>
 
@@ -173,8 +162,8 @@
               </div>
               <div class="reason-filter-group" role="tablist" aria-label="reason category filter">
                 <button class="reason-filter is-active" type="button" data-filter="all">すべて</button>
-                <button class="reason-filter" type="button" data-filter="thinking">思考力</button>
-                <button class="reason-filter" type="button" data-filter="attitude">主体的態度</button>
+                <button class="reason-filter" type="button" data-filter="thinking">思考・判断・表現</button>
+                <button class="reason-filter" type="button" data-filter="attitude">態度</button>
               </div>
             </div>
 
@@ -182,7 +171,7 @@
               <article class="reason-card" data-category="thinking">
                 <div class="reason-title-row">
                   <h3>文法デバッグ能力: 4</h3>
-                  <span class="reason-chip">思考力</span>
+                  <span class="reason-chip">思考・判断・表現</span>
                 </div>
                 <p class="mb-0">
                   ソースコードのログを見ると、初期段階では if 文のコロン抜けにより構文エラーが発生していましたが、保存後の修正でエラーを解消し、正常に実行できています。
@@ -197,7 +186,7 @@
               <article class="reason-card" data-category="thinking">
                 <div class="reason-title-row">
                   <h3>論理デバッグ能力: 4</h3>
-                  <span class="reason-chip">思考力</span>
+                  <span class="reason-chip">思考・判断・表現</span>
                 </div>
                 <p class="mb-0">
                   勝敗判定の条件式に誤りがあり、あいこ以外の結果がずれていたログが確認できました。複数回のテスト実行を通して分岐条件を修正し、最終的に正しい結果を出力できています。
@@ -212,7 +201,7 @@
               <article class="reason-card" data-category="thinking">
                 <div class="reason-title-row">
                   <h3>アルゴリズムの設計と実装: 4</h3>
-                  <span class="reason-chip">思考力</span>
+                  <span class="reason-chip">思考・判断・表現</span>
                 </div>
                 <p class="mb-0">
                   入力値を受け取り、あいこ・勝ち・負け・入力エラーの4つの状態に分けて処理する流れを整理できています。条件分岐の構成が課題要件に合っており、主要な要素を過不足なく実装できています。
@@ -222,7 +211,7 @@
               <article class="reason-card" data-category="thinking">
                 <div class="reason-title-row">
                   <h3>コードの可読性: 4</h3>
-                  <span class="reason-chip">思考力</span>
+                  <span class="reason-chip">思考・判断・表現</span>
                 </div>
                 <p class="mb-0">
                   インデントは安定しており、条件分岐のまとまりも追いやすくなっています。変数名は短いものの役割は読み取れるため、全体として理解しやすいコードと判断できます。
@@ -232,7 +221,7 @@
               <article class="reason-card accent-reason" data-category="attitude">
                 <div class="reason-title-row">
                   <h3>課題への粘り強さ: 4</h3>
-                  <span class="reason-chip accent-chip">主体的態度</span>
+                  <span class="reason-chip accent-chip">態度</span>
                 </div>
                 <p class="mb-0">
                   保存と実行を複数回繰り返しながら、構文エラーと出力誤りの両方を修正しています。途中で作業が止まらず、最終的な正解出力まで到達しているため、粘り強く取り組めていると判断できます。
@@ -246,7 +235,7 @@
               <article class="reason-card accent-reason" data-category="attitude">
                 <div class="reason-title-row">
                   <h3>課題解決への意欲: 4</h3>
-                  <span class="reason-chip accent-chip">主体的態度</span>
+                  <span class="reason-chip accent-chip">態度</span>
                 </div>
                 <p class="mb-0">
                   実行結果を確認した直後に条件式と出力文を修正した履歴があり、エラーや結果を無視せず改善につなげています。コードをより正確にしようとする姿勢が見られます。
@@ -267,8 +256,8 @@
               </div>
 
               <div class="rubric-switcher" role="tablist" aria-label="rubric switcher">
-                <button class="rubric-tab is-active" type="button" data-rubric-target="thinkingRubric">思考力</button>
-                <button class="rubric-tab" type="button" data-rubric-target="attitudeRubric">主体的態度</button>
+                <button class="rubric-tab is-active" type="button" data-rubric-target="thinkingRubric">思考・判断・表現</button>
+                <button class="rubric-tab" type="button" data-rubric-target="attitudeRubric">態度</button>
               </div>
 
               <div class="rubric-panels mt-4">
@@ -366,10 +355,12 @@
                   </div>
                 </div>
               </div>
-
-              <a class="btn btn-primary w-100 mt-4" href="../editor/editor.html">エディターに戻る</a>
             </section>
           </div>
+        </div>
+
+        <div class="d-flex justify-content-center mt-4">
+          <a class="btn btn-primary btn-lg px-5" href="../survey/survey.html">アンケートに答える</a>
         </div>
       </div>
     </div>

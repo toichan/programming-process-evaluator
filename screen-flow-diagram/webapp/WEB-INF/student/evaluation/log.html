@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Programming Process Evaluator - コードログ</title>
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet"
+    integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB"
+    crossorigin="anonymous">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+  <link href="../../../css/template/template.css" rel="stylesheet">
+  <link href="../../../css/student/evaluation/log.css" rel="stylesheet">
+</head>
+<body>
+  <div id="header-placeholder"></div>
+
+  <main class="py-5">
+    <div class="container">
+      <section class="sample-section log-hero mb-4">
+        <div class="hero-copy">
+          <span class="hero-kicker">Student Log</span>
+          <h1 class="section-title mb-3">コードログ</h1>
+          <p class="hero-description mb-0">
+            自動保存されたコードの履歴を、差分を強調しながら時系列で確認できます。前後の状態を見比べて、試行錯誤の流れを振り返るためのページです。
+          </p>
+          <div class="hero-action-row mt-4">
+            <a class="btn btn-warning btn-lg" href="./evaluation.html">評価結果に戻る</a>
+            <a class="btn btn-outline-secondary btn-lg" href="../survey/survey.html">アンケートに進む</a>
+          </div>
+        </div>
+
+        <div class="hero-meta-card">
+          <div class="meta-label">対象課題</div>
+          <div class="meta-value">じゃんけん判定プログラム</div>
+          <div class="meta-subtext">TASK-001 / 初級 / 自動保存 30秒間隔</div>
+          <div class="hero-status-list mt-3">
+            <div class="hero-status-item">
+              <span class="hero-status-name">保存回数</span>
+              <span class="hero-status-pill">6回</span>
+            </div>
+            <div class="hero-status-item">
+              <span class="hero-status-name">実行回数</span>
+              <span class="hero-status-pill accent">5回</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div class="row g-4 align-items-start">
+        <div class="col-xl-8">
+          <section class="sample-section log-viewer-section">
+            <div class="section-heading-row mb-3">
+              <div>
+                <h2 class="card-title mb-2">差分ビューア</h2>
+                <p class="text-muted mb-0">追加箇所は青、削除箇所は赤で表示しています。</p>
+              </div>
+              <div class="viewer-badges">
+                <span class="viewer-badge added-badge">追加</span>
+                <span class="viewer-badge removed-badge">削除</span>
+              </div>
+            </div>
+
+            <div class="viewer-controls">
+              <button id="prevCodeButton" class="btn btn-outline-secondary" type="button">← 前へ</button>
+              <div class="viewer-step-indicator">
+                <span id="stepIndicator">1 / 6</span>
+              </div>
+              <button id="nextCodeButton" class="btn btn-primary" type="button">次へ →</button>
+            </div>
+
+            <div class="code-shell mt-4">
+              <pre id="codeBlock" class="code-block"></pre>
+            </div>
+
+            <div class="viewer-meta-row mt-3">
+              <p id="timestamp" class="timestamp mb-0"></p>
+              <p id="boundaryMessage" class="boundary-message mb-0"></p>
+            </div>
+          </section>
+        </div>
+
+        <div class="col-xl-4">
+          <div class="sticky-xl-top sidebar-stack">
+            <section class="sample-section sidebar-section">
+              <div class="section-heading-row mb-3">
+                <div>
+                  <h2 class="card-title mb-2">ログ一覧</h2>
+                  <p class="text-muted mb-0">各保存時点の概要を確認できます。</p>
+                </div>
+                <button
+                  class="btn btn-outline-secondary btn-sm log-toggle-button"
+                  type="button"
+                  data-bs-toggle="collapse"
+                  data-bs-target="#logTimelineCollapse"
+                  aria-expanded="true"
+                  aria-controls="logTimelineCollapse">
+                  折りたたむ
+                </button>
+              </div>
+
+              <div id="logTimelineCollapse" class="collapse show">
+                <div id="logTimeline" class="log-timeline"></div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script id="log-data" type="application/json">[
+    {
+      "id": 931327,
+      "student_id": 156,
+      "task_id": 459,
+      "content": "#include<stdio.h>\nint main(){\n  int a,b,c;\n  \n}",
+      "submitted_at": null,
+      "remaining_work": 423.0,
+      "remaining_proportion": -38.0,
+      "auto_save": 1,
+      "created_at": "2022-04-21 12:56:54"
+    },
+    {
+      "id": 931331,
+      "student_id": 156,
+      "task_id": 459,
+      "content": "#include<stdio.h>\nint main(){\n  int a,b,c;\n  scanf(\"%d%d%d\",&a,&b,&c);\n  if(a>=B &&)\n}",
+      "submitted_at": null,
+      "remaining_work": 385.0,
+      "remaining_proportion": -26.0,
+      "auto_save": 1,
+      "created_at": "2022-04-21 12:57:24"
+    },
+    {
+      "id": 931335,
+      "student_id": 156,
+      "task_id": 459,
+      "content": "#include<stdio.h>\nint main(){\n  int a,b,c;\n  scanf(\"%d%d%d\",&a,&b,&c);\n  if(a>=b && a>=c){\n    printf(\"\")\n  }\n}",
+      "submitted_at": null,
+      "remaining_work": 359.0,
+      "remaining_proportion": -24.0,
+      "auto_save": 1,
+      "created_at": "2022-04-21 12:57:57"
+    },
+    {
+      "id": 931340,
+      "student_id": 156,
+      "task_id": 459,
+      "content": "#include<stdio.h>\nint main(){\n  int a,b,c;\n  scanf(\"%d%d%d\",&a,&b,&c);\n  if(a>=b && a>=c){\n    printf(\"最大値は%d\\n\",a);\n    if(b>=c)\n  }\n}",
+      "submitted_at": null,
+      "remaining_work": 335.0,
+      "remaining_proportion": -39.0,
+      "auto_save": 1,
+      "created_at": "2022-04-21 12:58:27"
+    },
+    {
+      "id": 931344,
+      "student_id": 156,
+      "task_id": 459,
+      "content": "#include<stdio.h>\nint main(){\n  int a,b,c;\n  scanf(\"%d%d%d\",&a,&b,&c);\n  if(a>=b && a>=c){\n    printf(\"最大値は%d\\n\",a);\n    if(b>=c){\n      printf(\"最小値は%d\\n\",c);\n    }else\n  }\n}",
+      "submitted_at": null,
+      "remaining_work": 296.0,
+      "remaining_proportion": -35.0,
+      "auto_save": 1,
+      "created_at": "2022-04-21 12:58:57"
+    },
+    {
+      "id": 931348,
+      "student_id": 156,
+      "task_id": 459,
+      "content": "#include<stdio.h>\nint main(){\n  int a,b,c;\n  scanf(\"%d%d%d\",&a,&b,&c);\n  if(a>=b && a>=c){\n    printf(\"最大値は%d\\n\",a);\n    if(b>=c){\n      printf(\"最小値は%d\\n\",c);\n    }else{\n      printf(\"最小値は%d\\n\",b);\n    }\n  }\n}",
+      "submitted_at": null,
+      "remaining_work": 261.0,
+      "remaining_proportion": -37.0,
+      "auto_save": 1,
+      "created_at": "2022-04-21 12:59:28"
+    },
+    {
+      "id": 931355,
+      "student_id": 156,
+      "task_id": 459,
+      "content": "#include<stdio.h>\nint main(){\n  int a,b,c;\n  scanf(\"%d%d%d\",&a,&b,&c);\n  if(a>=b && a>=c){\n    printf(\"最大値は%d\\n\",a);\n    if(b>=c){\n      printf(\"最小値は%d\\n\",c);\n    }else{\n      printf(\"最小値は%d\\n\",b);\n    }\n  }else if(b>=c && b>=a){\n    printf\n  }\n}",
+      "submitted_at": null,
+      "remaining_work": 224.0,
+      "remaining_proportion": -47.0,
+      "auto_save": 1,
+      "created_at": "2022-04-21 12:59:58"
+    },
+    {
+      "id": 931360,
+      "student_id": 156,
+      "task_id": 459,
+      "content": "#include<stdio.h>\nint main(){\n  int a,b,c;\n  scanf(\"%d%d%d\",&a,&b,&c);\n  if(a>=b && a>=c){\n    printf(\"最大値は%d\\n\",a);\n    if(b>=c){\n      printf(\"最小値は%d\\n\",c);\n    }else{\n      printf(\"最小値は%d\\n\",b);\n    }\n  }else if(b>=c && b>=a){\n    printf(\"最大値は%d\\n\",b);\n    if(c>=a){\n      print\n    }\n  }\n}",
+      "submitted_at": null,
+      "remaining_work": 177.0,
+      "remaining_proportion": -44.0,
+      "auto_save": 1,
+      "created_at": "2022-04-21 13:00:28"
+    },
+    {
+      "id": 931368,
+      "student_id": 156,
+      "task_id": 459,
+      "content": "#include<stdio.h>\nint main(){\n  int a,b,c;\n  scanf(\"%d%d%d\",&a,&b,&c);\n  if(a>=b && a>=c){\n    printf(\"最大値は%d\\n\",a);\n    if(b>=c){\n      printf(\"最小値は%d\\n\",c);\n    }else{\n      printf(\"最小値は%d\\n\",b);\n    }\n  }else if(b>=c && b>=a){\n    printf(\"最大値は%d\\n\",b);\n    if(c>=a){\n      printf(\"最小値は%d\\n\",a);\n    }else{\n      printf(\"\")\n    }\n  }\n}",
+      "submitted_at": null,
+      "remaining_work": 133.0,
+      "remaining_proportion": -35.0,
+      "auto_save": 1,
+      "created_at": "2022-04-21 13:00:58"
+    },
+    {
+      "id": 931372,
+      "student_id": 156,
+      "task_id": 459,
+      "content": "#include<stdio.h>\nint main(){\n  int a,b,c;\n  scanf(\"%d%d%d\",&a,&b,&c);\n  if(a>=b && a>=c){\n    printf(\"最大値は%d\\n\",a);\n    if(b>=c){\n      printf(\"最小値は%d\\n\",c);\n    }else{\n      printf(\"最小値は%d\\n\",b);\n    }\n  }else if(b>=c && b>=a){\n    printf(\"最大値は%d\\n\",b);\n    if(c>=a){\n      printf(\"最小値は%d\\n\",a);\n    }else{\n      printf(\"最小値は%d\\n\",c);\n    }\n  }else{\n    printf(\"\")\n  }\n}",
+      "submitted_at": null,
+      "remaining_work": 98.0,
+      "remaining_proportion": -44.0,
+      "auto_save": 1,
+      "created_at": "2022-04-21 13:01:28"
+    },
+    {
+      "id": 931377,
+      "student_id": 156,
+      "task_id": 459,
+      "content": "#include<stdio.h>\nint main(){\n  int a,b,c;\n  scanf(\"%d%d%d\",&a,&b,&c);\n  if(a>=b && a>=c){\n    printf(\"最大値は%d\\n\",a);\n    if(b>=c){\n      printf(\"最小値は%d\\n\",c);\n    }else{\n      printf(\"最小値は%d\\n\",b);\n    }\n  }else if(b>=c && b>=a){\n    printf(\"最大値は%d\\n\",b);\n    if(c>=a){\n      printf(\"最小値は%d\\n\",a);\n    }else{\n      printf(\"最小値は%d\\n\",c);\n    }\n  }else{\n    printf(\"最大値は%d\\n\",c);\n    if(a>=b){\n      printf\n    }\n  }\n}",
+      "submitted_at": null,
+      "remaining_work": 54.0,
+      "remaining_proportion": -43.0,
+      "auto_save": 1,
+      "created_at": "2022-04-21 13:01:59"
+    },
+    {
+      "id": 931382,
+      "student_id": 156,
+      "task_id": 459,
+      "content": "#include<stdio.h>\nint main(){\n  int a,b,c;\n  scanf(\"%d%d%d\",&a,&b,&c);\n  if(a>=b && a>=c){\n    printf(\"最大値は%d\\n\",a);\n    if(b>=c){\n      printf(\"最小値は%d\\n\",c);\n    }else{\n      printf(\"最小値は%d\\n\",b);\n    }\n  }else if(b>=c && b>=a){\n    printf(\"最大値は%d\\n\",b);\n    if(c>=a){\n      printf(\"最小値は%d\\n\",a);\n    }else{\n      printf(\"最小値は%d\\n\",c);\n    }\n  }else{\n    printf(\"最大値は%d\\n\",c);\n    if(a>=b){\n      printf(\"最小値は%d\\n\",b);\n    }else{\n      printf(\"\")\n    }\n  }\n}",
+      "submitted_at": null,
+      "remaining_work": 11.0,
+      "remaining_proportion": -11.0,
+      "auto_save": 1,
+      "created_at": "2022-04-21 13:02:29"
+    },
+    {
+      "id": 931385,
+      "student_id": 156,
+      "task_id": 459,
+      "content": "#include<stdio.h>\nint main(){\n  int a,b,c;\n  scanf(\"%d%d%d\",&a,&b,&c);\n  if(a>=b && a>=c){\n    printf(\"最大値は%d\\n\",a);\n    if(b>=c){\n      printf(\"最小値は%d\\n\",c);\n    }else{\n      printf(\"最小値は%d\\n\",b);\n    }\n  }else if(b>=c && b>=a){\n    printf(\"最大値は%d\\n\",b);\n    if(c>=a){\n      printf(\"最小値は%d\\n\",a);\n    }else{\n      printf(\"最小値は%d\\n\",c);\n    }\n  }else{\n    printf(\"最大値は%d\\n\",c);\n    if(a>=b){\n      printf(\"最小値は%d\\n\",b);\n    }else{\n      printf(\"最小値は%d\\n\",a);\n    }\n  }\n}",
+      "submitted_at": "2022-04-21 13:02:50",
+      "remaining_work": 0.0,
+      "remaining_proportion": 0.0,
+      "auto_save": 0,
+      "created_at": "2022-04-21 13:02:45"
+    }
+  ]</script>
+
+  <div id="footer-placeholder"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"
+    integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI"
+    crossorigin="anonymous"></script>
+  <script src="../../../js/template/components.js"></script>
+  <script src="../../../js/student/evaluation/log.js"></script>
+</body>
+</html>
