@@ -70,8 +70,6 @@ window.PPEComponents = {
                 <li class="dropdown-header fw-semibold">通知</li>
                 <li><a class="dropdown-item d-flex align-items-center" href="#"><div class="me-2"><span class="badge bg-success">済</span></div><div><div class="fw-semibold">課題完了</div><small class="text-muted">変数とデータ型の課題が評価されました</small></div></a></li>
                 <li><a class="dropdown-item d-flex align-items-center" href="#"><div class="me-2"><span class="badge bg-warning">新</span></div><div><div class="fw-semibold">新しい課題</div><small class="text-muted">条件分岐の課題が追加されました</small></div></a></li>
-                <li><hr class="dropdown-divider"></li>
-                <li><a class="dropdown-item text-center text-primary fw-semibold" href="#">全ての通知を見る</a></li>
               </ul>
             </li>
 
