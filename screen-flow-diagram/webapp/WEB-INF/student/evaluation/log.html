@@ -15,8 +15,25 @@
 <body>
   <div id="header-placeholder"></div>
 
-  <main class="py-5">
+  <main class="pt-2 pb-5">
     <div class="container">
+      <nav class="learning-flow-nav mb-2" aria-label="学習フロー">
+        <ol class="learning-flow-steps">
+          <li class="learning-flow-step is-done">
+            <span class="learning-flow-link is-red">課題</span>
+          </li>
+          <li class="learning-flow-step">
+            <span class="learning-flow-current is-yellow" aria-current="page">評価の確認</span>
+          </li>
+          <li class="learning-flow-step">
+            <span class="learning-flow-link is-green">アンケート</span>
+          </li>
+        </ol>
+        <div class="learning-flow-task-title">
+          <span class="learning-flow-task-name">初級：じゃんけん判定プログラム</span>
+        </div>
+      </nav>
+
       <section class="sample-section log-hero mb-4">
         <div class="hero-copy">
           <span class="hero-kicker">Student Log</span>
