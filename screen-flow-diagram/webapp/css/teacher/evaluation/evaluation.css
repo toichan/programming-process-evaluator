@@ -1,11 +1,11 @@
-/* Teacher history page styles */
+/* Teacher evaluation page styles */
 
 .page-content {
   background-color: #f8fafc;
   flex-grow: 1;
 }
 
-.history-hero {
+.evaluation-hero {
   display: grid;
   grid-template-columns: 1.2fr 1fr;
   gap: 1.25rem;
@@ -71,7 +71,7 @@
 
 .filter-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(150px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
   gap: 0.75rem;
 }
 
@@ -96,17 +96,10 @@
 
 .table {
   margin-bottom: 0;
-  font-size: 0.92rem;
-}
-
-.table-light thead th {
-  padding: 0.9rem 0.7rem;
-  color: var(--bs-gray-700);
-  border-bottom: 2px solid #cbd5e1;
+  font-size: 0.9rem;
 }
 
 .table tbody td {
-  padding: 0.85rem 0.7rem;
   vertical-align: middle;
 }
 
@@ -114,9 +107,8 @@
   background-color: #f0f4ff;
 }
 
-#historyTable td:last-child .btn {
+#evaluationTable td:last-child .btn {
   white-space: nowrap;
-  min-width: 3.4rem;
 }
 
 code {
@@ -125,6 +117,28 @@ code {
   padding: 0.2rem 0.45rem;
   border-radius: 0.35rem;
   font-size: 0.88rem;
+}
+
+.overall-badge {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-weight: 700;
+}
+
+.overall-high {
+  color: #166534;
+  background: #dcfce7;
+}
+
+.overall-mid {
+  color: #1d4ed8;
+  background: #dbeafe;
+}
+
+.overall-low {
+  color: #991b1b;
+  background: #fee2e2;
 }
 
 .consent {
@@ -162,11 +176,33 @@ code {
   color: #1e293b;
 }
 
-.timeline-card {
+.result-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 0.8rem;
+  padding: 0.9rem;
+  background: #f8fafc;
+}
+
+.result-label {
+  font-size: 0.8rem;
+  color: #64748b;
+  margin-bottom: 0.35rem;
+}
+
+.result-score {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 0.55rem;
+}
+
+.reason-card {
   background: #f8fafc;
   border: 1px solid #e2e8f0;
   border-radius: 0.8rem;
   padding: 1rem;
+  line-height: 1.7;
+  color: #334155;
 }
 
 .timeline {
@@ -174,95 +210,61 @@ code {
 }
 
 .timeline li {
-  margin-bottom: 0.4rem;
+  margin-bottom: 0.45rem;
 }
 
-/* ── 進捗サマリーセクション ── */
-.summary-header-row {
-  margin-bottom: 0.75rem;
-}
-
-.summary-kicker {
-  margin-bottom: 0;
-  padding: 0.2rem 0.65rem;
-  border-radius: 999px;
-  background: rgba(79, 70, 229, 0.1);
-  border: 1px solid rgba(79, 70, 229, 0.18);
-}
-
-.summary-section .summary-heading {
-  font-size: 1.15rem;
-  font-weight: 700;
-  color: #27304a;
-}
-
-.summary-layout {
+.metric-data-grid {
   display: grid;
-  grid-template-columns: 310px 1fr;
-  gap: 2.5rem;
-  align-items: center;
+  grid-template-columns: repeat(2, minmax(280px, 1fr));
+  gap: 0.75rem;
 }
 
-.summary-stat-row {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0.55rem;
+.metric-data-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  background: #ffffff;
+  padding: 0.8rem;
 }
 
-.summary-stat-box {
-  border-radius: 0.65rem;
-  padding: 0.65rem 0.5rem;
-  text-align: center;
+.metric-data-card-accent {
+  background: #f8fafc;
 }
 
-.summary-stat-todo  { background: #f1f5f9; color: #475569; }
-.summary-stat-active { background: #fef3c7; color: #92400e; }
-.summary-stat-done   { background: #dcfce7; color: #15803d; }
-
-.ssb-count {
-  font-size: 1.55rem;
-  font-weight: 700;
-  line-height: 1.1;
-}
-
-.ssb-label {
-  font-size: 0.72rem;
-  margin-top: 0.15rem;
-  font-weight: 500;
-}
-
-.completion-label {
-  font-size: 0.82rem;
-  color: #64748b;
-  font-weight: 500;
-}
-
-.completion-pct {
-  font-size: 0.82rem;
-  font-weight: 700;
-  color: #15803d;
-}
-
-.summary-chart-wrap {
+.metric-data-head {
   display: flex;
-  justify-content: center;
+  justify-content: space-between;
   align-items: center;
+  margin-bottom: 0.4rem;
+  font-weight: 700;
+  color: #1e293b;
 }
 
-.summary-chart-wrap canvas {
-  max-width: 380px;
-  max-height: 380px;
-  width: 100%;
+.metric-data-head span:last-child {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.9rem;
+  height: 1.9rem;
+  border-radius: 999px;
+  background: #e2e8f0;
+  color: #0f172a;
+  font-size: 0.86rem;
 }
 
-@media (max-width: 1200px) {
+.metric-data-card p {
+  color: #334155;
+  font-size: 0.88rem;
+  line-height: 1.55;
+}
+
+@media (max-width: 1400px) {
   .filter-grid {
-    grid-template-columns: repeat(2, minmax(170px, 1fr));
+    grid-template-columns: repeat(4, minmax(150px, 1fr));
   }
 }
 
 @media (max-width: 992px) {
-  .history-hero {
+  .evaluation-hero {
     grid-template-columns: 1fr;
   }
 
@@ -270,13 +272,8 @@ code {
     grid-template-columns: repeat(3, minmax(120px, 1fr));
   }
 
-  .summary-layout {
+  .detail-grid {
     grid-template-columns: 1fr;
-  }
-
-  .summary-chart-wrap canvas {
-    max-width: 320px;
-    max-height: 320px;
   }
 }
 
@@ -285,11 +282,11 @@ code {
     grid-template-columns: repeat(2, minmax(140px, 1fr));
   }
 
-  .detail-grid {
-    grid-template-columns: 1fr;
-  }
-
   .table {
     font-size: 0.84rem;
+  }
+
+  .metric-data-grid {
+    grid-template-columns: 1fr;
   }
 }

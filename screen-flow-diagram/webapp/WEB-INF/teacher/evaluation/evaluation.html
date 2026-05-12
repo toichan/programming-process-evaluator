@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Programming Process Evaluator - 評価確認</title>
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet"
+    integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB"
+    crossorigin="anonymous">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+  <link href="../../../css/teacher/shared/components.css" rel="stylesheet">
+  <link href="../../../css/template/template.css" rel="stylesheet">
+  <link href="../../../css/teacher/evaluation/evaluation.css" rel="stylesheet">
+</head>
+<body>
+  <main class="flex-grow-1">
+    <div class="page-content py-5">
+      <div class="container-fluid px-4">
+        <section class="evaluation-hero mb-4">
+          <div>
+            <span class="hero-kicker">Evaluation Monitor</span>
+            <h1 class="section-title mb-2">評価確認</h1>
+            <p class="hero-description mb-0">生徒ごとの評価結果、評価理由、コードログを確認できます。</p>
+          </div>
+          <div class="hero-stats">
+            <div class="stat-card">
+              <div class="stat-label">表示件数</div>
+              <div class="stat-value" id="visibleCount">0</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">平均総合評価</div>
+              <div class="stat-value" id="avgOverall">0.0</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">高評価（4.0以上）</div>
+              <div class="stat-value" id="highScoreCount">0</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel-card mb-4">
+          <div class="d-flex justify-content-end mb-3 action-buttons">
+            <button class="btn btn-outline-secondary btn-sm" onclick="refreshEvaluations()">更新</button>
+            <button class="btn btn-primary btn-sm" onclick="exportEvaluationCSV()">CSVエクスポート</button>
+          </div>
+          <div class="filter-grid">
+            <div>
+              <label class="form-label">学校</label>
+              <select class="form-select form-select-sm" id="filterSchool">
+                <option selected>すべて</option>
+                <option>国際中等</option>
+                <option>附属高校</option>
+              </select>
+            </div>
+            <div>
+              <label class="form-label">クラス</label>
+              <select class="form-select form-select-sm" id="filterClass">
+                <option selected>すべて</option>
+                <option>1年A組</option>
+                <option>1年B組</option>
+                <option>1年C組</option>
+                <option>1年D組</option>
+                <option>1年E組</option>
+                <option>1年F組</option>
+                <option>1年G組</option>
+                <option>1年H組</option>
+                <option>4年1組</option>
+                <option>4年2組</option>
+                <option>4年3組</option>
+                <option>4年4組</option>
+              </select>
+            </div>
+            <div>
+              <label class="form-label">難易度</label>
+              <select class="form-select form-select-sm" id="filterLevel">
+                <option selected>すべて</option>
+                <option>初級</option>
+                <option>中級</option>
+                <option>上級</option>
+              </select>
+            </div>
+            <div>
+              <label class="form-label">研究同意</label>
+              <select class="form-select form-select-sm" id="filterConsent">
+                <option selected>すべて</option>
+                <option>同意</option>
+                <option>不同意</option>
+                <option>未確認</option>
+              </select>
+            </div>
+            <div>
+              <label class="form-label">思判表条件</label>
+              <input type="text" class="form-control form-control-sm" id="filterThinkingExpr" placeholder="例: =4, >3">
+            </div>
+            <div>
+              <label class="form-label">態度条件</label>
+              <input type="text" class="form-control form-control-sm" id="filterAttitudeExpr" placeholder="例: =4, >3">
+            </div>
+            <div>
+              <label class="form-label">並び順</label>
+              <select class="form-select form-select-sm" id="sortBy">
+                <option value="id" selected>ID（昇順）</option>
+                <option value="idDesc">ID（降順）</option>
+                <option value="evaluatedDesc">評価日時（新しい順）</option>
+                <option value="evaluatedAsc">評価日時（古い順）</option>
+                <option value="thinkingDesc">思考・判断・表現（降順）</option>
+                <option value="thinkingAsc">思考・判断・表現（昇順）</option>
+                <option value="attitudeDesc">態度（降順）</option>
+                <option value="attitudeAsc">態度（昇順）</option>
+              </select>
+            </div>
+            <div>
+              <label class="form-label">検索</label>
+              <input type="text" class="form-control form-control-sm" id="searchInput" placeholder="ID / 課題名で検索">
+            </div>
+          </div>
+        </section>
+
+        <section class="panel-card">
+          <div class="table-responsive">
+            <table class="table table-hover align-middle" id="evaluationTable">
+              <thead class="table-light">
+                <tr>
+                  <th style="width: 8%;">生徒ID</th>
+                  <th style="width: 10%;">学校</th>
+                  <th style="width: 10%;">クラス</th>
+                  <th style="width: 16%;">課題</th>
+                  <th style="width: 8%;">難易度</th>
+                  <th style="width: 9%;">思判表</th>
+                  <th style="width: 9%;">態度</th>
+                  <th style="width: 10%;">評価日時</th>
+                  <th style="width: 7%;">同意</th>
+                  <th style="width: 5%;">詳細</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr data-id="s001" data-school="国際中等" data-class="1年A組" data-task="じゃんけん判定" data-level="初級" data-thinking="4.0" data-attitude="4.0" data-overall="4.0" data-evaluated="2026-05-12 10:35:12" data-consent="同意">
+                  <td><code>s001</code></td><td>国際中等</td><td>1年A組</td><td>じゃんけん判定</td><td><span class="badge text-bg-info">初級</span></td>
+                  <td>4</td><td>4</td><td>10:35:12</td><td><span class="consent consent-ok">同意</span></td>
+                  <td><button class="btn btn-sm btn-outline-primary" onclick="openEvaluationDetail(this)">表示</button></td>
+                </tr>
+                <tr data-id="s002" data-school="国際中等" data-class="1年A組" data-task="在庫管理" data-level="中級" data-thinking="3.0" data-attitude="4.0" data-overall="3.5" data-evaluated="2026-05-12 10:29:48" data-consent="同意">
+                  <td><code>s002</code></td><td>国際中等</td><td>1年A組</td><td>在庫管理</td><td><span class="badge text-bg-primary">中級</span></td>
+                  <td>3</td><td>4</td><td>10:29:48</td><td><span class="consent consent-ok">同意</span></td>
+                  <td><button class="btn btn-sm btn-outline-primary" onclick="openEvaluationDetail(this)">表示</button></td>
+                </tr>
+                <tr data-id="s003" data-school="国際中等" data-class="1年B組" data-task="じゃんけん判定" data-level="初級" data-thinking="2.0" data-attitude="3.0" data-overall="2.5" data-evaluated="2026-05-12 10:20:31" data-consent="同意">
+                  <td><code>s003</code></td><td>国際中等</td><td>1年B組</td><td>じゃんけん判定</td><td><span class="badge text-bg-info">初級</span></td>
+                  <td>2</td><td>3</td><td>10:20:31</td><td><span class="consent consent-ok">同意</span></td>
+                  <td><button class="btn btn-sm btn-outline-primary" onclick="openEvaluationDetail(this)">表示</button></td>
+                </tr>
+                <tr data-id="s117" data-school="附属高校" data-class="4年2組" data-task="経路探索" data-level="上級" data-thinking="5.0" data-attitude="4.0" data-overall="4.5" data-evaluated="2026-05-12 10:41:05" data-consent="未確認">
+                  <td><code>s117</code></td><td>附属高校</td><td>4年2組</td><td>経路探索</td><td><span class="badge text-bg-dark">上級</span></td>
+                  <td>5</td><td>4</td><td>10:41:05</td><td><span class="consent consent-pending">未確認</span></td>
+                  <td><button class="btn btn-sm btn-outline-primary" onclick="openEvaluationDetail(this)">表示</button></td>
+                </tr>
+                <tr data-id="s118" data-school="附属高校" data-class="4年2組" data-task="経路探索" data-level="上級" data-thinking="4.0" data-attitude="5.0" data-overall="4.5" data-evaluated="2026-05-12 10:12:11" data-consent="同意">
+                  <td><code>s118</code></td><td>附属高校</td><td>4年2組</td><td>経路探索</td><td><span class="badge text-bg-dark">上級</span></td>
+                  <td>4</td><td>5</td><td>10:12:11</td><td><span class="consent consent-ok">同意</span></td>
+                  <td><button class="btn btn-sm btn-outline-primary" onclick="openEvaluationDetail(this)">表示</button></td>
+                </tr>
+                <tr data-id="s203" data-school="附属高校" data-class="4年4組" data-task="家計簿集計" data-level="中級" data-thinking="3.0" data-attitude="2.0" data-overall="2.5" data-evaluated="2026-05-12 10:33:22" data-consent="不同意">
+                  <td><code>s203</code></td><td>附属高校</td><td>4年4組</td><td>家計簿集計</td><td><span class="badge text-bg-primary">中級</span></td>
+                  <td>3</td><td>2</td><td>10:33:22</td><td><span class="consent consent-no">不同意</span></td>
+                  <td><button class="btn btn-sm btn-outline-primary" onclick="openEvaluationDetail(this)">表示</button></td>
+                </tr>
+                <tr data-id="s204" data-school="附属高校" data-class="4年4組" data-task="家計簿集計" data-level="中級" data-thinking="4.0" data-attitude="3.0" data-overall="3.5" data-evaluated="2026-05-12 09:58:06" data-consent="同意">
+                  <td><code>s204</code></td><td>附属高校</td><td>4年4組</td><td>家計簿集計</td><td><span class="badge text-bg-primary">中級</span></td>
+                  <td>4</td><td>3</td><td>09:58:06</td><td><span class="consent consent-ok">同意</span></td>
+                  <td><button class="btn btn-sm btn-outline-primary" onclick="openEvaluationDetail(this)">表示</button></td>
+                </tr>
+                <tr data-id="s205" data-school="附属高校" data-class="4年4組" data-task="家計簿集計" data-level="中級" data-thinking="1.0" data-attitude="2.0" data-overall="1.5" data-evaluated="2026-05-12 09:35:42" data-consent="未確認">
+                  <td><code>s205</code></td><td>附属高校</td><td>4年4組</td><td>家計簿集計</td><td><span class="badge text-bg-primary">中級</span></td>
+                  <td>1</td><td>2</td><td>09:35:42</td><td><span class="consent consent-pending">未確認</span></td>
+                  <td><button class="btn btn-sm btn-outline-primary" onclick="openEvaluationDetail(this)">表示</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <div class="modal fade" id="evaluationDetailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-fullscreen modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">評価詳細</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
+        </div>
+        <div class="modal-body">
+          <!-- Hero Section -->
+          <section class="sample-section evaluation-hero mb-4">
+            <div class="hero-copy">
+              <span class="hero-kicker">Student Evaluation</span>
+              <h1 class="section-title mb-3">評価結果</h1>
+              <p class="hero-description mb-0" id="heroDescription">
+                コードログと実行履歴をもとに、2つの観点で自動評価したサンプル表示です。各観点の総合点と、根拠になったログの要約を確認できます。
+              </p>
+            </div>
+
+            <div class="hero-meta-card">
+              <div class="meta-label">対象課題</div>
+              <div class="meta-value" id="heroTaskName">-</div>
+              <div class="meta-subtext" id="heroMeta">-</div>
+              <div class="hero-score-row">
+                <div class="hero-score-pill thinking" id="heroThinkingScore">思考力・判断力・表現力 -</div>
+                <div class="hero-score-pill attitude" id="heroAttitudeScore">主体的に学習に取り組む態度 -</div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Overview Section -->
+          <section class="sample-section overview-section mb-4">
+            <div class="section-heading-row">
+              <div>
+                <h2 class="card-title mb-2">総合評価</h2>
+                <p class="text-muted mb-0">2つの観点ごとに、ルーブリックをもとにした総合点を表示します。</p>
+              </div>
+              <span class="score-caption">5段階評価</span>
+            </div>
+
+            <div class="row g-4 mt-1">
+              <div class="col-lg-6">
+                <article class="score-panel thinking-panel">
+                  <div class="panel-kicker">思考力・判断力・表現力</div>
+                  <div class="panel-score-row">
+                    <div class="panel-score" id="detailThinkingSummaryScore">-</div>
+                    <div>
+                      <h3 class="panel-title" id="detailThinkingSummaryTitle">-</h3>
+                      <p class="panel-description mb-0" id="detailThinkingSummaryDescription">-</p>
+                    </div>
+                  </div>
+                  <div class="score-meter" aria-hidden="true" id="detailThinkingMeter">
+                    <span class="is-filled"></span>
+                    <span class="is-filled"></span>
+                    <span class="is-filled"></span>
+                    <span class="is-filled"></span>
+                    <span></span>
+                  </div>
+                </article>
+              </div>
+              <div class="col-lg-6">
+                <article class="score-panel attitude-panel">
+                  <div class="panel-kicker">主体的に学習に取り組む態度</div>
+                  <div class="panel-score-row">
+                    <div class="panel-score" id="detailAttitudeSummaryScore">-</div>
+                    <div>
+                      <h3 class="panel-title" id="detailAttitudeSummaryTitle">-</h3>
+                      <p class="panel-description mb-0" id="detailAttitudeSummaryDescription">-</p>
+                    </div>
+                  </div>
+                  <div class="score-meter" aria-hidden="true" id="detailAttitudeMeter">
+                    <span class="is-filled"></span>
+                    <span class="is-filled"></span>
+                    <span class="is-filled"></span>
+                    <span class="is-filled"></span>
+                    <span></span>
+                  </div>
+                </article>
+              </div>
+            </div>
+          </section>
+
+          <!-- Breakdown Section -->
+          <section class="sample-section breakdown-section mb-4">
+            <div class="section-heading-row">
+              <div>
+                <h2 class="card-title mb-2">観点別スコア</h2>
+                <p class="text-muted mb-0">細かな評価項目ごとの点数です。</p>
+              </div>
+            </div>
+
+            <div class="breakdown-grid" id="detailBreakdownGrid">
+              <!-- JavaScript で動的に生成 -->
+            </div>
+          </section>
+
+          <!-- Reasons Section -->
+          <section class="sample-section reasons-section mb-4">
+            <div class="section-heading-row reasons-heading">
+              <div>
+                <h2 class="card-title mb-2">評価の理由</h2>
+                <p class="text-muted mb-0">各項目の点数に至った具体的な根拠です。</p>
+              </div>
+              <div class="reason-filter-group" role="tablist" aria-label="reason category filter">
+                <button class="reason-filter is-active" type="button" data-filter="all">すべて</button>
+                <button class="reason-filter" type="button" data-filter="thinking">思考・判断・表現</button>
+                <button class="reason-filter" type="button" data-filter="attitude">態度</button>
+              </div>
+            </div>
+
+            <div class="reason-list" id="detailReasonList">
+              <!-- JavaScript で動的に生成 -->
+            </div>
+          </section>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"
+    integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI"
+    crossorigin="anonymous"></script>
+  <script src="../../../js/teacher/shared/components.js"></script>
+  <script src="../../../js/teacher/evaluation/evaluation.js"></script>
+</body>
+</html>
