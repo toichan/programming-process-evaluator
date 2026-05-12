@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Programming Process Evaluator - 学習履歴確認</title>
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet"
+    integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB"
+    crossorigin="anonymous">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+  <link href="../../../css/teacher/shared/components.css" rel="stylesheet">
+  <link href="../../../css/template/template.css" rel="stylesheet">
+  <link href="../../../css/teacher/history/history.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <main class="flex-grow-1">
+    <div class="page-content py-5">
+      <div class="container-fluid px-4">
+        <section class="history-hero mb-4">
+          <div>
+            <span class="hero-kicker">Learning Monitor</span>
+            <h1 class="section-title mb-2">学習履歴確認</h1>
+            <p class="hero-description mb-0">クラス別の進捗、実施中課題、研究同意状態を一覧で確認できます。</p>
+          </div>
+          <div class="hero-stats">
+            <div class="stat-card">
+              <div class="stat-label">表示件数</div>
+              <div class="stat-value" id="visibleCount">0</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">実施中</div>
+              <div class="stat-value" id="activeCount">0</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">提出済み</div>
+              <div class="stat-value" id="submittedCount">0</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel-card mb-4 summary-section">
+          <div class="d-flex align-items-center mb-3">
+            <span class="hero-kicker me-2" style="margin-bottom:0;">Progress</span>
+            <h2 class="summary-heading mb-0">進捗サマリー</h2>
+          </div>
+          <div class="summary-layout">
+            <div class="summary-controls">
+              <div class="mb-3">
+                <label class="form-label">学校</label>
+                <select class="form-select form-select-sm" id="summarySchool" onchange="updateSummaryChart()">
+                  <option value="すべて" selected>すべて</option>
+                  <option>国際中等</option>
+                  <option>附属高校</option>
+                </select>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">クラス</label>
+                <select class="form-select form-select-sm" id="summaryClass" onchange="updateSummaryChart()">
+                  <option value="すべて" selected>すべて</option>
+                  <option>1年A組</option>
+                  <option>1年B組</option>
+                  <option>4年2組</option>
+                  <option>4年4組</option>
+                </select>
+              </div>
+              <div class="mb-4">
+                <label class="form-label">課題</label>
+                <select class="form-select form-select-sm" id="summaryTask" onchange="updateSummaryChart()">
+                  <option value="すべて" selected>すべて</option>
+                  <option>初級: じゃんけん判定</option>
+                  <option>中級: 在庫管理</option>
+                  <option>中級: 家計簿集計</option>
+                  <option>上級: 経路探索</option>
+                </select>
+              </div>
+              <div class="summary-stat-row mb-3">
+                <div class="summary-stat-box summary-stat-todo">
+                  <div class="ssb-count" id="summaryTodo">0</div>
+                  <div class="ssb-label">未着手</div>
+                </div>
+                <div class="summary-stat-box summary-stat-active">
+                  <div class="ssb-count" id="summaryActive">0</div>
+                  <div class="ssb-label">編集中</div>
+                </div>
+                <div class="summary-stat-box summary-stat-done">
+                  <div class="ssb-count" id="summaryDone">0</div>
+                  <div class="ssb-label">提出済み</div>
+                </div>
+              </div>
+              <div>
+                <div class="d-flex justify-content-between mb-1">
+                  <span class="completion-label">完了率</span>
+                  <span class="completion-pct" id="completionPct">0%</span>
+                </div>
+                <div class="progress" style="height: 8px; border-radius: 4px;">
+                  <div class="progress-bar bg-success" id="completionBar" style="width: 0%;" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                </div>
+              </div>
+            </div>
+            <div class="summary-chart-wrap">
+              <canvas id="summaryDonut"></canvas>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel-card mb-4">
+          <div class="d-flex justify-content-end mb-3 action-buttons">
+            <button class="btn btn-outline-secondary btn-sm" onclick="refreshRows()">更新</button>
+            <button class="btn btn-primary btn-sm" onclick="exportHistoryCSV()">CSVエクスポート</button>
+          </div>
+          <div class="filter-grid">
+              <div>
+                <label class="form-label">学校</label>
+                <select class="form-select form-select-sm" id="filterSchool">
+                  <option selected>すべて</option>
+                  <option>国際中等</option>
+                  <option>附属高校</option>
+                </select>
+              </div>
+              <div>
+                <label class="form-label">クラス</label>
+                <select class="form-select form-select-sm" id="filterClass">
+                  <option selected>すべて</option>
+                  <option>1年A組</option>
+                  <option>1年B組</option>
+                  <option>1年C組</option>
+                  <option>1年D組</option>
+                  <option>1年E組</option>
+                  <option>1年F組</option>
+                  <option>1年G組</option>
+                  <option>1年H組</option>
+                  <option>4年1組</option>
+                  <option>4年2組</option>
+                  <option>4年3組</option>
+                  <option>4年4組</option>
+                </select>
+              </div>
+              <div>
+                <label class="form-label">研究同意</label>
+                <select class="form-select form-select-sm" id="filterConsent">
+                  <option selected>すべて</option>
+                  <option>同意</option>
+                  <option>不同意</option>
+                  <option>未確認</option>
+                </select>
+              </div>
+              <div>
+                <label class="form-label">状態</label>
+                <select class="form-select form-select-sm" id="filterStatus">
+                  <option selected>すべて</option>
+                  <option>編集中</option>
+                  <option>提出済み</option>
+                  <option>未着手</option>
+                </select>
+              </div>
+              <div>
+                <label class="form-label">並び順</label>
+                <select class="form-select form-select-sm" id="sortBy">
+                  <option value="id" selected>ID（昇順）</option>
+                  <option value="elapsedDesc">取り組み時間（長い順）</option>
+                  <option value="elapsedAsc">取り組み時間（短い順）</option>
+                  <option value="updatedDesc">最終更新（新しい順）</option>
+                </select>
+              </div>
+              <div>
+                <label class="form-label">検索</label>
+                <input type="text" class="form-control form-control-sm" id="searchInput" placeholder="ID / 課題名で検索">
+              </div>
+            </div>
+        </section>
+
+        <section class="panel-card">
+          <div class="table-responsive">
+            <table class="table table-hover align-middle" id="historyTable">
+              <thead class="table-light">
+                <tr>
+                  <th style="width: 8%;">生徒ID</th>
+                  <th style="width: 12%;">学校</th>
+                  <th style="width: 11%;">クラス</th>
+                  <th style="width: 21%;">実施中の課題</th>
+                  <th style="width: 9%;">状態</th>
+                  <th style="width: 12%;">取り組み時間</th>
+                  <th style="width: 12%;">最終更新</th>
+                  <th style="width: 8%;">同意</th>
+                  <th style="width: 7%;">詳細</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr data-id="s001" data-school="国際中等" data-class="1年A組" data-task="初級: じゃんけん判定" data-status="編集中" data-elapsed="00:42:10" data-updated="2026-05-12 10:24:20" data-consent="同意">
+                  <td><code>s001</code></td>
+                  <td>国際中等</td>
+                  <td>1年A組</td>
+                  <td>初級: じゃんけん判定</td>
+                  <td><span class="badge text-bg-warning">編集中</span></td>
+                  <td>00:42:10</td>
+                  <td>10:24:20</td>
+                  <td><span class="consent consent-ok">同意</span></td>
+                  <td><button class="btn btn-sm btn-outline-primary" onclick="openHistoryDetail(this)">表示</button></td>
+                </tr>
+                <tr data-id="s002" data-school="国際中等" data-class="1年A組" data-task="中級: 在庫管理" data-status="提出済み" data-elapsed="01:18:05" data-updated="2026-05-12 10:10:02" data-consent="同意">
+                  <td><code>s002</code></td>
+                  <td>国際中等</td>
+                  <td>1年A組</td>
+                  <td>中級: 在庫管理</td>
+                  <td><span class="badge text-bg-success">提出済み</span></td>
+                  <td>01:18:05</td>
+                  <td>10:10:02</td>
+                  <td><span class="consent consent-ok">同意</span></td>
+                  <td><button class="btn btn-sm btn-outline-primary" onclick="openHistoryDetail(this)">表示</button></td>
+                </tr>
+                <tr data-id="s117" data-school="附属高校" data-class="4年2組" data-task="上級: 経路探索" data-status="未着手" data-elapsed="00:00:00" data-updated="2026-05-11 16:32:18" data-consent="未確認">
+                  <td><code>s117</code></td>
+                  <td>附属高校</td>
+                  <td>4年2組</td>
+                  <td>上級: 経路探索</td>
+                  <td><span class="badge text-bg-secondary">未着手</span></td>
+                  <td>00:00:00</td>
+                  <td>16:32:18</td>
+                  <td><span class="consent consent-pending">未確認</span></td>
+                  <td><button class="btn btn-sm btn-outline-primary" onclick="openHistoryDetail(this)">表示</button></td>
+                </tr>
+                <tr data-id="s003" data-school="国際中等" data-class="1年A組" data-task="初級: じゃんけん判定" data-status="提出済み" data-elapsed="00:55:30" data-updated="2026-05-11 14:20:00" data-consent="同意">
+                  <td><code>s003</code></td>
+                  <td>国際中等</td>
+                  <td>1年A組</td>
+                  <td>初級: じゃんけん判定</td>
+                  <td><span class="badge text-bg-success">提出済み</span></td>
+                  <td>00:55:30</td>
+                  <td>14:20:00</td>
+                  <td><span class="consent consent-ok">同意</span></td>
+                  <td><button class="btn btn-sm btn-outline-primary" onclick="openHistoryDetail(this)">表示</button></td>
+                </tr>
+                <tr data-id="s004" data-school="国際中等" data-class="1年A組" data-task="初級: じゃんけん判定" data-status="未着手" data-elapsed="00:00:00" data-updated="2026-05-11 09:00:00" data-consent="同意">
+                  <td><code>s004</code></td>
+                  <td>国際中等</td>
+                  <td>1年A組</td>
+                  <td>初級: じゃんけん判定</td>
+                  <td><span class="badge text-bg-secondary">未着手</span></td>
+                  <td>00:00:00</td>
+                  <td>09:00:00</td>
+                  <td><span class="consent consent-ok">同意</span></td>
+                  <td><button class="btn btn-sm btn-outline-primary" onclick="openHistoryDetail(this)">表示</button></td>
+                </tr>
+                <tr data-id="s005" data-school="国際中等" data-class="1年B組" data-task="初級: じゃんけん判定" data-status="編集中" data-elapsed="00:31:20" data-updated="2026-05-12 09:55:11" data-consent="同意">
+                  <td><code>s005</code></td>
+                  <td>国際中等</td>
+                  <td>1年B組</td>
+                  <td>初級: じゃんけん判定</td>
+                  <td><span class="badge text-bg-warning">編集中</span></td>
+                  <td>00:31:20</td>
+                  <td>09:55:11</td>
+                  <td><span class="consent consent-ok">同意</span></td>
+                  <td><button class="btn btn-sm btn-outline-primary" onclick="openHistoryDetail(this)">表示</button></td>
+                </tr>
+                <tr data-id="s006" data-school="国際中等" data-class="1年B組" data-task="初級: じゃんけん判定" data-status="未着手" data-elapsed="00:00:00" data-updated="2026-05-11 09:00:00" data-consent="未確認">
+                  <td><code>s006</code></td>
+                  <td>国際中等</td>
+                  <td>1年B組</td>
+                  <td>初級: じゃんけん判定</td>
+                  <td><span class="badge text-bg-secondary">未着手</span></td>
+                  <td>00:00:00</td>
+                  <td>09:00:00</td>
+                  <td><span class="consent consent-pending">未確認</span></td>
+                  <td><button class="btn btn-sm btn-outline-primary" onclick="openHistoryDetail(this)">表示</button></td>
+                </tr>
+                <tr data-id="s118" data-school="附属高校" data-class="4年2組" data-task="上級: 経路探索" data-status="提出済み" data-elapsed="02:05:44" data-updated="2026-05-12 08:40:00" data-consent="同意">
+                  <td><code>s118</code></td>
+                  <td>附属高校</td>
+                  <td>4年2組</td>
+                  <td>上級: 経路探索</td>
+                  <td><span class="badge text-bg-success">提出済み</span></td>
+                  <td>02:05:44</td>
+                  <td>08:40:00</td>
+                  <td><span class="consent consent-ok">同意</span></td>
+                  <td><button class="btn btn-sm btn-outline-primary" onclick="openHistoryDetail(this)">表示</button></td>
+                </tr>
+                <tr data-id="s119" data-school="附属高校" data-class="4年2組" data-task="上級: 経路探索" data-status="編集中" data-elapsed="01:12:33" data-updated="2026-05-12 10:15:00" data-consent="同意">
+                  <td><code>s119</code></td>
+                  <td>附属高校</td>
+                  <td>4年2組</td>
+                  <td>上級: 経路探索</td>
+                  <td><span class="badge text-bg-warning">編集中</span></td>
+                  <td>01:12:33</td>
+                  <td>10:15:00</td>
+                  <td><span class="consent consent-ok">同意</span></td>
+                  <td><button class="btn btn-sm btn-outline-primary" onclick="openHistoryDetail(this)">表示</button></td>
+                </tr>
+                <tr data-id="s203" data-school="附属高校" data-class="4年4組" data-task="中級: 家計簿集計" data-status="編集中" data-elapsed="00:27:49" data-updated="2026-05-12 10:25:04" data-consent="不同意">
+                  <td><code>s203</code></td>
+                  <td>附属高校</td>
+                  <td>4年4組</td>
+                  <td>中級: 家計簿集計</td>
+                  <td><span class="badge text-bg-warning">編集中</span></td>
+                  <td>00:27:49</td>
+                  <td>10:25:04</td>
+                  <td><span class="consent consent-no">不同意</span></td>
+                  <td><button class="btn btn-sm btn-outline-primary" onclick="openHistoryDetail(this)">表示</button></td>
+                </tr>
+                <tr data-id="s204" data-school="附属高校" data-class="4年4組" data-task="中級: 家計簿集計" data-status="提出済み" data-elapsed="00:48:22" data-updated="2026-05-11 15:30:00" data-consent="同意">
+                  <td><code>s204</code></td>
+                  <td>附属高校</td>
+                  <td>4年4組</td>
+                  <td>中級: 家計簿集計</td>
+                  <td><span class="badge text-bg-success">提出済み</span></td>
+                  <td>00:48:22</td>
+                  <td>15:30:00</td>
+                  <td><span class="consent consent-ok">同意</span></td>
+                  <td><button class="btn btn-sm btn-outline-primary" onclick="openHistoryDetail(this)">表示</button></td>
+                </tr>
+                <tr data-id="s205" data-school="附属高校" data-class="4年4組" data-task="中級: 家計簿集計" data-status="未着手" data-elapsed="00:00:00" data-updated="2026-05-11 09:00:00" data-consent="未確認">
+                  <td><code>s205</code></td>
+                  <td>附属高校</td>
+                  <td>4年4組</td>
+                  <td>中級: 家計簿集計</td>
+                  <td><span class="badge text-bg-secondary">未着手</span></td>
+                  <td>00:00:00</td>
+                  <td>09:00:00</td>
+                  <td><span class="consent consent-pending">未確認</span></td>
+                  <td><button class="btn btn-sm btn-outline-primary" onclick="openHistoryDetail(this)">表示</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <div class="modal fade" id="historyDetailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">学習履歴詳細</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
+        </div>
+        <div class="modal-body">
+          <div class="detail-grid mb-3">
+            <div><span class="detail-label">生徒ID</span><div class="detail-value" id="detailId">-</div></div>
+            <div><span class="detail-label">学校 / クラス</span><div class="detail-value" id="detailClass">-</div></div>
+            <div><span class="detail-label">課題</span><div class="detail-value" id="detailTask">-</div></div>
+            <div><span class="detail-label">状態</span><div class="detail-value" id="detailStatus">-</div></div>
+          </div>
+          <div class="timeline-card">
+            <h6 class="mb-3">最新アクティビティ</h6>
+            <ul class="timeline mb-0" id="detailTimeline">
+              <li>10:25:04 - コード保存</li>
+              <li>10:23:41 - 実行（成功）</li>
+              <li>10:21:10 - コード保存</li>
+            </ul>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-primary" id="detailCheckEvaluationBtn">評価を確認する</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"
+    integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI"
+    crossorigin="anonymous"></script>
+  <script src="../../../js/teacher/shared/components.js"></script>
+  <script src="../../../js/teacher/history/history.js"></script>
+</body>
+</html>
