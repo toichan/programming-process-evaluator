@@ -5,7 +5,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function initializeHistoryPage() {
-  ['filterClass', 'filterSchool', 'filterConsent', 'filterStatus', 'sortBy'].forEach(function(id) {
+  ['filterClass', 'filterSchool', 'filterConsent', 'filterStatus', 'filterLevel', 'filterTask', 'sortBy'].forEach(function(id) {
     const el = document.getElementById(id);
     if (el) {
       el.addEventListener('change', applyFiltersAndSort);
@@ -26,6 +26,8 @@ function applyFiltersAndSort() {
   const schoolFilter = document.getElementById('filterSchool')?.value || 'すべて';
   const consentFilter = document.getElementById('filterConsent')?.value || 'すべて';
   const statusFilter = document.getElementById('filterStatus')?.value || 'すべて';
+  const levelFilter = document.getElementById('filterLevel')?.value || 'すべて';
+  const taskFilter = document.getElementById('filterTask')?.value || 'すべて';
   const sortBy = document.getElementById('sortBy')?.value || 'id';
   const query = (document.getElementById('searchInput')?.value || '').trim().toLowerCase();
 
@@ -39,11 +41,13 @@ function applyFiltersAndSort() {
     const matchSchool = schoolFilter === 'すべて' || row.dataset.school === schoolFilter;
     const matchConsent = consentFilter === 'すべて' || row.dataset.consent === consentFilter;
     const matchStatus = statusFilter === 'すべて' || row.dataset.status === statusFilter;
+    const matchLevel = levelFilter === 'すべて' || row.dataset.level === levelFilter;
+    const matchTask = taskFilter === 'すべて' || row.dataset.task === taskFilter;
     const matchQuery = query.length === 0 ||
       row.dataset.id.toLowerCase().includes(query) ||
       row.dataset.task.toLowerCase().includes(query);
 
-    row.style.display = (matchClass && matchSchool && matchConsent && matchStatus && matchQuery) ? '' : 'none';
+    row.style.display = (matchClass && matchSchool && matchConsent && matchStatus && matchLevel && matchTask && matchQuery) ? '' : 'none';
   });
 
   const visibleRows = rows.filter(function(row) { return row.style.display !== 'none'; });
@@ -55,9 +59,11 @@ function applyFiltersAndSort() {
 
 function sortRows(rows, sortBy) {
   rows.sort(function(a, b) {
+    if (sortBy === 'idDesc') return b.dataset.id.localeCompare(a.dataset.id, 'ja');
     if (sortBy === 'elapsedDesc') return toSeconds(b.dataset.elapsed) - toSeconds(a.dataset.elapsed);
     if (sortBy === 'elapsedAsc') return toSeconds(a.dataset.elapsed) - toSeconds(b.dataset.elapsed);
     if (sortBy === 'updatedDesc') return new Date(b.dataset.updated).getTime() - new Date(a.dataset.updated).getTime();
+    if (sortBy === 'updatedAsc') return new Date(a.dataset.updated).getTime() - new Date(b.dataset.updated).getTime();
     return a.dataset.id.localeCompare(b.dataset.id, 'ja');
   });
 }
@@ -92,7 +98,7 @@ function openHistoryDetail(button) {
 
   setText('detailId', row.dataset.id);
   setText('detailClass', row.dataset.school + ' / ' + row.dataset.class);
-  setText('detailTask', row.dataset.task);
+  setText('detailTask', row.dataset.task + ' / ' + row.dataset.level);
   setText('detailStatus', row.dataset.status + '（' + row.dataset.elapsed + '）');
 
   const timeline = document.getElementById('detailTimeline');
@@ -112,6 +118,13 @@ function openHistoryDetail(button) {
   const modalEl = document.getElementById('historyDetailModal');
   if (!modalEl) return;
 
+  const detailCheckEvaluationBtn = document.getElementById('detailCheckEvaluationBtn');
+  if (detailCheckEvaluationBtn) {
+    detailCheckEvaluationBtn.onclick = function() {
+      window.location.href = '../evaluation/evaluation.html?studentId=' + encodeURIComponent(row.dataset.id);
+    };
+  }
+
   const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
   modal.show();
 }
@@ -124,7 +137,7 @@ function refreshRows() {
   rows.forEach(function(row) {
     if (row.dataset.status === '編集中') {
       row.dataset.updated = now.toISOString().slice(0, 10) + ' ' + time;
-      row.cells[6].textContent = time;
+      row.cells[7].textContent = time;
     }
   });
 
@@ -135,13 +148,14 @@ function exportHistoryCSV() {
   const rows = Array.from(document.querySelectorAll('#historyTable tbody tr'))
     .filter(function(row) { return row.style.display !== 'none'; });
 
-  const header = ['生徒ID', '学校', 'クラス', '実施中の課題', '状態', '取り組み時間', '最終更新', '研究同意'];
+  const header = ['生徒ID', '学校', 'クラス', '課題', '難易度', '状態', '取り組み時間', '最終更新', '研究同意'];
   const body = rows.map(function(row) {
     return [
       row.dataset.id,
       row.dataset.school,
       row.dataset.class,
       row.dataset.task,
+      row.dataset.level,
       row.dataset.status,
       row.dataset.elapsed,
       row.dataset.updated,
