@@ -1,0 +1,159 @@
+/* Teacher Shared Components Styles */
+
+.d-flex {
+  display: flex;
+}
+
+/* サイドメニュー */
+.teacher-sidebar {
+  width: 260px;
+  min-width: 260px;
+  flex: 0 0 260px;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+main.flex-grow-1 {
+  min-width: 0;
+}
+
+.sidebar-header {
+  padding: 1.5rem;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.sidebar-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--bs-gray-900);
+  margin: 0;
+}
+
+.sidebar-menu {
+  list-style: none;
+  padding: 0.75rem 0;
+  margin: 0;
+  flex-grow: 1;
+}
+
+.sidebar-menu-item {
+  margin: 0.25rem 0;
+}
+
+.sidebar-menu-link {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1.25rem;
+  color: var(--bs-gray-700);
+  text-decoration: none;
+  font-size: 0.95rem;
+  transition: all 0.2s ease;
+}
+
+.sidebar-menu-link:hover {
+  background-color: rgba(79, 70, 229, 0.08);
+  color: #4f46e5;
+}
+
+.sidebar-menu-item.active .sidebar-menu-link {
+  background-color: rgba(79, 70, 229, 0.15);
+  color: #4f46e5;
+  font-weight: 500;
+}
+
+.sidebar-icon {
+  flex-shrink: 0;
+}
+
+.sidebar-footer {
+  padding: 1.5rem;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+/* ヘッダー */
+.teacher-header {
+  height: 70px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.header-logo h2 {
+  font-size: 1.3rem;
+  font-weight: 600;
+  color: var(--bs-gray-900);
+}
+
+.header-actions {
+  flex-shrink: 0;
+}
+
+.teacher-name {
+  color: var(--bs-gray-700);
+  font-weight: 500;
+}
+
+/* 教師情報 */
+.teacher-info {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.5rem 1rem;
+  background-color: #f0f4ff;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(79, 70, 229, 0.1);
+}
+
+.teacher-info-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--bs-gray-700);
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+.teacher-info-icon {
+  color: #4f46e5;
+  flex-shrink: 0;
+}
+
+.teacher-info-text {
+  white-space: nowrap;
+}
+
+/* レスポンシブ */
+@media (max-width: 992px) {
+  .teacher-sidebar {
+    width: 200px;
+    min-width: 200px;
+    flex: 0 0 200px;
+  }
+
+  .teacher-info {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .teacher-info-item {
+    font-size: 0.9rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .teacher-sidebar {
+    position: fixed;
+    left: -200px;
+    top: 0;
+    height: 100vh;
+    z-index: 1040;
+    transition: left 0.3s ease;
+  }
+
+  .teacher-sidebar.show {
+    left: 0;
+  }
+}

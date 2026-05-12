@@ -1,0 +1,361 @@
+/* Teacher account page styles */
+
+.min-vh-100 {
+  min-height: 100vh;
+}
+
+/* ページコンテンツ */
+.page-content {
+  background-color: #f8fafc;
+  flex-grow: 1;
+}
+
+/* ヒーロー・ステータスカード */
+.hero-section {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3rem;
+  align-items: center;
+  margin-bottom: 2rem;
+}
+
+.hero-copy .hero-kicker {
+  display: inline-block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #4f46e5;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.5rem;
+}
+
+.section-title {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: var(--bs-gray-900);
+  line-height: 1.2;
+}
+
+.hero-description {
+  font-size: 1rem;
+  color: var(--bs-gray-600);
+  line-height: 1.6;
+}
+
+.hero-status-card {
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+  border-radius: 1rem;
+  padding: 2rem;
+  color: white;
+  box-shadow: 0 10px 30px rgba(79, 70, 229, 0.15);
+}
+
+.status-label {
+  font-size: 0.85rem;
+  opacity: 0.9;
+  margin-bottom: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.status-value {
+  font-size: 2.5rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+
+.status-meta {
+  font-size: 0.9rem;
+  opacity: 0.9;
+}
+
+/* サンプルセクション */
+.sample-section {
+  background: white;
+  border-radius: 1rem;
+  padding: 2rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  border: 1px solid #e2e8f0;
+}
+
+.card-title {
+  font-size: 1.4rem;
+  font-weight: 600;
+  color: var(--bs-gray-900);
+}
+
+/* テーブル */
+.table {
+  margin-bottom: 0;
+  font-size: 0.95rem;
+}
+
+.table-light thead th {
+  background-color: #f1f5f9;
+  border-bottom: 2px solid #cbd5e1;
+  font-weight: 600;
+  color: var(--bs-gray-700);
+  padding: 1rem;
+}
+
+.table tbody tr {
+  border-bottom: 1px solid #e2e8f0;
+  transition: background-color 0.2s ease;
+}
+
+.table tbody tr:hover {
+  background-color: #f0f4ff;
+}
+
+.table > :not(caption) > * > * {
+  vertical-align: middle;
+}
+
+.table tbody td {
+  padding: 1rem;
+  vertical-align: middle;
+}
+
+code {
+  background-color: #f1f5f9;
+  border-radius: 0.375rem;
+  padding: 0.25rem 0.5rem;
+  color: #4f46e5;
+  font-weight: 500;
+  font-family: 'Monaco', 'Menlo', monospace;
+  font-size: 0.9rem;
+}
+
+/* ボタン */
+.btn {
+  border-radius: 0.5rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  border: none;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  color: white;
+}
+
+.btn-primary:hover {
+  background: linear-gradient(135deg, #4338ca, #6d28d9);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+}
+
+.btn-outline-secondary {
+  border: 1px solid #cbd5e1;
+  color: var(--bs-gray-700);
+}
+
+.btn-outline-secondary:hover {
+  background-color: #f1f5f9;
+  border-color: #94a3b8;
+  color: var(--bs-gray-900);
+}
+
+.btn-outline-primary {
+  border: 1px solid #4f46e5;
+  color: #4f46e5;
+}
+
+.btn-outline-primary:hover {
+  background: #4f46e5;
+  color: white;
+  border-color: #4f46e5;
+}
+
+.btn-outline-danger {
+  border: 1px solid #ef4444;
+  color: #ef4444;
+}
+
+.btn-outline-danger:hover {
+  background: #ef4444;
+  color: white;
+  border-color: #ef4444;
+}
+
+.btn-sm {
+  padding: 0.4rem 0.8rem;
+  font-size: 0.85rem;
+}
+
+.btn-lg {
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+}
+
+/* フィルタセクション */
+.form-label {
+  font-weight: 500;
+  color: var(--bs-gray-700);
+  margin-bottom: 0.5rem;
+  font-size: 0.95rem;
+}
+
+.form-control,
+.form-select {
+  border: 1px solid #cbd5e1;
+  border-radius: 0.5rem;
+  padding: 0.625rem 0.75rem;
+  font-size: 0.95rem;
+  background-color: white;
+  transition: all 0.2s ease;
+}
+
+.form-control:focus,
+.form-select:focus {
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+}
+
+.form-control-sm {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.9rem;
+}
+
+/* モーダル */
+.modal-content {
+  border: 1px solid #e2e8f0;
+  border-radius: 1rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+}
+
+.modal-header {
+  border-bottom: 1px solid #e2e8f0;
+  padding: 1.5rem;
+  background-color: #f8fafc;
+}
+
+.modal-title {
+  font-weight: 600;
+  color: var(--bs-gray-900);
+  font-size: 1.1rem;
+}
+
+.modal-body {
+  padding: 2rem 1.5rem;
+}
+
+.modal-footer {
+  border-top: 1px solid #e2e8f0;
+  padding: 1.5rem;
+  background-color: #f8fafc;
+}
+
+/* パスワード表示セル */
+td.password-cell {
+  background-color: transparent !important;
+  box-shadow: none !important;
+  vertical-align: middle;
+}
+
+.password-content {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.table tbody tr:hover td.password-cell {
+  background-color: transparent !important;
+}
+
+.password-mask {
+  font-family: 'Courier New', monospace;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  color: var(--bs-gray-700);
+  word-break: break-word;
+  white-space: nowrap;
+}
+
+.password-mask.hidden {
+  display: none;
+}
+
+/* パスワード表示トグルボタン */
+.btn-icon {
+  padding: 0.35rem;
+  border: none;
+  background-color: transparent;
+  color: #94a3b8;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.375rem;
+  flex-shrink: 0;
+}
+
+.btn-icon:hover {
+  background-color: rgba(79, 70, 229, 0.08);
+  color: #4f46e5;
+}
+
+td.password-cell .btn-icon:hover {
+  background-color: transparent;
+  box-shadow: none;
+}
+
+td.password-cell .btn-icon {
+  padding: 0.2rem;
+}
+
+td.password-cell .btn-icon:focus {
+  background-color: transparent;
+  box-shadow: none;
+}
+
+.btn-icon:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.1);
+  border-color: #4f46e5;
+}
+
+.eye-icon {
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.eye-icon.active {
+  color: #4f46e5;
+}
+
+/* レスポンシブ */
+@media (max-width: 992px) {
+  .hero-section {
+    grid-template-columns: 1fr;
+    gap: 2rem;
+  }
+
+  .section-title {
+    font-size: 2rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .section-title {
+    font-size: 1.75rem;
+  }
+
+  .hero-status-card {
+    padding: 1.5rem;
+  }
+
+  .table {
+    font-size: 0.85rem;
+  }
+
+  .table tbody td {
+    padding: 0.75rem;
+  }
+
+  .btn-sm {
+    padding: 0.35rem 0.6rem;
+    font-size: 0.75rem;
+  }
+}

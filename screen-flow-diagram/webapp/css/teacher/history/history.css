@@ -1,0 +1,283 @@
+/* Teacher history page styles */
+
+.page-content {
+  background-color: #f8fafc;
+  flex-grow: 1;
+}
+
+.history-hero {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 1.25rem;
+  align-items: stretch;
+}
+
+.hero-kicker {
+  display: inline-block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #4f46e5;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.4rem;
+}
+
+.section-title {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--bs-gray-900);
+}
+
+.hero-description {
+  color: var(--bs-gray-600);
+}
+
+.hero-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+}
+
+.stat-card {
+  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  color: #fff;
+  border-radius: 0.85rem;
+  padding: 1rem;
+  box-shadow: 0 8px 22px rgba(79, 70, 229, 0.2);
+}
+
+.stat-label {
+  font-size: 0.8rem;
+  opacity: 0.9;
+}
+
+.stat-value {
+  font-size: 1.7rem;
+  font-weight: 700;
+}
+
+.panel-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 1rem;
+  padding: 1.25rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.action-buttons {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.filter-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(130px, 1fr));
+  gap: 0.75rem;
+}
+
+.form-label {
+  font-weight: 500;
+  color: var(--bs-gray-700);
+  margin-bottom: 0.35rem;
+  font-size: 0.88rem;
+}
+
+.form-control,
+.form-select {
+  border: 1px solid #cbd5e1;
+  border-radius: 0.5rem;
+}
+
+.form-control:focus,
+.form-select:focus {
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+}
+
+.table {
+  margin-bottom: 0;
+  font-size: 0.92rem;
+}
+
+.table-light thead th {
+  padding: 0.9rem 0.7rem;
+  color: var(--bs-gray-700);
+  border-bottom: 2px solid #cbd5e1;
+}
+
+.table tbody td {
+  padding: 0.85rem 0.7rem;
+  vertical-align: middle;
+}
+
+.table tbody tr:hover {
+  background-color: #f0f4ff;
+}
+
+#historyTable td:last-child .btn {
+  white-space: nowrap;
+  min-width: 3.4rem;
+}
+
+code {
+  background: #eef2ff;
+  color: #4f46e5;
+  padding: 0.2rem 0.45rem;
+  border-radius: 0.35rem;
+  font-size: 0.88rem;
+}
+
+.consent {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.consent-ok {
+  color: #15803d;
+}
+
+.consent-no {
+  color: #b91c1c;
+}
+
+.consent-pending {
+  color: #475569;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.9rem;
+}
+
+.detail-label {
+  font-size: 0.78rem;
+  color: #64748b;
+  display: block;
+  margin-bottom: 0.2rem;
+}
+
+.detail-value {
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.timeline-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.8rem;
+  padding: 1rem;
+}
+
+.timeline {
+  padding-left: 1.2rem;
+}
+
+.timeline li {
+  margin-bottom: 0.4rem;
+}
+
+/* ── 進捗サマリーセクション ── */
+.summary-section .summary-heading {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.summary-layout {
+  display: grid;
+  grid-template-columns: 310px 1fr;
+  gap: 2.5rem;
+  align-items: center;
+}
+
+.summary-stat-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.55rem;
+}
+
+.summary-stat-box {
+  border-radius: 0.65rem;
+  padding: 0.65rem 0.5rem;
+  text-align: center;
+}
+
+.summary-stat-todo  { background: #f1f5f9; color: #475569; }
+.summary-stat-active { background: #fef3c7; color: #92400e; }
+.summary-stat-done   { background: #dcfce7; color: #15803d; }
+
+.ssb-count {
+  font-size: 1.55rem;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.ssb-label {
+  font-size: 0.72rem;
+  margin-top: 0.15rem;
+  font-weight: 500;
+}
+
+.completion-label {
+  font-size: 0.82rem;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.completion-pct {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #15803d;
+}
+
+.summary-chart-wrap {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.summary-chart-wrap canvas {
+  max-width: 380px;
+  max-height: 380px;
+  width: 100%;
+}
+
+@media (max-width: 1200px) {
+  .filter-grid {
+    grid-template-columns: repeat(3, minmax(150px, 1fr));
+  }
+}
+
+@media (max-width: 992px) {
+  .history-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-stats {
+    grid-template-columns: repeat(3, minmax(120px, 1fr));
+  }
+
+  .summary-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .summary-chart-wrap canvas {
+    max-width: 320px;
+    max-height: 320px;
+  }
+}
+
+@media (max-width: 768px) {
+  .filter-grid {
+    grid-template-columns: repeat(2, minmax(140px, 1fr));
+  }
+
+  .detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .table {
+    font-size: 0.84rem;
+  }
+}
