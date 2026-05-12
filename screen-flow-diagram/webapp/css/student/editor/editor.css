@@ -1,7 +1,10 @@
 body {
+  --editor-accent: #cf5a5a;
+  --editor-accent-dark: #b84545;
+  --editor-accent-alt: #bb4f70;
   background:
-    radial-gradient(circle at top left, rgba(37, 99, 235, 0.14), transparent 26%),
-    linear-gradient(135deg, #eef4ff 0%, #f8fafc 56%, #eef2ff 100%);
+    radial-gradient(circle at top left, rgba(217, 107, 107, 0.14), transparent 26%),
+    linear-gradient(135deg, #fff4f4 0%, #f8fafc 56%, #fdf5f8 100%);
 }
 
 .editor-hero-section {
@@ -9,7 +12,7 @@ body {
   grid-template-columns: minmax(0, 1.8fr) minmax(260px, 0.95fr);
   gap: 1.5rem;
   align-items: stretch;
-  background: linear-gradient(135deg, rgba(37, 99, 235, 0.08), rgba(8, 145, 178, 0.08));
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.94), rgba(255, 248, 248, 0.95));
 }
 
 .hero-kicker {
@@ -17,8 +20,8 @@ body {
   align-items: center;
   padding: 0.45rem 0.85rem;
   border-radius: 999px;
-  background: rgba(37, 99, 235, 0.12);
-  color: var(--bs-primary);
+  background: rgba(217, 107, 107, 0.14);
+  color: var(--editor-accent-dark);
   font-size: 0.85rem;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -36,14 +39,14 @@ body {
   padding: 1.5rem;
   border-radius: 1rem;
   background: rgba(255, 255, 255, 0.92);
-  border: 1px solid rgba(37, 99, 235, 0.12);
-  box-shadow: 0 12px 28px rgba(37, 99, 235, 0.08);
+  border: 1px solid rgba(217, 107, 107, 0.14);
+  box-shadow: 0 12px 28px rgba(217, 107, 107, 0.1);
 }
 
 .status-label {
   font-size: 0.85rem;
   font-weight: 700;
-  color: var(--bs-info);
+  color: var(--editor-accent-alt);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   margin-bottom: 0.5rem;
@@ -159,8 +162,16 @@ body {
 }
 
 .task-badge {
-  background: rgba(37, 99, 235, 0.12);
-  color: var(--bs-primary);
+  background: rgba(217, 107, 107, 0.14);
+  color: var(--editor-accent-dark);
+}
+
+.editor-toolbar .btn-primary {
+  background: linear-gradient(135deg, var(--editor-accent), var(--editor-accent-alt));
+}
+
+.editor-toolbar .btn-primary:hover {
+  background: linear-gradient(135deg, var(--editor-accent-dark), #ad4f68);
 }
 
 .language-badge,
@@ -215,7 +226,7 @@ body {
 
 .editor-message {
   font-weight: 600;
-  color: var(--bs-primary);
+  color: var(--editor-accent-dark);
 }
 
 .output-console {
@@ -262,7 +273,7 @@ body {
 
 .log-time {
   font-weight: 700;
-  color: var(--bs-primary);
+  color: var(--editor-accent-dark);
 }
 
 .log-title {
@@ -286,7 +297,7 @@ body {
 }
 
 .info-tabs .nav-link.active {
-  background: linear-gradient(135deg, var(--bs-primary), #1d4ed8);
+  background: linear-gradient(135deg, var(--editor-accent), var(--editor-accent-alt));
   color: var(--bs-white) !important;
 }
 

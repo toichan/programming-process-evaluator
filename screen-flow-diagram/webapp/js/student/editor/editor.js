@@ -11,7 +11,6 @@ window.addEventListener('DOMContentLoaded', () => {
   const runButton = document.querySelector('#runButton');
   const submitButton = document.querySelector('#submitButton');
   const infoTabs = document.querySelectorAll('[data-panel-target]');
-  const rubricTabs = document.querySelectorAll('[data-rubric-target]');
 
   if (headerPlaceholder && header) {
     headerPlaceholder.innerHTML = header;
@@ -96,16 +95,6 @@ window.addEventListener('DOMContentLoaded', () => {
       infoTabs.forEach((button) => button.classList.remove('active'));
       document.querySelectorAll('.info-panel').forEach((panel) => panel.classList.remove('is-active'));
       tab.classList.add('active');
-      document.getElementById(targetId)?.classList.add('is-active');
-    });
-  });
-
-  rubricTabs.forEach((tab) => {
-    tab.addEventListener('click', () => {
-      const targetId = tab.getAttribute('data-rubric-target');
-      rubricTabs.forEach((button) => button.classList.remove('is-active'));
-      document.querySelectorAll('#rubricPanel .rubric-panel').forEach((panel) => panel.classList.remove('is-active'));
-      tab.classList.add('is-active');
       document.getElementById(targetId)?.classList.add('is-active');
     });
   });

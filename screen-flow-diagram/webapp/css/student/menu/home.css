@@ -120,12 +120,12 @@ body {
 }
 
 .task-action-btn {
-  background: linear-gradient(135deg, #ef4444, #db2777);
+  background: linear-gradient(135deg, #cf5a5a, #bb4f70);
   box-shadow: none;
 }
 
 .task-action-btn:hover {
-  background: linear-gradient(135deg, #dc2626, #be185d);
+  background: linear-gradient(135deg, #b84545, #9f415f);
   box-shadow: none;
 }
 
