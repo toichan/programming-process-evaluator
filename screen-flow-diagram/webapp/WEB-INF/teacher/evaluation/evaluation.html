@@ -135,6 +135,23 @@
           </div>
           <div class="filter-grid">
             <div>
+              <label class="form-label">並び順</label>
+              <select class="form-select form-select-sm" id="sortBy">
+                <option value="id" selected>生徒ID（昇順）</option>
+                <option value="idDesc">生徒ID（降順）</option>
+                <option value="evaluatedDesc">評価日時（新しい順）</option>
+                <option value="evaluatedAsc">評価日時（古い順）</option>
+                <option value="thinkingDesc">思考・判断・表現（降順）</option>
+                <option value="thinkingAsc">思考・判断・表現（昇順）</option>
+                <option value="attitudeDesc">態度（降順）</option>
+                <option value="attitudeAsc">態度（昇順）</option>
+              </select>
+            </div>
+            <div>
+              <label class="form-label">検索</label>
+              <input type="text" class="form-control form-control-sm" id="searchInput" placeholder="生徒ID / 課題名で検索">
+            </div>
+            <div>
               <label class="form-label">学校</label>
               <select class="form-select form-select-sm" id="filterSchool">
                 <option selected>すべて</option>
@@ -186,23 +203,6 @@
               <label class="form-label">態度条件</label>
               <input type="text" class="form-control form-control-sm" id="filterAttitudeExpr" placeholder="例: =4, >3">
             </div>
-            <div>
-              <label class="form-label">並び順</label>
-              <select class="form-select form-select-sm" id="sortBy">
-                <option value="id" selected>ID（昇順）</option>
-                <option value="idDesc">ID（降順）</option>
-                <option value="evaluatedDesc">評価日時（新しい順）</option>
-                <option value="evaluatedAsc">評価日時（古い順）</option>
-                <option value="thinkingDesc">思考・判断・表現（降順）</option>
-                <option value="thinkingAsc">思考・判断・表現（昇順）</option>
-                <option value="attitudeDesc">態度（降順）</option>
-                <option value="attitudeAsc">態度（昇順）</option>
-              </select>
-            </div>
-            <div>
-              <label class="form-label">検索</label>
-              <input type="text" class="form-control form-control-sm" id="searchInput" placeholder="ID / 課題名で検索">
-            </div>
           </div>
         </section>
 
@@ -218,7 +218,7 @@
                   <th style="width: 8%;">難易度</th>
                   <th style="width: 9%;">思判表</th>
                   <th style="width: 9%;">態度</th>
-                  <th style="width: 10%;">評価日時</th>
+                  <th style="width: 12%;">評価日時</th>
                   <th style="width: 7%;">同意</th>
                   <th style="width: 5%;">詳細</th>
                 </tr>

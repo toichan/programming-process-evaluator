@@ -112,6 +112,21 @@
           </div>
           <div class="filter-grid">
               <div>
+                <label class="form-label">並び順</label>
+                <select class="form-select form-select-sm" id="sortBy">
+                  <option value="id" selected>ID（昇順）</option>
+                  <option value="idDesc">ID（降順）</option>
+                  <option value="elapsedDesc">取り組み時間（長い順）</option>
+                  <option value="elapsedAsc">取り組み時間（短い順）</option>
+                  <option value="updatedDesc">最終更新（新しい順）</option>
+                  <option value="updatedAsc">最終更新（古い順）</option>
+                </select>
+              </div>
+              <div>
+                <label class="form-label">検索</label>
+                <input type="text" class="form-control form-control-sm" id="searchInput" placeholder="ID / 課題名で検索">
+              </div>
+              <div>
                 <label class="form-label">学校</label>
                 <select class="form-select form-select-sm" id="filterSchool">
                   <option selected>すべて</option>
@@ -173,21 +188,6 @@
                   <option>家計簿集計</option>
                   <option>経路探索</option>
                 </select>
-              </div>
-              <div>
-                <label class="form-label">並び順</label>
-                <select class="form-select form-select-sm" id="sortBy">
-                  <option value="id" selected>ID（昇順）</option>
-                  <option value="idDesc">ID（降順）</option>
-                  <option value="elapsedDesc">取り組み時間（長い順）</option>
-                  <option value="elapsedAsc">取り組み時間（短い順）</option>
-                  <option value="updatedDesc">最終更新（新しい順）</option>
-                  <option value="updatedAsc">最終更新（古い順）</option>
-                </select>
-              </div>
-              <div>
-                <label class="form-label">検索</label>
-                <input type="text" class="form-control form-control-sm" id="searchInput" placeholder="ID / 課題名で検索">
               </div>
             </div>
         </section>

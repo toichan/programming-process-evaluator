@@ -8,6 +8,7 @@ function initializeEventListeners() {
   const createAccountForm = document.getElementById('createAccountForm');
   const filterClass = document.getElementById('filterClass');
   const filterSchool = document.getElementById('filterSchool');
+  const sortBy = document.getElementById('sortBy');
   const searchInput = document.getElementById('searchInput');
 
   if (filterClass) {
@@ -16,6 +17,10 @@ function initializeEventListeners() {
 
   if (filterSchool) {
     filterSchool.addEventListener('change', filterAccounts);
+  }
+
+  if (sortBy) {
+    sortBy.addEventListener('change', filterAccounts);
   }
 
   if (searchInput) {
@@ -35,12 +40,13 @@ function initializeEventListeners() {
 function filterAccounts() {
   const classFilter = document.getElementById('filterClass')?.value || '';
   const schoolFilter = document.getElementById('filterSchool')?.value || '';
+  const sortBy = document.getElementById('sortBy')?.value || 'idAsc';
   const searchTerm = document.getElementById('searchInput')?.value.toLowerCase() || '';
 
   const tableBody = document.querySelector('.table tbody');
   if (!tableBody) return;
 
-  const rows = tableBody.querySelectorAll('tr');
+  const rows = Array.from(tableBody.querySelectorAll('tr'));
   rows.forEach(row => {
     let show = true;
 
@@ -70,6 +76,35 @@ function filterAccounts() {
     }
 
     row.style.display = show ? '' : 'none';
+  });
+
+  const visibleRows = rows.filter(function(row) {
+    return row.style.display !== 'none';
+  });
+
+  sortAccountRows(visibleRows, sortBy);
+  visibleRows.forEach(function(row) {
+    tableBody.appendChild(row);
+  });
+}
+
+function sortAccountRows(rows, sortBy) {
+  rows.sort(function(a, b) {
+    const idA = a.cells[0]?.textContent.trim() || '';
+    const idB = b.cells[0]?.textContent.trim() || '';
+    const createdA = a.cells[4]?.textContent.trim() || '';
+    const createdB = b.cells[4]?.textContent.trim() || '';
+
+    if (sortBy === 'idDesc') {
+      return idB.localeCompare(idA, 'ja');
+    }
+    if (sortBy === 'createdDesc') {
+      return new Date(createdB).getTime() - new Date(createdA).getTime();
+    }
+    if (sortBy === 'createdAsc') {
+      return new Date(createdA).getTime() - new Date(createdB).getTime();
+    }
+    return idA.localeCompare(idB, 'ja');
   });
 }
 
@@ -197,6 +232,68 @@ function exportCSV() {
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+}
+
+/**
+ * アカウント詳細（ログイン履歴）を表示
+ */
+function openAccountDetail(button) {
+  const row = button.closest('tr');
+  if (!row) return;
+
+  const studentId = row.cells[0]?.textContent.trim() || '-';
+  const school = row.cells[2]?.textContent.trim() || '-';
+  const className = row.cells[3]?.textContent.trim() || '-';
+
+  const history = getLoginHistoryByStudentId(studentId);
+
+  const idEl = document.getElementById('detailStudentId');
+  const schoolEl = document.getElementById('detailSchool');
+  const classEl = document.getElementById('detailClass');
+  const bodyEl = document.getElementById('loginHistoryTableBody');
+  const modalEl = document.getElementById('accountDetailModal');
+
+  if (!bodyEl || !modalEl) return;
+
+  if (idEl) idEl.textContent = studentId;
+  if (schoolEl) schoolEl.textContent = school;
+  if (classEl) classEl.textContent = className;
+
+  bodyEl.innerHTML = history.map(function(entry) {
+    return '<tr>' +
+      '<td>' + entry.datetime + '</td>' +
+      '<td><span class="badge ' + (entry.success ? 'text-bg-success' : 'text-bg-danger') + '">' + (entry.success ? '成功' : '失敗') + '</span></td>' +
+      '<td><code>' + entry.ip + '</code></td>' +
+      '<td>' + entry.device + '</td>' +
+    '</tr>';
+  }).join('');
+
+  const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+  modal.show();
+}
+
+function getLoginHistoryByStudentId(studentId) {
+  const histories = {
+    s001: [
+      { datetime: '2026-05-18 08:01:22', success: true, ip: '10.12.1.44', device: 'Windows / Chrome 136' },
+      { datetime: '2026-05-17 17:36:10', success: true, ip: '10.12.1.44', device: 'Windows / Chrome 136' },
+      { datetime: '2026-05-17 07:58:43', success: false, ip: '10.12.1.44', device: 'Windows / Chrome 136' }
+    ],
+    s002: [
+      { datetime: '2026-05-18 08:04:07', success: true, ip: '10.12.1.45', device: 'iPadOS / Safari 18' },
+      { datetime: '2026-05-17 16:42:21', success: true, ip: '10.12.1.45', device: 'iPadOS / Safari 18' },
+      { datetime: '2026-05-16 09:03:02', success: true, ip: '10.12.1.45', device: 'iPadOS / Safari 18' }
+    ],
+    s003: [
+      { datetime: '2026-05-18 08:09:52', success: true, ip: '10.44.2.88', device: 'Chromebook / ChromeOS 132' },
+      { datetime: '2026-05-17 18:02:39', success: false, ip: '10.44.2.88', device: 'Chromebook / ChromeOS 132' },
+      { datetime: '2026-05-17 08:00:30', success: true, ip: '10.44.2.88', device: 'Chromebook / ChromeOS 132' }
+    ]
+  };
+
+  return histories[studentId] || [
+    { datetime: '2026-05-18 08:00:00', success: true, ip: '10.0.0.1', device: 'Unknown Device' }
+  ];
 }
 
 /**

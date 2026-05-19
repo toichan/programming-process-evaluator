@@ -25,9 +25,9 @@ function loadTeacherComponents() {
         <li class="sidebar-menu-item" data-page="account">
           <a href="../account/account.html" class="sidebar-menu-link">
             <svg class="sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
+              <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
             </svg>
-            <span>アカウント管理</span>
+            <span>生徒アカウント管理</span>
           </a>
         </li>
         <li class="sidebar-menu-item" data-page="history">
@@ -63,9 +63,6 @@ function loadTeacherComponents() {
           </a>
         </li>
       </ul>
-      <div class="sidebar-footer">
-        <a href="../account/login.html" class="btn btn-outline-secondary w-100">ログアウト</a>
-      </div>
     </nav>
   `;
 
@@ -85,9 +82,9 @@ function loadTeacherComponents() {
             </div>
             <div class="teacher-info-item">
               <svg class="teacher-info-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5zm0 17.5c-3.87 0-7-2.64-7-5.9v-7.68l7-3.5 7 3.5v7.68c0 3.26-3.13 5.9-7 5.9z"/>
+                <path d="M5 3v18h14V3H5zm6 2h2v2h-2V5zM7 9h2v2H7V9zm4 0h2v2h-2V9zm4 0h2v2h-2V9zM7 13h2v2H7v-2zm4 0h2v2h-2v-2zm4 0h2v2h-2v-2zM10 17h4v4h-4v-4z"/>
               </svg>
-              <span class="teacher-info-text">学校：all</span>
+              <span class="teacher-info-text">学校: all</span>
             </div>
           </div>
           <button class="btn btn-sm btn-outline-secondary" onclick="logout()">ログアウト</button>
