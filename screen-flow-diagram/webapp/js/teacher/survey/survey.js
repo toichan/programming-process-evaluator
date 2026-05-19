@@ -564,6 +564,21 @@ function displaySurveyInModal(survey) {
   modal.show();
 }
 
+function refreshSurveys() {
+  const now = new Date();
+  const date = now.toISOString().slice(0, 10);
+  const time = now.toTimeString().slice(0, 8);
+  const submittedAt = `${date}T${time}+09:00`;
+
+  surveyData.forEach((survey) => {
+    if (survey.completionStatus === '完了') {
+      survey.submittedAt = submittedAt;
+    }
+  });
+
+  applyFiltersAndSort();
+}
+
 /**
  * CSVエクスポート
  */

@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Programming Process Evaluator - 課題編集</title>
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet"
+    integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB"
+    crossorigin="anonymous">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+  <link href="../../../css/teacher/shared/components.css" rel="stylesheet">
+  <link href="../../../css/template/template.css" rel="stylesheet">
+  <link href="../../../css/teacher/task/task.css" rel="stylesheet">
+</head>
+<body>
+  <main class="flex-grow-1">
+    <div class="page-content py-5">
+      <div class="container-fluid px-4">
+        <section class="task-hero mb-4">
+          <div>
+            <span class="hero-kicker">Task Management</span>
+            <h1 class="section-title mb-2">課題編集</h1>
+            <p class="hero-description mb-0">課題の新規作成、既存課題の編集、論理削除を行います。</p>
+          </div>
+          <div class="hero-stats">
+            <div class="stat-card">
+              <div class="stat-label">公開中</div>
+              <div class="stat-value" id="publishedCount">3</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">下書き</div>
+              <div class="stat-value" id="draftCount">1</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">更新待ち</div>
+              <div class="stat-value" id="pendingCount">2</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel-card mb-4">
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+            <div>
+              <span class="hero-kicker mb-1 d-inline-block">Create</span>
+              <h2 class="subheading mb-0" id="createSectionHeading">新規課題の作成</h2>
+            </div>
+            <div class="d-flex gap-2">
+              <button class="btn btn-outline-danger btn-sm d-none" type="button" id="cancelEditButton">編集を終了</button>
+              <button class="btn btn-outline-secondary btn-sm" type="button" id="resetFormButton">入力をリセット</button>
+            </div>
+          </div>
+
+          <div class="row g-4">
+            <div class="col-xl-7">
+              <form id="taskCreateForm" class="task-form">
+                <h3 class="form-section-title">課題情報</h3>
+                <div class="row g-3">
+                  <div class="col-md-6">
+                    <label class="form-label d-block">学校</label>
+                    <div class="dropdown class-dropdown" id="schoolCheckboxGroup" aria-describedby="schoolSelectHelp">
+                      <button
+                        id="schoolDropdownButton"
+                        class="btn btn-outline-secondary form-control text-start dropdown-toggle"
+                        type="button"
+                        data-bs-toggle="dropdown"
+                        data-bs-auto-close="outside"
+                        aria-expanded="false">学校を選択</button>
+                      <div class="dropdown-menu class-dropdown-menu p-2 w-100">
+                        <div class="form-check">
+                          <input class="form-check-input" type="checkbox" id="schoolKokusai" name="schoolTargets" value="国際中等">
+                          <label class="form-check-label" for="schoolKokusai">国際中等</label>
+                        </div>
+                        <div class="form-check">
+                          <input class="form-check-input" type="checkbox" id="schoolFuzoku" name="schoolTargets" value="附属高校">
+                          <label class="form-check-label" for="schoolFuzoku">附属高校</label>
+                        </div>
+                      </div>
+                    </div>
+                    <div id="schoolSelectHelp" class="form-text">複数選択できます。</div>
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label d-block">クラス</label>
+                    <div class="dropdown class-dropdown" id="classCheckboxGroup" aria-describedby="classSelectHelp">
+                      <button
+                        id="classDropdownButton"
+                        class="btn btn-outline-secondary form-control text-start dropdown-toggle"
+                        type="button"
+                        data-bs-toggle="dropdown"
+                        data-bs-auto-close="outside"
+                        aria-expanded="false">クラスを選択</button>
+                      <div class="dropdown-menu class-dropdown-menu p-2 w-100">
+                        <div class="form-check">
+                          <input class="form-check-input" type="checkbox" id="class1A" name="classTargets" value="1年A組">
+                          <label class="form-check-label" for="class1A">1年A組</label>
+                        </div>
+                        <div class="form-check">
+                          <input class="form-check-input" type="checkbox" id="class1B" name="classTargets" value="1年B組">
+                          <label class="form-check-label" for="class1B">1年B組</label>
+                        </div>
+                        <div class="form-check">
+                          <input class="form-check-input" type="checkbox" id="class4-2" name="classTargets" value="4年2組">
+                          <label class="form-check-label" for="class4-2">4年2組</label>
+                        </div>
+                      </div>
+                    </div>
+                    <div id="classSelectHelp" class="form-text">複数選択できます。</div>
+                  </div>
+                  <div class="col-md-6">
+                    <label for="levelSelect" class="form-label">難易度</label>
+                    <select id="levelSelect" class="form-select" required>
+                      <option value="">選択</option>
+                      <option>初級</option>
+                      <option>中級</option>
+                      <option>上級</option>
+                    </select>
+                  </div>
+                  <div class="col-md-6">
+                    <label for="publishDateInput" class="form-label">公開日時</label>
+                    <input id="publishDateInput" class="form-control" type="datetime-local">
+                  </div>
+                  <div class="col-12">
+                    <label for="taskNameInput" class="form-label">課題名</label>
+                    <input id="taskNameInput" class="form-control" type="text" placeholder="例: じゃんけん" required>
+                  </div>
+                  <div class="col-12">
+                    <label for="themeInput" class="form-label">テーマ</label>
+                    <input id="themeInput" class="form-control" type="text" placeholder="例: 条件分岐 / 入力処理">
+                  </div>
+                  <div class="col-12">
+                    <label for="taskDescriptionInput" class="form-label">課題説明</label>
+                    <textarea id="taskDescriptionInput" class="form-control" rows="3" placeholder="課題の目的と完成条件を入力"></textarea>
+                  </div>
+                  <div class="col-12">
+                    <label for="featureInput" class="form-label">実装機能</label>
+                    <textarea id="featureInput" class="form-control" rows="2" placeholder="セミコロン区切りで入力（例: 入力値を受け取る;条件分岐で勝敗を判定する）"></textarea>
+                  </div>
+                  <div class="col-12">
+                    <label for="taskConstraintInput" class="form-label">制約・注意事項</label>
+                    <textarea id="taskConstraintInput" class="form-control" rows="2" placeholder="入力制限、禁止事項などを入力"></textarea>
+                  </div>
+                  <div class="col-12">
+                    <label for="initialCodeInput" class="form-label">初期コード</label>
+                    <textarea id="initialCodeInput" class="form-control code-editor-input" rows="7" placeholder="初期表示するPythonコードを入力"></textarea>
+                  </div>
+                  <div class="col-12">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                      <label class="form-label mb-0">テストケース</label>
+                      <button class="btn btn-sm btn-outline-primary" type="button" id="addTestCaseButton">テストケース追加</button>
+                    </div>
+                    <div id="testCaseList" class="test-case-dynamic-list"></div>
+                  </div>
+                </div>
+
+                <h3 class="form-section-title mt-4">ヒント情報</h3>
+                <div class="row g-3">
+                  <div class="col-12">
+                    <div class="d-flex justify-content-end align-items-center mb-2">
+                      <div class="d-flex gap-2">
+                        <button class="btn btn-sm btn-outline-secondary" type="button" id="openHintLibraryButton">他課題から追加</button>
+                        <button class="btn btn-sm btn-outline-primary" type="button" id="addHintButton">ヒント追加</button>
+                      </div>
+                    </div>
+                    <div id="hintList" class="test-case-list"></div>
+                  </div>
+                </div>
+
+                <div class="d-flex gap-2 mt-4">
+                  <button class="btn btn-primary" type="submit" id="publishTaskButton">保存・公開</button>
+                  <button class="btn btn-outline-secondary" type="button" id="saveDraftButton">下書き保存</button>
+                </div>
+              </form>
+            </div>
+
+            <div class="col-xl-5">
+              <div class="preview-card">
+                <div class="preview-header">
+                  <span class="preview-kicker">Preview</span>
+                  <h3 class="preview-title">課題プレビュー</h3>
+                </div>
+                <article id="previewCard" class="task-list-card task-card task-card-beginner mt-2">
+                  <div class="task-header-row">
+                    <div>
+                      <span id="previewLevel" class="task-level">初級</span>
+                      <h3 id="previewName" class="mt-2 mb-0" style="font-size:1.15rem;">課題名未設定</h3>
+                    </div>
+                  </div>
+                  <p id="previewDescription" class="task-description mb-2">説明未設定</p>
+                  <div>
+                    <span class="meta-label">学習テーマ</span>
+                    <span id="previewTheme" class="meta-value">―</span>
+                  </div>
+                </article>
+
+                <div class="preview-editor-panel mt-3">
+                  <h3 id="previewEditorName" class="preview-editor-name">課題名未設定</h3>
+                  <p id="previewEditorDescription" class="mb-3">説明未設定</p>
+                  <div class="info-block">
+                    <div class="info-label">実装する機能</div>
+                    <ul id="previewEditorFeatures" class="mb-0"><li>未設定</li></ul>
+                  </div>
+                  <div class="info-block">
+                    <div class="info-label">制約・注意事項</div>
+                    <p id="previewEditorConstraint" class="mb-0">未設定</p>
+                  </div>
+                  <div class="info-block io-block">
+                    <div class="info-label">想定入出力</div>
+                    <div id="previewEditorCases"><p class="mb-0 text-muted">未設定</p></div>
+                  </div>
+                </div>
+
+                <div class="preview-editor-panel mt-3">
+                  <h3 class="preview-editor-name">Pythonコマンド仕様</h3>
+                  <div id="previewHintCards">
+                    <div class="hint-card">
+                      <div class="info-label">未設定</div>
+                      <p class="mb-2">ヒント内容未設定</p>
+                      <pre># コード例未設定</pre>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel-card">
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+            <div>
+              <span class="hero-kicker mb-1 d-inline-block">Manage</span>
+              <h2 class="subheading mb-0">既存課題の編集・削除</h2>
+            </div>
+            <div class="d-flex gap-2">
+              <select id="filterStatus" class="form-select form-select-sm">
+                <option value="" selected>すべて</option>
+                <option value="公開">公開</option>
+                <option value="下書き">下書き</option>
+              </select>
+              <button class="btn btn-outline-secondary btn-sm text-nowrap flex-shrink-0" type="button" id="refreshTableButton">更新</button>
+            </div>
+          </div>
+
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0" id="taskTable">
+              <thead class="table-light">
+                <tr>
+                  <th>課題名</th>
+                  <th>難易度</th>
+                  <th>対象</th>
+                  <th>状態</th>
+                  <th>最終更新</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr data-name="じゃんけん判定" data-level="初級" data-target="国際中等 / 1年A組" data-status="公開" data-description="ユーザー入力に応じて勝敗を判定する。" data-constraint="整数入力のみ" data-updated="2026-05-18 09:10:00">
+                  <td>じゃんけん判定</td>
+                  <td><span class="badge difficulty-beginner">初級</span></td>
+                  <td>国際中等 / 1年A組</td>
+                  <td><span class="badge text-bg-success">公開</span></td>
+                  <td class="updated-at">2026-05-18 09:10:00</td>
+                  <td>
+                    <div class="d-flex gap-2">
+                      <button class="btn btn-sm btn-outline-primary edit-button" type="button">編集</button>
+                      <button class="btn btn-sm btn-outline-danger delete-button" type="button">削除</button>
+                    </div>
+                  </td>
+                </tr>
+                <tr data-name="在庫管理" data-level="中級" data-target="国際中等 / 1年B組" data-status="公開" data-description="入出庫処理と在庫数表示を実装する。" data-constraint="数量は0以上" data-updated="2026-05-17 15:42:00">
+                  <td>在庫管理</td>
+                  <td><span class="badge difficulty-intermediate">中級</span></td>
+                  <td>国際中等 / 1年B組</td>
+                  <td><span class="badge text-bg-success">公開</span></td>
+                  <td class="updated-at">2026-05-17 15:42:00</td>
+                  <td>
+                    <div class="d-flex gap-2">
+                      <button class="btn btn-sm btn-outline-primary edit-button" type="button">編集</button>
+                      <button class="btn btn-sm btn-outline-danger delete-button" type="button">削除</button>
+                    </div>
+                  </td>
+                </tr>
+                <tr data-name="経路探索" data-level="上級" data-target="附属高校 / 4年2組" data-status="下書き" data-description="条件に応じて最短経路を探索する。" data-constraint="再帰使用可" data-updated="2026-05-15 11:20:00">
+                  <td>経路探索</td>
+                  <td><span class="badge difficulty-advanced">上級</span></td>
+                  <td>附属高校 / 4年2組</td>
+                  <td><span class="badge text-bg-secondary">下書き</span></td>
+                  <td class="updated-at">2026-05-15 11:20:00</td>
+                  <td>
+                    <div class="d-flex gap-2">
+                      <button class="btn btn-sm btn-outline-primary edit-button" type="button">編集</button>
+                      <button class="btn btn-sm btn-outline-danger delete-button" type="button">削除</button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <div class="modal fade" id="editTaskModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">既存課題の編集</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label for="editTaskName" class="form-label">課題名</label>
+            <input id="editTaskName" type="text" class="form-control">
+          </div>
+          <div class="mb-3">
+            <label for="editTaskDescription" class="form-label">課題説明</label>
+            <textarea id="editTaskDescription" class="form-control" rows="3"></textarea>
+          </div>
+          <div class="mb-3">
+            <label for="editTaskConstraint" class="form-label">制約・注意事項</label>
+            <textarea id="editTaskConstraint" class="form-control" rows="2"></textarea>
+          </div>
+          <div>
+            <label for="editTaskStatus" class="form-label">状態</label>
+            <select id="editTaskStatus" class="form-select">
+              <option>公開</option>
+              <option>下書き</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">キャンセル</button>
+          <button type="button" class="btn btn-primary" id="saveEditButton">更新を保存</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="hintLibraryModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">他課題のヒントを追加</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
+        </div>
+        <div class="modal-body">
+          <p class="text-muted small mb-3">追加したいヒントにチェックを入れて「選択したヒントを追加」を押してください。</p>
+          <div class="table-responsive">
+            <table class="table table-sm align-middle hint-library-table mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th style="width: 60px;">選択</th>
+                  <th style="width: 110px;">課題ID</th>
+                  <th style="width: 70px;">順序</th>
+                  <th style="width: 180px;">タイトル</th>
+                  <th>内容</th>
+                  <th>コード例</th>
+                </tr>
+              </thead>
+              <tbody id="hintLibraryBody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">キャンセル</button>
+          <button type="button" class="btn btn-primary" id="importHintsButton">選択したヒントを追加</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast-container position-fixed bottom-0 end-0 p-3">
+    <div id="taskToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+      <div class="toast-header">
+        <strong class="me-auto">課題編集</strong>
+        <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="閉じる"></button>
+      </div>
+      <div class="toast-body" id="taskToastBody">保存しました。</div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"
+    integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI"
+    crossorigin="anonymous"></script>
+  <script src="../../../js/teacher/shared/components.js"></script>
+  <script src="../../../js/teacher/task/task.js"></script>
+</body>
+</html>

@@ -48,7 +48,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
     window.sessionStorage.setItem('ppe-home-message', '研究同意確認が提出されました');
     window.sessionStorage.setItem('ppe-home-message-time', nowLabel());
-    window.location.href = '../menu/home.html';
+    window.location.href = '../home/home.html';
   });
 
   syncButtonState();

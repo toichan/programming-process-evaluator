@@ -57,9 +57,17 @@ function loadTeacherComponents() {
         <li class="sidebar-menu-item" data-page="task">
           <a href="../task/task.html" class="sidebar-menu-link">
             <svg class="sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/>
+              <path d="M19 3h-4.18C14.4 1.84 13.3 1 12 1s-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7-1c.55 0 1 .45 1 1h-2c0-.55.45-1 1-1zm7 17H5V5h14v14zm-2-10H7v2h10V9zm0 4H7v2h7v-2z"/>
             </svg>
-            <span>課題・プロンプト修正</span>
+            <span>課題編集</span>
+          </a>
+        </li>
+        <li class="sidebar-menu-item" data-page="prompt">
+          <a href="../prompt/prompt.html" class="sidebar-menu-link">
+            <svg class="sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zm14.71-9.04c.39-.39.39-1.02 0-1.41l-2.5-2.5a.996.996 0 00-1.41 0l-1.83 1.83 3.75 3.75 1.99-1.83z"/>
+            </svg>
+            <span>プロンプト修正</span>
           </a>
         </li>
       </ul>
@@ -115,7 +123,8 @@ function setActiveSidebarMenu() {
     '/teacher/history/history.html': 'history',
     '/teacher/evaluation/evaluation.html': 'evaluation',
     '/teacher/survey/survey.html': 'survey',
-    '/teacher/task/task.html': 'task'
+    '/teacher/task/task.html': 'task',
+    '/teacher/prompt/prompt.html': 'prompt'
   };
 
   let activePage = 'account';
