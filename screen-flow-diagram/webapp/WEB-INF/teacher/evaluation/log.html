@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Programming Process Evaluator - コードログ</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet"
+    integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB"
+    crossorigin="anonymous">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+  <link href="../../../css/template/template.css" rel="stylesheet">
+  <link href="../../../css/teacher/evaluation/log.css" rel="stylesheet">
+</head>
+<body>
+  <div id="header-placeholder"></div>
+  <main class="pt-2 pb-5">
+    <div class="container">
+      <nav class="learning-flow-nav mb-2" aria-label="学習フロー">
+        <ol class="learning-flow-steps">
+          <li class="learning-flow-step is-done">
+            <span class="learning-flow-link is-red">課題</span>
+          </li>
+          <li class="learning-flow-step">
+            <span class="learning-flow-current is-yellow" aria-current="page">評価の確認</span>
+          </li>
+          <li class="learning-flow-step">
+            <span class="learning-flow-link is-green">アンケート</span>
+          </li>
+        </ol>
+        <div class="learning-flow-task-title">
+          <span class="learning-flow-task-name">初級：じゃんけん判定プログラム</span>
+        </div>
+      </nav>
+      <section class="sample-section log-hero mb-4">
+        <div class="hero-copy">
+          <span class="hero-kicker">Student Log</span>
+          <h1 class="section-title mb-3">コードログ</h1>
+          <p class="hero-description mb-0">
+            自動保存されたコードの履歴を、差分を強調しながら時系列で確認できます。前後の状態を見比べて、試行錯誤の流れを振り返るためのページです。
+          </p>
+          <div class="hero-action-row mt-4">
+            <a class="btn btn-warning btn-lg" href="./evaluation.html">評価結果に戻る</a>
+            <a class="btn btn-outline-secondary btn-lg" href="../survey/survey.html">アンケートに進む</a>
+          </div>
+        </div>
+        <div class="hero-meta-card">
+          <div class="meta-label">対象課題</div>
+          <div class="meta-value">じゃんけん判定プログラム</div>
+          <div class="meta-subtext">TASK-001 / 初級 / 自動保存 30秒間隔</div>
+          <div class="hero-status-list mt-3">
+            <div class="hero-status-item">
+              <span class="hero-status-name">保存回数</span>
+              <span class="hero-status-pill">6回</span>
+            </div>
+            <div class="hero-status-item">
+              <span class="hero-status-name">実行回数</span>
+              <span class="hero-status-pill">5回</span>
+            </div>
+          </div>
+        </div>
+      </section>
+      <!-- ログタイムラインやコード表示部分はstudent/log.htmlと同じ構造でJSで描画 -->
+      <div id="logTimeline"></div>
+      <div id="codeBlock"></div>
+      <div id="footer-placeholder"></div>
+    </div>
+  </main>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"
+    integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI"
+    crossorigin="anonymous"></script>
+  <script src="../../../js/teacher/shared/components.js"></script>
+  <script src="../../../js/teacher/evaluation/log.js"></script>
+</body>
+</html>

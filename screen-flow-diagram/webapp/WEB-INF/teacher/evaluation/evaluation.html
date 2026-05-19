@@ -29,12 +29,101 @@
               <div class="stat-value" id="visibleCount">0</div>
             </div>
             <div class="stat-card">
-              <div class="stat-label">平均総合評価</div>
-              <div class="stat-value" id="avgOverall">0.0</div>
+              <div class="stat-label">思判表 平均</div>
+              <div class="stat-value" id="avgThinkingTop">0.0</div>
             </div>
             <div class="stat-card">
-              <div class="stat-label">高評価（4.0以上）</div>
-              <div class="stat-value" id="highScoreCount">0</div>
+              <div class="stat-label">態度 平均</div>
+              <div class="stat-value" id="avgAttitudeTop">0.0</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel-card mb-4 summary-section">
+          <div class="d-flex align-items-center mb-3 summary-header-row">
+            <span class="hero-kicker me-2 summary-kicker">Evaluation</span>
+            <h2 class="summary-heading mb-0">評価サマリー</h2>
+          </div>
+          <div class="summary-layout">
+            <div class="summary-controls">
+              <div class="mb-3">
+                <label class="form-label">学校</label>
+                <select class="form-select form-select-sm" id="summarySchool">
+                  <option value="すべて" selected>すべて</option>
+                  <option>国際中等</option>
+                  <option>附属高校</option>
+                </select>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">クラス</label>
+                <select class="form-select form-select-sm" id="summaryClass">
+                  <option value="すべて" selected>すべて</option>
+                  <option>1年A組</option>
+                  <option>1年B組</option>
+                  <option>4年2組</option>
+                  <option>4年4組</option>
+                </select>
+              </div>
+              <div class="mb-4">
+                <label class="form-label">課題</label>
+                <select class="form-select form-select-sm" id="summaryTask">
+                  <option value="すべて" selected>すべて</option>
+                  <option>じゃんけん判定</option>
+                  <option>在庫管理</option>
+                  <option>家計簿集計</option>
+                  <option>経路探索</option>
+                </select>
+              </div>
+              <div class="summary-stat-row mb-3">
+                <div class="summary-stat-box summary-stat-total">
+                  <div class="ssb-count" id="summaryTotal">0</div>
+                  <div class="ssb-label">対象件数</div>
+                </div>
+                <div class="summary-stat-box summary-stat-evaluated">
+                  <div class="ssb-count" id="summaryEvaluated">0</div>
+                  <div class="ssb-label">評価済み</div>
+                </div>
+                <div class="summary-stat-box summary-stat-unevaluated">
+                  <div class="ssb-count" id="summaryUnevaluated">0</div>
+                  <div class="ssb-label">未評価</div>
+                </div>
+              </div>
+              <div>
+                <div class="d-flex justify-content-between mb-1">
+                  <span class="completion-label">完了率</span>
+                  <span class="completion-pct" id="completionPct">0%</span>
+                </div>
+                <div class="progress" style="height: 8px; border-radius: 4px;">
+                  <div class="progress-bar" id="completionBar" style="width: 0%; background: linear-gradient(90deg, #2563eb, #22c55e);" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                </div>
+              </div>
+            </div>
+            <div class="summary-chart-wrap">
+              <div class="summary-text-card">
+                <div class="summary-text-kicker">Score Distribution</div>
+
+                <div class="summary-metric-section mb-3">
+                  <div class="summary-text-main">思考力・判断力・表現力 平均 <span id="summaryAverageThinking">0.0</span></div>
+                  <div class="score-distribution">
+                    <div class="score-row"><span class="score-label">5</span><div class="score-bar-track"><div class="score-bar-fill" id="thinkingBar5" style="width:0%"></div></div><span class="score-count" id="thinkingCount5">0</span></div>
+                    <div class="score-row"><span class="score-label">4</span><div class="score-bar-track"><div class="score-bar-fill" id="thinkingBar4" style="width:0%"></div></div><span class="score-count" id="thinkingCount4">0</span></div>
+                    <div class="score-row"><span class="score-label">3</span><div class="score-bar-track"><div class="score-bar-fill" id="thinkingBar3" style="width:0%"></div></div><span class="score-count" id="thinkingCount3">0</span></div>
+                    <div class="score-row"><span class="score-label">2</span><div class="score-bar-track"><div class="score-bar-fill" id="thinkingBar2" style="width:0%"></div></div><span class="score-count" id="thinkingCount2">0</span></div>
+                    <div class="score-row"><span class="score-label">1</span><div class="score-bar-track"><div class="score-bar-fill" id="thinkingBar1" style="width:0%"></div></div><span class="score-count" id="thinkingCount1">0</span></div>
+                  </div>
+                </div>
+
+                <div class="summary-metric-section">
+                  <div class="summary-text-main">主体的に学習に取り組む態度 平均 <span id="summaryAverageAttitude">0.0</span></div>
+                  <div class="score-distribution">
+                    <div class="score-row"><span class="score-label">5</span><div class="score-bar-track"><div class="score-bar-fill" id="attitudeBar5" style="width:0%"></div></div><span class="score-count" id="attitudeCount5">0</span></div>
+                    <div class="score-row"><span class="score-label">4</span><div class="score-bar-track"><div class="score-bar-fill" id="attitudeBar4" style="width:0%"></div></div><span class="score-count" id="attitudeCount4">0</span></div>
+                    <div class="score-row"><span class="score-label">3</span><div class="score-bar-track"><div class="score-bar-fill" id="attitudeBar3" style="width:0%"></div></div><span class="score-count" id="attitudeCount3">0</span></div>
+                    <div class="score-row"><span class="score-label">2</span><div class="score-bar-track"><div class="score-bar-fill" id="attitudeBar2" style="width:0%"></div></div><span class="score-count" id="attitudeCount2">0</span></div>
+                    <div class="score-row"><span class="score-label">1</span><div class="score-bar-track"><div class="score-bar-fill" id="attitudeBar1" style="width:0%"></div></div><span class="score-count" id="attitudeCount1">0</span></div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </section>
@@ -188,115 +277,145 @@
       <div class="modal-content">
         <div class="modal-header">
           <h5 class="modal-title">評価詳細</h5>
+          <div class="evaluation-detail-header-actions ms-auto me-2" role="group" aria-label="評価詳細アクション">
+            <button type="button" class="btn btn-sm btn-rubric-action" data-bs-toggle="modal" data-bs-target="#teacherRubricModal" aria-label="ルーブリックを開く">ルーブリックを見る</button>
+            <div class="evaluation-download-actions" role="group" aria-label="ダウンロードアクション">
+              <button type="button" class="btn btn-outline-primary btn-sm" id="downloadEvaluationJsonButton">評価結果をダウンロード</button>
+              <button type="button" class="btn btn-outline-secondary btn-sm" id="downloadLogsJsonButton">ログをダウンロード</button>
+            </div>
+          </div>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
         </div>
         <div class="modal-body">
-          <!-- Hero Section -->
-          <section class="sample-section evaluation-hero mb-4">
-            <div class="hero-copy">
-              <span class="hero-kicker">Student Evaluation</span>
-              <h1 class="section-title mb-3">評価結果</h1>
-              <p class="hero-description mb-0" id="heroDescription">
-                コードログと実行履歴をもとに、2つの観点で自動評価したサンプル表示です。各観点の総合点と、根拠になったログの要約を確認できます。
-              </p>
-            </div>
 
-            <div class="hero-meta-card">
-              <div class="meta-label">対象課題</div>
-              <div class="meta-value" id="heroTaskName">-</div>
-              <div class="meta-subtext" id="heroMeta">-</div>
-              <div class="hero-score-row">
-                <div class="hero-score-pill thinking" id="heroThinkingScore">思考力・判断力・表現力 -</div>
-                <div class="hero-score-pill attitude" id="heroAttitudeScore">主体的に学習に取り組む態度 -</div>
-              </div>
-            </div>
+          <section class="teacher-evaluation-detail-section">
+            <div id="teacherEvaluationDetailContent"></div>
           </section>
 
-          <!-- Overview Section -->
-          <section class="sample-section overview-section mb-4">
-            <div class="section-heading-row">
-              <div>
-                <h2 class="card-title mb-2">総合評価</h2>
-                <p class="text-muted mb-0">2つの観点ごとに、ルーブリックをもとにした総合点を表示します。</p>
-              </div>
-              <span class="score-caption">5段階評価</span>
-            </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
-            <div class="row g-4 mt-1">
-              <div class="col-lg-6">
-                <article class="score-panel thinking-panel">
-                  <div class="panel-kicker">思考力・判断力・表現力</div>
-                  <div class="panel-score-row">
-                    <div class="panel-score" id="detailThinkingSummaryScore">-</div>
-                    <div>
-                      <h3 class="panel-title" id="detailThinkingSummaryTitle">-</h3>
-                      <p class="panel-description mb-0" id="detailThinkingSummaryDescription">-</p>
-                    </div>
-                  </div>
-                  <div class="score-meter" aria-hidden="true" id="detailThinkingMeter">
-                    <span class="is-filled"></span>
-                    <span class="is-filled"></span>
-                    <span class="is-filled"></span>
-                    <span class="is-filled"></span>
-                    <span></span>
-                  </div>
-                </article>
-              </div>
-              <div class="col-lg-6">
-                <article class="score-panel attitude-panel">
-                  <div class="panel-kicker">主体的に学習に取り組む態度</div>
-                  <div class="panel-score-row">
-                    <div class="panel-score" id="detailAttitudeSummaryScore">-</div>
-                    <div>
-                      <h3 class="panel-title" id="detailAttitudeSummaryTitle">-</h3>
-                      <p class="panel-description mb-0" id="detailAttitudeSummaryDescription">-</p>
-                    </div>
-                  </div>
-                  <div class="score-meter" aria-hidden="true" id="detailAttitudeMeter">
-                    <span class="is-filled"></span>
-                    <span class="is-filled"></span>
-                    <span class="is-filled"></span>
-                    <span class="is-filled"></span>
-                    <span></span>
-                  </div>
-                </article>
-              </div>
+  <div class="modal fade rubric-modal" id="teacherRubricModal" tabindex="-1" aria-labelledby="teacherRubricModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-fullscreen modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <div class="rubric-header-brand">
+            <div class="rubric-header-icon" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M4 .5A1.5 1.5 0 0 0 2.5 2v12A1.5 1.5 0 0 0 4 15.5h8a1.5 1.5 0 0 0 1.5-1.5V2A1.5 1.5 0 0 0 12.5.5h-8zM4 1.5h8a.5.5 0 0 1 .5.5v12a.5.5 0 0 1-.5.5H4a.5.5 0 0 1-.5-.5V2a.5.5 0 0 1 .5-.5z"/>
+                <path d="M5 4.5h6v1H5v-1zm0 2.5h6v1H5v-1zm0 2.5h4v1H5v-1z"/>
+              </svg>
             </div>
-          </section>
-
-          <!-- Breakdown Section -->
-          <section class="sample-section breakdown-section mb-4">
-            <div class="section-heading-row">
-              <div>
-                <h2 class="card-title mb-2">観点別スコア</h2>
-                <p class="text-muted mb-0">細かな評価項目ごとの点数です。</p>
+            <div class="rubric-header-copy">
+              <div class="rubric-header-kicker">Evaluation Criteria</div>
+              <h2 class="modal-title h4 mb-1" id="teacherRubricModalLabel">ルーブリック</h2>
+            </div>
+          </div>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
+        </div>
+        <div class="modal-body py-4">
+          <div class="container-fluid">
+            <section class="sample-section rubric-section rubric-thinking mb-4">
+              <h2 class="section-title mb-4">思考力・判断力・表現力 ルーブリック</h2>
+              <div class="table-responsive">
+                <table class="table rubric-table table-bordered align-middle mb-0">
+                  <thead>
+                    <tr>
+                      <th style="width: 10rem;">レベル</th>
+                      <th>文法デバッグ能力</th>
+                      <th>論理デバッグ能力</th>
+                      <th>アルゴリズムの設計と実装</th>
+                      <th>コードの可読性</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <th scope="row">レベル5</th>
+                      <td><ul class="mb-0"><li>エラーメッセージを適切かつ正確に解釈できる。</li><li>文法エラーを迅速に解決できる。</li></ul></td>
+                      <td><ul class="mb-0"><li>効果的なテストを実施し、論理エラー箇所を解決する。</li><li>論理エラーを迅速・正確に特定し、冗長性を含まずにコードを実装できる。</li></ul></td>
+                      <td><ul class="mb-0"><li>課題のアルゴリズムを完全に設計し、効率性・正確性の高い解法を編み出せる。</li><li>課題の特性に合わせてデータ構造を設計・実装できる。</li></ul></td>
+                      <td><ul class="mb-0"><li>厳格な命名規則により変数・関数が命名されている。</li><li>インデント・スペース・改行の入れ方が一貫しており読みやすい。</li></ul></td>
+                    </tr>
+                    <tr>
+                      <th scope="row">レベル4</th>
+                      <td><ul class="mb-0"><li>エラーメッセージを適切に解釈できる。</li><li>文法エラーを解決するのに時間がかかる。</li></ul></td>
+                      <td><ul class="mb-0"><li>効果的なテストを実施し、論理エラー箇所を探り当てる。</li><li>修正が速く、方法も適切。</li></ul></td>
+                      <td><ul class="mb-0"><li>課題のアルゴリズムを主要な構成要素を過不足なく設計し、解法を編み出せる。</li><li>適切なデータ構造を選択し、実装できる。</li></ul></td>
+                      <td><ul class="mb-0"><li>明確な命名規則により変数・関数が命名されている。</li><li>インデント・スペース・改行の入れ方に一部ばらつきはあるが、全体として整っており読みやすい。</li></ul></td>
+                    </tr>
+                    <tr>
+                      <th scope="row">レベル3</th>
+                      <td><ul class="mb-0"><li>エラーメッセージの読み取りに時間がかかる。</li><li>文法エラーを時間はかかるが解決できる。</li></ul></td>
+                      <td><ul class="mb-0"><li>テストケースにより論理エラーを把握できる。</li><li>修正に多少の時間を要する場合がある。</li></ul></td>
+                      <td><ul class="mb-0"><li>課題のアルゴリズムを設計し、正しく実装できる。</li><li>基本的なデータ構造の使用はできる。</li></ul></td>
+                      <td><ul class="mb-0"><li>命名規則に一部改善の余地があるが、理解は可能。</li><li>インデント・スペース・改行に軽微な乱れが見られるが、全体として読みやすさは維持されている。</li></ul></td>
+                    </tr>
+                    <tr>
+                      <th scope="row">レベル2</th>
+                      <td><ul class="mb-0"><li>エラーメッセージの解釈に苦労する。</li><li>文法エラーを解決する過程で試行錯誤が多い。</li></ul></td>
+                      <td><ul class="mb-0"><li>論理エラーの原因特定に試行錯誤が多く、非効率的。</li><li>修正が部分的にしか行えないこともある。</li></ul></td>
+                      <td><ul class="mb-0"><li>部分的な設計にとどまり、実装が不十分または非効率。</li><li>データ構造の基本的な使い分けができていない。</li></ul></td>
+                      <td><ul class="mb-0"><li>命名規則が統一されておらず可読性が低い。</li><li>インデント・スペース・改行が不十分でわかりにくい部分が多い。</li></ul></td>
+                    </tr>
+                    <tr>
+                      <th scope="row">レベル1</th>
+                      <td><ul class="mb-0"><li>文法エラーを解決できていない。</li></ul></td>
+                      <td><ul class="mb-0"><li>論理エラーを特定できないため、修正できない。</li></ul></td>
+                      <td><ul class="mb-0"><li>課題に沿わない実装をしている。</li><li>データ構造の選択が不適切で非効率。</li></ul></td>
+                      <td><ul class="mb-0"><li>命名規則の一貫性がなく理解困難。</li><li>インデント・スペース・改行がほぼ無く可読性が著しく低い。</li></ul></td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
-            </div>
+            </section>
 
-            <div class="breakdown-grid" id="detailBreakdownGrid">
-              <!-- JavaScript で動的に生成 -->
-            </div>
-          </section>
-
-          <!-- Reasons Section -->
-          <section class="sample-section reasons-section mb-4">
-            <div class="section-heading-row reasons-heading">
-              <div>
-                <h2 class="card-title mb-2">評価の理由</h2>
-                <p class="text-muted mb-0">各項目の点数に至った具体的な根拠です。</p>
+            <section class="sample-section rubric-section rubric-attitude">
+              <h2 class="section-title mb-4">主体的に学習に取り組む態度 ルーブリック</h2>
+              <div class="table-responsive">
+                <table class="table rubric-table table-bordered align-middle mb-0">
+                  <thead>
+                    <tr>
+                      <th style="width: 10rem;">レベル</th>
+                      <th>課題への粘り強さ</th>
+                      <th>課題解決への意欲</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <th scope="row">レベル5</th>
+                      <td><ul class="mb-0"><li>自力で多くの実行を繰り返しながら課題に取り組み、困難な問題も最後まで諦めずに解決しようと努力している。</li><li>解決策を複数検討し、効果的なものを選択しようとしている。</li></ul></td>
+                      <td><ul class="mb-0"><li>エラーメッセージや実行結果を分析し、問題の本質を理解しようと努めている。</li><li>効率性や可読性を高めるためのコードの改善を積極的に行っている。</li></ul></td>
+                    </tr>
+                    <tr>
+                      <th scope="row">レベル4</th>
+                      <td><ul class="mb-0"><li>自力で課題に粘り強く取り組み、困難な問題も解決に向けて努力している。</li><li>解決策をいくつか検討し、より良いものを選択しようとしている。</li></ul></td>
+                      <td><ul class="mb-0"><li>エラーメッセージや実行結果を分析し、問題の理解に努めている。</li><li>コードの改善への工夫が見られる。</li></ul></td>
+                    </tr>
+                    <tr>
+                      <th scope="row">レベル3</th>
+                      <td><ul class="mb-0"><li>指示された課題に自力で取り組み、問題解決に向けて努力している。</li><li>問題解決のために、いくつかの解決策を検討している。</li></ul></td>
+                      <td><ul class="mb-0"><li>エラーメッセージや実行結果から、問題点を把握しようとしている。</li><li>コードの改善が見られる。</li></ul></td>
+                    </tr>
+                    <tr>
+                      <th scope="row">レベル2</th>
+                      <td><ul class="mb-0"><li>課題に自力で取り組むものの、途中で諦めてしまうことが多い。</li><li>解決策を検討するものの、表面的な修正にとどまっている。</li></ul></td>
+                      <td><ul class="mb-0"><li>エラーメッセージを正しく理解できてない。</li><li>コードの改善に取り組んでいる。</li></ul></td>
+                    </tr>
+                    <tr>
+                      <th scope="row">レベル1</th>
+                      <td><ul class="mb-0"><li>課題にほとんど取り組もうとしない。</li><li>解決策を検討せず、安易に人に聞いたり、答えを写したりする。</li></ul></td>
+                      <td><ul class="mb-0"><li>エラーメッセージを無視する、または意味を理解しようとしない。</li><li>コードの改善がほとんど見られない。</li></ul></td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
-              <div class="reason-filter-group" role="tablist" aria-label="reason category filter">
-                <button class="reason-filter is-active" type="button" data-filter="all">すべて</button>
-                <button class="reason-filter" type="button" data-filter="thinking">思考・判断・表現</button>
-                <button class="reason-filter" type="button" data-filter="attitude">態度</button>
-              </div>
-            </div>
-
-            <div class="reason-list" id="detailReasonList">
-              <!-- JavaScript で動的に生成 -->
-            </div>
-          </section>
-
+            </section>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-warning" id="teacherRubricBackButton">評価に戻る</button>
         </div>
       </div>
     </div>

@@ -1,0 +1,43 @@
+/* teacher/log.css
+   student/log.cssの内容をそのままコピーして利用できます。必要に応じて微調整してください。 */
+
+body {
+  background:
+    radial-gradient(circle at top left, rgba(14, 165, 233, 0.18), transparent 24%),
+    radial-gradient(circle at right 18%, rgba(245, 158, 11, 0.15), transparent 22%),
+    linear-gradient(135deg, #eef8ff 0%, #f8fafc 48%, #fff8eb 100%);
+}
+
+.log-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(280px, 0.9fr);
+  gap: 1.5rem;
+  align-items: stretch;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.94), rgba(239, 246, 255, 0.9));
+}
+
+.hero-kicker,
+.viewer-badge,
+.hero-status-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.hero-kicker {
+  padding: 0.45rem 0.85rem;
+  background: rgba(14, 165, 233, 0.12);
+  color: #0369a1;
+  text-transform: uppercase;
+  margin-bottom: 1rem;
+}
+
+.hero-description {
+  max-width: 46rem;
+  color: var(--bs-gray-600);
+  font-size: 1.05rem;
+}
