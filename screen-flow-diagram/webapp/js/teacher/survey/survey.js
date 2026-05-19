@@ -84,6 +84,7 @@ function renderTable() {
   const tableBody = document.querySelector('#surveyTableBody');
   tableBody.innerHTML = '';
   updateTopStats(filteredData);
+  updateSurveySummary(filteredData);
 
   if (filteredData.length === 0) {
     tableBody.innerHTML = '<tr><td colspan="13" class="text-center text-muted py-4">該当するアンケート結果がありません</td></tr>';
@@ -159,6 +160,85 @@ function updateTopStats(records) {
 
   const consentedEl = document.querySelector('#consentedResponses');
   if (consentedEl) consentedEl.textContent = String(consentedCount);
+}
+
+function getAverageScore(records, questionCode) {
+  const scores = records
+    .map((survey) => Number(survey.responses.find((r) => r.questionCode === questionCode)?.score || 0))
+    .filter((score) => score > 0);
+
+  if (scores.length === 0) return 0;
+
+  const sum = scores.reduce((acc, score) => acc + score, 0);
+  return sum / scores.length;
+}
+
+function updateSurveySummary(records) {
+  const total = records.length;
+  const completed = records.filter((survey) => survey.completionStatus === '完了').length;
+  const pending = Math.max(0, total - completed);
+  const completionPct = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+  const thinkingAvg = getAverageScore(records, 'Q1_THINKING');
+  const attitudeAvg = getAverageScore(records, 'Q1_ATTITUDE');
+  const processAvg = getAverageScore(records, 'Q2_PROCESS');
+  const usabilityAvg = getAverageScore(records, 'Q3_USABILITY');
+
+  const toPercent = (score) => {
+    const percent = (score / 5) * 100;
+    return Math.max(0, Math.min(100, percent));
+  };
+
+  const summaryTotalEl = document.querySelector('#summaryTotal');
+  if (summaryTotalEl) summaryTotalEl.textContent = String(total);
+
+  const summaryPendingEl = document.querySelector('#summaryPending');
+  if (summaryPendingEl) summaryPendingEl.textContent = String(pending);
+
+  const summaryCompleteEl = document.querySelector('#summaryComplete');
+  if (summaryCompleteEl) summaryCompleteEl.textContent = String(completed);
+
+  const pctEl = document.querySelector('#summaryCompletionPct');
+  if (pctEl) pctEl.textContent = `${completionPct}%`;
+
+  const barEl = document.querySelector('#summaryCompletionBar');
+  if (barEl) {
+    barEl.style.width = `${completionPct}%`;
+    barEl.setAttribute('aria-valuenow', String(completionPct));
+  }
+
+  const thinkingAvgEl = document.querySelector('#summaryThinkingAvg');
+  if (thinkingAvgEl) thinkingAvgEl.textContent = thinkingAvg.toFixed(1);
+  const thinkingBarEl = document.querySelector('#summaryThinkingBar');
+  if (thinkingBarEl) thinkingBarEl.style.width = `${toPercent(thinkingAvg)}%`;
+
+  const attitudeAvgEl = document.querySelector('#summaryAttitudeAvg');
+  if (attitudeAvgEl) attitudeAvgEl.textContent = attitudeAvg.toFixed(1);
+  const attitudeBarEl = document.querySelector('#summaryAttitudeBar');
+  if (attitudeBarEl) attitudeBarEl.style.width = `${toPercent(attitudeAvg)}%`;
+
+  const processAvgEl = document.querySelector('#summaryProcessAvg');
+  if (processAvgEl) processAvgEl.textContent = processAvg.toFixed(1);
+  const processBarEl = document.querySelector('#summaryProcessBar');
+  if (processBarEl) processBarEl.style.width = `${toPercent(processAvg)}%`;
+
+  const usabilityAvgEl = document.querySelector('#summaryUsabilityAvg');
+  if (usabilityAvgEl) usabilityAvgEl.textContent = usabilityAvg.toFixed(1);
+  const usabilityBarEl = document.querySelector('#summaryUsabilityBar');
+  if (usabilityBarEl) usabilityBarEl.style.width = `${toPercent(usabilityAvg)}%`;
+}
+
+function syncSummaryFilters() {
+  const summarySchool = document.querySelector('#summarySchool')?.value || '';
+  const summaryClass = document.querySelector('#summaryClass')?.value || '';
+
+  const schoolFilterEl = document.querySelector('#schoolFilter');
+  if (schoolFilterEl) schoolFilterEl.value = summarySchool;
+
+  const classFilterEl = document.querySelector('#classFilter');
+  if (classFilterEl) classFilterEl.value = summaryClass;
+
+  applyFiltersAndSort();
 }
 
 /**
@@ -238,6 +318,7 @@ function applyFiltersAndSort() {
   const processExpr = document.querySelector('#processExprFilter')?.value || '';
   const usabilityExpr = document.querySelector('#usabilityExprFilter')?.value || '';
   const query = (document.querySelector('#searchInput')?.value || '').trim().toLowerCase();
+  const summaryTask = document.querySelector('#summaryTask')?.value || '';
   const sortBy = document.querySelector('#sortBy')?.value || 'submittedAt-desc';
   const [sortKey, sortOrder] = sortBy.split('-');
 
@@ -258,8 +339,9 @@ function applyFiltersAndSort() {
     const processMatch = parseScoreCondition(processExpr, processScore);
     const usabilityMatch = parseScoreCondition(usabilityExpr, usabilityScore);
     const queryMatch = !query || searchable.includes(query);
+    const summaryTaskMatch = !summaryTask || survey.taskTitle === summaryTask;
 
-    return schoolMatch && classMatch && difficultyMatch && completionMatch && consentMatch && thinkingMatch && attitudeMatch && processMatch && usabilityMatch && queryMatch;
+    return schoolMatch && classMatch && difficultyMatch && completionMatch && consentMatch && thinkingMatch && attitudeMatch && processMatch && usabilityMatch && queryMatch && summaryTaskMatch;
   });
 
   filteredData.sort((a, b) => {

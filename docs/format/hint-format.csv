@@ -1,0 +1,8 @@
+task_id,hint_order,hint_title,hint_content,hint_code_example
+TASK-001,1,input(),文字列を受け取るための関数です。,"player = input(""手を入力してください: "")"
+TASK-001,2,if / elif / else,"条件によって処理を分岐する構文です。","if player == ""グー"":
+    print(""..."" )
+elif player == ""パー"":
+    print(""..."" )
+else:
+    print(""..."" )"

@@ -7,6 +7,40 @@ window.addEventListener('DOMContentLoaded', () => {
 	const submittedMessage = window.sessionStorage.getItem('ppe-home-message');
 	const submittedTime = window.sessionStorage.getItem('ppe-home-message-time');
 
+	const setActionDisabled = (button, disabled) => {
+		if (!button) {
+			return;
+		}
+
+		button.classList.toggle('is-disabled-action', disabled);
+		button.setAttribute('aria-disabled', disabled ? 'true' : 'false');
+		button.tabIndex = disabled ? -1 : 0;
+	};
+
+	const syncTaskActionButtons = () => {
+		const taskCards = document.querySelectorAll('.task-list-card');
+
+		taskCards.forEach((card) => {
+			const taskStatus = card.querySelector('.task-status-item .status-unstarted, .task-status-item .status-editing, .task-status-item .status-submitted');
+			const evaluationStatus = card.querySelector('.task-status-item .status-unrated, .task-status-item .status-rated');
+			const surveyStatus = card.querySelector('.task-status-item .status-pending, .task-status-item .status-completed');
+			const actionButtons = card.querySelectorAll('.task-button-group .btn');
+
+			const taskButton = actionButtons[0];
+			const evaluationButton = actionButtons[1];
+			const surveyButton = actionButtons[2];
+
+			const isTaskSubmitted = taskStatus?.classList.contains('status-submitted');
+			const isTaskUnstartedOrEditing = taskStatus?.classList.contains('status-unstarted') || taskStatus?.classList.contains('status-editing');
+			const isEvaluationUnrated = evaluationStatus?.classList.contains('status-unrated');
+			const isSurveyCompleted = surveyStatus?.classList.contains('status-completed');
+
+			setActionDisabled(taskButton, Boolean(isTaskSubmitted));
+			setActionDisabled(evaluationButton, Boolean(isTaskUnstartedOrEditing));
+			setActionDisabled(surveyButton, Boolean(isEvaluationUnrated || isSurveyCompleted));
+		});
+	};
+
 	if (headerPlaceholder && header) {
 		headerPlaceholder.innerHTML = header;
 	}
@@ -26,4 +60,6 @@ window.addEventListener('DOMContentLoaded', () => {
 		window.sessionStorage.removeItem('ppe-home-message');
 		window.sessionStorage.removeItem('ppe-home-message-time');
 	}
+
+	// Temporary: keep all action buttons navigable regardless of status.
 });

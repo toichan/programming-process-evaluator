@@ -1,0 +1,14 @@
+task_id,level,title,description,theme,language,features,constraints,initial_code,test_case_1_input,test_case_1_output,test_case_2_input,test_case_2_output
+TASK-001,初級,じゃんけん判定プログラム,ユーザーの入力に応じて、勝敗結果を表示する条件分岐の基本課題です。,条件分岐 / 入力処理,Python 3.x,入力値を受け取る;条件分岐で勝敗を判定する;不正な入力時に案内を表示する,入力は「グー」「チョキ」「パー」のいずれかを想定,"player = input(""あなたの手を入力してください: "")
+computer = ""グー""
+
+if player == computer:
+    print(""あいこ"")
+elif player == ""パー"":
+    print(""あなたの勝ち"")
+elif player == ""チョキ"":
+    print(""あなたの負け"")
+else:
+    print(""グー・チョキ・パーを入力してください"")","パー","あなたの勝ち","ぐー","グー・チョキ・パーを入力してください"
+TASK-002,中級,点数集計と平均計算,複数の入力値を受け取り、合計点と平均点を算出する繰り返し処理の練習課題です。,反復処理 / リスト,,;,,,,,
+TASK-003,上級,売上データの分析レポート,売上データを集計し、条件ごとに分析結果を出力する総合的なデータ処理課題です。,関数 / 集計 / 出力整形,,;,,,,,
