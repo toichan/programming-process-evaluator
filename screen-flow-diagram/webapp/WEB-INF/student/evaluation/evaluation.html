@@ -52,7 +52,7 @@
           <div class="meta-value">じゃんけん判定プログラム</div>
           <div class="meta-subtext">TASK-001 / 初級 / 最終評価 2026/04/16 10:42</div>
           <div class="hero-score-row">
-            <div class="hero-score-pill thinking">思考力・判断力・表現力 4.0</div>
+            <div class="hero-score-pill thinking">思考力・判断力・表現力 3.0</div>
             <div class="hero-score-pill attitude">主体的に学習に取り組む態度 4.0</div>
           </div>
         </div>
@@ -72,17 +72,17 @@
             <article class="score-panel thinking-panel">
               <div class="panel-kicker">思考力・判断力・表現力</div>
               <div class="panel-score-row">
-                <div class="panel-score">4</div>
+                <div class="panel-score">3</div>
                 <div>
-                  <h3 class="panel-title">安定して解法を組み立てられている</h3>
-                  <p class="panel-description mb-0">文法修正と論理修正を重ねて、正しい出力まで到達しています。命名や構造も大きく崩れていません。</p>
+                  <h3 class="panel-title">基礎は理解しているが改善の余地がある</h3>
+                  <p class="panel-description mb-0">基本的な処理の流れは実装できていますが、文法エラーの再発や型の扱いなどで不安定な箇所が見られます。</p>
                 </div>
               </div>
               <div class="score-meter" aria-hidden="true">
                 <span class="is-filled"></span>
                 <span class="is-filled"></span>
                 <span class="is-filled"></span>
-                <span class="is-filled"></span>
+                <span></span>
                 <span></span>
               </div>
             </article>
@@ -123,34 +123,34 @@
               <article class="metric-card">
                 <div class="metric-header">
                   <span class="metric-group">思考・判断・表現</span>
-                  <span class="metric-score">4</span>
+                  <span class="metric-score">3</span>
                 </div>
                 <h3>文法デバッグ能力</h3>
-                <p class="mb-0">エラーメッセージを読み取り、構文エラーを解消できています。</p>
+                <p class="mb-0">初歩的な文法エラーが複数回見られる一方、最終的にはコンパイルエラーを解消できています。</p>
               </article>
               <article class="metric-card">
                 <div class="metric-header">
                   <span class="metric-group">思考・判断・表現</span>
-                  <span class="metric-score">4</span>
+                  <span class="metric-score">3</span>
                 </div>
                 <h3>論理デバッグ能力</h3>
-                <p class="mb-0">条件分岐の誤りを見つけ、実行結果をもとに修正しています。</p>
+                <p class="mb-0">基本的な処理の流れは理解できていますが、出力誤りの原因特定が不十分な箇所があります。</p>
               </article>
               <article class="metric-card">
                 <div class="metric-header">
                   <span class="metric-group">思考・判断・表現</span>
-                  <span class="metric-score">4</span>
+                  <span class="metric-score">3</span>
                 </div>
                 <h3>アルゴリズムの設計と実装</h3>
-                <p class="mb-0">課題に必要な判定手順を整理し、過不足なく実装できています。</p>
+                <p class="mb-0">必要な変数定義と反復構造は実装できていますが、終了条件や型の使い分けに改善余地があります。</p>
               </article>
               <article class="metric-card">
                 <div class="metric-header">
                   <span class="metric-group">思考・判断・表現</span>
-                  <span class="metric-score">4</span>
+                  <span class="metric-score">3</span>
                 </div>
                 <h3>コードの可読性</h3>
-                <p class="mb-0">インデントや分岐のまとまりが見やすく、全体として読み取りやすいコードです。</p>
+                <p class="mb-0">インデントは概ね揃っていますが、命名やコメント不足により読みやすさの改善が必要です。</p>
               </article>
               <article class="metric-card accent-card">
                 <div class="metric-header">
@@ -187,52 +187,79 @@
             <div class="reason-list">
               <article class="reason-card" data-category="thinking">
                 <div class="reason-title-row">
-                  <h3>文法デバッグ能力: 4</h3>
+                  <h3>文法デバッグ能力: 3</h3>
                   <span class="reason-chip">思考・判断・表現</span>
                 </div>
                 <p class="mb-0">
-                  ソースコードのログを見ると、初期段階では if 文のコロン抜けにより構文エラーが発生していましたが、保存後の修正でエラーを解消し、正常に実行できています。
-                  エラーメッセージを読み取り、原因を把握して修正できているため、レベル4と判断できます。
+                  コンパイルエラーは複数回発生していますが、最終的には解消できています。初歩的な文法エラーの再発が見られるため、現時点ではレベル3相当と判断します。
                 </p>
-                <div class="evidence-row">
-                  <span class="evidence-pill">ソースコードID: 932547</span>
-                  <span class="evidence-pill">実行ID: 171311</span>
-                </div>
+                <ul class="reason-detail-list">
+                  <li>
+                    <p class="mb-0">コンパイルエラーが複数回発生している。</p>
+                    <div class="evidence-row">
+                      <span class="evidence-pill">compile_id: 185602</span>
+                      <span class="evidence-pill">compile_id: 185603</span>
+                      <span class="evidence-pill">compile_id: 185604</span>
+                      <span class="evidence-pill">compile_id: 185610</span>
+                      <span class="evidence-pill">compile_id: 185614</span>
+                    </div>
+                  </li>
+                  <li>
+                    <p class="mb-0">変数の宣言漏れ、printf や scanf の format 指定子の誤りなど、初歩的な文法エラーが見られる。</p>
+                  </li>
+                  <li>
+                    <p class="mb-0">エラーメッセージを参考に修正を試みているが、float 型を scanf で "%d" として読み込む、printf で "%d" で出力するなど、完全に解消できていない箇所がある。</p>
+                  </li>
+                  <li>
+                    <p class="mb-0">ただし最終的にはコンパイルエラーを解消しており、時間をかければ文法エラーを解決できると判断できる。</p>
+                  </li>
+                </ul>
               </article>
 
               <article class="reason-card" data-category="thinking">
                 <div class="reason-title-row">
-                  <h3>論理デバッグ能力: 4</h3>
+                  <h3>論理デバッグ能力: 3</h3>
                   <span class="reason-chip">思考・判断・表現</span>
                 </div>
                 <p class="mb-0">
-                  勝敗判定の条件式に誤りがあり、あいこ以外の結果がずれていたログが確認できました。複数回のテスト実行を通して分岐条件を修正し、最終的に正しい結果を出力できています。
+                  基本的な処理の流れは理解して修正できていますが、最終出力の誤り原因を特定しきれていないため、レベル3相当と判断します。
                 </p>
-                <div class="evidence-row">
-                  <span class="evidence-pill">ソースコードID: 932646</span>
-                  <span class="evidence-pill">ソースコードID: 932768</span>
-                  <span class="evidence-pill">実行ID: 144217</span>
-                </div>
+                <ul class="reason-detail-list">
+                  <li><p class="mb-0">while 文の条件設定、合計と平均の計算など、基本的な処理の流れは理解できている。</p></li>
+                  <li><p class="mb-0">初期値の設定（例: x = 0.0）など、細かい部分で間違いが見られる。</p></li>
+                  <li><p class="mb-0">最終的には、正の値が入力されている間は合計と平均を計算し続ける課題をクリアしている。</p></li>
+                  <li><p class="mb-0">ただし、最後の出力結果がおかしい（合計に x の値が出力されるなど）箇所があり、その原因を特定しきれていない。</p></li>
+                </ul>
               </article>
 
               <article class="reason-card" data-category="thinking">
                 <div class="reason-title-row">
-                  <h3>アルゴリズムの設計と実装: 4</h3>
+                  <h3>アルゴリズムの設計と実装: 3</h3>
                   <span class="reason-chip">思考・判断・表現</span>
                 </div>
                 <p class="mb-0">
-                  入力値を受け取り、あいこ・勝ち・負け・入力エラーの4つの状態に分けて処理する流れを整理できています。条件分岐の構成が課題要件に合っており、主要な要素を過不足なく実装できています。
+                  課題の基本構造は実装できていますが、終了条件の厳密さや型の使い分けに課題が残るため、レベル3相当と判断します。
                 </p>
+                <ul class="reason-detail-list">
+                  <li><p class="mb-0">課題内容を理解し、必要な変数（x, s, i）を定義し、while 文で入力を繰り返す基本構造は実装できている。</p></li>
+                  <li><p class="mb-0">入力値が負になるまで繰り返す条件として x &gt;= 0.0 を使っているが、厳密な終了判定としては改善余地がある（例: scanf の戻り値確認）。</p></li>
+                  <li><p class="mb-0">float と int の使い分けがあいまいな部分があり、意図した計算結果が得られていない箇所がある。</p></li>
+                </ul>
               </article>
 
               <article class="reason-card" data-category="thinking">
                 <div class="reason-title-row">
-                  <h3>コードの可読性: 4</h3>
+                  <h3>コードの可読性: 3</h3>
                   <span class="reason-chip">思考・判断・表現</span>
                 </div>
                 <p class="mb-0">
-                  インデントは安定しており、条件分岐のまとまりも追いやすくなっています。変数名は短いものの役割は読み取れるため、全体として理解しやすいコードと判断できます。
+                  可読性の基本は満たしていますが、命名とコメントに改善余地があるため、レベル3相当と判断します。
                 </p>
+                <ul class="reason-detail-list">
+                  <li><p class="mb-0">インデントは概ね揃っているが、スペースの使い方が一貫していない部分がある。</p></li>
+                  <li><p class="mb-0">変数名が x, s, i など抽象的で、sum や average のような具体名の方が望ましい。</p></li>
+                  <li><p class="mb-0">コメントがなく、コードの意図や処理の流れの説明が不足している。</p></li>
+                </ul>
               </article>
 
               <article class="reason-card accent-reason" data-category="attitude">

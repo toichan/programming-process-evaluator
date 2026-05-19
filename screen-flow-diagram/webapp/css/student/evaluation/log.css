@@ -138,6 +138,24 @@ body {
   color: var(--bs-gray-700);
 }
 
+.viewer-id-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.viewer-id-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #0f172a;
+  background: rgba(14, 165, 233, 0.12);
+  border: 1px solid rgba(14, 165, 233, 0.25);
+}
+
 .code-shell {
   border: 1px solid #dbe4f0;
   border-radius: 1rem;
@@ -216,25 +234,16 @@ body {
   overflow: hidden;
 }
 
-.log-toggle-button {
-  flex-shrink: 0;
-  min-width: 7.5rem;
-}
-
-.log-toggle-button[aria-expanded="true"]::after {
-  content: "↑";
-  margin-left: 0.45rem;
-}
-
-.log-toggle-button[aria-expanded="false"]::after {
-  content: "↓";
-  margin-left: 0.45rem;
-}
-
 .log-timeline {
   display: flex;
   flex-direction: column;
   gap: 0.85rem;
+}
+
+.log-timeline-scroll {
+  max-height: 34rem;
+  overflow-y: auto;
+  padding-right: 0.25rem;
 }
 
 .timeline-item {
@@ -304,11 +313,11 @@ body {
   .hero-action-row,
   .hero-status-item {
     flex-direction: column;
-
-  .log-toggle-button {
-    width: 100%;
-  }
     align-items: flex-start;
+  }
+
+  .log-timeline-scroll {
+    max-height: 20rem;
   }
 
   .viewer-controls .btn,

@@ -69,12 +69,8 @@
           <section class="sample-section log-viewer-section">
             <div class="section-heading-row mb-3">
               <div>
-                <h2 class="card-title mb-2">差分ビューア</h2>
-                <p class="text-muted mb-0">追加箇所は青、削除箇所は赤で表示しています。</p>
-              </div>
-              <div class="viewer-badges">
-                <span class="viewer-badge added-badge">追加</span>
-                <span class="viewer-badge removed-badge">削除</span>
+                <h2 class="card-title mb-2">差分ビューアー</h2>
+                <p class="text-muted mb-0">各保存時点のコードを時系列で確認できます。</p>
               </div>
             </div>
 
@@ -84,6 +80,11 @@
                 <span id="stepIndicator">1 / 6</span>
               </div>
               <button id="nextCodeButton" class="btn btn-primary" type="button">次へ →</button>
+            </div>
+
+            <div class="viewer-id-row mt-3">
+              <span id="sourceCodeId" class="viewer-id-pill">ソースコードID: -</span>
+              <span id="executionId" class="viewer-id-pill">実行ID: -</span>
             </div>
 
             <div class="code-shell mt-4">
@@ -105,18 +106,9 @@
                   <h2 class="card-title mb-2">ログ一覧</h2>
                   <p class="text-muted mb-0">各保存時点の概要を確認できます。</p>
                 </div>
-                <button
-                  class="btn btn-outline-secondary btn-sm log-toggle-button"
-                  type="button"
-                  data-bs-toggle="collapse"
-                  data-bs-target="#logTimelineCollapse"
-                  aria-expanded="true"
-                  aria-controls="logTimelineCollapse">
-                  折りたたむ
-                </button>
               </div>
 
-              <div id="logTimelineCollapse" class="collapse show">
+              <div class="log-timeline-scroll">
                 <div id="logTimeline" class="log-timeline"></div>
               </div>
             </section>

@@ -6,6 +6,8 @@ window.addEventListener('DOMContentLoaded', () => {
   const timestamp = document.querySelector('#timestamp');
   const boundaryMessage = document.querySelector('#boundaryMessage');
   const stepIndicator = document.querySelector('#stepIndicator');
+  const sourceCodeId = document.querySelector('#sourceCodeId');
+  const executionId = document.querySelector('#executionId');
   const prevCodeButton = document.querySelector('#prevCodeButton');
   const nextCodeButton = document.querySelector('#nextCodeButton');
   const logTimeline = document.querySelector('#logTimeline');
@@ -82,81 +84,12 @@ window.addEventListener('DOMContentLoaded', () => {
       .join('');
   }
 
-  function buildLineDiff(previousText, currentText) {
-    const previousLines = splitLines(previousText);
-    const currentLines = splitLines(currentText);
-    const matrix = Array.from({ length: previousLines.length + 1 }, () => Array(currentLines.length + 1).fill(0));
-
-    for (let previousIndex = previousLines.length - 1; previousIndex >= 0; previousIndex -= 1) {
-      for (let currentIndex = currentLines.length - 1; currentIndex >= 0; currentIndex -= 1) {
-        if (previousLines[previousIndex] === currentLines[currentIndex]) {
-          matrix[previousIndex][currentIndex] = matrix[previousIndex + 1][currentIndex + 1] + 1;
-        } else {
-          matrix[previousIndex][currentIndex] = Math.max(
-            matrix[previousIndex + 1][currentIndex],
-            matrix[previousIndex][currentIndex + 1]
-          );
-        }
-      }
+  function getExecutionId(log, currentIndex) {
+    if (log.execution_id !== undefined && log.execution_id !== null && log.execution_id !== '') {
+      return log.execution_id;
     }
 
-    const segments = [];
-    let previousIndex = 0;
-    let currentIndex = 0;
-
-    while (previousIndex < previousLines.length && currentIndex < currentLines.length) {
-      if (previousLines[previousIndex] === currentLines[currentIndex]) {
-        segments.push({ type: 'same', text: currentLines[currentIndex] });
-        previousIndex += 1;
-        currentIndex += 1;
-      } else if (matrix[previousIndex + 1][currentIndex] >= matrix[previousIndex][currentIndex + 1]) {
-        segments.push({ type: 'removed', text: previousLines[previousIndex] });
-        previousIndex += 1;
-      } else {
-        segments.push({ type: 'added', text: currentLines[currentIndex] });
-        currentIndex += 1;
-      }
-    }
-
-    while (previousIndex < previousLines.length) {
-      segments.push({ type: 'removed', text: previousLines[previousIndex] });
-      previousIndex += 1;
-    }
-
-    while (currentIndex < currentLines.length) {
-      segments.push({ type: 'added', text: currentLines[currentIndex] });
-      currentIndex += 1;
-    }
-
-    return segments;
-  }
-
-  function renderDiffHTML(previousText, currentText) {
-    let currentLineNumber = 1;
-    let previousLineNumber = 1;
-
-    return buildLineDiff(previousText, currentText)
-      .map(({ type, text }) => {
-        const safeText = escapeHTML(normalizeLineText(text)) || '&nbsp;';
-        let lineNumber = '';
-
-        if (type === 'added') {
-          lineNumber = `${currentLineNumber}`;
-          currentLineNumber += 1;
-          return `<span class="code-line added"><span class="line-number">${lineNumber}</span><span class="line-content">${safeText}</span></span>`;
-        }
-        if (type === 'removed') {
-          lineNumber = `-${previousLineNumber}`;
-          previousLineNumber += 1;
-          return `<span class="code-line removed"><span class="line-number">${lineNumber}</span><span class="line-content">${safeText}</span></span>`;
-        }
-
-        lineNumber = `${currentLineNumber}`;
-        currentLineNumber += 1;
-        previousLineNumber += 1;
-        return `<span class="code-line"><span class="line-number">${lineNumber}</span><span class="line-content">${safeText}</span></span>`;
-      })
-      .join('');
+    return 171311 + currentIndex;
   }
 
   function renderCode(currentIndex) {
@@ -165,10 +98,14 @@ window.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    if (currentIndex > 0) {
-      codeBlock.innerHTML = renderDiffHTML(logs[currentIndex - 1].content, currentLog.content);
-    } else {
-      codeBlock.innerHTML = renderCodeLines(splitLines(currentLog.content));
+    codeBlock.innerHTML = renderCodeLines(splitLines(currentLog.content));
+
+    if (sourceCodeId) {
+      sourceCodeId.textContent = `ソースコードID: ${currentLog.id ?? '-'}`;
+    }
+
+    if (executionId) {
+      executionId.textContent = `実行ID: ${getExecutionId(currentLog, currentIndex)}`;
     }
 
     timestamp.textContent = `保存日時: ${currentLog.created_at}`;
@@ -181,11 +118,6 @@ window.addEventListener('DOMContentLoaded', () => {
     } else {
       boundaryMessage.textContent = '';
     }
-
-    codeBlock.querySelectorAll('.added, .removed').forEach((element) => {
-      element.classList.add('flash');
-      window.setTimeout(() => element.classList.remove('flash'), 1000);
-    });
 
     updateButtons();
     updateTimeline();
