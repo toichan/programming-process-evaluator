@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Programming Process Evaluator - プロンプト修正</title>
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet"
+    integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB"
+    crossorigin="anonymous">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+  <link href="../../../css/teacher/shared/components.css" rel="stylesheet">
+  <link href="../../../css/template/template.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/lib/codemirror.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/theme/material-darker.css">
+  <link href="../../../css/teacher/prompt/prompt.css" rel="stylesheet">
+</head>
+<body>
+  <main class="flex-grow-1">
+    <div class="page-content py-5">
+      <div class="container-fluid px-4">
+        <section class="prompt-hero mb-4">
+          <div>
+            <span class="hero-kicker">Prompt Tuning</span>
+            <h1 class="section-title mb-2">プロンプト修正</h1>
+            <p class="hero-description mb-0">課題内容と共通プロンプトを調整し、揺らぎ項目の確認と再評価を実行します。</p>
+          </div>
+          <div class="hero-stats">
+            <div class="stat-card">
+              <div class="stat-label">対象課題</div>
+              <div class="stat-value" id="taskCount">3</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">再評価待ち</div>
+              <div class="stat-value" id="pendingCount">2</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">最終更新</div>
+              <div class="stat-value stat-value-small" id="lastUpdatedAt">2026-05-19</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel-card mb-4">
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+            <div>
+              <span class="hero-kicker mb-1 d-inline-block">Step 1</span>
+              <h2 class="subheading mb-0">共通プロンプト修正</h2>
+            </div>
+            <button class="btn btn-outline-secondary btn-sm" type="button" id="resetPromptFormButton">入力をリセット</button>
+          </div>
+
+          <form id="commonPromptForm" class="row g-3">
+            <div class="col-lg-4">
+              <label for="taskSelect" class="form-label">課題を選択</label>
+              <select class="form-select" id="taskSelect" required>
+                <option value="">選択してください</option>
+                <option value="TASK-001">TASK-001: じゃんけん判定（初級）</option>
+                <option value="TASK-002">TASK-002: 在庫管理（中級）</option>
+                <option value="TASK-003">TASK-003: 経路探索（上級）</option>
+              </select>
+            </div>
+            <div class="col-lg-4">
+              <label for="modelSelect" class="form-label">評価モデル</label>
+              <select class="form-select" id="modelSelect">
+                <option>Gemini 2.5 Pro</option>
+                <option>Gemini 2.5 Flash</option>
+              </select>
+            </div>
+            <div class="col-lg-4">
+              <label for="versionSelect" class="form-label">バージョン</label>
+              <select class="form-select" id="versionSelect" disabled>
+                <option value="">課題を選択してください</option>
+              </select>
+            </div>
+
+            <div class="col-12">
+              <label for="evaluationPromptInput" class="form-label">共通プロンプト</label>
+              <textarea id="evaluationPromptInput" class="form-control code-editor-input" rows="16" placeholder="AI評価用の指示文を入力"></textarea>
+            </div>
+
+            <div class="col-12 d-flex gap-2 flex-wrap justify-content-center">
+              <button class="btn btn-primary" type="button" id="generateFluctuationButton">確定して揺らぎ項目を生成する</button>
+              <button class="btn btn-outline-primary" type="submit">共通プロンプトを保存</button>
+            </div>
+          </form>
+        </section>
+
+        <section class="panel-card mb-4" id="fluctuationSection">
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+            <div>
+              <span class="hero-kicker mb-1 d-inline-block">Step 2</span>
+              <h2 class="subheading mb-0">揺らぎ項目対応</h2>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+              <button class="btn btn-outline-secondary btn-sm" type="button" id="resetStep2Button" disabled>入力をリセット</button>
+              <span class="badge text-bg-light border" id="fluctuationStatus">未生成</span>
+            </div>
+          </div>
+
+          <div class="row g-3 mb-3">
+            <div class="col-lg-4">
+              <label for="versionSelectStep2" class="form-label">バージョン</label>
+              <select class="form-select" id="versionSelectStep2" disabled>
+                <option value="">課題を選択してください</option>
+              </select>
+            </div>
+          </div>
+
+          <div id="fluctuationEmpty" class="empty-state">
+            「確定して揺らぎ項目を生成する」を押すと、評価の揺らぎ候補が表示されます。
+          </div>
+
+          <div id="fluctuationList" class="fluctuation-list d-none"></div>
+
+          <div class="mt-3">
+            <label for="additionalInstructionInput" class="form-label">課題ごとの追加評価指示</label>
+            <textarea id="additionalInstructionInput" class="form-control" rows="3" placeholder="例: この課題では変数命名と入力検証の妥当性を優先して評価する"></textarea>
+          </div>
+
+          <div class="d-flex gap-2 mt-3 flex-wrap justify-content-center">
+            <button class="btn btn-success" type="button" id="savePromptButton" disabled>確定して評価例を生成する</button>
+            <button class="btn btn-outline-success" type="button" id="runReevaluationButton" disabled>課題プロンプトを保存</button>
+          </div>
+
+          <div class="progress mt-3 d-none" id="reevaluationProgressWrap" role="progressbar" aria-label="再評価進捗">
+            <div class="progress-bar progress-bar-striped progress-bar-animated" id="reevaluationProgressBar" style="width: 0%">0%</div>
+          </div>
+        </section>
+
+        <section class="panel-card mb-4" id="evaluationExamplesSection">
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+            <div>
+              <span class="hero-kicker mb-1 d-inline-block">Step 3</span>
+              <h2 class="subheading mb-0">評価例確認</h2>
+            </div>
+            <span class="badge text-bg-light border" id="evaluationExamplesStatus">未生成</span>
+          </div>
+
+          <div id="evaluationExamplesEmpty" class="empty-state">
+            STEP2で確定すると、AIが生成した評価例がここに表示されます。
+          </div>
+
+          <div id="evaluationExamplesList" class="evaluation-examples-list d-none"></div>
+
+          <div class="d-flex gap-2 mt-3 flex-wrap justify-content-center">
+            <button class="btn btn-success" type="button" id="confirmReevaluationStep3Button" disabled>確定して再評価する</button>
+            <button class="btn btn-outline-success" type="button" id="saveEvaluationExamplesButton" disabled>評価例を保存</button>
+          </div>
+        </section>
+
+        <section class="panel-card">
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+            <div>
+              <span class="hero-kicker mb-1 d-inline-block">History</span>
+              <h2 class="subheading mb-0">更新履歴</h2>
+            </div>
+            <button class="btn btn-outline-secondary btn-sm" type="button" id="refreshHistoryButton">更新</button>
+          </div>
+
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0" id="historyTable">
+              <thead class="table-light">
+                <tr>
+                  <th>日時</th>
+                  <th>課題ID</th>
+                  <th>編集者</th>
+                  <th>STEP1 ver.</th>
+                  <th>STEP2 ver.</th>
+                  <th>STEP3 ver.</th>
+                  <th>再評価</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>2026-05-19 14:22:41</td>
+                  <td>1</td>
+                  <td>t001</td>
+                  <td>1</td>
+                  <td>1</td>
+                  <td>1</td>
+                  <td><span class="badge text-bg-success">実施済み</span></td>
+                </tr>
+                <tr>
+                  <td>2026-05-19 14:09:03</td>
+                  <td>1</td>
+                  <td>t001</td>
+                  <td>1</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td><span class="badge text-bg-secondary">未実施</span></td>
+                </tr>
+                <tr>
+                  <td>2026-05-19 13:52:16</td>
+                  <td>1</td>
+                  <td>t001</td>
+                  <td>1</td>
+                  <td>1</td>
+                  <td>1</td>
+                  <td><span class="badge text-bg-success">実施済み</span></td>
+                </tr>
+                <tr>
+                  <td>2026-05-18 17:10:08</td>
+                  <td>3</td>
+                  <td>t001</td>
+                  <td>2</td>
+                  <td>1</td>
+                  <td>-</td>
+                  <td><span class="badge text-bg-secondary">未実施</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <div class="toast-container position-fixed bottom-0 end-0 p-3">
+    <div id="promptToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+      <div class="toast-header">
+        <strong class="me-auto">プロンプト修正</strong>
+        <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="閉じる"></button>
+      </div>
+      <div class="toast-body" id="promptToastBody">保存しました。</div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"
+    integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI"
+    crossorigin="anonymous"></script>
+  <div class="modal fade" id="evaluationExampleDetailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-fullscreen modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">評価例詳細</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
+        </div>
+        <div class="modal-body">
+          <section id="evaluationExampleDetailContent"></section>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="reevaluationPreviewModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">再評価対象一覧 <span id="reevaluationPreviewTaskLabel" class="text-muted"></span></h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
+        </div>
+        <div class="modal-body">
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th>生徒ID</th>
+                  <th>新しい評価</th>
+                  <th>前の評価との差</th>
+                  <th>状態</th>
+                </tr>
+              </thead>
+              <tbody id="reevaluationPreviewTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">閉じる</button>
+          <button type="button" class="btn btn-primary" id="executeReevaluationFromModalButton">この内容で再評価する</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/lib/codemirror.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/mode/markdown/markdown.js"></script>
+  <script src="../../../js/teacher/shared/components.js"></script>
+  <script src="../../../js/teacher/prompt/prompt.js"></script>
+</body>
+</html>

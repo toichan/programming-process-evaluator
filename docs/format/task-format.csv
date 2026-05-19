@@ -1,0 +1,30 @@
+task_id,title,level,theme,description,school_targets,class_targets,publish_at,status,features,constraints,initial_code,language,is_deleted,created_at,updated_at
+1,じゃんけん判定プログラム,初級,条件分岐 / 入力処理,ユーザーの入力に応じて勝敗結果を表示する条件分岐の基本課題です。,国際中等,1年A組;1年B組,2026-05-20 09:00:00,公開,入力値を受け取る;条件分岐で勝敗を判定する;不正な入力時に案内を表示する,入力は「グー」「チョキ」「パー」のいずれかを想定,"player = input(""あなたの手を入力してください: "")
+computer = ""グー""
+
+if player == computer:
+    print(""あいこ"")
+elif player == ""パー"":
+    print(""あなたの勝ち"")
+elif player == ""チョキ"":
+    print(""あなたの負け"")
+else:
+    print(""グー・チョキ・パーを入力してください"")",Python 3.x,false,2026-05-18 09:10:00,2026-05-18 09:10:00
+2,点数集計と平均計算,中級,反復処理 / リスト,複数の入力値を受け取り合計点と平均点を算出する繰り返し処理の練習課題です。,国際中等,1年B組,2026-05-21 10:00:00,公開,複数入力を配列に格納する;for文で合計を算出する;平均値を表示する,点数は0以上100以下とする,"scores = [78, 92, 65, 88]
+total = 0
+for s in scores:
+    total += s
+print(total)
+print(total / len(scores))",Python 3.x,false,2026-05-17 15:42:00,2026-05-17 15:42:00
+3,売上データの分析レポート,上級,関数 / 集計 / 出力整形,売上データを集計し条件ごとに分析結果を出力する総合的なデータ処理課題です。,附属高校,4年2組,2026-05-22 13:00:00,下書き,関数で集計処理を分割する;辞書でカテゴリ別に合計する;整形して結果を表示する,外部ライブラリは使用しない,"sales = [
+    (""A"", 1200),
+    (""B"", 900),
+    (""A"", 500)
+]
+
+summary = {}
+for category, amount in sales:
+    summary[category] = summary.get(category, 0) + amount
+
+for category in sorted(summary.keys()):
+    print(category, summary[category])",Python 3.x,false,2026-05-15 11:20:00,2026-05-15 11:20:00

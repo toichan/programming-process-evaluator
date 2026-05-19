@@ -125,6 +125,40 @@ main.flex-grow-1 {
   white-space: nowrap;
 }
 
+.teacher-rubric-fab {
+  position: fixed;
+  left: 1rem;
+  bottom: 1rem;
+  z-index: 1055;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  border: 1px solid #2563eb;
+  border-radius: 999px;
+  padding: 0.55rem 0.95rem;
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  color: #ffffff;
+  font-size: 0.88rem;
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: 0 10px 24px rgba(37, 99, 235, 0.32);
+  transition: transform 0.15s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.teacher-rubric-fab:hover,
+.teacher-rubric-fab:focus {
+  transform: translateY(-1px);
+  border-color: #1d4ed8;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: #ffffff;
+  box-shadow: 0 12px 28px rgba(29, 78, 216, 0.35);
+}
+
+.teacher-rubric-fab:focus-visible {
+  outline: 3px solid rgba(37, 99, 235, 0.3);
+  outline-offset: 2px;
+}
+
 /* レスポンシブ */
 @media (max-width: 992px) {
   .teacher-sidebar {
@@ -141,6 +175,13 @@ main.flex-grow-1 {
   .teacher-info-item {
     font-size: 0.9rem;
   }
+
+  .teacher-rubric-fab {
+    left: 0.85rem;
+    bottom: 0.85rem;
+    padding: 0.5rem 0.85rem;
+    font-size: 0.84rem;
+  }
 }
 
 @media (max-width: 768px) {
@@ -155,5 +196,10 @@ main.flex-grow-1 {
 
   .teacher-sidebar.show {
     left: 0;
+  }
+
+  .teacher-rubric-fab {
+    left: 0.75rem;
+    bottom: 0.75rem;
   }
 }

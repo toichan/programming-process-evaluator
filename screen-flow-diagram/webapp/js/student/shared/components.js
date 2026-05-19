@@ -2,7 +2,7 @@ window.PPEComponents = {
   header: `
     <nav class="navbar navbar-expand-lg">
       <div class="container-fluid">
-        <a class="navbar-brand d-flex align-items-center" href="../menu/home.html">
+        <a class="navbar-brand d-flex align-items-center" href="../home/home.html">
           <svg class="me-2" width="32" height="32" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
             <path d="M4 4.5C4 3.67 4.67 3 5.5 3h13c.83 0 1.5.67 1.5 1.5v15c0 .83-.67 1.5-1.5 1.5h-13A1.5 1.5 0 0 1 4 19.5v-15zM5.5 4a.5.5 0 0 0-.5.5V8h15V4.5a.5.5 0 0 0-.5-.5h-14zM5 9v10.5c0 .28.22.5.5.5h13a.5.5 0 0 0 .5-.5V9H5z"/>
             <path d="M8.75 13.5L7.25 12l1.5-1.5m6.5 3L16.75 12l-1.5-1.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
@@ -22,7 +22,7 @@ window.PPEComponents = {
         <div class="collapse navbar-collapse" id="navbarNav">
           <ul class="navbar-nav me-auto">
             <li class="nav-item">
-              <a class="nav-link d-flex align-items-center" href="../menu/home.html">
+              <a class="nav-link d-flex align-items-center" href="../home/home.html">
                 <svg class="me-1" width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
                   <path d="M8.707 1.5a1 1 0 0 0-1.414 0L.646 8.146a.5.5 0 0 0 .708.708L8 2.207l6.646 6.647a.5.5 0 0 0 .708-.708L13 5.793V2.5a.5.5 0 0 0-.5-.5h-1a.5.5 0 0 0-.5.5v1.293L8.707 1.5Z"/>
                   <path d="m8 3.293 6 6V13.5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 13.5V9.293l6-6Z"/>
@@ -44,7 +44,7 @@ window.PPEComponents = {
                 <li><a class="dropdown-item d-flex align-items-center" href="../editor/editor.html"><span class="badge bg-warning me-2">中</span>条件分岐</a></li>
                 <li><a class="dropdown-item d-flex align-items-center" href="../editor/editor.html"><span class="badge bg-danger me-2">未</span>繰り返し処理</a></li>
                 <li><hr class="dropdown-divider"></li>
-                <li><a class="dropdown-item text-primary fw-semibold" href="../menu/home.html">すべての課題をみる</a></li>
+                <li><a class="dropdown-item text-primary fw-semibold" href="../home/home.html">すべての課題をみる</a></li>
               </ul>
             </li>
             <li class="nav-item">

@@ -27,6 +27,6 @@ window.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    window.location.href = '../menu/home.html';
+    window.location.href = '../home/home.html';
   });
 });

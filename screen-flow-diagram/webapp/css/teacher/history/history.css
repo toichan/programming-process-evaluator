@@ -114,6 +114,27 @@
   background-color: #f0f4ff;
 }
 
+#historyTable .badge.difficulty-beginner,
+#historyTable .badge.difficulty-intermediate,
+#historyTable .badge.difficulty-advanced {
+  border: none;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+/* 単色背景 + 白文字で template のバッジ表現に合わせる */
+#historyTable .badge.difficulty-beginner {
+  background: #059669;
+}
+
+#historyTable .badge.difficulty-intermediate {
+  background: #eab308;
+}
+
+#historyTable .badge.difficulty-advanced {
+  background: #dc2626;
+}
+
 #historyTable td:last-child .btn {
   white-space: nowrap;
   min-width: 3.4rem;
