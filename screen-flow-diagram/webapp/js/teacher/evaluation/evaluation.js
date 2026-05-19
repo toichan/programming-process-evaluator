@@ -8,7 +8,17 @@ function initializeEvaluationPage() {
   setupRubricBackToEvaluation();
   setupEvaluationSummary();
   setupTableFiltersAndSort();
+  syncEvaluatedDateDisplay();
   applyFiltersAndSort();
+}
+
+function syncEvaluatedDateDisplay() {
+  const rows = document.querySelectorAll('#evaluationTable tbody tr');
+  rows.forEach(function(row) {
+    if (row.cells[7]) {
+      row.cells[7].textContent = row.dataset.evaluated || '';
+    }
+  });
 }
 
 function setupTableFiltersAndSort() {
@@ -1396,12 +1406,16 @@ function buildEvaluationTimeline(evaluatedDateTime) {
 function refreshEvaluations() {
   const now = new Date();
   const time = now.toTimeString().slice(0, 8);
+  const date = now.toISOString().slice(0, 10);
+  const datetime = date + ' ' + time;
   const rows = document.querySelectorAll('#evaluationTable tbody tr');
 
   rows.forEach(function(row) {
     if (Number(row.dataset.overall) >= 4.0) {
-      row.dataset.evaluated = now.toISOString().slice(0, 10) + ' ' + time;
-      row.cells[8].textContent = time;
+      row.dataset.evaluated = datetime;
+      if (row.cells[7]) {
+        row.cells[7].textContent = datetime;
+      }
     }
   });
 

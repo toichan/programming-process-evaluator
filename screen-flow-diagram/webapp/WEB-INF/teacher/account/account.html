@@ -22,49 +22,62 @@
       <div class="page-content py-5">
         <div class="container-fluid px-4">
           <!-- ウェルカムセクション -->
-          <section class="sample-section hero-section mb-5">
-            <div class="hero-copy">
+          <section class="history-hero mb-4">
+            <div>
               <span class="hero-kicker">Teacher Dashboard</span>
-              <h1 class="section-title mb-3">アカウント情報管理</h1>
-              <p class="hero-description mb-0">
-                生徒アカウントの一元管理、作成、確認、エクスポートができます。
-              </p>
+              <h1 class="section-title mb-2">生徒アカウント管理</h1>
+              <p class="hero-description mb-0">生徒アカウントの一元管理、作成、確認、エクスポートができます。</p>
             </div>
-            <div class="hero-status-card">
-              <div class="status-label">登録アカウント数</div>
-              <div class="status-value">42</div>
-              <div class="status-meta">計5クラスの生徒アカウントが登録されています。</div>
+            <div class="hero-stats">
+              <div class="stat-card">
+                <div class="stat-label">登録アカウント数</div>
+                <div class="stat-value">42</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-label">対象学校</div>
+                <div class="stat-value">2校</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-label">対象クラス</div>
+                <div class="stat-value">5組</div>
+              </div>
             </div>
           </section>
 
-          <!-- 操作パネル -->
-          <section class="sample-section mb-4">
-            <div class="d-flex flex-column flex-md-row gap-3 mb-4">
-              <div class="flex-grow-1">
-                <h2 class="card-title mb-3">生徒アカウント一覧</h2>
-              </div>
-              <div class="d-flex gap-2">
-                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createAccountModal">
+          <!-- 操作・フィルタパネル -->
+          <section class="panel-card mb-4">
+            <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+              <h2 class="summary-heading mb-0"></h2>
+              <div class="action-buttons">
+                <button class="btn btn-primary account-create-btn" data-bs-toggle="modal" data-bs-target="#createAccountModal">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="12" y1="5" x2="12" y2="19"></line>
                     <line x1="5" y1="12" x2="19" y2="12"></line>
                   </svg>
                   新規作成
                 </button>
-                <button class="btn btn-outline-secondary" onclick="exportCSV()">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                    <polyline points="7 10 12 15 17 10"></polyline>
-                    <line x1="12" y1="15" x2="12" y2="3"></line>
-                  </svg>
+                <button class="btn btn-primary btn-sm" onclick="exportCSV()">
                   CSVエクスポート
                 </button>
               </div>
             </div>
 
             <!-- フィルタセクション -->
-            <div class="row g-3 mb-4">
-              <div class="col-md-3">
+            <div class="filter-grid mb-4">
+              <div>
+                <label class="form-label">並び順</label>
+                <select class="form-select form-select-sm" id="sortBy">
+                  <option value="idAsc" selected>生徒ID（昇順）</option>
+                  <option value="idDesc">生徒ID（降順）</option>
+                  <option value="createdDesc">作成日時（新しい順）</option>
+                  <option value="createdAsc">作成日時（古い順）</option>
+                </select>
+              </div>
+              <div>
+                <label class="form-label">検索</label>
+                <input type="text" class="form-control form-control-sm" placeholder="生徒IDで検索" id="searchInput">
+              </div>
+              <div>
                 <label class="form-label">学校</label>
                 <select class="form-select form-select-sm" id="filterSchool">
                   <option selected>すべて</option>
@@ -72,7 +85,7 @@
                   <option>附属高校</option>
                 </select>
               </div>
-              <div class="col-md-3">
+              <div>
                 <label class="form-label">クラス</label>
                 <select class="form-select form-select-sm" id="filterClass">
                   <option selected>すべて</option>
@@ -90,23 +103,22 @@
                   <option>4年4組</option>
                 </select>
               </div>
-              <div class="col-md-3">
-                <label class="form-label">検索</label>
-                <input type="text" class="form-control form-control-sm" placeholder="IDで検索" id="searchInput">
-              </div>
             </div>
+          </section>
 
-            <!-- テーブル -->
+          <!-- テーブルパネル -->
+          <section class="panel-card">
             <div class="table-responsive">
               <table class="table table-hover align-middle">
                 <thead class="table-light">
                   <tr>
                     <th style="width: 8%;">ID</th>
-                    <th style="width: 28%;">パスワード</th>
+                    <th style="width: 24%;">パスワード</th>
                     <th style="width: 16%;">学校</th>
                     <th style="width: 12%;">クラス</th>
-                    <th style="width: 24%;">作成日時</th>
-                    <th style="width: 12%;">操作</th>
+                    <th style="width: 20%;">作成日時</th>
+                    <th style="width: 10%;">詳細</th>
+                    <th style="width: 10%;">操作</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -126,6 +138,9 @@
                     <td>国際中等</td>
                     <td>1年A組</td>
                     <td>2026-05-10 10:30:00</td>
+                    <td>
+                      <button class="btn btn-sm btn-outline-primary" onclick="openAccountDetail(this)">表示</button>
+                    </td>
                     <td>
                       <button class="btn btn-sm btn-outline-danger" onclick="deleteAccount(this)">削除</button>
                     </td>
@@ -147,6 +162,9 @@
                     <td>1年A組</td>
                     <td>2026-05-10 10:30:00</td>
                     <td>
+                      <button class="btn btn-sm btn-outline-primary" onclick="openAccountDetail(this)">表示</button>
+                    </td>
+                    <td>
                       <button class="btn btn-sm btn-outline-danger" onclick="deleteAccount(this)">削除</button>
                     </td>
                   </tr>
@@ -167,6 +185,9 @@
                     <td>1年B組</td>
                     <td>2026-05-10 10:35:00</td>
                     <td>
+                      <button class="btn btn-sm btn-outline-primary" onclick="openAccountDetail(this)">表示</button>
+                    </td>
+                    <td>
                       <button class="btn btn-sm btn-outline-danger" onclick="deleteAccount(this)">削除</button>
                     </td>
                   </tr>
@@ -174,6 +195,41 @@
               </table>
             </div>
           </section>
+
+        </div>
+
+        <div class="modal fade" id="accountDetailModal" tabindex="-1" aria-hidden="true">
+          <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h5 class="modal-title">ログイン履歴</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+              </div>
+              <div class="modal-body">
+                <div class="account-detail-head">
+                  <div><span class="detail-label">ID</span><span class="detail-value" id="detailStudentId">-</span></div>
+                  <div><span class="detail-label">学校</span><span class="detail-value" id="detailSchool">-</span></div>
+                  <div><span class="detail-label">クラス</span><span class="detail-value" id="detailClass">-</span></div>
+                </div>
+                <div class="detail-table-wrap mt-3">
+                  <table class="table table-sm align-middle mb-0">
+                    <thead class="table-light">
+                      <tr>
+                        <th style="width: 26%;">日時</th>
+                        <th style="width: 20%;">結果</th>
+                        <th style="width: 22%;">IP</th>
+                        <th style="width: 32%;">端末</th>
+                      </tr>
+                    </thead>
+                    <tbody id="loginHistoryTableBody"></tbody>
+                  </table>
+                </div>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">閉じる</button>
+              </div>
+            </div>
+          </div>
         </div>
   </main>
 

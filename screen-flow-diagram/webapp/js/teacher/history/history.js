@@ -5,6 +5,8 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function initializeHistoryPage() {
+  syncUpdatedDateDisplay();
+
   ['filterClass', 'filterSchool', 'filterConsent', 'filterStatus', 'filterLevel', 'filterTask', 'sortBy'].forEach(function(id) {
     const el = document.getElementById(id);
     if (el) {
@@ -19,6 +21,15 @@ function initializeHistoryPage() {
 
   initSummaryChart();
   applyFiltersAndSort();
+}
+
+function syncUpdatedDateDisplay() {
+  const rows = document.querySelectorAll('#historyTable tbody tr');
+  rows.forEach(function(row) {
+    if (row.cells[7]) {
+      row.cells[7].textContent = row.dataset.updated || '';
+    }
+  });
 }
 
 function applyFiltersAndSort() {
@@ -125,12 +136,16 @@ function openHistoryDetail(button) {
 function refreshRows() {
   const now = new Date();
   const time = now.toTimeString().slice(0, 8);
+  const date = now.toISOString().slice(0, 10);
+  const datetime = date + ' ' + time;
   const rows = document.querySelectorAll('#historyTable tbody tr');
 
   rows.forEach(function(row) {
     if (row.dataset.status === '編集中') {
-      row.dataset.updated = now.toISOString().slice(0, 10) + ' ' + time;
-      row.cells[7].textContent = time;
+      row.dataset.updated = datetime;
+      if (row.cells[7]) {
+        row.cells[7].textContent = datetime;
+      }
     }
   });
 
