@@ -11,9 +11,18 @@ window.addEventListener('DOMContentLoaded', () => {
   const prevCodeButton = document.querySelector('#prevCodeButton');
   const nextCodeButton = document.querySelector('#nextCodeButton');
   const logTimeline = document.querySelector('#logTimeline');
+  const sidebarSwitchButtons = document.querySelectorAll('[data-sidebar-panel]');
+  const timelinePanel = document.querySelector('#timelinePanel');
+  const reasonsPanel = document.querySelector('#reasonsPanel');
+  const reasonFilterGroup = document.querySelector('#reasonFilterGroup');
+  const reasonList = document.querySelector('#reasonList');
   const logs = JSON.parse(document.querySelector('#log-data')?.textContent || '[]');
+  const reasonData = JSON.parse(document.querySelector('#evaluation-reason-data')?.textContent || '{}');
+  const reasonFilters = Array.isArray(reasonData.reasonFilters) ? reasonData.reasonFilters : [];
+  const reasons = Array.isArray(reasonData.reasons) ? reasonData.reasons : [];
 
   let index = 0;
+  let currentReasonFilter = 'all';
 
   if (headerPlaceholder && header) {
     headerPlaceholder.innerHTML = header;
@@ -82,6 +91,108 @@ window.addEventListener('DOMContentLoaded', () => {
         return `<span class="code-line"><span class="line-number">${lineIndex + 1}</span><span class="line-content">${safeText}</span></span>`;
       })
       .join('');
+  }
+
+  function renderEvidenceItems(evidenceItems) {
+    if (!Array.isArray(evidenceItems) || evidenceItems.length === 0) {
+      return '';
+    }
+
+    const chips = evidenceItems
+      .flatMap((item) => {
+        if (Array.isArray(item.ids)) {
+          return item.ids.map((id) => `<span class="evidence-pill">${escapeHTML(item.label || 'ID')}: ${escapeHTML(String(id))}</span>`);
+        }
+
+        if (item.id !== undefined && item.id !== null) {
+          return [`<span class="evidence-pill">${escapeHTML(item.label || 'ID')}: ${escapeHTML(String(item.id))}</span>`];
+        }
+
+        if (item.value !== undefined && item.value !== null) {
+          const unit = item.unit ? String(item.unit) : '';
+          return [`<span class="evidence-pill">${escapeHTML(item.label || '値')}: ${escapeHTML(String(item.value))}${escapeHTML(unit)}</span>`];
+        }
+
+        return [];
+      })
+      .join('');
+
+    if (!chips) {
+      return '';
+    }
+
+    return `<div class="evidence-row">${chips}</div>`;
+  }
+
+  function renderReasonCard(reason) {
+    const details = Array.isArray(reason.details) ? reason.details : [];
+
+    const detailHTML = details.length > 0
+      ? `<ul class="reason-detail-list">${details.map((detail) => {
+        const evidenceHTML = renderEvidenceItems(detail.evidence);
+        return `<li><span>${escapeHTML(detail.text || '')}</span>${evidenceHTML}</li>`;
+      }).join('')}</ul>`
+      : '';
+
+    const reasonEvidenceHTML = renderEvidenceItems(reason.evidence);
+
+    return `
+      <article class="reason-card" data-category="${escapeHTML(reason.category || '')}">
+        <div class="reason-title-row">
+          <h3>${escapeHTML(reason.title || '-')} : ${escapeHTML(String(reason.score ?? '-'))}</h3>
+          <span class="reason-chip">${escapeHTML(reason.categoryLabel || '')}</span>
+        </div>
+        <p class="reason-body">${escapeHTML(reason.body || '')}</p>
+        ${detailHTML}
+        ${reasonEvidenceHTML}
+      </article>
+    `;
+  }
+
+  function updateReasonList() {
+    if (!reasonList) {
+      return;
+    }
+
+    const filteredReasons = reasons.filter((reason) => currentReasonFilter === 'all' || reason.category === currentReasonFilter);
+    reasonList.innerHTML = filteredReasons.map(renderReasonCard).join('');
+  }
+
+  function createReasonFilters() {
+    if (!reasonFilterGroup) {
+      return;
+    }
+
+    reasonFilterGroup.innerHTML = '';
+    reasonFilters.forEach((filter, filterIndex) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = `reason-filter${filterIndex === 0 ? ' is-active' : ''}`;
+      button.textContent = filter.label;
+      button.setAttribute('data-reason-filter', filter.key);
+      button.addEventListener('click', () => {
+        currentReasonFilter = filter.key;
+        reasonFilterGroup.querySelectorAll('.reason-filter').forEach((element) => {
+          element.classList.toggle('is-active', element === button);
+        });
+        updateReasonList();
+      });
+      reasonFilterGroup.appendChild(button);
+    });
+
+    if (reasonFilters.length > 0) {
+      currentReasonFilter = reasonFilters[0].key;
+    }
+  }
+
+  function switchSidebarPanel(targetPanel) {
+    const showTimeline = targetPanel === 'timeline';
+    timelinePanel?.classList.toggle('is-active', showTimeline);
+    reasonsPanel?.classList.toggle('is-active', !showTimeline);
+
+    sidebarSwitchButtons.forEach((button) => {
+      button.classList.toggle('is-active', button.getAttribute('data-sidebar-panel') === targetPanel);
+    });
   }
 
   function getExecutionId(log, currentIndex) {
@@ -160,6 +271,16 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  sidebarSwitchButtons.forEach((button) => {
+    button.addEventListener('click', () => {
+      const targetPanel = button.getAttribute('data-sidebar-panel') || 'timeline';
+      switchSidebarPanel(targetPanel);
+    });
+  });
+
   createTimeline();
+  createReasonFilters();
+  updateReasonList();
+  switchSidebarPanel('timeline');
   renderCode(index);
 });
