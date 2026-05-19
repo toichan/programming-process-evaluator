@@ -118,13 +118,6 @@ function openHistoryDetail(button) {
   const modalEl = document.getElementById('historyDetailModal');
   if (!modalEl) return;
 
-  const detailCheckEvaluationBtn = document.getElementById('detailCheckEvaluationBtn');
-  if (detailCheckEvaluationBtn) {
-    detailCheckEvaluationBtn.onclick = function() {
-      window.location.href = '../evaluation/evaluation.html?studentId=' + encodeURIComponent(row.dataset.id);
-    };
-  }
-
   const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
   modal.show();
 }

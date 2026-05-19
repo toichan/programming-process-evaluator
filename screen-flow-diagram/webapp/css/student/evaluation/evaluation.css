@@ -146,6 +146,16 @@ body {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.92));
 }
 
+.thinking-panel {
+  border-color: rgba(59, 130, 246, 0.18);
+  background: linear-gradient(180deg, rgba(239, 246, 255, 0.94), rgba(255, 255, 255, 0.96));
+}
+
+.attitude-panel {
+  border-color: rgba(16, 185, 129, 0.18);
+  background: linear-gradient(180deg, rgba(236, 253, 245, 0.94), rgba(255, 255, 255, 0.96));
+}
+
 .panel-kicker {
   display: inline-flex;
   padding: 0.4rem 0.75rem;
@@ -212,6 +222,11 @@ body {
   border-radius: 1.1rem;
   background: var(--bs-gray-100);
   border: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.metric-card:not(.accent-card) {
+  border-color: rgba(59, 130, 246, 0.18);
+  background: linear-gradient(180deg, rgba(239, 246, 255, 0.92), rgba(255, 255, 255, 0.96));
 }
 
 .metric-card h3,
@@ -287,6 +302,26 @@ body {
 
 .reason-card {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.96));
+}
+
+.reason-card[data-category="thinking"] {
+  border-color: rgba(59, 130, 246, 0.18);
+  background: linear-gradient(180deg, rgba(239, 246, 255, 0.92), rgba(255, 255, 255, 0.96));
+}
+
+.reason-detail-list {
+  margin: 0.95rem 0 0;
+  padding-left: 1.25rem;
+  display: grid;
+  gap: 0.7rem;
+}
+
+.reason-detail-list li {
+  color: var(--bs-gray-700);
+}
+
+.reason-detail-list .evidence-row {
+  margin-top: 0.5rem;
 }
 
 .reason-card.is-hidden,

@@ -1,0 +1,279 @@
+{
+	"formatVersion": "1.0.0",
+	"locale": "ja-JP",
+	"generatedAt": "2026-05-19T10:42:00+09:00",
+	"evaluation": {
+		"evaluationId": "eval-20260416-1042-156-459",
+		"student": {
+			"studentId": 156
+		},
+		"task": {
+			"taskId": 459,
+			"taskCode": "TASK-001",
+			"title": "じゃんけん判定プログラム",
+			"difficulty": "初級"
+		},
+		"period": {
+			"finalEvaluatedAt": "2026-04-16T10:42:00+09:00"
+		},
+		"counts": {
+			"autoSaveCount": 6,
+			"executionCount": 5
+		},
+		"hero": {
+			"kicker": "Student Evaluation",
+			"title": "評価結果",
+			"description": "コードログと実行履歴をもとに、2つの観点で自動評価したサンプル表示です。各観点の総合点と、根拠になったログの要約を確認できます。",
+			"metaLabel": "対象課題",
+			"metaSubtext": "TASK-001 / 初級 / 最終評価 2026/04/16 10:42",
+			"actions": {
+				"logUrl": "./log.html",
+				"surveyUrl": "../survey/survey.html"
+			}
+		},
+		"overall": {
+			"scale": {
+				"min": 1,
+				"max": 5,
+				"label": "5段階評価"
+			},
+			"dimensions": [
+				{
+					"key": "thinking",
+					"label": "思考力・判断力・表現力",
+					"score": 3,
+					"scoreText": "3.0",
+					"summaryTitle": "基礎は理解しているが改善の余地がある",
+					"summaryDescription": "基本的な処理の流れは実装できていますが、文法エラーの再発や型の扱いなどで不安定な箇所が見られます。"
+				},
+				{
+					"key": "attitude",
+					"label": "主体的に学習に取り組む態度",
+					"score": 4,
+					"scoreText": "4.0",
+					"summaryTitle": "改善を続けながら課題に向き合っている",
+					"summaryDescription": "保存・実行・修正の流れが複数回確認でき、エラーや出力結果を見ながら改善しています。"
+				}
+			]
+		},
+		"metricBreakdown": [
+			{
+				"metricKey": "grammar_debugging",
+				"dimension": "thinking",
+				"dimensionLabel": "思考・判断・表現",
+				"title": "文法デバッグ能力",
+				"score": 3,
+				"description": "初歩的な文法エラーが複数回見られる一方、最終的にはコンパイルエラーを解消できています。"
+			},
+			{
+				"metricKey": "logic_debugging",
+				"dimension": "thinking",
+				"dimensionLabel": "思考・判断・表現",
+				"title": "論理デバッグ能力",
+				"score": 3,
+				"description": "基本的な処理の流れは理解できていますが、出力誤りの原因特定が不十分な箇所があります。"
+			},
+			{
+				"metricKey": "algorithm_design",
+				"dimension": "thinking",
+				"dimensionLabel": "思考・判断・表現",
+				"title": "アルゴリズムの設計と実装",
+				"score": 3,
+				"description": "必要な変数定義と反復構造は実装できていますが、終了条件や型の使い分けに改善余地があります。"
+			},
+			{
+				"metricKey": "readability",
+				"dimension": "thinking",
+				"dimensionLabel": "思考・判断・表現",
+				"title": "コードの可読性",
+				"score": 3,
+				"description": "インデントは概ね揃っていますが、命名やコメント不足により読みやすさの改善が必要です。"
+			},
+			{
+				"metricKey": "persistence",
+				"dimension": "attitude",
+				"dimensionLabel": "態度",
+				"title": "課題への粘り強さ",
+				"score": 4,
+				"description": "複数回の保存と実行を通して、途中で止めずに解決まで進めています。"
+			},
+			{
+				"metricKey": "motivation",
+				"dimension": "attitude",
+				"dimensionLabel": "態度",
+				"title": "課題解決への意欲",
+				"score": 4,
+				"description": "実行結果を受けてコード改善を続けており、理解しようとする姿勢が見られます。"
+			}
+		],
+		"reasonFilters": [
+			{
+				"key": "all",
+				"label": "すべて"
+			},
+			{
+				"key": "thinking",
+				"label": "思考・判断・表現"
+			},
+			{
+				"key": "attitude",
+				"label": "態度"
+			}
+		],
+		"reasons": [
+			{
+				"reasonId": "reason-grammar-debugging",
+				"category": "thinking",
+				"categoryLabel": "思考・判断・表現",
+				"title": "文法デバッグ能力",
+				"score": 3,
+				"body": "コンパイルエラーは複数回発生していますが、最終的には解消できています。初歩的な文法エラーの再発が見られるため、現時点ではレベル3相当と判断します。",
+				"details": [
+					{
+						"detailId": "grammar-1",
+						"text": "コンパイルエラーが複数回発生している。",
+						"evidence": [
+							{
+								"type": "compile",
+								"label": "compile_id",
+								"ids": [
+									185602,
+									185603,
+									185604,
+									185610,
+									185614
+								]
+							}
+						]
+					},
+					{
+						"detailId": "grammar-2",
+						"text": "変数の宣言漏れ、printf や scanf の format 指定子の誤りなど、初歩的な文法エラーが見られる。",
+						"evidence": []
+					},
+					{
+						"detailId": "grammar-3",
+						"text": "エラーメッセージを参考に修正を試みているが、float 型を scanf で \"%d\" として読み込む、printf で \"%d\" で出力するなど、完全に解消できていない箇所がある。",
+						"evidence": []
+					},
+					{
+						"detailId": "grammar-4",
+						"text": "ただし最終的にはコンパイルエラーを解消しており、時間をかければ文法エラーを解決できると判断できる。",
+						"evidence": []
+					}
+				]
+			},
+			{
+				"reasonId": "reason-logic-debugging",
+				"category": "thinking",
+				"categoryLabel": "思考・判断・表現",
+				"title": "論理デバッグ能力",
+				"score": 3,
+				"body": "基本的な処理の流れは理解して修正できていますが、最終出力の誤り原因を特定しきれていないため、レベル3相当と判断します。",
+				"details": [
+					{
+						"detailId": "logic-1",
+						"text": "while 文の条件設定、合計と平均の計算など、基本的な処理の流れは理解できている。",
+						"evidence": []
+					},
+					{
+						"detailId": "logic-2",
+						"text": "初期値の設定（例: x = 0.0）など、細かい部分で間違いが見られる。",
+						"evidence": []
+					},
+					{
+						"detailId": "logic-3",
+						"text": "最終的には、正の値が入力されている間は合計と平均を計算し続ける課題をクリアしている。",
+						"evidence": []
+					},
+					{
+						"detailId": "logic-4",
+						"text": "ただし、最後の出力結果がおかしい（合計に x の値が出力されるなど）箇所があり、その原因を特定しきれていない。",
+						"evidence": []
+					}
+				]
+			},
+			{
+				"reasonId": "reason-algorithm-design",
+				"category": "thinking",
+				"categoryLabel": "思考・判断・表現",
+				"title": "アルゴリズムの設計と実装",
+				"score": 3,
+				"body": "課題の基本構造は実装できていますが、終了条件の厳密さや型の使い分けに課題が残るため、レベル3相当と判断します。",
+				"details": [
+					{
+						"detailId": "algorithm-1",
+						"text": "課題内容を理解し、必要な変数（x, s, i）を定義し、while 文で入力を繰り返す基本構造は実装できている。",
+						"evidence": []
+					},
+					{
+						"detailId": "algorithm-2",
+						"text": "入力値が負になるまで繰り返す条件として x >= 0.0 を使っているが、厳密な終了判定としては改善余地がある（例: scanf の戻り値確認）。",
+						"evidence": []
+					},
+					{
+						"detailId": "algorithm-3",
+						"text": "float と int の使い分けがあいまいな部分があり、意図した計算結果が得られていない箇所がある。",
+						"evidence": []
+					}
+				]
+			},
+			{
+				"reasonId": "reason-readability",
+				"category": "thinking",
+				"categoryLabel": "思考・判断・表現",
+				"title": "コードの可読性",
+				"score": 3,
+				"body": "可読性の基本は満たしていますが、命名とコメントに改善余地があるため、レベル3相当と判断します。",
+				"details": [
+					{
+						"detailId": "readability-1",
+						"text": "インデントは概ね揃っているが、スペースの使い方が一貫していない部分がある。",
+						"evidence": []
+					},
+					{
+						"detailId": "readability-2",
+						"text": "変数名が x, s, i など抽象的で、sum や average のような具体名の方が望ましい。",
+						"evidence": []
+					},
+					{
+						"detailId": "readability-3",
+						"text": "コメントがなく、コードの意図や処理の流れの説明が不足している。",
+						"evidence": []
+					}
+				]
+			},
+			{
+				"reasonId": "reason-persistence",
+				"category": "attitude",
+				"categoryLabel": "態度",
+				"title": "課題への粘り強さ",
+				"score": 4,
+				"body": "保存と実行を複数回繰り返しながら、構文エラーと出力誤りの両方を修正しています。途中で作業が止まらず、最終的な正解出力まで到達しているため、粘り強く取り組めていると判断できます。",
+				"evidence": [
+					{
+						"type": "count",
+						"label": "保存回数",
+						"value": 6,
+						"unit": "回"
+					},
+					{
+						"type": "count",
+						"label": "実行回数",
+						"value": 5,
+						"unit": "回"
+					}
+				]
+			},
+			{
+				"reasonId": "reason-motivation",
+				"category": "attitude",
+				"categoryLabel": "態度",
+				"title": "課題解決への意欲",
+				"score": 4,
+				"body": "実行結果を確認した直後に条件式と出力文を修正した履歴があり、エラーや結果を無視せず改善につなげています。コードをより正確にしようとする姿勢が見られます。",
+				"evidence": []
+			}
+		]
+	}
+}
