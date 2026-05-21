@@ -112,17 +112,6 @@
           </div>
           <div class="filter-grid">
               <div>
-                <label class="form-label">並び順</label>
-                <select class="form-select form-select-sm" id="sortBy">
-                  <option value="id" selected>ID（昇順）</option>
-                  <option value="idDesc">ID（降順）</option>
-                  <option value="elapsedDesc">取り組み時間（長い順）</option>
-                  <option value="elapsedAsc">取り組み時間（短い順）</option>
-                  <option value="updatedDesc">最終更新（新しい順）</option>
-                  <option value="updatedAsc">最終更新（古い順）</option>
-                </select>
-              </div>
-              <div>
                 <label class="form-label">検索</label>
                 <input type="text" class="form-control form-control-sm" id="searchInput" placeholder="ID / 課題名で検索">
               </div>
@@ -153,21 +142,13 @@
                 </select>
               </div>
               <div>
-                <label class="form-label">研究同意</label>
-                <select class="form-select form-select-sm" id="filterConsent">
+                <label class="form-label">課題</label>
+                <select class="form-select form-select-sm" id="filterTask">
                   <option selected>すべて</option>
-                  <option>同意</option>
-                  <option>不同意</option>
-                  <option>未確認</option>
-                </select>
-              </div>
-              <div>
-                <label class="form-label">状態</label>
-                <select class="form-select form-select-sm" id="filterStatus">
-                  <option selected>すべて</option>
-                  <option>編集中</option>
-                  <option>提出済み</option>
-                  <option>未着手</option>
+                  <option>じゃんけん判定</option>
+                  <option>在庫管理</option>
+                  <option>家計簿集計</option>
+                  <option>経路探索</option>
                 </select>
               </div>
               <div>
@@ -180,13 +161,21 @@
                 </select>
               </div>
               <div>
-                <label class="form-label">課題</label>
-                <select class="form-select form-select-sm" id="filterTask">
+                <label class="form-label">状態</label>
+                <select class="form-select form-select-sm" id="filterStatus">
                   <option selected>すべて</option>
-                  <option>じゃんけん判定</option>
-                  <option>在庫管理</option>
-                  <option>家計簿集計</option>
-                  <option>経路探索</option>
+                  <option>編集中</option>
+                  <option>提出済み</option>
+                  <option>未着手</option>
+                </select>
+              </div>
+              <div>
+                <label class="form-label">研究同意</label>
+                <select class="form-select form-select-sm" id="filterConsent">
+                  <option selected>すべて</option>
+                  <option>同意</option>
+                  <option>不同意</option>
+                  <option>未確認</option>
                 </select>
               </div>
             </div>
@@ -197,15 +186,15 @@
             <table class="table table-hover align-middle" id="historyTable">
               <thead class="table-light">
                 <tr>
-                  <th style="width: 8%;">生徒ID</th>
-                  <th style="width: 11%;">学校</th>
-                  <th style="width: 10%;">クラス</th>
-                  <th style="width: 18%;">課題</th>
-                  <th style="width: 8%;">難易度</th>
-                  <th style="width: 9%;">状態</th>
-                  <th style="width: 11%;">取り組み時間</th>
-                  <th style="width: 11%;">最終更新</th>
-                  <th style="width: 8%;">同意</th>
+                  <th style="width: 8%;" class="sortable" data-sort-key="id">生徒ID</th>
+                  <th style="width: 11%;" class="sortable" data-sort-key="school">学校</th>
+                  <th style="width: 10%;" class="sortable" data-sort-key="class">クラス</th>
+                  <th style="width: 18%;" class="sortable" data-sort-key="task">課題</th>
+                  <th style="width: 8%;" class="sortable" data-sort-key="level">難易度</th>
+                  <th style="width: 9%;" class="sortable" data-sort-key="status">状態</th>
+                  <th style="width: 11%;" class="sortable" data-sort-key="elapsed">取り組み時間</th>
+                  <th style="width: 11%;" class="sortable" data-sort-key="updated">最終更新</th>
+                  <th style="width: 8%;" class="sortable" data-sort-key="consent">同意</th>
                   <th style="width: 6%;">詳細</th>
                 </tr>
               </thead>
@@ -377,7 +366,13 @@
             <div><span class="detail-label">状態</span><div class="detail-value" id="detailStatus">-</div></div>
           </div>
           <div class="timeline-card">
-            <h6 class="mb-3">最新アクティビティ</h6>
+            <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+              <div>
+                <h6 class="mb-1">アクティビティ履歴</h6>
+                <p class="text-muted small mb-0">手動保存と実行の履歴を全件表示します。</p>
+              </div>
+              <button class="btn btn-outline-secondary btn-sm" type="button" onclick="exportDetailActivityCSV()">履歴をダウンロード</button>
+            </div>
             <ul class="timeline mb-0" id="detailTimeline">
               <li>10:25:04 - コード保存</li>
               <li>10:23:41 - 実行（成功）</li>

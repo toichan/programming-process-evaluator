@@ -1,5 +1,7 @@
 // Teacher evaluation page interactions
 
+let currentSortBy = 'idAsc';
+
 document.addEventListener('DOMContentLoaded', function() {
   initializeEvaluationPage();
 });
@@ -8,6 +10,7 @@ function initializeEvaluationPage() {
   setupRubricBackToEvaluation();
   setupEvaluationSummary();
   setupTableFiltersAndSort();
+  initializeHeaderSorting();
   syncEvaluatedDateDisplay();
   applyFiltersAndSort();
 }
@@ -22,7 +25,7 @@ function syncEvaluatedDateDisplay() {
 }
 
 function setupTableFiltersAndSort() {
-  const changeIds = ['filterSchool', 'filterClass', 'filterLevel', 'filterConsent', 'sortBy'];
+  const changeIds = ['filterSchool', 'filterClass', 'filterTask', 'filterLevel', 'filterConsent'];
   changeIds.forEach(function(id) {
     const el = document.getElementById(id);
     if (!el) return;
@@ -35,6 +38,48 @@ function setupTableFiltersAndSort() {
     if (!el) return;
     el.addEventListener('input', applyFiltersAndSort);
   });
+}
+
+function initializeHeaderSorting() {
+  const headers = document.querySelectorAll('#evaluationTable thead th.sortable');
+  headers.forEach(function(header) {
+    header.addEventListener('click', function() {
+      const sortKey = header.dataset.sortKey;
+      if (!sortKey) return;
+
+      const currentKey = getSortKey(currentSortBy);
+      const currentDirection = getSortDirection(currentSortBy);
+      const nextDirection = currentKey === sortKey && currentDirection === 'asc' ? 'Desc' : 'Asc';
+      currentSortBy = sortKey + nextDirection;
+
+      applyFiltersAndSort();
+    });
+  });
+}
+
+function updateHeaderSortIndicator(sortBy) {
+  const activeKey = getSortKey(sortBy);
+  const activeDirection = getSortDirection(sortBy);
+  const headers = document.querySelectorAll('#evaluationTable thead th.sortable');
+  headers.forEach(function(header) {
+    header.classList.remove('sorted-asc', 'sorted-desc');
+    header.removeAttribute('aria-sort');
+
+    if (header.dataset.sortKey === activeKey) {
+      header.classList.add(activeDirection === 'asc' ? 'sorted-asc' : 'sorted-desc');
+      header.setAttribute('aria-sort', activeDirection === 'asc' ? 'ascending' : 'descending');
+    }
+  });
+}
+
+function getSortKey(sortBy) {
+  if (sortBy.endsWith('Desc')) return sortBy.slice(0, -4);
+  if (sortBy.endsWith('Asc')) return sortBy.slice(0, -3);
+  return sortBy;
+}
+
+function getSortDirection(sortBy) {
+  return sortBy.endsWith('Desc') ? 'desc' : 'asc';
 }
 
 function parseScoreCondition(expression, value) {
@@ -70,16 +115,18 @@ function applyFiltersAndSort() {
 
   const school = (document.getElementById('filterSchool') || {}).value || 'すべて';
   const className = (document.getElementById('filterClass') || {}).value || 'すべて';
+  const task = (document.getElementById('filterTask') || {}).value || 'すべて';
   const level = (document.getElementById('filterLevel') || {}).value || 'すべて';
   const consent = (document.getElementById('filterConsent') || {}).value || 'すべて';
   const thinkingExpr = (document.getElementById('filterThinkingExpr') || {}).value || '';
   const attitudeExpr = (document.getElementById('filterAttitudeExpr') || {}).value || '';
   const search = String((document.getElementById('searchInput') || {}).value || '').trim().toLowerCase();
-  const sortBy = (document.getElementById('sortBy') || {}).value || 'id';
+  const sortBy = currentSortBy;
 
   rows.forEach(function(row) {
     const schoolOk = school === 'すべて' || row.dataset.school === school;
     const classOk = className === 'すべて' || row.dataset.class === className;
+    const taskOk = task === 'すべて' || row.dataset.task === task;
     const levelOk = level === 'すべて' || row.dataset.level === level;
     const consentOk = consent === 'すべて' || row.dataset.consent === consent;
 
@@ -91,7 +138,7 @@ function applyFiltersAndSort() {
     const searchable = (String(row.dataset.id) + ' ' + String(row.dataset.task)).toLowerCase();
     const searchOk = !search || searchable.includes(search);
 
-    const visible = schoolOk && classOk && levelOk && consentOk && thinkingOk && attitudeOk && searchOk;
+    const visible = schoolOk && classOk && taskOk && levelOk && consentOk && thinkingOk && attitudeOk && searchOk;
     row.style.display = visible ? '' : 'none';
   });
 
@@ -99,6 +146,8 @@ function applyFiltersAndSort() {
   rows.forEach(function(row) {
     tableBody.appendChild(row);
   });
+
+  updateHeaderSortIndicator(sortBy);
 
   const visibleRows = rows.filter(function(row) { return row.style.display !== 'none'; });
   updateSummary(visibleRows);
@@ -190,8 +239,26 @@ function setupRubricBackToEvaluation() {
   if (!evaluationModalEl || !rubricModalEl || !window.bootstrap) return;
   if (!rubricBackButton) return;
 
+  let openedFromEvaluationDetail = false;
+  rubricBackButton.classList.add('d-none');
+
+  rubricModalEl.addEventListener('show.bs.modal', function() {
+    openedFromEvaluationDetail = evaluationModalEl.classList.contains('show');
+    rubricBackButton.classList.toggle('d-none', !openedFromEvaluationDetail);
+  });
+
+  rubricModalEl.addEventListener('hidden.bs.modal', function() {
+    openedFromEvaluationDetail = false;
+    rubricBackButton.classList.add('d-none');
+  });
+
   rubricBackButton.addEventListener('click', function() {
     const rubricModal = bootstrap.Modal.getOrCreateInstance(rubricModalEl);
+    if (!openedFromEvaluationDetail) {
+      rubricModal.hide();
+      return;
+    }
+
     const evaluationModal = bootstrap.Modal.getOrCreateInstance(evaluationModalEl);
     rubricModal.hide();
     evaluationModal.show();
@@ -200,15 +267,34 @@ function setupRubricBackToEvaluation() {
 // openEvaluationDetailをグローバル公開
 window.openEvaluationDetail = openEvaluationDetail;
 function sortRows(rows, sortBy) {
+  const sortKey = getSortKey(sortBy);
+  const sortDirection = getSortDirection(sortBy);
+  const multiplier = sortDirection === 'desc' ? -1 : 1;
+  const levelOrder = { '初級': 1, '中級': 2, '上級': 3 };
+  const consentOrder = { '不同意': 1, '未確認': 2, '同意': 3 };
+
   rows.sort(function(a, b) {
-    if (sortBy === 'idDesc') return b.dataset.id.localeCompare(a.dataset.id, 'ja');
-    if (sortBy === 'evaluatedDesc') return new Date(b.dataset.evaluated).getTime() - new Date(a.dataset.evaluated).getTime();
-    if (sortBy === 'evaluatedAsc') return new Date(a.dataset.evaluated).getTime() - new Date(b.dataset.evaluated).getTime();
-    if (sortBy === 'thinkingDesc') return Number(b.dataset.thinking) - Number(a.dataset.thinking);
-    if (sortBy === 'thinkingAsc') return Number(a.dataset.thinking) - Number(b.dataset.thinking);
-    if (sortBy === 'attitudeDesc') return Number(b.dataset.attitude) - Number(a.dataset.attitude);
-    if (sortBy === 'attitudeAsc') return Number(a.dataset.attitude) - Number(b.dataset.attitude);
-    return a.dataset.id.localeCompare(b.dataset.id, 'ja');
+    if (sortKey === 'evaluated') {
+      return (new Date(a.dataset.evaluated).getTime() - new Date(b.dataset.evaluated).getTime()) * multiplier;
+    }
+
+    if (sortKey === 'thinking' || sortKey === 'attitude') {
+      return (Number(a.dataset[sortKey]) - Number(b.dataset[sortKey])) * multiplier;
+    }
+
+    if (sortKey === 'level') {
+      return ((levelOrder[a.dataset.level] || 99) - (levelOrder[b.dataset.level] || 99)) * multiplier;
+    }
+
+    if (sortKey === 'consent') {
+      return ((consentOrder[a.dataset.consent] || 99) - (consentOrder[b.dataset.consent] || 99)) * multiplier;
+    }
+
+    if (sortKey === 'id' || sortKey === 'school' || sortKey === 'class' || sortKey === 'task') {
+      return (a.dataset[sortKey] || '').localeCompare(b.dataset[sortKey] || '', 'ja') * multiplier;
+    }
+
+    return a.dataset.id.localeCompare(b.dataset.id, 'ja') * multiplier;
   });
 }
 

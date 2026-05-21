@@ -1,5 +1,7 @@
 // Teacher account page interactions
 
+let currentSortBy = 'idAsc';
+
 document.addEventListener('DOMContentLoaded', function() {
   initializeEventListeners();
 });
@@ -8,8 +10,10 @@ function initializeEventListeners() {
   const createAccountForm = document.getElementById('createAccountForm');
   const filterClass = document.getElementById('filterClass');
   const filterSchool = document.getElementById('filterSchool');
-  const sortBy = document.getElementById('sortBy');
+  const filterConsent = document.getElementById('filterConsent');
   const searchInput = document.getElementById('searchInput');
+
+  initializeHeaderSorting();
 
   if (filterClass) {
     filterClass.addEventListener('change', filterAccounts);
@@ -19,8 +23,8 @@ function initializeEventListeners() {
     filterSchool.addEventListener('change', filterAccounts);
   }
 
-  if (sortBy) {
-    sortBy.addEventListener('change', filterAccounts);
+  if (filterConsent) {
+    filterConsent.addEventListener('change', filterAccounts);
   }
 
   if (searchInput) {
@@ -32,6 +36,46 @@ function initializeEventListeners() {
       e.preventDefault();
     });
   }
+
+  applyPendingConsentHighlight();
+  updateHeaderSortIndicator();
+}
+
+function initializeHeaderSorting() {
+  const headers = document.querySelectorAll('.table thead th.sortable');
+  headers.forEach(function(header) {
+    header.addEventListener('click', function() {
+      const key = header.dataset.sortKey;
+      if (!key) return;
+
+      const isSameKey = currentSortBy.startsWith(key);
+      if (!isSameKey) {
+        currentSortBy = key + 'Asc';
+      } else {
+        currentSortBy = currentSortBy.endsWith('Asc') ? key + 'Desc' : key + 'Asc';
+      }
+
+      filterAccounts();
+    });
+  });
+}
+
+function updateHeaderSortIndicator() {
+  const headers = document.querySelectorAll('.table thead th.sortable');
+  headers.forEach(function(header) {
+    const key = header.dataset.sortKey;
+    header.classList.remove('sorted-asc', 'sorted-desc');
+    header.removeAttribute('aria-sort');
+
+    if (currentSortBy === key + 'Asc') {
+      header.classList.add('sorted-asc');
+      header.setAttribute('aria-sort', 'ascending');
+    }
+    if (currentSortBy === key + 'Desc') {
+      header.classList.add('sorted-desc');
+      header.setAttribute('aria-sort', 'descending');
+    }
+  });
 }
 
 /**
@@ -40,7 +84,8 @@ function initializeEventListeners() {
 function filterAccounts() {
   const classFilter = document.getElementById('filterClass')?.value || '';
   const schoolFilter = document.getElementById('filterSchool')?.value || '';
-  const sortBy = document.getElementById('sortBy')?.value || 'idAsc';
+  const consentFilter = document.getElementById('filterConsent')?.value || '';
+  const sortBy = currentSortBy;
   const searchTerm = document.getElementById('searchInput')?.value.toLowerCase() || '';
 
   const tableBody = document.querySelector('.table tbody');
@@ -66,6 +111,14 @@ function filterAccounts() {
       }
     }
 
+    // 研究同意フィルタ
+    if (consentFilter && consentFilter !== 'すべて') {
+      const consentCell = row.cells[5]?.textContent?.trim() || '';
+      if (consentCell !== consentFilter) {
+        show = false;
+      }
+    }
+
     // 検索フィルタ（ID、パスワード列を含む）
     if (searchTerm) {
       const id = row.cells[0]?.textContent.toLowerCase() || '';
@@ -86,15 +139,37 @@ function filterAccounts() {
   visibleRows.forEach(function(row) {
     tableBody.appendChild(row);
   });
+
+  updateHeaderSortIndicator();
+  applyPendingConsentHighlight();
 }
 
 function sortAccountRows(rows, sortBy) {
   rows.sort(function(a, b) {
     const idA = a.cells[0]?.textContent.trim() || '';
     const idB = b.cells[0]?.textContent.trim() || '';
+    const schoolA = a.cells[2]?.textContent.trim() || '';
+    const schoolB = b.cells[2]?.textContent.trim() || '';
+    const classA = a.cells[3]?.textContent.trim() || '';
+    const classB = b.cells[3]?.textContent.trim() || '';
     const createdA = a.cells[4]?.textContent.trim() || '';
     const createdB = b.cells[4]?.textContent.trim() || '';
+    const consentA = a.cells[5]?.textContent.trim() || '';
+    const consentB = b.cells[5]?.textContent.trim() || '';
+    const consentOrder = { '同意': 1, '不同意': 2, '未確認': 3 };
 
+    if (sortBy === 'schoolAsc') {
+      return schoolA.localeCompare(schoolB, 'ja');
+    }
+    if (sortBy === 'schoolDesc') {
+      return schoolB.localeCompare(schoolA, 'ja');
+    }
+    if (sortBy === 'classAsc') {
+      return classA.localeCompare(classB, 'ja');
+    }
+    if (sortBy === 'classDesc') {
+      return classB.localeCompare(classA, 'ja');
+    }
     if (sortBy === 'idDesc') {
       return idB.localeCompare(idA, 'ja');
     }
@@ -103,6 +178,15 @@ function sortAccountRows(rows, sortBy) {
     }
     if (sortBy === 'createdAsc') {
       return new Date(createdA).getTime() - new Date(createdB).getTime();
+    }
+    if (sortBy === 'consentAsc') {
+      return (consentOrder[consentA] || 99) - (consentOrder[consentB] || 99);
+    }
+    if (sortBy === 'consentDesc') {
+      return (consentOrder[consentB] || 99) - (consentOrder[consentA] || 99);
+    }
+    if (sortBy === 'idAsc') {
+      return idA.localeCompare(idB, 'ja');
     }
     return idA.localeCompare(idB, 'ja');
   });
@@ -192,18 +276,13 @@ function exportCSV() {
   if (!table) return;
 
   const rows = [];
-  const headerRow = [];
-
-  // ヘッダー
-  table.querySelectorAll('thead th').forEach(th => {
-    headerRow.push(th.textContent.trim());
-  });
+  const headerRow = ['ID', 'パスワード', '学校', 'クラス', '作成日時', '研究同意'];
   rows.push(headerRow);
 
   // データ行
   table.querySelectorAll('tbody tr').forEach(tr => {
     const cells = [];
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 6; i++) {
       cells.push(tr.cells[i]?.textContent.trim() || '');
     }
     rows.push(cells);
@@ -303,4 +382,12 @@ function logout() {
   if (confirm('ログアウトしてもよろしいですか？')) {
     window.location.href = '../account/login.html';
   }
+}
+
+function applyPendingConsentHighlight() {
+  const rows = document.querySelectorAll('.table tbody tr');
+  rows.forEach(function(row) {
+    const consent = row.cells[5]?.textContent?.trim() || '';
+    row.classList.toggle('pending-consent-row', consent === '未確認');
+  });
 }

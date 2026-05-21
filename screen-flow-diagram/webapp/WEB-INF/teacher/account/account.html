@@ -47,7 +47,7 @@
           <!-- 操作・フィルタパネル -->
           <section class="panel-card mb-4">
             <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
-              <h2 class="summary-heading mb-0"></h2>
+              <h2 class="summary-heading mb-0">アカウント一覧</h2>
               <div class="action-buttons">
                 <button class="btn btn-primary account-create-btn" data-bs-toggle="modal" data-bs-target="#createAccountModal">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -64,15 +64,6 @@
 
             <!-- フィルタセクション -->
             <div class="filter-grid mb-4">
-              <div>
-                <label class="form-label">並び順</label>
-                <select class="form-select form-select-sm" id="sortBy">
-                  <option value="idAsc" selected>生徒ID（昇順）</option>
-                  <option value="idDesc">生徒ID（降順）</option>
-                  <option value="createdDesc">作成日時（新しい順）</option>
-                  <option value="createdAsc">作成日時（古い順）</option>
-                </select>
-              </div>
               <div>
                 <label class="form-label">検索</label>
                 <input type="text" class="form-control form-control-sm" placeholder="生徒IDで検索" id="searchInput">
@@ -103,6 +94,15 @@
                   <option>4年4組</option>
                 </select>
               </div>
+              <div>
+                <label class="form-label">研究同意</label>
+                <select class="form-select form-select-sm" id="filterConsent">
+                  <option selected>すべて</option>
+                  <option>同意</option>
+                  <option>不同意</option>
+                  <option>未確認</option>
+                </select>
+              </div>
             </div>
           </section>
 
@@ -112,11 +112,12 @@
               <table class="table table-hover align-middle">
                 <thead class="table-light">
                   <tr>
-                    <th style="width: 8%;">ID</th>
-                    <th style="width: 24%;">パスワード</th>
-                    <th style="width: 16%;">学校</th>
-                    <th style="width: 12%;">クラス</th>
-                    <th style="width: 20%;">作成日時</th>
+                    <th style="width: 8%;" class="sortable" data-sort-key="id">生徒ID</th>
+                    <th style="width: 20%;">パスワード</th>
+                    <th style="width: 14%;" class="sortable" data-sort-key="school">学校</th>
+                    <th style="width: 10%;" class="sortable" data-sort-key="class">クラス</th>
+                    <th style="width: 18%;" class="sortable" data-sort-key="created">作成日時</th>
+                    <th style="width: 10%;" class="sortable" data-sort-key="consent">研究同意</th>
                     <th style="width: 10%;">詳細</th>
                     <th style="width: 10%;">操作</th>
                   </tr>
@@ -138,6 +139,7 @@
                     <td>国際中等</td>
                     <td>1年A組</td>
                     <td>2026-05-10 10:30:00</td>
+                    <td><span class="consent consent-ok">同意</span></td>
                     <td>
                       <button class="btn btn-sm btn-outline-primary" onclick="openAccountDetail(this)">表示</button>
                     </td>
@@ -161,6 +163,7 @@
                     <td>国際中等</td>
                     <td>1年A組</td>
                     <td>2026-05-10 10:30:00</td>
+                    <td><span class="consent consent-pending">未確認</span></td>
                     <td>
                       <button class="btn btn-sm btn-outline-primary" onclick="openAccountDetail(this)">表示</button>
                     </td>
@@ -184,6 +187,7 @@
                     <td>附属高校</td>
                     <td>1年B組</td>
                     <td>2026-05-10 10:35:00</td>
+                    <td><span class="consent consent-no">不同意</span></td>
                     <td>
                       <button class="btn btn-sm btn-outline-primary" onclick="openAccountDetail(this)">表示</button>
                     </td>
@@ -195,6 +199,55 @@
               </table>
             </div>
           </section>
+
+          <div class="modal fade" id="createAccountModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h5 class="modal-title">生徒アカウント作成</h5>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form id="createAccountForm">
+                  <div class="modal-body">
+                    <div class="mb-3">
+                      <label for="schoolSelect" class="form-label">学校</label>
+                      <input class="form-control" id="schoolSelect" list="schoolOptions" placeholder="既存候補から選択、または入力" required>
+                      <datalist id="schoolOptions">
+                        <option value="国際中等"></option>
+                        <option value="附属高校"></option>
+                      </datalist>
+                    </div>
+                    <div class="mb-3">
+                      <label for="classSelect" class="form-label">クラス</label>
+                      <input class="form-control" id="classSelect" list="classOptions" placeholder="既存候補から選択、または入力" required>
+                      <datalist id="classOptions">
+                        <option value="1年A組"></option>
+                        <option value="1年B組"></option>
+                        <option value="1年C組"></option>
+                        <option value="1年D組"></option>
+                        <option value="1年E組"></option>
+                        <option value="1年F組"></option>
+                        <option value="1年G組"></option>
+                        <option value="1年H組"></option>
+                        <option value="4年1組"></option>
+                        <option value="4年2組"></option>
+                        <option value="4年3組"></option>
+                        <option value="4年4組"></option>
+                      </datalist>
+                    </div>
+                    <div>
+                      <label for="accountCount" class="form-label">作成件数</label>
+                      <input type="number" class="form-control" id="accountCount" min="1" max="200" value="1" required>
+                    </div>
+                  </div>
+                  <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">キャンセル</button>
+                    <button type="button" class="btn btn-primary account-create-btn" onclick="createAccounts()">作成する</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
 
         </div>
 
