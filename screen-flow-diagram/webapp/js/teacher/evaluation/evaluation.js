@@ -1521,34 +1521,45 @@ function exportEvaluationCSV() {
     '難易度',
     '思考力・判断力・表現力',
     '主体的に学習に取り組む態度',
-    '総合評価',
     '評価日時',
     '研究同意',
-    '思考力総合タイトル',
-    '思考力総合説明',
-    '主体性総合タイトル',
-    '主体性総合説明',
-    '総合評価コメント',
-    '文法デバッグ能力スコア',
-    '文法デバッグ能力理由',
-    '論理デバッグ能力スコア',
-    '論理デバッグ能力理由',
-    'アルゴリズムの設計と実装スコア',
-    'アルゴリズムの設計と実装理由',
-    'コードの可読性スコア',
-    'コードの可読性理由',
-    '課題への粘り強さスコア',
-    '課題への粘り強さ理由',
-    '課題解決への意欲スコア',
-    '課題解決への意欲理由',
-    'コードログ1',
-    'コードログ2',
-    'コードログ3'
+    '評価結果説明',
+    '思考力・判断力・表現力_総合タイトル',
+    '思考力・判断力・表現力_総合説明',
+    '主体的に学習に取り組む態度_総合タイトル',
+    '主体的に学習に取り組む態度_総合説明',
+    '文法デバッグ能力_スコア',
+    '文法デバッグ能力_説明',
+    '論理デバッグ能力_スコア',
+    '論理デバッグ能力_説明',
+    'アルゴリズムの設計と実装_スコア',
+    'アルゴリズムの設計と実装_説明',
+    'コードの可読性_スコア',
+    'コードの可読性_説明',
+    '課題への粘り強さ_スコア',
+    '課題への粘り強さ_説明',
+    '課題解決への意欲_スコア',
+    '課題解決への意欲_説明'
   ];
   const body = rows.map(function(row) {
-    const detail = buildDetailEvaluationData(row);
-    const timeline = buildEvaluationTimeline(row.dataset.evaluated);
+    const payload = buildEvaluationJsonPayload({
+      studentId: row.dataset.id,
+      task: row.dataset.task,
+      difficulty: row.dataset.level,
+      thinking: Number(row.dataset.thinking),
+      attitude: Number(row.dataset.attitude),
+      evaluatedAt: row.dataset.evaluated
+    });
 
+    const evaluation = payload.evaluation;
+    const dimensions = evaluation.overall.dimensions || [];
+    const thinkingDim = dimensions.find(function(item) { return item.key === 'thinking'; }) || {};
+    const attitudeDim = dimensions.find(function(item) { return item.key === 'attitude'; }) || {};
+    // metricBreakdown から各観点の description を抽出
+    const metricMap = {};
+    (evaluation.metricBreakdown || []).forEach(function(metric) {
+      metricMap[metric.metricKey] = metric;
+    });
     return [
       row.dataset.id,
       row.dataset.school,
@@ -1557,29 +1568,25 @@ function exportEvaluationCSV() {
       row.dataset.level,
       row.dataset.thinking,
       row.dataset.attitude,
-      row.dataset.overall,
       row.dataset.evaluated,
       row.dataset.consent,
-      detail.thinkingSummaryTitle,
-      detail.thinkingSummaryDescription,
-      detail.attitudeSummaryTitle,
-      detail.attitudeSummaryDescription,
-      detail.overallComment,
-      detail.grammarScore,
-      detail.grammarReason,
-      detail.logicScore,
-      detail.logicReason,
-      detail.algorithmScore,
-      detail.algorithmReason,
-      detail.readabilityScore,
-      detail.readabilityReason,
-      detail.persistenceScore,
-      detail.persistenceReason,
-      detail.motivationScore,
-      detail.motivationReason,
-      timeline[0],
-      timeline[1],
-      timeline[2]
+      evaluation.hero.description || '',
+      thinkingDim.summaryTitle || '',
+      thinkingDim.summaryDescription || '',
+      attitudeDim.summaryTitle || '',
+      attitudeDim.summaryDescription || '',
+      (metricMap.grammar_debugging || {}).score || '',
+      (metricMap.grammar_debugging || {}).description || '',
+      (metricMap.logic_debugging || {}).score || '',
+      (metricMap.logic_debugging || {}).description || '',
+      (metricMap.algorithm_design || {}).score || '',
+      (metricMap.algorithm_design || {}).description || '',
+      (metricMap.readability || {}).score || '',
+      (metricMap.readability || {}).description || '',
+      (metricMap.persistence || {}).score || '',
+      (metricMap.persistence || {}).description || '',
+      (metricMap.motivation || {}).score || '',
+      (metricMap.motivation || {}).description || ''
     ];
   });
 
