@@ -78,6 +78,11 @@ function loadTeacherComponents() {
     <header class="teacher-header bg-white border-bottom">
       <div class="container-fluid h-100 d-flex align-items-center justify-content-between px-4">
         <div class="header-logo d-flex align-items-center">
+          <svg class="header-logo-icon" width="32" height="32" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path d="M4 4.5C4 3.67 4.67 3 5.5 3h13c.83 0 1.5.67 1.5 1.5v15c0 .83-.67 1.5-1.5 1.5h-13A1.5 1.5 0 0 1 4 19.5v-15zM5.5 4a.5.5 0 0 0-.5.5V8h15V4.5a.5.5 0 0 0-.5-.5h-14zM5 9v10.5c0 .28.22.5.5.5h13a.5.5 0 0 0 .5-.5V9H5z"/>
+            <path d="M8.75 13.5L7.25 12l1.5-1.5m6.5 3L16.75 12l-1.5-1.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M11 13.5h2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          </svg>
           <h2 class="mb-0">Programming Process Evaluator</h2>
         </div>
         <div class="header-actions d-flex align-items-center gap-3">

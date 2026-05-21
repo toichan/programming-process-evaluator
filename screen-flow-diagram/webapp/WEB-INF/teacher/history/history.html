@@ -106,9 +106,15 @@
         </section>
 
         <section class="panel-card mb-4">
-          <div class="d-flex justify-content-end mb-3 action-buttons">
-            <button class="btn btn-outline-secondary btn-sm" onclick="refreshRows()">更新</button>
-            <button class="btn btn-primary btn-sm" onclick="exportHistoryCSV()">CSVエクスポート</button>
+          <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+            <div>
+              <span class="hero-kicker mb-1 d-inline-block">Learning History List</span>
+              <h2 class="summary-heading mb-0">学習履歴一覧</h2>
+            </div>
+            <div class="action-buttons">
+              <button class="btn btn-outline-secondary btn-sm" onclick="refreshRows()">更新</button>
+              <button class="btn btn-primary btn-sm" onclick="exportHistoryCSV()">CSVエクスポート</button>
+            </div>
           </div>
           <div class="filter-grid">
               <div>

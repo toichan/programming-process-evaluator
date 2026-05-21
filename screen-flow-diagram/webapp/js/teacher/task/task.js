@@ -124,6 +124,7 @@ function initializeTaskPage() {
   renderHintLibrary();
   updateSchoolDropdownLabel();
   updateClassDropdownLabel();
+  syncPromptStatusHighlight();
 
   addTestCaseRow();
   addTestCaseRow();
@@ -758,6 +759,20 @@ function applyStatusFilter() {
   document.querySelectorAll('#taskTable tbody tr').forEach(function(row) {
     const rowStatus = row.dataset.status || '';
     row.style.display = (!status || status === rowStatus) ? '' : 'none';
+  });
+
+  syncPromptStatusHighlight();
+}
+
+function syncPromptStatusHighlight() {
+  document.querySelectorAll('#taskTable tbody tr').forEach(function(row) {
+    const isPromptUnset = (row.dataset.promptStatus || '') === '未設定';
+    row.classList.toggle('prompt-unset-row', isPromptUnset);
+
+    const promptLink = row.querySelector('.prompt-status-link');
+    if (promptLink) {
+      promptLink.classList.toggle('is-unset', isPromptUnset);
+    }
   });
 }
 

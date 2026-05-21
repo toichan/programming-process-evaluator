@@ -24,7 +24,7 @@
           <!-- ウェルカムセクション -->
           <section class="history-hero mb-4">
             <div>
-              <span class="hero-kicker">Teacher Dashboard</span>
+              <span class="hero-kicker">Account Management</span>
               <h1 class="section-title mb-2">生徒アカウント管理</h1>
               <p class="hero-description mb-0">生徒アカウントの一元管理、作成、確認、エクスポートができます。</p>
             </div>
@@ -47,7 +47,10 @@
           <!-- 操作・フィルタパネル -->
           <section class="panel-card mb-4">
             <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
-              <h2 class="summary-heading mb-0">アカウント一覧</h2>
+              <div>
+                <span class="hero-kicker mb-1 d-inline-block">Account List</span>
+                <h2 class="summary-heading mb-0">アカウント一覧</h2>
+              </div>
               <div class="action-buttons">
                 <button class="btn btn-primary account-create-btn" data-bs-toggle="modal" data-bs-target="#createAccountModal">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -109,7 +112,7 @@
           <!-- テーブルパネル -->
           <section class="panel-card">
             <div class="table-responsive">
-              <table class="table table-hover align-middle">
+              <table class="table table-hover align-middle" id="accountTable">
                 <thead class="table-light">
                   <tr>
                     <th style="width: 8%;" class="sortable" data-sort-key="id">生徒ID</th>

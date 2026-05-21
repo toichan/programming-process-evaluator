@@ -9,8 +9,12 @@ window.addEventListener('DOMContentLoaded', () => {
   const codeLogList = document.querySelector('#codeLogList');
   const saveButton = document.querySelector('#saveButton');
   const runButton = document.querySelector('#runButton');
+  const runOutputButton = document.querySelector('#runOutputButton');
   const submitButton = document.querySelector('#submitButton');
   const infoTabs = document.querySelectorAll('[data-panel-target]');
+  let codeMirrorEditor = null;
+  let outputConsoleEditor = null;
+  const codeLogEditors = [];
 
   if (headerPlaceholder && header) {
     headerPlaceholder.innerHTML = header;
@@ -18,6 +22,76 @@ window.addEventListener('DOMContentLoaded', () => {
 
   if (footerPlaceholder && footer) {
     footerPlaceholder.innerHTML = footer;
+  }
+
+  if (codeEditor && typeof CodeMirror !== 'undefined') {
+    codeMirrorEditor = CodeMirror.fromTextArea(codeEditor, {
+      mode: 'python',
+      lineNumbers: true,
+      lineWrapping: false,
+      theme: 'material-darker',
+      indentUnit: 4,
+      tabSize: 4,
+      viewportMargin: Infinity
+    });
+  }
+
+  if (outputConsole && typeof CodeMirror !== 'undefined') {
+    const outputTextarea = document.createElement('textarea');
+    outputTextarea.id = 'outputConsoleEditor';
+    outputTextarea.value = outputConsole.textContent || '';
+    outputConsole.replaceWith(outputTextarea);
+
+    outputConsoleEditor = CodeMirror.fromTextArea(outputTextarea, {
+      mode: 'shell',
+      lineNumbers: false,
+      lineWrapping: true,
+      readOnly: true,
+      cursorBlinkRate: -1,
+      theme: 'material-darker',
+      viewportMargin: Infinity
+    });
+  }
+
+  function getEditorValue() {
+    return codeMirrorEditor ? codeMirrorEditor.getValue() : (codeEditor?.value || '');
+  }
+
+  function initializeLogEditor(textarea) {
+    if (!textarea || typeof CodeMirror === 'undefined') {
+      return null;
+    }
+
+    const editor = CodeMirror.fromTextArea(textarea, {
+      mode: 'python',
+      lineNumbers: true,
+      lineWrapping: false,
+      readOnly: true,
+      cursorBlinkRate: -1,
+      theme: 'material-darker',
+      viewportMargin: Infinity,
+      indentUnit: 4,
+      tabSize: 4
+    });
+
+    codeLogEditors.push(editor);
+    return editor;
+  }
+
+  document.querySelectorAll('.log-code-source').forEach((textarea) => {
+    initializeLogEditor(textarea);
+  });
+
+  function setOutputValue(value) {
+    if (outputConsoleEditor) {
+      outputConsoleEditor.setValue(value);
+      outputConsoleEditor.refresh();
+      return;
+    }
+
+    if (outputConsole) {
+      outputConsole.textContent = value;
+    }
   }
 
   function nowTimeLabel() {
@@ -40,9 +114,11 @@ window.addEventListener('DOMContentLoaded', () => {
       <div class="log-body">
         <div class="log-title">${title}</div>
         <p class="log-text mb-0">${text}</p>
+        <textarea class="log-code-source" spellcheck="false">${getEditorValue()}</textarea>
       </div>
     `;
     codeLogList.prepend(item);
+    initializeLogEditor(item.querySelector('.log-code-source'));
   }
 
   function markSaved(prefix) {
@@ -55,6 +131,17 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  function runCode() {
+    const hasInput = getEditorValue().includes('input(');
+    setOutputValue(hasInput
+      ? '$ python main.py\n入力待ちの処理が含まれています。\nテスト用入力: パー\n\n実行結果:\nあなたの勝ち'
+      : '$ python main.py\n実行しました。\n\n標準出力:\n(ここに結果が表示されます)');
+    if (editorMessage) {
+      editorMessage.textContent = '実行が完了しました。エラーがあればこの下に表示されます。';
+    }
+    prependLog('実行', '実行結果を出力パネルへ反映しました。');
+  }
+
   if (saveButton) {
     saveButton.addEventListener('click', () => {
       markSaved('保存');
@@ -63,18 +150,11 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 
   if (runButton) {
-    runButton.addEventListener('click', () => {
-      const hasInput = codeEditor?.value.includes('input(');
-      if (outputConsole) {
-        outputConsole.textContent = hasInput
-          ? '入力待ちの処理が含まれています。\nテスト用入力: パー\n\n実行結果:\nあなたの勝ち'
-          : '実行しました。\n\n標準出力:\n(ここに結果が表示されます)';
-      }
-      if (editorMessage) {
-        editorMessage.textContent = '実行が完了しました。エラーがあればこの下に表示されます。';
-      }
-      prependLog('実行', '実行結果を出力パネルへ反映しました。');
-    });
+    runButton.addEventListener('click', runCode);
+  }
+
+  if (runOutputButton) {
+    runOutputButton.addEventListener('click', runCode);
   }
 
   if (submitButton) {

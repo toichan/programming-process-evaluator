@@ -307,6 +307,61 @@
   border-bottom: 2px solid #cbd5e1;
 }
 
+#taskTable {
+  min-width: 980px;
+}
+
+#taskTable thead th {
+  white-space: nowrap;
+  vertical-align: middle;
+  font-size: 0.84rem;
+  line-height: 1.3;
+}
+
+#taskTable td:last-child {
+  white-space: nowrap;
+}
+
+.table tbody tr.prompt-unset-row {
+  background: #fff7ed;
+}
+
+.table tbody tr.prompt-unset-row td {
+  background: #fff7ed;
+  border-top-color: var(--bs-table-border-color);
+  border-bottom-color: var(--bs-table-border-color);
+}
+
+.table tbody tr.prompt-unset-row:hover {
+  background: #ffedd5;
+}
+
+.table tbody tr.prompt-unset-row:hover td {
+  background: #ffedd5;
+}
+
+.prompt-status-link {
+  color: #2563eb;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.prompt-status-link.is-unset {
+  color: #c2410c;
+  font-weight: 700;
+}
+
+.prompt-status-link:hover,
+.prompt-status-link:focus {
+  color: #1d4ed8;
+  text-decoration: underline;
+}
+
+.prompt-status-link.is-unset:hover,
+.prompt-status-link.is-unset:focus {
+  color: #9a3412;
+}
+
 .table tbody tr:hover {
   background-color: #f0fdfa;
 }
@@ -364,5 +419,9 @@
 
   .test-case-row {
     grid-template-columns: 1fr;
+  }
+
+  #taskTable {
+    min-width: 940px;
   }
 }

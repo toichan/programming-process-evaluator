@@ -77,18 +77,93 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 
   function splitLines(text) {
-    return text.match(/.*(?:\n|$)/g)?.filter((line) => line.length > 0) || [];
+    return String(text || '').split('\n');
   }
 
   function normalizeLineText(text) {
-    return text.endsWith('\n') ? text.slice(0, -1) : text;
+    return text;
   }
 
-  function renderCodeLines(lines) {
-    return lines
-      .map((line, lineIndex) => {
-        const safeText = escapeHTML(normalizeLineText(line)) || '&nbsp;';
-        return `<span class="code-line"><span class="line-number">${lineIndex + 1}</span><span class="line-content">${safeText}</span></span>`;
+  function buildLineDiff(currentLines, previousLines) {
+    const dp = Array.from({ length: currentLines.length + 1 }, () => Array(previousLines.length + 1).fill(0));
+
+    for (let currentIndex = currentLines.length - 1; currentIndex >= 0; currentIndex -= 1) {
+      for (let previousIndex = previousLines.length - 1; previousIndex >= 0; previousIndex -= 1) {
+        if (currentLines[currentIndex] === previousLines[previousIndex]) {
+          dp[currentIndex][previousIndex] = dp[currentIndex + 1][previousIndex + 1] + 1;
+        } else {
+          dp[currentIndex][previousIndex] = Math.max(dp[currentIndex + 1][previousIndex], dp[currentIndex][previousIndex + 1]);
+        }
+      }
+    }
+
+    const operations = [];
+    let currentIndex = 0;
+    let previousIndex = 0;
+
+    while (currentIndex < currentLines.length && previousIndex < previousLines.length) {
+      if (currentLines[currentIndex] === previousLines[previousIndex]) {
+        operations.push({
+          type: 'equal',
+          line: currentLines[currentIndex],
+          currentLineNumber: currentIndex + 1,
+          previousLineNumber: previousIndex + 1
+        });
+        currentIndex += 1;
+        previousIndex += 1;
+      } else if (dp[currentIndex + 1][previousIndex] >= dp[currentIndex][previousIndex + 1]) {
+        operations.push({
+          type: 'added',
+          line: currentLines[currentIndex],
+          currentLineNumber: currentIndex + 1
+        });
+        currentIndex += 1;
+      } else {
+        operations.push({
+          type: 'removed',
+          line: previousLines[previousIndex],
+          previousLineNumber: previousIndex + 1
+        });
+        previousIndex += 1;
+      }
+    }
+
+    while (currentIndex < currentLines.length) {
+      operations.push({
+        type: 'added',
+        line: currentLines[currentIndex],
+        currentLineNumber: currentIndex + 1
+      });
+      currentIndex += 1;
+    }
+
+    while (previousIndex < previousLines.length) {
+      operations.push({
+        type: 'removed',
+        line: previousLines[previousIndex],
+        previousLineNumber: previousIndex + 1
+      });
+      previousIndex += 1;
+    }
+
+    return operations;
+  }
+
+  function renderCodeLines(currentContent, previousContent) {
+    const currentLines = splitLines(currentContent);
+    const previousLines = splitLines(previousContent);
+    const operations = previousContent ? buildLineDiff(currentLines, previousLines) : currentLines.map((line, lineIndex) => ({
+      type: 'equal',
+      line,
+      currentLineNumber: lineIndex + 1
+    }));
+
+    return operations
+      .map((operation) => {
+        const safeText = escapeHTML(normalizeLineText(operation.line)) || '&nbsp;';
+        const lineNumber = operation.type === 'removed' ? operation.previousLineNumber : operation.currentLineNumber;
+        const className = operation.type === 'added' ? 'code-line added' : (operation.type === 'removed' ? 'code-line removed' : 'code-line');
+        return `<span class="${className}"><span class="line-number">${lineNumber || ''}</span><span class="line-content">${safeText}</span></span>`;
       })
       .join('');
   }
@@ -209,7 +284,9 @@ window.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    codeBlock.innerHTML = renderCodeLines(splitLines(currentLog.content));
+    const previousLog = currentIndex > 0 ? logs[currentIndex - 1] : null;
+
+    codeBlock.innerHTML = renderCodeLines(currentLog.content, previousLog?.content || '');
 
     if (sourceCodeId) {
       sourceCodeId.textContent = `ソースコードID: ${currentLog.id ?? '-'}`;
@@ -227,7 +304,7 @@ window.addEventListener('DOMContentLoaded', () => {
     } else if (currentIndex === logs.length - 1) {
       boundaryMessage.textContent = '最後の変更です。';
     } else {
-      boundaryMessage.textContent = '';
+      boundaryMessage.textContent = '直前の保存との差分を表示しています。';
     }
 
     updateButtons();

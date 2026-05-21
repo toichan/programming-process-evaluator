@@ -21,7 +21,7 @@
         <!-- ウェルカムセクション -->
         <section class="history-hero mb-4">
           <div>
-            <span class="hero-kicker">Teacher Survey Results</span>
+            <span class="hero-kicker">Survey Results</span>
             <h1 class="section-title mb-2">アンケート結果確認</h1>
             <p class="hero-description mb-0">研究に同意した生徒のアンケート回答結果を確認できます。</p>
           </div>
@@ -71,8 +71,8 @@
                 <select class="form-select form-select-sm" id="summaryTask" onchange="applyFiltersAndSort()">
                   <option value="" selected>すべて</option>
                   <option value="じゃんけん判定プログラム">じゃんけん判定プログラム</option>
-                  <option value="点数集計と平均計算">点数集計と平均計算</option>
-                  <option value="売上データの分析レポート">売上データの分析レポート</option>
+                  <option value="経路探索">経路探索</option>
+                  <option value="家計簿集計">家計簿集計</option>
                 </select>
               </div>
 
@@ -108,34 +108,34 @@
                 <div class="summary-metric-bars">
                   <div class="summary-bar-row">
                     <div class="summary-bar-head">
-                      <span class="metric-label">思判表</span>
-                      <strong class="metric-value" id="summaryThinkingAvg">0.0</strong>
+                      <span class="metric-label">思考力・判断力・表現力（妥当性）</span>
+                      <strong class="metric-value" id="summaryThinkingValidityAvg">0.0</strong>
                     </div>
                     <div class="summary-bar-track">
-                      <div class="summary-bar-fill is-thinking" id="summaryThinkingBar" style="width: 0%;"></div>
+                      <div class="summary-bar-fill is-thinking-validity" id="summaryThinkingValidityBar" style="width: 0%;"></div>
                     </div>
                   </div>
                   <div class="summary-bar-row">
                     <div class="summary-bar-head">
-                      <span class="metric-label">態度</span>
-                      <strong class="metric-value" id="summaryAttitudeAvg">0.0</strong>
+                      <span class="metric-label">学習に取り組む態度（妥当性）</span>
+                      <strong class="metric-value" id="summaryAttitudeValidityAvg">0.0</strong>
                     </div>
                     <div class="summary-bar-track">
-                      <div class="summary-bar-fill is-attitude" id="summaryAttitudeBar" style="width: 0%;"></div>
+                      <div class="summary-bar-fill is-attitude-validity" id="summaryAttitudeValidityBar" style="width: 0%;"></div>
                     </div>
                   </div>
                   <div class="summary-bar-row">
                     <div class="summary-bar-head">
-                      <span class="metric-label">評価許容</span>
-                      <strong class="metric-value" id="summaryProcessAvg">0.0</strong>
+                      <span class="metric-label">システム評価への抵抗</span>
+                      <strong class="metric-value" id="summaryResistanceAvg">0.0</strong>
                     </div>
                     <div class="summary-bar-track">
-                      <div class="summary-bar-fill is-process" id="summaryProcessBar" style="width: 0%;"></div>
+                      <div class="summary-bar-fill is-resistance" id="summaryResistanceBar" style="width: 0%;"></div>
                     </div>
                   </div>
                   <div class="summary-bar-row">
                     <div class="summary-bar-head">
-                      <span class="metric-label">操作性</span>
+                      <span class="metric-label">システムの操作性</span>
                       <strong class="metric-value" id="summaryUsabilityAvg">0.0</strong>
                     </div>
                     <div class="summary-bar-track">
@@ -143,7 +143,7 @@
                     </div>
                   </div>
                 </div>
-                <p class="summary-text-description mb-0">現在の絞り込み条件に対する平均値（5点満点）を棒グラフで表示しています。</p>
+                <p class="summary-text-description mb-0">設問1～4の平均値を棒グラフで表示しています。妥当性、システム評価への抵抗、システムの操作性はいずれも5点満点です。</p>
               </div>
             </div>
           </div>
@@ -151,34 +151,23 @@
 
         <!-- 操作・フィルタパネル -->
         <section class="panel-card mb-4">
-          <div class="d-flex justify-content-end mb-3 action-buttons">
+          <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+            <div>
+              <span class="hero-kicker mb-1 d-inline-block">Survey Results List</span>
+              <h2 class="summary-heading mb-0">アンケート結果一覧</h2>
+            </div>
+            <div class="action-buttons">
               <button class="btn btn-outline-secondary btn-sm" onclick="refreshSurveys()">
                 更新
               </button>
               <button class="btn btn-primary btn-sm" onclick="exportCSV()">
                 CSVエクスポート
               </button>
+            </div>
           </div>
 
           <!-- フィルタセクション -->
           <div class="filter-grid">
-            <div>
-              <label class="form-label">並び順</label>
-              <select class="form-select form-select-sm" id="sortBy" onchange="applyFiltersAndSort()">
-                <option value="submittedAt-desc">回答日時（新しい順）</option>
-                <option value="submittedAt-asc">回答日時（古い順）</option>
-                <option value="studentId-asc">生徒ID（昇順）</option>
-                <option value="studentId-desc">生徒ID（降順）</option>
-                <option value="thinkingScore-desc">思考・判断・表現（高い順）</option>
-                <option value="thinkingScore-asc">思考・判断・表現（低い順）</option>
-                <option value="attitudeScore-desc">態度（高い順）</option>
-                <option value="attitudeScore-asc">態度（低い順）</option>
-                <option value="processScore-desc">評価許容（高い順）</option>
-                <option value="processScore-asc">評価許容（低い順）</option>
-                <option value="usabilityScore-desc">操作性評価（高い順）</option>
-                <option value="usabilityScore-asc">操作性評価（低い順）</option>
-              </select>
-            </div>
             <div>
               <label class="form-label">検索</label>
               <input type="text" class="form-control form-control-sm" id="searchInput" oninput="applyFiltersAndSort()" placeholder="生徒ID / 課題名で検索">
@@ -202,6 +191,15 @@
               </select>
             </div>
             <div>
+              <label class="form-label">課題名</label>
+              <select class="form-select form-select-sm" id="taskFilter" onchange="applyFiltersAndSort()">
+                <option value="">すべて</option>
+                <option value="じゃんけん判定プログラム">じゃんけん判定プログラム</option>
+                <option value="経路探索">経路探索</option>
+                <option value="家計簿集計">家計簿集計</option>
+              </select>
+            </div>
+            <div>
               <label class="form-label">難易度</label>
               <select class="form-select form-select-sm" id="difficultyFilter" onchange="applyFiltersAndSort()">
                 <option value="">すべて</option>
@@ -211,15 +209,15 @@
               </select>
             </div>
             <div>
-              <label class="form-label">完了状態</label>
+              <label class="form-label">状態</label>
               <select class="form-select form-select-sm" id="completionFilter" onchange="applyFiltersAndSort()">
                 <option value="">すべて</option>
                 <option value="完了">完了</option>
-                <option value="未完了">未完了</option>
+                <option value="下書き">下書き</option>
               </select>
             </div>
             <div>
-              <label class="form-label">研究同意状態</label>
+              <label class="form-label">研究同意</label>
               <select class="form-select form-select-sm" id="consentFilter" onchange="applyFiltersAndSort()">
                 <option value="">すべて</option>
                 <option value="同意">同意</option>
@@ -228,16 +226,24 @@
               </select>
             </div>
             <div>
-              <label class="form-label">思判表条件</label>
+              <label class="form-label">思判表・自己評価条件</label>
               <input type="text" class="form-control form-control-sm" id="thinkingExprFilter" oninput="applyFiltersAndSort()" placeholder="例: =4, >3">
             </div>
             <div>
-              <label class="form-label">態度条件</label>
+              <label class="form-label">思判表・妥当性条件</label>
+              <input type="text" class="form-control form-control-sm" id="thinkingValidityExprFilter" oninput="applyFiltersAndSort()" placeholder="例: =4, >3">
+            </div>
+            <div>
+              <label class="form-label">態度・自己評価条件</label>
               <input type="text" class="form-control form-control-sm" id="attitudeExprFilter" oninput="applyFiltersAndSort()" placeholder="例: =4, >3">
             </div>
             <div>
-              <label class="form-label">評価許容条件</label>
-              <input type="text" class="form-control form-control-sm" id="processExprFilter" oninput="applyFiltersAndSort()" placeholder="例: =4, >3">
+              <label class="form-label">態度・妥当性条件</label>
+              <input type="text" class="form-control form-control-sm" id="attitudeValidityExprFilter" oninput="applyFiltersAndSort()" placeholder="例: =4, >3">
+            </div>
+            <div>
+              <label class="form-label">過程抵抗条件</label>
+              <input type="text" class="form-control form-control-sm" id="resistanceExprFilter" oninput="applyFiltersAndSort()" placeholder="例: =4, >3">
             </div>
             <div>
               <label class="form-label">操作性条件</label>
@@ -251,18 +257,20 @@
             <table class="table table-hover align-middle" id="surveyTable">
               <thead class="table-light">
                 <tr>
-                  <th>生徒ID</th>
-                  <th>学校</th>
-                  <th>クラス</th>
-                  <th>課題名</th>
-                  <th>難易度</th>
-                  <th class="text-center">思判表</th>
-                  <th class="text-center">態度</th>
-                  <th class="text-center">評価許容</th>
-                  <th class="text-center">操作性</th>
-                  <th>回答日時</th>
-                  <th>回答完了</th>
-                  <th>研究同意</th>
+                  <th class="sortable" data-sort-key="studentId">生徒ID</th>
+                  <th class="sortable" data-sort-key="school">学校</th>
+                  <th class="sortable" data-sort-key="className">クラス</th>
+                  <th class="sortable" data-sort-key="taskTitle">課題名</th>
+                  <th class="sortable" data-sort-key="difficulty">難易度</th>
+                  <th class="sortable text-center" data-sort-key="thinkingScore">思判表<br><small class="text-muted fw-normal">自己</small></th>
+                  <th class="sortable text-center" data-sort-key="thinkingValidity">思判表<br><small class="text-muted fw-normal">妥当性</small></th>
+                  <th class="sortable text-center" data-sort-key="attitudeScore">態度<br><small class="text-muted fw-normal">自己</small></th>
+                  <th class="sortable text-center" data-sort-key="attitudeValidity">態度<br><small class="text-muted fw-normal">妥当性</small></th>
+                  <th class="sortable text-center" data-sort-key="resistanceScore">過程抵抗</th>
+                  <th class="sortable text-center" data-sort-key="usabilityScore">操作性</th>
+                  <th class="sortable" data-sort-key="submittedAt">回答日時</th>
+                  <th class="sortable" data-sort-key="completionStatus">状態</th>
+                  <th class="sortable" data-sort-key="consentStatus">研究同意</th>
                   <th>詳細</th>
                 </tr>
               </thead>
@@ -302,7 +310,7 @@
             <div class="col-md-6">
               <div class="detail-info-item">
                 <label class="detail-label">難易度</label>
-                <div class="detail-value"><span class="badge bg-info" id="modalTaskDifficulty">初級</span></div>
+                <div class="detail-value"><span class="badge difficulty-beginner" id="modalTaskDifficulty">初級</span></div>
               </div>
             </div>
             <div class="col-md-6">
@@ -313,14 +321,83 @@
             </div>
           </div>
 
-          <!-- システム評価提示 -->
-          <div class="evaluation-summary-grid mb-4" id="modalEvaluationSummary">
-            <!-- 評価カードは JavaScript で生成 -->
-          </div>
-
           <!-- 生徒のアンケート回答 -->
           <div id="modalResponseContent">
-            <!-- 回答内容は JavaScript で生成 -->
+            <!-- 設問1: 自己評価（思考力・判断力・表現力） -->
+            <div class="response-section mb-4" id="responseQ1">
+              <h6 class="response-title">設問1: 自己評価（思考力・判断力・表現力）</h6>
+              <div class="response-grid">
+                <div class="response-item">
+                  <label class="response-label">自己評価スコア</label>
+                  <div class="response-value" id="q1ThinkingScoreDisplay">-</div>
+                </div>
+                <div class="response-item">
+                  <label class="response-label">評価妥当性</label>
+                  <div class="response-value" id="q1ThinkingValidityDisplay">-</div>
+                </div>
+              </div>
+              <div class="response-textarea-item mb-2">
+                <label class="response-label">理由</label>
+                <div class="response-textarea" id="q1ThinkingReasonDisplay"></div>
+              </div>
+              <div class="response-textarea-item">
+                <label class="response-label">妥当性の理由</label>
+                <div class="response-textarea" id="q1ThinkingValidityReasonDisplay"></div>
+              </div>
+            </div>
+
+            <!-- 設問2: 自己評価（主体的に取り組む態度） -->
+            <div class="response-section mb-4" id="responseQ2">
+              <h6 class="response-title">設問2: 自己評価（主体的に取り組む態度）</h6>
+              <div class="response-grid">
+                <div class="response-item">
+                  <label class="response-label">自己評価スコア</label>
+                  <div class="response-value" id="q2AttitudeScoreDisplay">-</div>
+                </div>
+                <div class="response-item">
+                  <label class="response-label">評価妥当性</label>
+                  <div class="response-value" id="q2AttitudeValidityDisplay">-</div>
+                </div>
+              </div>
+              <div class="response-textarea-item mb-2">
+                <label class="response-label">理由</label>
+                <div class="response-textarea" id="q2AttitudeReasonDisplay"></div>
+              </div>
+              <div class="response-textarea-item">
+                <label class="response-label">妥当性の理由</label>
+                <div class="response-textarea" id="q2AttitudeValidityReasonDisplay"></div>
+              </div>
+            </div>
+
+            <!-- 設問3: 試行錯誤の過程記録への抵抗感 -->
+            <div class="response-section mb-4" id="responseQ3">
+              <h6 class="response-title">設問3: 試行錯誤の過程が記録・評価されることへの抵抗感</h6>
+              <div class="response-grid">
+                <div class="response-item">
+                  <label class="response-label">抵抗感スコア</label>
+                  <div class="response-value" id="q3ProcessResistanceScoreDisplay">-</div>
+                </div>
+              </div>
+              <div class="response-textarea-item">
+                <label class="response-label">理由</label>
+                <div class="response-textarea" id="q3ProcessResistanceReasonDisplay"></div>
+              </div>
+            </div>
+
+            <!-- 設問4: システムの操作性 -->
+            <div class="response-section mb-4" id="responseQ4">
+              <h6 class="response-title">設問4: システムの操作性</h6>
+              <div class="response-grid">
+                <div class="response-item">
+                  <label class="response-label">操作性スコア</label>
+                  <div class="response-value" id="q4UsabilityScoreDisplay">-</div>
+                </div>
+              </div>
+              <div class="response-textarea-item">
+                <label class="response-label">コメント</label>
+                <div class="response-textarea" id="q4UsabilityCommentDisplay"></div>
+              </div>
+            </div>
           </div>
         </div>
         <div class="modal-footer border-0 pt-0">

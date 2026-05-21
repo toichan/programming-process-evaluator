@@ -64,6 +64,12 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
+.summary-heading {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #27304a;
+}
+
 /* Survey summary */
 .summary-header-row {
   margin-bottom: 0.75rem;
@@ -191,12 +197,52 @@
   background: linear-gradient(90deg, #60a5fa, #2563eb);
 }
 
+.summary-bar-fill.is-thinking-validity {
+  background: linear-gradient(90deg, #93c5fd, #3b82f6);
+}
+
 .summary-bar-fill.is-attitude {
   background: linear-gradient(90deg, #34d399, #059669);
 }
 
-.summary-bar-fill.is-process {
+.summary-bar-fill.is-attitude-validity {
+  background: linear-gradient(90deg, #6ee7b7, #10b981);
+}
+
+.summary-bar-fill.is-process,
+.summary-bar-fill.is-resistance {
   background: linear-gradient(90deg, #fbbf24, #d97706);
+}
+
+.summary-bar-fill.is-usability {
+  background: linear-gradient(90deg, #f9a8d4, #ec4899);
+}
+
+#surveyTable thead th.sortable {
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+  padding-right: 1.5rem;
+}
+
+#surveyTable thead th.sortable::after {
+  content: '↕';
+  position: absolute;
+  right: 0.45rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #94a3b8;
+  font-size: 0.78rem;
+}
+
+#surveyTable thead th.sortable.sorted-asc::after {
+  content: '▲';
+  color: #4f46e5;
+}
+
+#surveyTable thead th.sortable.sorted-desc::after {
+  content: '▼';
+  color: #4f46e5;
 }
 
 .summary-bar-fill.is-usability {
@@ -256,10 +302,28 @@
   font-size: 0.92rem;
 }
 
+#surveyTable {
+  min-width: 1380px;
+}
+
 .table-light thead th {
   padding: 0.9rem 0.7rem;
   color: var(--bs-gray-700);
   border-bottom: 2px solid #cbd5e1;
+}
+
+#surveyTable thead th {
+  white-space: nowrap;
+  vertical-align: middle;
+  font-size: 0.84rem;
+  line-height: 1.3;
+}
+
+#surveyTable thead th small {
+  display: block;
+  white-space: nowrap;
+  margin-top: 0.12rem;
+  font-size: 0.72rem;
 }
 
 .table tbody td {
@@ -269,6 +333,32 @@
 
 .table tbody tr:hover {
   background-color: #f0f4ff;
+}
+
+#surveyTable .badge.difficulty-beginner,
+#surveyTable .badge.difficulty-intermediate,
+#surveyTable .badge.difficulty-advanced,
+#modalTaskDifficulty.badge.difficulty-beginner,
+#modalTaskDifficulty.badge.difficulty-intermediate,
+#modalTaskDifficulty.badge.difficulty-advanced {
+  border: none;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+#surveyTable .badge.difficulty-beginner,
+#modalTaskDifficulty.badge.difficulty-beginner {
+  background: #059669;
+}
+
+#surveyTable .badge.difficulty-intermediate,
+#modalTaskDifficulty.badge.difficulty-intermediate {
+  background: #eab308;
+}
+
+#surveyTable .badge.difficulty-advanced,
+#modalTaskDifficulty.badge.difficulty-advanced {
+  background: #dc2626;
 }
 
 #surveyTable td:last-child .btn {
@@ -554,5 +644,9 @@ code {
 
   .table {
     font-size: 0.84rem;
+  }
+
+  #surveyTable {
+    min-width: 1180px;
   }
 }

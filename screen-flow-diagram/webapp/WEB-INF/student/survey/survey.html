@@ -20,7 +20,7 @@
       <nav class="learning-flow-nav mb-2" aria-label="学習フロー">
         <ol class="learning-flow-steps">
           <li class="learning-flow-step is-done">
-            <span class="learning-flow-link is-red">課題</span>
+            <span class="learning-flow-link is-red">課題に取り組む</span>
           </li>
           <li class="learning-flow-step is-done">
             <span class="learning-flow-link is-yellow">評価の確認</span>
@@ -36,7 +36,7 @@
 
       <section class="sample-section survey-hero mb-4">
         <div class="hero-copy">
-          <span class="hero-kicker">Student Survey</span>
+          <span class="hero-kicker">Survey</span>
           <h1 class="section-title mb-3">アンケート</h1>
           <p class="hero-description mb-0">
             システムが出した評価を見ながら、自分の学習を振り返って回答してください。必須項目はすべて回答すると送信できる想定です。
@@ -46,7 +46,7 @@
         <div class="hero-meta-card">
           <div class="meta-label">対象課題</div>
           <div class="meta-value">じゃんけん判定プログラム</div>
-          <div class="meta-subtext">TASK-001 / 初級 / 研究協力同意済み</div>
+          <div class="meta-subtext">初級 / 研究協力同意済み</div>
           <div class="hero-meta-note">回答対象: 研究協力に同意した生徒</div>
         </div>
       </section>
@@ -118,23 +118,23 @@
                   </div>
                   <div class="scale-grid" role="radiogroup" aria-label="思考力・判断力・表現力の自己評価">
                     <label class="scale-option">
-                      <input type="radio" name="thinkingSelfScore" value="1">
+                      <input type="radio" name="q1ThinkingScore" value="1">
                       <span>1</span>
                     </label>
                     <label class="scale-option">
-                      <input type="radio" name="thinkingSelfScore" value="2">
+                      <input type="radio" name="q1ThinkingScore" value="2">
                       <span>2</span>
                     </label>
                     <label class="scale-option">
-                      <input type="radio" name="thinkingSelfScore" value="3">
+                      <input type="radio" name="q1ThinkingScore" value="3">
                       <span>3</span>
                     </label>
                     <label class="scale-option">
-                      <input type="radio" name="thinkingSelfScore" value="4">
+                      <input type="radio" name="q1ThinkingScore" value="4">
                       <span>4</span>
                     </label>
                     <label class="scale-option">
-                      <input type="radio" name="thinkingSelfScore" value="5">
+                      <input type="radio" name="q1ThinkingScore" value="5">
                       <span>5</span>
                     </label>
                   </div>
@@ -145,7 +145,7 @@
                     <label class="field-label" for="thinkingSelfReason">その理由</label>
                     <span class="required-badge">必須</span>
                   </div>
-                  <textarea id="thinkingSelfReason" class="form-control survey-textarea" name="thinkingSelfReason" rows="6" placeholder="ログやルーブリックをもとに、なぜその点数にしたのかを思考力・判断力・表現力の観点から具体的に記述してください。"></textarea>
+                  <textarea id="thinkingSelfReason" class="form-control survey-textarea" name="q1ThinkingReason" rows="6" placeholder="ログやルーブリックをもとに、なぜその点数にしたのかを思考力・判断力・表現力の観点から具体的に記述してください。"></textarea>
                 </div>
 
                 <div class="question-block">
@@ -155,23 +155,23 @@
                   </div>
                   <div class="likert-grid" role="radiogroup" aria-label="思考力・判断力・表現力の評価妥当性">
                     <label class="likert-option">
-                      <input type="radio" name="thinkingValidity" value="1">
+                      <input type="radio" name="q1ThinkingValidity" value="1">
                       <span>妥当でない</span>
                     </label>
                     <label class="likert-option">
-                      <input type="radio" name="thinkingValidity" value="2">
+                      <input type="radio" name="q1ThinkingValidity" value="2">
                       <span>あまり妥当でない</span>
                     </label>
                     <label class="likert-option">
-                      <input type="radio" name="thinkingValidity" value="3">
+                      <input type="radio" name="q1ThinkingValidity" value="3">
                       <span>どちらともいえない</span>
                     </label>
                     <label class="likert-option">
-                      <input type="radio" name="thinkingValidity" value="4">
+                      <input type="radio" name="q1ThinkingValidity" value="4">
                       <span>おおむね妥当</span>
                     </label>
                     <label class="likert-option">
-                      <input type="radio" name="thinkingValidity" value="5">
+                      <input type="radio" name="q1ThinkingValidity" value="5">
                       <span>妥当</span>
                     </label>
                   </div>
@@ -182,7 +182,7 @@
                     <label class="field-label" for="thinkingValidityReason">その理由</label>
                     <span class="required-badge">必須</span>
                   </div>
-                  <textarea id="thinkingValidityReason" class="form-control survey-textarea" name="thinkingValidityReason" rows="6" placeholder="システムの評価を妥当だと考えた/妥当でないと考えた理由を具体的に記述してください。"></textarea>
+                  <textarea id="thinkingValidityReason" class="form-control survey-textarea" name="q1ThinkingValidityReason" rows="6" placeholder="システムの評価を妥当だと考えた/妥当でないと考えた理由を具体的に記述してください。"></textarea>
                 </div>
               </section>
 
@@ -202,23 +202,23 @@
                   </div>
                   <div class="scale-grid" role="radiogroup" aria-label="主体的に取り組む態度の自己評価">
                     <label class="scale-option">
-                      <input type="radio" name="attitudeSelfScore" value="1">
+                      <input type="radio" name="q2AttitudeScore" value="1">
                       <span>1</span>
                     </label>
                     <label class="scale-option">
-                      <input type="radio" name="attitudeSelfScore" value="2">
+                      <input type="radio" name="q2AttitudeScore" value="2">
                       <span>2</span>
                     </label>
                     <label class="scale-option">
-                      <input type="radio" name="attitudeSelfScore" value="3">
+                      <input type="radio" name="q2AttitudeScore" value="3">
                       <span>3</span>
                     </label>
                     <label class="scale-option">
-                      <input type="radio" name="attitudeSelfScore" value="4">
+                      <input type="radio" name="q2AttitudeScore" value="4">
                       <span>4</span>
                     </label>
                     <label class="scale-option">
-                      <input type="radio" name="attitudeSelfScore" value="5">
+                      <input type="radio" name="q2AttitudeScore" value="5">
                       <span>5</span>
                     </label>
                   </div>
@@ -229,7 +229,7 @@
                     <label class="field-label" for="attitudeSelfReason">その理由</label>
                     <span class="required-badge">必須</span>
                   </div>
-                  <textarea id="attitudeSelfReason" class="form-control survey-textarea" name="attitudeSelfReason" rows="6" placeholder="ログやルーブリックをもとに、なぜその点数にしたのかを主体的に取り組む態度の観点から具体的に記述してください。"></textarea>
+                  <textarea id="attitudeSelfReason" class="form-control survey-textarea" name="q2AttitudeReason" rows="6" placeholder="ログやルーブリックをもとに、なぜその点数にしたのかを主体的に取り組む態度の観点から具体的に記述してください。"></textarea>
                 </div>
 
                 <div class="question-block">
@@ -239,23 +239,23 @@
                   </div>
                   <div class="likert-grid" role="radiogroup" aria-label="主体的に取り組む態度の評価妥当性">
                     <label class="likert-option">
-                      <input type="radio" name="attitudeValidity" value="1">
+                      <input type="radio" name="q2AttitudeValidity" value="1">
                       <span>妥当でない</span>
                     </label>
                     <label class="likert-option">
-                      <input type="radio" name="attitudeValidity" value="2">
+                      <input type="radio" name="q2AttitudeValidity" value="2">
                       <span>あまり妥当でない</span>
                     </label>
                     <label class="likert-option">
-                      <input type="radio" name="attitudeValidity" value="3">
+                      <input type="radio" name="q2AttitudeValidity" value="3">
                       <span>どちらともいえない</span>
                     </label>
                     <label class="likert-option">
-                      <input type="radio" name="attitudeValidity" value="4">
+                      <input type="radio" name="q2AttitudeValidity" value="4">
                       <span>おおむね妥当</span>
                     </label>
                     <label class="likert-option">
-                      <input type="radio" name="attitudeValidity" value="5">
+                      <input type="radio" name="q2AttitudeValidity" value="5">
                       <span>妥当</span>
                     </label>
                   </div>
@@ -266,7 +266,7 @@
                     <label class="field-label" for="attitudeValidityReason">その理由</label>
                     <span class="required-badge">必須</span>
                   </div>
-                  <textarea id="attitudeValidityReason" class="form-control survey-textarea" name="attitudeValidityReason" rows="6" placeholder="システムの評価を妥当だと考えた/妥当でないと考えた理由を具体的に記述してください。"></textarea>
+                  <textarea id="attitudeValidityReason" class="form-control survey-textarea" name="q2AttitudeValidityReason" rows="6" placeholder="システムの評価を妥当だと考えた/妥当でないと考えた理由を具体的に記述してください。"></textarea>
                 </div>
               </section>
 
@@ -286,23 +286,23 @@
                   </div>
                   <div class="likert-grid" role="radiogroup" aria-label="試行錯誤の過程の評価への考え">
                     <label class="likert-option">
-                      <input type="radio" name="processOpinion" value="1">
+                      <input type="radio" name="q3ProcessResistanceScore" value="1">
                       <span>全く感じない</span>
                     </label>
                     <label class="likert-option">
-                      <input type="radio" name="processOpinion" value="2">
+                      <input type="radio" name="q3ProcessResistanceScore" value="2">
                       <span>あまり感じない</span>
                     </label>
                     <label class="likert-option">
-                      <input type="radio" name="processOpinion" value="3">
+                      <input type="radio" name="q3ProcessResistanceScore" value="3">
                       <span>どちらともいえない</span>
                     </label>
                     <label class="likert-option">
-                      <input type="radio" name="processOpinion" value="4">
+                      <input type="radio" name="q3ProcessResistanceScore" value="4">
                       <span>やや感じる</span>
                     </label>
                     <label class="likert-option">
-                      <input type="radio" name="processOpinion" value="5">
+                      <input type="radio" name="q3ProcessResistanceScore" value="5">
                       <span>とても感じる</span>
                     </label>
                   </div>
@@ -313,7 +313,7 @@
                     <label class="field-label" for="processReason">その理由</label>
                     <span class="required-badge">必須</span>
                   </div>
-                  <textarea id="processReason" class="form-control survey-textarea" name="processReason" rows="6" placeholder="コードログやルーブリックを見て感じたことを踏まえ、試行錯誤の過程を評価されることについてそう考えた理由を具体的に記述してください。"></textarea>
+                  <textarea id="processReason" class="form-control survey-textarea" name="q3ProcessResistanceReason" rows="6" placeholder="コードログやルーブリックを見て感じたことを踏まえ、試行錯誤の過程を評価されることについてそう考えた理由を具体的に記述してください。"></textarea>
                 </div>
               </section>
 
@@ -333,23 +333,23 @@
                   </div>
                   <div class="scale-grid" role="radiogroup" aria-label="システム操作性の評価">
                     <label class="scale-option wide-option">
-                      <input type="radio" name="usabilityScore" value="1">
+                      <input type="radio" name="q4UsabilityScore" value="1">
                       <span>とても使いにくい</span>
                     </label>
                     <label class="scale-option wide-option">
-                      <input type="radio" name="usabilityScore" value="2">
+                      <input type="radio" name="q4UsabilityScore" value="2">
                       <span>やや使いにくい</span>
                     </label>
                     <label class="scale-option wide-option">
-                      <input type="radio" name="usabilityScore" value="3">
+                      <input type="radio" name="q4UsabilityScore" value="3">
                       <span>どちらともいえない</span>
                     </label>
                     <label class="scale-option wide-option">
-                      <input type="radio" name="usabilityScore" value="4">
+                      <input type="radio" name="q4UsabilityScore" value="4">
                       <span>やや使いやすい</span>
                     </label>
                     <label class="scale-option wide-option">
-                      <input type="radio" name="usabilityScore" value="5">
+                      <input type="radio" name="q4UsabilityScore" value="5">
                       <span>とても使いやすい</span>
                     </label>
                   </div>
@@ -360,7 +360,7 @@
                     <label class="field-label" for="usabilityComment">操作性に関するコメント</label>
                     <span class="optional-badge">任意</span>
                   </div>
-                  <textarea id="usabilityComment" class="form-control survey-textarea" name="usabilityComment" rows="5" placeholder="使いやすかった点、改善してほしい点があれば記述してください。"></textarea>
+                  <textarea id="usabilityComment" class="form-control survey-textarea" name="q4UsabilityComment" rows="5" placeholder="使いやすかった点、改善してほしい点があれば記述してください。"></textarea>
                 </div>
               </section>
 

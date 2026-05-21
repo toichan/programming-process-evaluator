@@ -1,6 +1,6 @@
 // Teacher evaluation page interactions
 
-let currentSortBy = 'idAsc';
+let currentSortBy = 'evaluatedDesc';
 
 document.addEventListener('DOMContentLoaded', function() {
   initializeEvaluationPage();
@@ -239,22 +239,11 @@ function setupRubricBackToEvaluation() {
   if (!evaluationModalEl || !rubricModalEl || !window.bootstrap) return;
   if (!rubricBackButton) return;
 
-  let openedFromEvaluationDetail = false;
-  rubricBackButton.classList.add('d-none');
-
-  rubricModalEl.addEventListener('show.bs.modal', function() {
-    openedFromEvaluationDetail = evaluationModalEl.classList.contains('show');
-    rubricBackButton.classList.toggle('d-none', !openedFromEvaluationDetail);
-  });
-
-  rubricModalEl.addEventListener('hidden.bs.modal', function() {
-    openedFromEvaluationDetail = false;
-    rubricBackButton.classList.add('d-none');
-  });
+  rubricBackButton.classList.remove('d-none');
 
   rubricBackButton.addEventListener('click', function() {
     const rubricModal = bootstrap.Modal.getOrCreateInstance(rubricModalEl);
-    if (!openedFromEvaluationDetail) {
+    if (!evaluationModalEl.classList.contains('show')) {
       rubricModal.hide();
       return;
     }

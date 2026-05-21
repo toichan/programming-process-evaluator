@@ -166,11 +166,13 @@ body {
   color: var(--editor-accent-dark);
 }
 
-.editor-toolbar .btn-primary {
+.editor-toolbar .btn-primary,
+#runOutputButton {
   background: linear-gradient(135deg, var(--editor-accent), var(--editor-accent-alt));
 }
 
-.editor-toolbar .btn-primary:hover {
+.editor-toolbar .btn-primary:hover,
+#runOutputButton:hover {
   background: linear-gradient(135deg, var(--editor-accent-dark), #ad4f68);
 }
 
@@ -182,24 +184,11 @@ body {
 }
 
 .editor-shell {
-  display: grid;
-  grid-template-columns: 56px minmax(0, 1fr);
   margin-top: 1.5rem;
   border: 1px solid #dbe4f0;
   border-radius: 1rem;
   overflow: hidden;
   background: #0f172a;
-}
-
-.editor-gutter {
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-  padding: 1.25rem 0.85rem;
-  background: #111c33;
-  color: #94a3b8;
-  text-align: right;
-  user-select: none;
 }
 
 .editor-textarea {
@@ -214,6 +203,66 @@ body {
 
 .editor-textarea:focus {
   outline: none;
+}
+
+.editor-shell .CodeMirror {
+  min-height: 620px;
+  height: auto;
+  font: 500 0.95rem/1.7 "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+}
+
+.editor-shell .CodeMirror-gutters {
+  border-right: 1px solid rgba(148, 163, 184, 0.18);
+  background: #111c33;
+}
+
+.editor-shell .CodeMirror-linenumber {
+  color: #94a3b8;
+}
+
+.editor-shell .CodeMirror-lines {
+  padding: 1.25rem 0;
+}
+
+.editor-shell .CodeMirror pre.CodeMirror-line,
+.editor-shell .CodeMirror pre.CodeMirror-line-like {
+  padding: 0 1.5rem;
+}
+
+.editor-shell .CodeMirror-gutter-wrapper {
+  left: -44px;
+}
+
+.editor-shell .CodeMirror-cursor {
+  border-left-color: #f8fafc;
+}
+
+.editor-shell .cm-keyword,
+.editor-shell .cm-def,
+.editor-shell .cm-variable {
+  color: #fda4af;
+}
+
+.editor-shell .cm-builtin,
+.editor-shell .cm-atom {
+  color: #93c5fd;
+}
+
+.editor-shell .cm-string {
+  color: #86efac;
+}
+
+.editor-shell .cm-number {
+  color: #f9a8d4;
+}
+
+.editor-shell .cm-comment {
+  color: #94a3b8;
+}
+
+.editor-shell .cm-operator,
+.editor-shell .cm-meta {
+  color: #fcd34d;
 }
 
 .editor-status-row {
@@ -238,6 +287,23 @@ body {
   color: #dbeafe;
   font: 500 0.92rem/1.7 "SFMono-Regular", Consolas, monospace;
   white-space: pre-wrap;
+}
+
+.output-section .CodeMirror {
+  margin-top: 1.5rem;
+  min-height: 180px;
+  height: auto;
+  border-radius: 1rem;
+  font: 500 0.92rem/1.7 "SFMono-Regular", Consolas, monospace;
+}
+
+.output-section .CodeMirror-lines {
+  padding: 1.25rem 0;
+}
+
+.output-section .CodeMirror pre.CodeMirror-line,
+.output-section .CodeMirror pre.CodeMirror-line-like {
+  padding: 0 1.5rem;
 }
 
 .code-log-list {
@@ -284,6 +350,40 @@ body {
 
 .log-text {
   color: var(--bs-gray-600);
+}
+
+.log-body {
+  min-width: 0;
+}
+
+.log-code-source {
+  display: none;
+}
+
+.code-log-item .CodeMirror {
+  margin-top: 0.9rem;
+  min-height: 170px;
+  height: auto;
+  border-radius: 0.9rem;
+  font: 500 0.9rem/1.65 "SFMono-Regular", Consolas, monospace;
+}
+
+.code-log-item .CodeMirror-gutters {
+  border-right: 1px solid rgba(148, 163, 184, 0.18);
+  background: #111c33;
+}
+
+.code-log-item .CodeMirror-linenumber {
+  color: #94a3b8;
+}
+
+.code-log-item .CodeMirror-lines {
+  padding: 1rem 0;
+}
+
+.code-log-item .CodeMirror pre.CodeMirror-line,
+.code-log-item .CodeMirror pre.CodeMirror-line-like {
+  padding: 0 1.2rem;
 }
 
 .info-tabs {

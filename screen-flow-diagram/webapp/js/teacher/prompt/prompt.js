@@ -214,6 +214,7 @@ function initializePromptPage() {
     });
   }
 
+  applyInitialTaskSelection();
   renderVersionOptions(getTaskId());
   renderStep2VersionOptions(getTaskId());
   renderEvaluationExamples(getTaskId());
@@ -221,6 +222,7 @@ function initializePromptPage() {
 
 function onTaskChanged() {
   const taskId = getTaskId();
+  syncTaskSelectionInUrl(taskId);
   renderVersionOptions(taskId);
 
   if (!taskId) {
@@ -241,6 +243,36 @@ function onTaskChanged() {
   }
 
   renderEvaluationExamples(taskId);
+}
+
+function applyInitialTaskSelection() {
+  const taskSelect = document.getElementById('taskSelect');
+  if (!taskSelect) return;
+
+  const params = new URLSearchParams(window.location.search);
+  const taskId = params.get('taskId') || '';
+  if (!taskId) return;
+
+  const hasOption = Array.from(taskSelect.options).some(function(option) {
+    return option.value === taskId;
+  });
+  if (!hasOption) return;
+
+  taskSelect.value = taskId;
+  onTaskChanged();
+}
+
+function syncTaskSelectionInUrl(taskId) {
+  if (!window.history || !window.history.replaceState) return;
+
+  const url = new URL(window.location.href);
+  if (taskId) {
+    url.searchParams.set('taskId', taskId);
+  } else {
+    url.searchParams.delete('taskId');
+  }
+
+  window.history.replaceState({}, '', url.toString());
 }
 
 function onVersionChanged() {
