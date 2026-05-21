@@ -92,7 +92,7 @@ window.PPEComponents = {
                 <span class="d-none d-lg-inline">st001</span>
               </a>
               <ul class="dropdown-menu dropdown-menu-end border-0 shadow-lg" aria-labelledby="userDropdown">
-                <li class="dropdown-header fw-semibold">生徒：st001</li>
+                <li class="dropdown-header fw-semibold">生徒ID：st001</li>
                 <li><span class="dropdown-item-text text-muted small">クラス：4年1組</span></li>
                 <li><span class="dropdown-item-text text-muted small">学校：国際中等</span></li>
                 <li><hr class="dropdown-divider"></li>

@@ -91,11 +91,12 @@
                 <h2 class="card-title mb-2">回答フォーム</h2>
                 <p class="text-muted mb-0">設問は段階的に表示されます。前後の移動も可能です。</p>
               </div>
-              <div id="stepIndicator" class="step-indicator">1 / 3</div>
+              <div id="stepIndicator" class="step-indicator">1 / 4</div>
             </div>
 
             <div class="step-progress" aria-hidden="true">
               <span class="step-progress-item is-active"></span>
+              <span class="step-progress-item"></span>
               <span class="step-progress-item"></span>
               <span class="step-progress-item"></span>
             </div>
@@ -104,10 +105,10 @@
               <section class="question-step is-active" data-step="1">
                 <div class="question-header">
                   <span class="question-kicker">設問1</span>
-                  <h3>自己評価</h3>
+                  <h3>自己評価（思考力・判断力・表現力）</h3>
                 </div>
                 <p class="question-description">
-                  システムが出した 2 観点の評価を見たうえで、自分の取り組みをそれぞれ 5 段階で数値化し、その理由を記述してください。
+                  システムが出した評価を見たうえで、思考力・判断力・表現力の自己評価を 5 段階で選択し、その理由を記述してください。
                 </p>
 
                 <div class="question-block">
@@ -147,6 +148,53 @@
                   <textarea id="thinkingSelfReason" class="form-control survey-textarea" name="thinkingSelfReason" rows="6" placeholder="ログやルーブリックをもとに、なぜその点数にしたのかを思考力・判断力・表現力の観点から具体的に記述してください。"></textarea>
                 </div>
 
+                <div class="question-block">
+                  <div class="field-header-row">
+                    <label class="field-label">システムの評価は妥当でしたか？</label>
+                    <span class="required-badge">必須</span>
+                  </div>
+                  <div class="likert-grid" role="radiogroup" aria-label="思考力・判断力・表現力の評価妥当性">
+                    <label class="likert-option">
+                      <input type="radio" name="thinkingValidity" value="1">
+                      <span>妥当でない</span>
+                    </label>
+                    <label class="likert-option">
+                      <input type="radio" name="thinkingValidity" value="2">
+                      <span>あまり妥当でない</span>
+                    </label>
+                    <label class="likert-option">
+                      <input type="radio" name="thinkingValidity" value="3">
+                      <span>どちらともいえない</span>
+                    </label>
+                    <label class="likert-option">
+                      <input type="radio" name="thinkingValidity" value="4">
+                      <span>おおむね妥当</span>
+                    </label>
+                    <label class="likert-option">
+                      <input type="radio" name="thinkingValidity" value="5">
+                      <span>妥当</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div class="question-block">
+                  <div class="field-header-row">
+                    <label class="field-label" for="thinkingValidityReason">その理由</label>
+                    <span class="required-badge">必須</span>
+                  </div>
+                  <textarea id="thinkingValidityReason" class="form-control survey-textarea" name="thinkingValidityReason" rows="6" placeholder="システムの評価を妥当だと考えた/妥当でないと考えた理由を具体的に記述してください。"></textarea>
+                </div>
+              </section>
+
+              <section class="question-step" data-step="2">
+                <div class="question-header">
+                  <span class="question-kicker">設問2</span>
+                  <h3>自己評価（主体的に取り組む態度）</h3>
+                </div>
+                <p class="question-description">
+                  システムが出した評価を見たうえで、主体的に取り組む態度の自己評価を 5 段階で選択し、その理由を記述してください。
+                </p>
+
                 <div class="question-block rubric-self-block">
                   <div class="field-header-row">
                     <label class="field-label">主体的に取り組む態度の自己評価</label>
@@ -183,30 +231,67 @@
                   </div>
                   <textarea id="attitudeSelfReason" class="form-control survey-textarea" name="attitudeSelfReason" rows="6" placeholder="ログやルーブリックをもとに、なぜその点数にしたのかを主体的に取り組む態度の観点から具体的に記述してください。"></textarea>
                 </div>
+
+                <div class="question-block">
+                  <div class="field-header-row">
+                    <label class="field-label">システムの評価は妥当でしたか？</label>
+                    <span class="required-badge">必須</span>
+                  </div>
+                  <div class="likert-grid" role="radiogroup" aria-label="主体的に取り組む態度の評価妥当性">
+                    <label class="likert-option">
+                      <input type="radio" name="attitudeValidity" value="1">
+                      <span>妥当でない</span>
+                    </label>
+                    <label class="likert-option">
+                      <input type="radio" name="attitudeValidity" value="2">
+                      <span>あまり妥当でない</span>
+                    </label>
+                    <label class="likert-option">
+                      <input type="radio" name="attitudeValidity" value="3">
+                      <span>どちらともいえない</span>
+                    </label>
+                    <label class="likert-option">
+                      <input type="radio" name="attitudeValidity" value="4">
+                      <span>おおむね妥当</span>
+                    </label>
+                    <label class="likert-option">
+                      <input type="radio" name="attitudeValidity" value="5">
+                      <span>妥当</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div class="question-block">
+                  <div class="field-header-row">
+                    <label class="field-label" for="attitudeValidityReason">その理由</label>
+                    <span class="required-badge">必須</span>
+                  </div>
+                  <textarea id="attitudeValidityReason" class="form-control survey-textarea" name="attitudeValidityReason" rows="6" placeholder="システムの評価を妥当だと考えた/妥当でないと考えた理由を具体的に記述してください。"></textarea>
+                </div>
               </section>
 
-              <section class="question-step" data-step="2">
+              <section class="question-step" data-step="3">
                 <div class="question-header">
-                  <span class="question-kicker">設問2</span>
-                  <h3>試行錯誤の過程が評価されることについて</h3>
+                  <span class="question-kicker">設問3</span>
+                  <h3>試行錯誤の過程が記録・評価されることへの抵抗感</h3>
                 </div>
-                <p class="question-description">
-                  システムが試行錯誤の過程を評価することについて、どの程度そう思うかを選び、その理由を記述してください。
+                <p class="question-description mb-0">
+                  すでに回答済みの場合は自動入力されています。回答内容に変化があれば修正し、変化がなければそのまま次の設問に進んでください。
                 </p>
 
                 <div class="question-block">
                   <div class="field-header-row">
-                    <label class="field-label">5段階評価</label>
+                    <label class="field-label">あなたは、試行錯誤の過程が記録・評価されることに抵抗を感じますか</label>
                     <span class="required-badge">必須</span>
                   </div>
                   <div class="likert-grid" role="radiogroup" aria-label="試行錯誤の過程の評価への考え">
                     <label class="likert-option">
                       <input type="radio" name="processOpinion" value="1">
-                      <span>強く否定する</span>
+                      <span>全く感じない</span>
                     </label>
                     <label class="likert-option">
                       <input type="radio" name="processOpinion" value="2">
-                      <span>やや否定する</span>
+                      <span>あまり感じない</span>
                     </label>
                     <label class="likert-option">
                       <input type="radio" name="processOpinion" value="3">
@@ -214,11 +299,11 @@
                     </label>
                     <label class="likert-option">
                       <input type="radio" name="processOpinion" value="4">
-                      <span>やや肯定する</span>
+                      <span>やや感じる</span>
                     </label>
                     <label class="likert-option">
                       <input type="radio" name="processOpinion" value="5">
-                      <span>強く肯定する</span>
+                      <span>とても感じる</span>
                     </label>
                   </div>
                 </div>
@@ -232,40 +317,40 @@
                 </div>
               </section>
 
-              <section class="question-step" data-step="3">
+              <section class="question-step" data-step="4">
                 <div class="question-header">
-                  <span class="question-kicker">設問3</span>
+                  <span class="question-kicker">設問4</span>
                   <h3>システムの操作性</h3>
                 </div>
-                <p class="question-description">
-                  エディター、評価画面、画面遷移などを含めて、システム全体の操作性を評価してください。
+                <p class="question-description mb-0">
+                  すでに回答済みの場合は自動入力されています。回答内容に変化があれば修正し、特に変化がなければそのまま送信してください。
                 </p>
 
                 <div class="question-block">
                   <div class="field-header-row">
-                    <label class="field-label">5段階評価</label>
+                    <label class="field-label">エディター、評価画面、画面遷移などを含めて、システム全体の操作性を評価してください</label>
                     <span class="required-badge">必須</span>
                   </div>
                   <div class="scale-grid" role="radiogroup" aria-label="システム操作性の評価">
                     <label class="scale-option wide-option">
                       <input type="radio" name="usabilityScore" value="1">
-                      <span>1</span>
+                      <span>とても使いにくい</span>
                     </label>
                     <label class="scale-option wide-option">
                       <input type="radio" name="usabilityScore" value="2">
-                      <span>2</span>
+                      <span>やや使いにくい</span>
                     </label>
                     <label class="scale-option wide-option">
                       <input type="radio" name="usabilityScore" value="3">
-                      <span>3</span>
+                      <span>どちらともいえない</span>
                     </label>
                     <label class="scale-option wide-option">
                       <input type="radio" name="usabilityScore" value="4">
-                      <span>4</span>
+                      <span>やや使いやすい</span>
                     </label>
                     <label class="scale-option wide-option">
                       <input type="radio" name="usabilityScore" value="5">
-                      <span>5</span>
+                      <span>とても使いやすい</span>
                     </label>
                   </div>
                 </div>
@@ -279,11 +364,16 @@
                 </div>
               </section>
 
+              <div class="form-save-actions">
+                <button id="saveSurveyButton" class="btn btn-outline-success" type="button">下書きを保存する</button>
+              </div>
+
               <div class="form-actions">
                 <button id="prevStepButton" class="btn btn-secondary" type="button">前の設問へ</button>
                 <button id="nextStepButton" class="btn btn-primary" type="button">次の設問へ</button>
                 <button id="submitSurveyButton" class="btn btn-success d-none" type="submit">アンケートを送信</button>
               </div>
+              <p id="stepAutoFillHint" class="step-autofill-hint" aria-live="polite"></p>
             </form>
           </section>
         </div>
