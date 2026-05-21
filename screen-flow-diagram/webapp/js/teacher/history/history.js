@@ -4,10 +4,31 @@ document.addEventListener('DOMContentLoaded', function() {
   initializeHistoryPage();
 });
 
+let currentSortBy = 'updatedDesc';
+
+const STATUS_SORT_ORDER = {
+  '未着手': 1,
+  '編集中': 2,
+  '提出済み': 3
+};
+
+const LEVEL_SORT_ORDER = {
+  '初級': 1,
+  '中級': 2,
+  '上級': 3
+};
+
+const CONSENT_SORT_ORDER = {
+  '不同意': 1,
+  '未確認': 2,
+  '同意': 3
+};
+
 function initializeHistoryPage() {
   syncUpdatedDateDisplay();
+  initializeHeaderSorting();
 
-  ['filterClass', 'filterSchool', 'filterConsent', 'filterStatus', 'filterLevel', 'filterTask', 'sortBy'].forEach(function(id) {
+  ['filterClass', 'filterSchool', 'filterConsent', 'filterStatus', 'filterLevel', 'filterTask'].forEach(function(id) {
     const el = document.getElementById(id);
     if (el) {
       el.addEventListener('change', applyFiltersAndSort);
@@ -21,6 +42,53 @@ function initializeHistoryPage() {
 
   initSummaryChart();
   applyFiltersAndSort();
+}
+
+function initializeHeaderSorting() {
+  const headers = document.querySelectorAll('#historyTable thead th.sortable');
+  headers.forEach(function(header) {
+    header.addEventListener('click', function() {
+      const sortKey = header.dataset.sortKey;
+      if (!sortKey) return;
+
+      const currentKey = getSortKey(currentSortBy);
+      const currentDirection = getSortDirection(currentSortBy);
+      const nextDirection = currentKey === sortKey && currentDirection === 'asc' ? 'Desc' : 'Asc';
+      currentSortBy = sortKey + nextDirection;
+
+      applyFiltersAndSort();
+    });
+  });
+}
+
+function updateHeaderSortIndicator(sortBy) {
+  const activeKey = getSortKey(sortBy);
+  const activeDirection = getSortDirection(sortBy);
+  const headers = document.querySelectorAll('#historyTable thead th.sortable');
+  headers.forEach(function(header) {
+    header.classList.remove('sorted-asc', 'sorted-desc');
+    header.removeAttribute('aria-sort');
+
+    const key = header.dataset.sortKey;
+    if (key === activeKey) {
+      header.classList.add(activeDirection === 'asc' ? 'sorted-asc' : 'sorted-desc');
+      header.setAttribute('aria-sort', activeDirection === 'asc' ? 'ascending' : 'descending');
+    }
+  });
+}
+
+function getSortKey(sortBy) {
+  if (sortBy.endsWith('Desc')) {
+    return sortBy.slice(0, -4);
+  }
+  if (sortBy.endsWith('Asc')) {
+    return sortBy.slice(0, -3);
+  }
+  return sortBy;
+}
+
+function getSortDirection(sortBy) {
+  return sortBy.endsWith('Desc') ? 'desc' : 'asc';
 }
 
 function syncUpdatedDateDisplay() {
@@ -39,7 +107,7 @@ function applyFiltersAndSort() {
   const statusFilter = document.getElementById('filterStatus')?.value || 'すべて';
   const levelFilter = document.getElementById('filterLevel')?.value || 'すべて';
   const taskFilter = document.getElementById('filterTask')?.value || 'すべて';
-  const sortBy = document.getElementById('sortBy')?.value || 'id';
+  const sortBy = currentSortBy;
   const query = (document.getElementById('searchInput')?.value || '').trim().toLowerCase();
 
   const tbody = document.querySelector('#historyTable tbody');
@@ -64,18 +132,57 @@ function applyFiltersAndSort() {
   const visibleRows = rows.filter(function(row) { return row.style.display !== 'none'; });
   sortRows(visibleRows, sortBy);
   visibleRows.forEach(function(row) { tbody.appendChild(row); });
+  updateHeaderSortIndicator(sortBy);
 
   updateSummary(visibleRows);
 }
 
 function sortRows(rows, sortBy) {
+  const sortKey = getSortKey(sortBy);
+  const sortDirection = getSortDirection(sortBy);
+  const multiplier = sortDirection === 'desc' ? -1 : 1;
+
   rows.sort(function(a, b) {
-    if (sortBy === 'idDesc') return b.dataset.id.localeCompare(a.dataset.id, 'ja');
-    if (sortBy === 'elapsedDesc') return toSeconds(b.dataset.elapsed) - toSeconds(a.dataset.elapsed);
-    if (sortBy === 'elapsedAsc') return toSeconds(a.dataset.elapsed) - toSeconds(b.dataset.elapsed);
-    if (sortBy === 'updatedDesc') return new Date(b.dataset.updated).getTime() - new Date(a.dataset.updated).getTime();
-    if (sortBy === 'updatedAsc') return new Date(a.dataset.updated).getTime() - new Date(b.dataset.updated).getTime();
-    return a.dataset.id.localeCompare(b.dataset.id, 'ja');
+    if (sortKey === 'elapsed') {
+      return (toSeconds(a.dataset.elapsed) - toSeconds(b.dataset.elapsed)) * multiplier;
+    }
+
+    if (sortKey === 'updated') {
+      return (new Date(a.dataset.updated).getTime() - new Date(b.dataset.updated).getTime()) * multiplier;
+    }
+
+    if (sortKey === 'status') {
+      const orderA = STATUS_SORT_ORDER[a.dataset.status] || 99;
+      const orderB = STATUS_SORT_ORDER[b.dataset.status] || 99;
+      if (orderA !== orderB) {
+        return (orderA - orderB) * multiplier;
+      }
+      return a.dataset.id.localeCompare(b.dataset.id, 'ja') * multiplier;
+    }
+
+    if (sortKey === 'level') {
+      const orderA = LEVEL_SORT_ORDER[a.dataset.level] || 99;
+      const orderB = LEVEL_SORT_ORDER[b.dataset.level] || 99;
+      if (orderA !== orderB) {
+        return (orderA - orderB) * multiplier;
+      }
+      return a.dataset.id.localeCompare(b.dataset.id, 'ja') * multiplier;
+    }
+
+    if (sortKey === 'consent') {
+      const orderA = CONSENT_SORT_ORDER[a.dataset.consent] || 99;
+      const orderB = CONSENT_SORT_ORDER[b.dataset.consent] || 99;
+      if (orderA !== orderB) {
+        return (orderA - orderB) * multiplier;
+      }
+      return a.dataset.id.localeCompare(b.dataset.id, 'ja') * multiplier;
+    }
+
+    if (sortKey === 'school' || sortKey === 'class' || sortKey === 'task' || sortKey === 'id') {
+      return (a.dataset[sortKey] || '').localeCompare(b.dataset[sortKey] || '', 'ja') * multiplier;
+    }
+
+    return a.dataset.id.localeCompare(b.dataset.id, 'ja') * multiplier;
   });
 }
 
@@ -103,6 +210,135 @@ function setText(id, value) {
   if (el) el.textContent = value;
 }
 
+const ACTIVITY_HISTORY_BY_STUDENT = {
+  s001: [
+    { datetime: '2026-05-12 10:24:20', type: 'save' },
+    { datetime: '2026-05-12 10:22:41', type: 'run', success: true },
+    { datetime: '2026-05-12 10:21:10', type: 'save' },
+    { datetime: '2026-05-12 10:18:30', type: 'run', success: true },
+    { datetime: '2026-05-12 10:14:05', type: 'save' }
+  ],
+  s002: [
+    { datetime: '2026-05-12 10:10:02', type: 'save' },
+    { datetime: '2026-05-12 10:08:55', type: 'run', success: true },
+    { datetime: '2026-05-12 10:05:43', type: 'save' },
+    { datetime: '2026-05-12 10:02:20', type: 'run', success: false },
+    { datetime: '2026-05-12 09:59:12', type: 'save' }
+  ],
+  s117: [
+    { datetime: '2026-05-11 16:32:18', type: 'save' },
+    { datetime: '2026-05-11 16:28:09', type: 'save' },
+    { datetime: '2026-05-11 16:23:40', type: 'run', success: false },
+    { datetime: '2026-05-11 16:21:02', type: 'save' }
+  ],
+  s003: [
+    { datetime: '2026-05-11 14:20:00', type: 'save' },
+    { datetime: '2026-05-11 14:17:39', type: 'run', success: true },
+    { datetime: '2026-05-11 14:15:12', type: 'save' },
+    { datetime: '2026-05-11 14:10:44', type: 'run', success: true },
+    { datetime: '2026-05-11 14:08:31', type: 'save' }
+  ],
+  s004: [
+    { datetime: '2026-05-11 09:00:00', type: 'save' },
+    { datetime: '2026-05-11 08:58:16', type: 'save' }
+  ],
+  s005: [
+    { datetime: '2026-05-12 09:55:11', type: 'save' },
+    { datetime: '2026-05-12 09:53:54', type: 'run', success: true },
+    { datetime: '2026-05-12 09:51:27', type: 'save' },
+    { datetime: '2026-05-12 09:49:02', type: 'run', success: false },
+    { datetime: '2026-05-12 09:47:10', type: 'save' }
+  ],
+  s006: [
+    { datetime: '2026-05-11 09:00:00', type: 'save' },
+    { datetime: '2026-05-11 08:56:42', type: 'save' }
+  ],
+  s118: [
+    { datetime: '2026-05-12 08:40:00', type: 'save' },
+    { datetime: '2026-05-12 08:37:18', type: 'run', success: true },
+    { datetime: '2026-05-12 08:34:02', type: 'save' },
+    { datetime: '2026-05-12 08:28:16', type: 'run', success: true },
+    { datetime: '2026-05-12 08:24:48', type: 'save' }
+  ],
+  s119: [
+    { datetime: '2026-05-12 10:15:00', type: 'save' },
+    { datetime: '2026-05-12 10:12:21', type: 'run', success: true },
+    { datetime: '2026-05-12 10:10:58', type: 'save' },
+    { datetime: '2026-05-12 10:07:06', type: 'run', success: false },
+    { datetime: '2026-05-12 10:04:29', type: 'save' }
+  ],
+  s203: [
+    { datetime: '2026-05-12 10:25:04', type: 'save' },
+    { datetime: '2026-05-12 10:23:41', type: 'run', success: true },
+    { datetime: '2026-05-12 10:21:10', type: 'save' },
+    { datetime: '2026-05-12 10:18:57', type: 'run', success: false },
+    { datetime: '2026-05-12 10:16:12', type: 'save' }
+  ],
+  s204: [
+    { datetime: '2026-05-11 15:30:00', type: 'save' },
+    { datetime: '2026-05-11 15:26:47', type: 'run', success: true },
+    { datetime: '2026-05-11 15:24:08', type: 'save' },
+    { datetime: '2026-05-11 15:20:55', type: 'run', success: true },
+    { datetime: '2026-05-11 15:18:14', type: 'save' }
+  ],
+  s205: [
+    { datetime: '2026-05-11 09:00:00', type: 'save' },
+    { datetime: '2026-05-11 08:54:22', type: 'save' }
+  ]
+};
+
+function getActivityHistory(studentId, updatedAt) {
+  const history = ACTIVITY_HISTORY_BY_STUDENT[studentId];
+  if (history && history.length > 0) {
+    return history;
+  }
+
+  return [
+    { datetime: updatedAt || '2026-05-12 10:00:00', type: 'save' }
+  ];
+}
+
+function formatActivity(entry) {
+  const time = entry.datetime.split(' ')[1] || entry.datetime;
+  if (entry.type === 'run') {
+    return time + ' - 実行（' + (entry.success ? '成功' : '失敗') + '）';
+  }
+  return time + ' - 手動保存';
+}
+
+function exportDetailActivityCSV() {
+  const studentId = document.getElementById('detailId')?.textContent?.trim() || '';
+  if (!studentId || studentId === '-') {
+    alert('先に生徒の詳細を表示してください。');
+    return;
+  }
+
+  const updatedAt = document.querySelector('#historyTable tbody tr[data-id="' + studentId + '"]')?.dataset.updated || '';
+  const history = getActivityHistory(studentId, updatedAt);
+
+  const header = ['生徒ID', '日時', '種別', '結果'];
+  const body = history.map(function(entry) {
+    return [
+      studentId,
+      entry.datetime,
+      entry.type === 'run' ? '実行' : '手動保存',
+      entry.type === 'run' ? (entry.success ? '成功' : '失敗') : ''
+    ];
+  });
+
+  const csv = [header].concat(body)
+    .map(function(cols) { return cols.map(escapeCSV).join(','); })
+    .join('\n');
+
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = 'activity_history_' + studentId + '_' + new Date().toISOString().slice(0, 10) + '.csv';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
 function openHistoryDetail(button) {
   const row = button.closest('tr');
   if (!row) return;
@@ -115,13 +351,10 @@ function openHistoryDetail(button) {
   const timeline = document.getElementById('detailTimeline');
   if (timeline) {
     timeline.innerHTML = '';
-    [
-      row.dataset.updated.split(' ')[1] + ' - コード保存',
-      '10:18:30 - 実行（成功）',
-      '10:14:05 - コード保存'
-    ].forEach(function(line) {
+    const history = getActivityHistory(row.dataset.id, row.dataset.updated);
+    history.forEach(function(entry) {
       const li = document.createElement('li');
-      li.textContent = line;
+      li.textContent = formatActivity(entry);
       timeline.appendChild(li);
     });
   }
