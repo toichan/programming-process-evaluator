@@ -106,48 +106,11 @@
               <section class="question-step is-active" data-step="1">
                 <div class="question-header">
                   <span class="question-kicker">設問1</span>
-                  <h3>自己評価（思考力・判断力・表現力）</h3>
+                  <h3>思考力・判断力・表現力</h3>
                 </div>
                 <p class="question-description">
-                  システムが出した評価を見たうえで、思考力・判断力・表現力の自己評価を 5 段階で選択し、その理由を記述してください。
+                  システムが出した評価が妥当かどうかを回答したうえで、思考力・判断力・表現力について自分ではどのように評価するかを 5 段階で選び、それぞれの理由を記述してください。
                 </p>
-
-                <div class="question-block">
-                  <div class="field-header-row">
-                    <label class="field-label">思考力・判断力・表現力の自己評価</label>
-                    <span class="required-badge">必須</span>
-                  </div>
-                  <div class="scale-grid" role="radiogroup" aria-label="思考力・判断力・表現力の自己評価">
-                    <label class="scale-option">
-                      <input type="radio" name="q1ThinkingScore" value="1">
-                      <span>1</span>
-                    </label>
-                    <label class="scale-option">
-                      <input type="radio" name="q1ThinkingScore" value="2">
-                      <span>2</span>
-                    </label>
-                    <label class="scale-option">
-                      <input type="radio" name="q1ThinkingScore" value="3">
-                      <span>3</span>
-                    </label>
-                    <label class="scale-option">
-                      <input type="radio" name="q1ThinkingScore" value="4">
-                      <span>4</span>
-                    </label>
-                    <label class="scale-option">
-                      <input type="radio" name="q1ThinkingScore" value="5">
-                      <span>5</span>
-                    </label>
-                  </div>
-                </div>
-
-                <div class="question-block">
-                  <div class="field-header-row">
-                    <label class="field-label" for="thinkingSelfReason">その理由</label>
-                    <span class="required-badge">必須</span>
-                  </div>
-                  <textarea id="thinkingSelfReason" class="form-control survey-textarea" name="q1ThinkingReason" rows="6" placeholder="ログやルーブリックをもとに、なぜその点数にしたのかを思考力・判断力・表現力の観点から具体的に記述してください。"></textarea>
-                </div>
 
                 <div class="question-block">
                   <div class="field-header-row">
@@ -185,41 +148,31 @@
                   </div>
                   <textarea id="thinkingValidityReason" class="form-control survey-textarea" name="q1ThinkingValidityReason" rows="6" placeholder="システムの評価を妥当だと考えた/妥当でないと考えた理由を具体的に記述してください。"></textarea>
                 </div>
-              </section>
 
-              <section class="question-step" data-step="2">
-                <div class="question-header">
-                  <span class="question-kicker">設問2</span>
-                  <h3>自己評価（主体的に取り組む態度）</h3>
-                </div>
-                <p class="question-description">
-                  システムが出した評価を見たうえで、主体的に取り組む態度の自己評価を 5 段階で選択し、その理由を記述してください。
-                </p>
-
-                <div class="question-block rubric-self-block">
+                <div class="question-block">
                   <div class="field-header-row">
-                    <label class="field-label">主体的に取り組む態度の自己評価</label>
+                    <label class="field-label">思考力・判断力・表現力の自己評価</label>
                     <span class="required-badge">必須</span>
                   </div>
-                  <div class="scale-grid" role="radiogroup" aria-label="主体的に取り組む態度の自己評価">
+                  <div class="scale-grid" role="radiogroup" aria-label="思考力・判断力・表現力の自己評価">
                     <label class="scale-option">
-                      <input type="radio" name="q2AttitudeScore" value="1">
+                      <input type="radio" name="q1ThinkingScore" value="1">
                       <span>1</span>
                     </label>
                     <label class="scale-option">
-                      <input type="radio" name="q2AttitudeScore" value="2">
+                      <input type="radio" name="q1ThinkingScore" value="2">
                       <span>2</span>
                     </label>
                     <label class="scale-option">
-                      <input type="radio" name="q2AttitudeScore" value="3">
+                      <input type="radio" name="q1ThinkingScore" value="3">
                       <span>3</span>
                     </label>
                     <label class="scale-option">
-                      <input type="radio" name="q2AttitudeScore" value="4">
+                      <input type="radio" name="q1ThinkingScore" value="4">
                       <span>4</span>
                     </label>
                     <label class="scale-option">
-                      <input type="radio" name="q2AttitudeScore" value="5">
+                      <input type="radio" name="q1ThinkingScore" value="5">
                       <span>5</span>
                     </label>
                   </div>
@@ -227,11 +180,21 @@
 
                 <div class="question-block">
                   <div class="field-header-row">
-                    <label class="field-label" for="attitudeSelfReason">その理由</label>
+                    <label class="field-label" for="thinkingSelfReason">その理由</label>
                     <span class="required-badge">必須</span>
                   </div>
-                  <textarea id="attitudeSelfReason" class="form-control survey-textarea" name="q2AttitudeReason" rows="6" placeholder="ログやルーブリックをもとに、なぜその点数にしたのかを主体的に取り組む態度の観点から具体的に記述してください。"></textarea>
+                  <textarea id="thinkingSelfReason" class="form-control survey-textarea" name="q1ThinkingReason" rows="6" placeholder="ログやルーブリックをもとに、なぜその点数にしたのかを思考力・判断力・表現力の観点から具体的に記述してください。"></textarea>
                 </div>
+              </section>
+
+              <section class="question-step" data-step="2">
+                <div class="question-header">
+                  <span class="question-kicker">設問2</span>
+                  <h3>主体的に取り組む態度</h3>
+                </div>
+                <p class="question-description">
+                  システムが出した評価が妥当かどうかを回答したうえで、主体的に取り組む態度について自分ではどのように評価するかを 5 段階で選び、それぞれの理由を記述してください。
+                </p>
 
                 <div class="question-block">
                   <div class="field-header-row">
@@ -268,6 +231,43 @@
                     <span class="required-badge">必須</span>
                   </div>
                   <textarea id="attitudeValidityReason" class="form-control survey-textarea" name="q2AttitudeValidityReason" rows="6" placeholder="システムの評価を妥当だと考えた/妥当でないと考えた理由を具体的に記述してください。"></textarea>
+                </div>
+
+                <div class="question-block rubric-self-block">
+                  <div class="field-header-row">
+                    <label class="field-label">主体的に取り組む態度の自己評価</label>
+                    <span class="required-badge">必須</span>
+                  </div>
+                  <div class="scale-grid" role="radiogroup" aria-label="主体的に取り組む態度の自己評価">
+                    <label class="scale-option">
+                      <input type="radio" name="q2AttitudeScore" value="1">
+                      <span>1</span>
+                    </label>
+                    <label class="scale-option">
+                      <input type="radio" name="q2AttitudeScore" value="2">
+                      <span>2</span>
+                    </label>
+                    <label class="scale-option">
+                      <input type="radio" name="q2AttitudeScore" value="3">
+                      <span>3</span>
+                    </label>
+                    <label class="scale-option">
+                      <input type="radio" name="q2AttitudeScore" value="4">
+                      <span>4</span>
+                    </label>
+                    <label class="scale-option">
+                      <input type="radio" name="q2AttitudeScore" value="5">
+                      <span>5</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div class="question-block">
+                  <div class="field-header-row">
+                    <label class="field-label" for="attitudeSelfReason">その理由</label>
+                    <span class="required-badge">必須</span>
+                  </div>
+                  <textarea id="attitudeSelfReason" class="form-control survey-textarea" name="q2AttitudeReason" rows="6" placeholder="ログやルーブリックをもとに、なぜその点数にしたのかを主体的に取り組む態度の観点から具体的に記述してください。"></textarea>
                 </div>
               </section>
 

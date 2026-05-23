@@ -362,7 +362,10 @@
       <div class="modal-content">
         <div class="modal-header">
           <h5 class="modal-title">学習履歴詳細</h5>
+          <div class="modal-header-actions">
+            <button class="btn btn-outline-secondary btn-sm" type="button" onclick="exportDetailActivityCSV()">履歴をダウンロード</button>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
+          </div>
         </div>
         <div class="modal-body">
           <div class="detail-grid mb-3">
@@ -377,7 +380,6 @@
                 <h6 class="mb-1">アクティビティ履歴</h6>
                 <p class="text-muted small mb-0">手動保存と実行の履歴を全件表示します。</p>
               </div>
-              <button class="btn btn-outline-secondary btn-sm" type="button" onclick="exportDetailActivityCSV()">履歴をダウンロード</button>
             </div>
             <ul class="timeline mb-0" id="detailTimeline">
               <li>10:25:04 - コード保存</li>

@@ -231,6 +231,14 @@ code {
   color: #1e293b;
 }
 
+.modal-header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-left: auto;
+}
+
 .timeline-card {
   background: #f8fafc;
   border: 1px solid #e2e8f0;

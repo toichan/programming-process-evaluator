@@ -219,10 +219,10 @@ function renderTable() {
       <td>${survey.className || '-'}</td>
       <td>${survey.taskTitle}</td>
       <td><span class="badge ${difficultyBadgeClass}">${survey.difficulty}</span></td>
-      <td class="text-center">${survey.q1ThinkingScore ?? '-'}</td>
       <td class="text-center">${survey.q1ThinkingValidity ?? '-'}</td>
-      <td class="text-center">${survey.q2AttitudeScore ?? '-'}</td>
+      <td class="text-center">${survey.q1ThinkingScore ?? '-'}</td>
       <td class="text-center">${survey.q2AttitudeValidity ?? '-'}</td>
+      <td class="text-center">${survey.q2AttitudeScore ?? '-'}</td>
       <td class="text-center">${survey.q3ProcessResistanceScore ?? '-'}</td>
       <td class="text-center">${survey.q4UsabilityScore ?? '-'}</td>
       <td>${formatDateTime(survey.submittedAt)}</td>
@@ -520,8 +520,13 @@ function displaySurveyInModal(survey) {
   responseContainer.innerHTML = `
     <div class="response-section mb-4">
       <span class="question-kicker">設問1</span>
-      <h3>自己評価（思考力・判断力・表現力）</h3>
-      <p class="text-muted mt-2 mb-0">システムが出した評価を見たうえで、思考力・判断力・表現力の自己評価を 5 段階で選択し、その理由を記述してください。</p>
+      <h3>思考力・判断力・表現力</h3>
+      <p class="text-muted mt-2 mb-0">システムが出した評価が妥当かどうかを回答したうえで、思考力・判断力・表現力について自分ではどのように評価するかを 5 段階で選び、それぞれの理由を記述した回答です。</p>
+      <div class="response-question-block">
+        <div class="question-subheading">システムの評価は妥当でしたか？</div>
+        ${scoreBar(survey.q1ThinkingValidity, validityLabels)}
+      </div>
+      ${textBox('その理由', survey.q1ThinkingValidityReason)}
       <div class="response-question-block mt-3">
         <div class="question-subheading">思考力・判断力・表現力の自己評価</div>
         ${scoreBar(survey.q1ThinkingScore)}
@@ -531,17 +536,17 @@ function displaySurveyInModal(survey) {
         ${scoreBar(systemThinkingScore, ['1', '2', '3', '4', '5'], 'system-bar')}
       </div>
       ${textBox('その理由', survey.q1ThinkingReason)}
-      <div class="response-question-block">
-        <div class="question-subheading">システムの評価は妥当でしたか？</div>
-        ${scoreBar(survey.q1ThinkingValidity, validityLabels)}
-      </div>
-      ${textBox('その理由', survey.q1ThinkingValidityReason)}
     </div>
 
     <div class="response-section mb-4">
       <span class="question-kicker">設問2</span>
-      <h3>自己評価（主体的に取り組む態度）</h3>
-      <p class="text-muted mt-2 mb-0">システムが出した評価を見たうえで、主体的に取り組む態度の自己評価を 5 段階で選択し、その理由を記述してください。</p>
+      <h3>主体的に取り組む態度</h3>
+      <p class="text-muted mt-2 mb-0">システムが出した評価が妥当かどうかを回答したうえで、主体的に取り組む態度について自分ではどのように評価するかを 5 段階で選び、それぞれの理由を記述した回答です。</p>
+      <div class="response-question-block">
+        <div class="question-subheading">システムの評価は妥当でしたか？</div>
+        ${scoreBar(survey.q2AttitudeValidity, validityLabels)}
+      </div>
+      ${textBox('その理由', survey.q2AttitudeValidityReason)}
       <div class="response-question-block mt-3">
         <div class="question-subheading">主体的に取り組む態度の自己評価</div>
         ${scoreBar(survey.q2AttitudeScore)}
@@ -551,11 +556,6 @@ function displaySurveyInModal(survey) {
         ${scoreBar(systemAttitudeScore, ['1', '2', '3', '4', '5'], 'system-bar')}
       </div>
       ${textBox('その理由', survey.q2AttitudeReason)}
-      <div class="response-question-block">
-        <div class="question-subheading">システムの評価は妥当でしたか？</div>
-        ${scoreBar(survey.q2AttitudeValidity, validityLabels)}
-      </div>
-      ${textBox('その理由', survey.q2AttitudeValidityReason)}
     </div>
 
     <div class="response-section mb-4">
@@ -621,8 +621,8 @@ function refreshSurveys() {
 function exportCSV() {
   const headers = [
     'recordId', 'responseId', 'submittedAt', 'studentId', 'taskCode', 'taskTitle', 'difficulty',
-    'q1ThinkingScore', 'q1ThinkingReason', 'q1ThinkingValidity', 'q1ThinkingValidityReason',
-    'q2AttitudeScore', 'q2AttitudeReason', 'q2AttitudeValidity', 'q2AttitudeValidityReason',
+    'q1ThinkingValidity', 'q1ThinkingValidityReason', 'q1ThinkingScore', 'q1ThinkingReason',
+    'q2AttitudeValidity', 'q2AttitudeValidityReason', 'q2AttitudeScore', 'q2AttitudeReason',
     'q3ProcessResistanceScore', 'q3ProcessResistanceReason',
     'q4UsabilityScore', 'q4UsabilityComment',
     '回答完了状態', '研究同意状態'
@@ -638,14 +638,14 @@ function exportCSV() {
       survey.taskCode || '',
       survey.taskTitle,
       survey.difficulty,
-      survey.q1ThinkingScore ?? '',
-      survey.q1ThinkingReason || '',
       survey.q1ThinkingValidity ?? '',
       survey.q1ThinkingValidityReason || '',
-      survey.q2AttitudeScore ?? '',
-      survey.q2AttitudeReason || '',
+      survey.q1ThinkingScore ?? '',
+      survey.q1ThinkingReason || '',
       survey.q2AttitudeValidity ?? '',
       survey.q2AttitudeValidityReason || '',
+      survey.q2AttitudeScore ?? '',
+      survey.q2AttitudeReason || '',
       survey.q3ProcessResistanceScore ?? '',
       survey.q3ProcessResistanceReason || '',
       survey.q4UsabilityScore ?? '',
