@@ -194,13 +194,17 @@ else:
                 </div>
                 <div class="info-block io-block">
                   <div class="info-label">想定入出力</div>
-                  <div class="case-card">
-                    <strong>入力:</strong> パー<br>
-                    <strong>出力:</strong> あなたの勝ち
+                  <div class="case-card io-case-card">
+                    <div class="io-case-label">入力</div>
+                    <textarea class="io-case-source" spellcheck="false">パー</textarea>
+                    <div class="io-case-label mt-3">出力</div>
+                    <textarea class="io-case-source" spellcheck="false">あなたの勝ち</textarea>
                   </div>
-                  <div class="case-card">
-                    <strong>入力:</strong> ぐー<br>
-                    <strong>出力:</strong> グー・チョキ・パーを入力してください
+                  <div class="case-card io-case-card">
+                    <div class="io-case-label">入力</div>
+                    <textarea class="io-case-source" spellcheck="false">ぐー</textarea>
+                    <div class="io-case-label mt-3">出力</div>
+                    <textarea class="io-case-source" spellcheck="false">グー・チョキ・パーを入力してください</textarea>
                   </div>
                 </div>
               </div>
@@ -210,17 +214,17 @@ else:
                 <div class="hint-card">
                   <div class="info-label">input()</div>
                   <p>文字列を受け取るための関数です。</p>
-                  <pre>player = input("手を入力してください: ")</pre>
+                  <textarea class="hint-code-source" spellcheck="false">player = input("手を入力してください: ")</textarea>
                 </div>
                 <div class="hint-card">
                   <div class="info-label">if / elif / else</div>
                   <p>条件によって処理を分岐する構文です。</p>
-                  <pre>if player == "グー":
+                  <textarea class="hint-code-source" spellcheck="false">if player == "グー":
     print("..." )
 elif player == "パー":
     print("..." )
 else:
-    print("..." )</pre>
+    print("..." )</textarea>
                 </div>
               </div>
             </div>

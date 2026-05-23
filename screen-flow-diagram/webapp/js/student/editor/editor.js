@@ -15,6 +15,9 @@ window.addEventListener('DOMContentLoaded', () => {
   let codeMirrorEditor = null;
   let outputConsoleEditor = null;
   const codeLogEditors = [];
+  const ioExampleEditors = [];
+  const hintEditors = [];
+  let hintEditorsInitialized = false;
 
   if (headerPlaceholder && header) {
     headerPlaceholder.innerHTML = header;
@@ -81,6 +84,47 @@ window.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('.log-code-source').forEach((textarea) => {
     initializeLogEditor(textarea);
   });
+
+  document.querySelectorAll('.io-case-source').forEach((textarea) => {
+    if (typeof CodeMirror === 'undefined') {
+      return;
+    }
+
+    const editor = CodeMirror.fromTextArea(textarea, {
+      mode: 'shell',
+      lineNumbers: false,
+      lineWrapping: true,
+      readOnly: true,
+      cursorBlinkRate: -1,
+      theme: 'material-darker',
+      viewportMargin: Infinity
+    });
+
+    ioExampleEditors.push(editor);
+  });
+
+  function initializeHintEditors() {
+    if (hintEditorsInitialized || typeof CodeMirror === 'undefined') {
+      return;
+    }
+
+    document.querySelectorAll('.hint-code-source').forEach((textarea) => {
+      const editor = CodeMirror.fromTextArea(textarea, {
+        mode: 'python',
+        lineNumbers: false,
+        lineWrapping: true,
+        readOnly: true,
+        cursorBlinkRate: -1,
+        theme: 'material-darker',
+        indentUnit: 4,
+        tabSize: 4
+      });
+
+      hintEditors.push(editor);
+    });
+
+    hintEditorsInitialized = true;
+  }
 
   function setOutputValue(value) {
     if (outputConsoleEditor) {
@@ -176,6 +220,11 @@ window.addEventListener('DOMContentLoaded', () => {
       document.querySelectorAll('.info-panel').forEach((panel) => panel.classList.remove('is-active'));
       tab.classList.add('active');
       document.getElementById(targetId)?.classList.add('is-active');
+
+      if (targetId === 'hintPanel') {
+        initializeHintEditors();
+        hintEditors.forEach((editor) => editor.refresh());
+      }
     });
   });
 
