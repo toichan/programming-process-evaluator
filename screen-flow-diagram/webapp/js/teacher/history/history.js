@@ -313,13 +313,20 @@ function exportDetailActivityCSV() {
     return;
   }
 
-  const updatedAt = document.querySelector('#historyTable tbody tr[data-id="' + studentId + '"]')?.dataset.updated || '';
+  const detailRow = document.querySelector('#historyTable tbody tr[data-id="' + studentId + '"]');
+  const updatedAt = detailRow?.dataset.updated || '';
   const history = getActivityHistory(studentId, updatedAt);
+  const school = detailRow?.dataset.school || '';
+  const className = detailRow?.dataset.class || '';
+  const task = detailRow?.dataset.task || '';
 
-  const header = ['生徒ID', '日時', '種別', '結果'];
+  const header = ['生徒ID', '学校', 'クラス', '課題', '日時', '種別', '結果'];
   const body = history.map(function(entry) {
     return [
       studentId,
+      school,
+      className,
+      task,
       entry.datetime,
       entry.type === 'run' ? '実行' : '手動保存',
       entry.type === 'run' ? (entry.success ? '成功' : '失敗') : ''

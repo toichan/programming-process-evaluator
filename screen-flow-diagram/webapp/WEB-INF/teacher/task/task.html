@@ -8,6 +8,8 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet"
     integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB"
     crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/lib/codemirror.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/theme/material-darker.css">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
   <link href="../../../css/teacher/shared/components.css" rel="stylesheet">
   <link href="../../../css/template/template.css" rel="stylesheet">
@@ -192,32 +194,40 @@
                   </div>
                 </article>
 
-                <div class="preview-editor-panel mt-3">
-                  <h3 id="previewEditorName" class="preview-editor-name">課題名未設定</h3>
-                  <p id="previewEditorDescription" class="mb-3">説明未設定</p>
-                  <div class="info-block">
-                    <div class="info-label">実装する機能</div>
-                    <ul id="previewEditorFeatures" class="mb-0"><li>未設定</li></ul>
-                  </div>
-                  <div class="info-block">
-                    <div class="info-label">制約・注意事項</div>
-                    <p id="previewEditorConstraint" class="mb-0">未設定</p>
-                  </div>
-                  <div class="info-block io-block">
-                    <div class="info-label">想定入出力</div>
-                    <div id="previewEditorCases"><p class="mb-0 text-muted">未設定</p></div>
-                  </div>
-                </div>
-
-                <div class="preview-editor-panel mt-3">
-                  <h3 class="preview-editor-name">Pythonコマンド仕様</h3>
-                  <div id="previewHintCards">
-                    <div class="hint-card">
-                      <div class="info-label">未設定</div>
-                      <p class="mb-2">ヒント内容未設定</p>
-                      <pre># コード例未設定</pre>
+                <section class="sample-section preview-side-panel-section mt-3">
+                  <div class="section-header-row mb-3">
+                    <div>
+                      <h2 class="card-title mb-2">課題情報</h2>
                     </div>
                   </div>
+                  <div class="info-panels mt-4">
+                    <div id="previewTaskPanel" class="info-panel is-active">
+                      <h3 id="previewEditorName">課題名未設定</h3>
+                      <p id="previewEditorDescription">説明未設定</p>
+                      <div class="info-block">
+                        <div class="info-label">実装する機能</div>
+                        <ul id="previewEditorFeatures" class="mb-0"><li>未設定</li></ul>
+                      </div>
+                      <div class="info-block">
+                        <div class="info-label">入力制限</div>
+                        <p id="previewEditorConstraint" class="mb-0">未設定</p>
+                      </div>
+                      <div class="info-block io-block">
+                        <div class="info-label">想定入出力</div>
+                        <div id="previewEditorCases"><p class="mb-0 text-muted">未設定</p></div>
+                      </div>
+
+                      <h3>Pythonコマンド仕様</h3>
+                      <div id="previewHintCards">
+                        <div class="hint-card">
+                          <div class="info-label">未設定</div>
+                          <p>ヒント内容未設定</p>
+                          <textarea class="preview-hint-code-source" spellcheck="false"># コード例未設定</textarea>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </section>
                 </div>
               </div>
             </div>
@@ -227,7 +237,7 @@
         <section class="panel-card">
           <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
             <div>
-              <span class="hero-kicker mb-1 d-inline-block">Manage</span>
+              <span class="hero-kicker mb-1 d-inline-block">Edit / Delete</span>
               <h2 class="subheading mb-0">既存課題の編集・削除</h2>
             </div>
             <div class="d-flex gap-2">
@@ -248,16 +258,18 @@
                   <th>難易度</th>
                   <th>対象</th>
                   <th>状態</th>
+                  <th>プロンプト</th>
                   <th>最終更新</th>
                   <th>操作</th>
                 </tr>
               </thead>
               <tbody>
-                <tr data-name="じゃんけん判定" data-level="初級" data-target="国際中等 / 1年A組" data-status="公開" data-description="ユーザー入力に応じて勝敗を判定する。" data-constraint="整数入力のみ" data-updated="2026-05-18 09:10:00">
+                <tr data-task-id="TASK-001" data-name="じゃんけん判定" data-level="初級" data-target="国際中等 / 1年A組" data-status="公開" data-prompt-status="設定済み" data-description="ユーザー入力に応じて勝敗を判定する。" data-constraint="整数入力のみ" data-updated="2026-05-18 09:10:00">
                   <td>じゃんけん判定</td>
                   <td><span class="badge difficulty-beginner">初級</span></td>
                   <td>国際中等 / 1年A組</td>
                   <td><span class="badge text-bg-success">公開</span></td>
+                  <td><a class="prompt-status-link" href="../prompt/prompt.html?taskId=TASK-001">設定済み</a></td>
                   <td class="updated-at">2026-05-18 09:10:00</td>
                   <td>
                     <div class="d-flex gap-2">
@@ -266,11 +278,12 @@
                     </div>
                   </td>
                 </tr>
-                <tr data-name="在庫管理" data-level="中級" data-target="国際中等 / 1年B組" data-status="公開" data-description="入出庫処理と在庫数表示を実装する。" data-constraint="数量は0以上" data-updated="2026-05-17 15:42:00">
+                <tr data-task-id="TASK-002" data-name="在庫管理" data-level="中級" data-target="国際中等 / 1年B組" data-status="公開" data-prompt-status="未設定" data-description="入出庫処理と在庫数表示を実装する。" data-constraint="数量は0以上" data-updated="2026-05-17 15:42:00">
                   <td>在庫管理</td>
                   <td><span class="badge difficulty-intermediate">中級</span></td>
                   <td>国際中等 / 1年B組</td>
                   <td><span class="badge text-bg-success">公開</span></td>
+                  <td><a class="prompt-status-link" href="../prompt/prompt.html?taskId=TASK-002">未設定</a></td>
                   <td class="updated-at">2026-05-17 15:42:00</td>
                   <td>
                     <div class="d-flex gap-2">
@@ -279,11 +292,12 @@
                     </div>
                   </td>
                 </tr>
-                <tr data-name="経路探索" data-level="上級" data-target="附属高校 / 4年2組" data-status="下書き" data-description="条件に応じて最短経路を探索する。" data-constraint="再帰使用可" data-updated="2026-05-15 11:20:00">
+                <tr data-task-id="TASK-003" data-name="経路探索" data-level="上級" data-target="附属高校 / 4年2組" data-status="下書き" data-prompt-status="設定済み" data-description="条件に応じて最短経路を探索する。" data-constraint="再帰使用可" data-updated="2026-05-15 11:20:00">
                   <td>経路探索</td>
                   <td><span class="badge difficulty-advanced">上級</span></td>
                   <td>附属高校 / 4年2組</td>
                   <td><span class="badge text-bg-secondary">下書き</span></td>
+                  <td><a class="prompt-status-link" href="../prompt/prompt.html?taskId=TASK-003">設定済み</a></td>
                   <td class="updated-at">2026-05-15 11:20:00</td>
                   <td>
                     <div class="d-flex gap-2">
@@ -382,6 +396,9 @@
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"
     integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI"
     crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/lib/codemirror.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/mode/python/python.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/mode/shell/shell.js"></script>
   <script src="../../../js/teacher/shared/components.js"></script>
   <script src="../../../js/teacher/task/task.js"></script>
 </body>

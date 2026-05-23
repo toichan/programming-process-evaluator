@@ -6,9 +6,9 @@
 
 /* サイドメニュー */
 .teacher-sidebar {
-  width: 260px;
-  min-width: 260px;
-  flex: 0 0 260px;
+  width: 236px;
+  min-width: 236px;
+  flex: 0 0 236px;
   position: sticky;
   top: 0;
   height: 100vh;
@@ -79,6 +79,15 @@ main.flex-grow-1 {
 .teacher-header {
   height: 70px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.header-logo {
+  gap: 0.75rem;
+}
+
+.header-logo-icon {
+  color: #4f46e5;
+  flex-shrink: 0;
 }
 
 .header-logo h2 {
@@ -162,9 +171,9 @@ main.flex-grow-1 {
 /* レスポンシブ */
 @media (max-width: 992px) {
   .teacher-sidebar {
-    width: 200px;
-    min-width: 200px;
-    flex: 0 0 200px;
+    width: 184px;
+    min-width: 184px;
+    flex: 0 0 184px;
   }
 
   .teacher-info {
@@ -187,7 +196,7 @@ main.flex-grow-1 {
 @media (max-width: 768px) {
   .teacher-sidebar {
     position: fixed;
-    left: -200px;
+    left: -184px;
     top: 0;
     height: 100vh;
     z-index: 1040;

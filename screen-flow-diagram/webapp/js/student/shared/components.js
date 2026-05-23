@@ -31,20 +31,88 @@ window.PPEComponents = {
               </a>
             </li>
             <li class="nav-item dropdown">
-              <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" id="tasksDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <a class="nav-link dropdown-toggle d-flex align-items-center task-nav-trigger" href="#" id="tasksDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                 <svg class="me-1" width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
                   <path d="M2 2.75A.75.75 0 0 1 2.75 2h10.5a.75.75 0 0 1 0 1.5H2.75A.75.75 0 0 1 2 2.75zM2 8a.75.75 0 0 1 .75-.75h10.5a.75.75 0 0 1 0 1.5H2.75A.75.75 0 0 1 2 8zm0 5.25a.75.75 0 0 1 .75-.75h10.5a.75.75 0 0 1 0 1.5H2.75A.75.75 0 0 1 2 13.25z"/>
                   <path d="M4 2.75a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0zm0 5.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0zm0 5.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0z"/>
                 </svg>
                 課題
-                <span class="badge bg-warning text-dark ms-1">3</span>
+                <span class="task-nav-count" aria-label="3件の課題">3</span>
               </a>
-              <ul class="dropdown-menu border-0 shadow-lg" aria-labelledby="tasksDropdown">
-                <li><a class="dropdown-item d-flex align-items-center" href="../editor/editor.html"><span class="badge bg-success me-2">済</span>変数とデータ型</a></li>
-                <li><a class="dropdown-item d-flex align-items-center" href="../editor/editor.html"><span class="badge bg-warning me-2">中</span>条件分岐</a></li>
-                <li><a class="dropdown-item d-flex align-items-center" href="../editor/editor.html"><span class="badge bg-danger me-2">未</span>繰り返し処理</a></li>
+              <ul class="dropdown-menu border-0 shadow-lg task-shortcut-menu" aria-labelledby="tasksDropdown">
+                <li>
+                  <a class="dropdown-item task-shortcut-overview" href="../home/home.html">
+                    <span class="task-shortcut-overview-label">課題一覧</span>
+                    <span class="task-shortcut-overview-text">3件の課題と状態を確認する</span>
+                  </a>
+                </li>
                 <li><hr class="dropdown-divider"></li>
-                <li><a class="dropdown-item text-primary fw-semibold" href="../home/home.html">すべての課題をみる</a></li>
+                <li>
+                  <div class="dropdown-item-text task-shortcut-card">
+                    <div class="task-shortcut-heading-row">
+                      <span class="task-shortcut-level is-beginner">初級</span>
+                      <div class="task-shortcut-name">じゃんけん判定プログラム</div>
+                    </div>
+                    <div class="task-shortcut-action-group">
+                      <div class="task-shortcut-action-item">
+                        <a class="task-shortcut-link is-task" href="../editor/editor.html">エディター</a>
+                        <span class="task-shortcut-status-badge is-unstarted">未着手</span>
+                      </div>
+                      <div class="task-shortcut-action-item">
+                        <a class="task-shortcut-link is-evaluation" href="../evaluation/evaluation.html">評価結果</a>
+                        <span class="task-shortcut-status-badge is-unrated">思: 未/5 態: 未/5</span>
+                      </div>
+                      <div class="task-shortcut-action-item">
+                        <a class="task-shortcut-link is-survey" href="../survey/survey.html">アンケート</a>
+                        <span class="task-shortcut-status-badge is-pending">未回答</span>
+                      </div>
+                    </div>
+                  </div>
+                </li>
+                <li>
+                  <div class="dropdown-item-text task-shortcut-card">
+                    <div class="task-shortcut-heading-row">
+                      <span class="task-shortcut-level is-intermediate">中級</span>
+                      <div class="task-shortcut-name">点数集計と平均計算</div>
+                    </div>
+                    <div class="task-shortcut-action-group">
+                      <div class="task-shortcut-action-item">
+                        <a class="task-shortcut-link is-task" href="../editor/editor.html">エディター</a>
+                        <span class="task-shortcut-status-badge is-editing">編集中</span>
+                      </div>
+                      <div class="task-shortcut-action-item">
+                        <a class="task-shortcut-link is-evaluation" href="../evaluation/evaluation.html">評価結果</a>
+                        <span class="task-shortcut-status-badge is-rated">思: 3/5 態: 2/5</span>
+                      </div>
+                      <div class="task-shortcut-action-item">
+                        <a class="task-shortcut-link is-survey" href="../survey/survey.html">アンケート</a>
+                        <span class="task-shortcut-status-badge is-pending">未回答</span>
+                      </div>
+                    </div>
+                  </div>
+                </li>
+                <li>
+                  <div class="dropdown-item-text task-shortcut-card">
+                    <div class="task-shortcut-heading-row">
+                      <span class="task-shortcut-level is-advanced">上級</span>
+                      <div class="task-shortcut-name">売上データの分析レポート</div>
+                    </div>
+                    <div class="task-shortcut-action-group">
+                      <div class="task-shortcut-action-item">
+                        <a class="task-shortcut-link is-task" href="../editor/editor.html">エディター</a>
+                        <span class="task-shortcut-status-badge is-submitted">提出済み</span>
+                      </div>
+                      <div class="task-shortcut-action-item">
+                        <a class="task-shortcut-link is-evaluation" href="../evaluation/evaluation.html">評価結果</a>
+                        <span class="task-shortcut-status-badge is-rated">思: 4/5 態: 5/5</span>
+                      </div>
+                      <div class="task-shortcut-action-item">
+                        <a class="task-shortcut-link is-survey" href="../survey/survey.html">アンケート</a>
+                        <span class="task-shortcut-status-badge is-completed">回答済み</span>
+                      </div>
+                    </div>
+                  </div>
+                </li>
               </ul>
             </li>
             <li class="nav-item">
@@ -68,12 +136,12 @@ window.PPEComponents = {
               </button>
             </li>
             <li class="nav-item dropdown">
-              <a class="nav-link position-relative" href="#" id="notificationsDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <a class="nav-link position-relative notification-trigger" href="#" id="notificationsDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                 <svg width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
                   <path d="M8 16a2 2 0 0 0 2-2H6a2 2 0 0 0 2 2z"/>
                   <path d="M8 1.918l-.797.161A4.002 4.002 0 0 0 4 6c0 .628-.134 2.197-.459 3.742-.16.767-.376 1.566-.663 2.258h10.244c-.287-.692-.502-1.49-.663-2.258C12.134 8.197 12 6.628 12 6a4.002 4.002 0 0 0-3.203-3.92L8 1.917zM14.22 12c.223.447.481.801.78 1H1c.299-.199.557-.553.78-1C2.68 10.2 3 6.88 3 6c0-2.42 1.72-4.44 4.005-4.901a1 1 0 1 1 1.99 0A5.002 5.002 0 0 1 13 6c0 .88.32 4.2 1.22 6z"/>
                 </svg>
-                <span class="notification-badge position-absolute top-0 start-100 translate-middle-y badge rounded-pill bg-danger" style="font-size: 0.6rem;">2<span class="visually-hidden">unread notifications</span></span>
+                <span class="notification-badge position-absolute top-0 start-100 translate-middle-y" aria-label="未読通知2件">2<span class="visually-hidden">unread notifications</span></span>
               </a>
               <ul class="dropdown-menu dropdown-menu-end border-0 shadow-lg" aria-labelledby="notificationsDropdown">
                 <li class="dropdown-header fw-semibold">通知</li>

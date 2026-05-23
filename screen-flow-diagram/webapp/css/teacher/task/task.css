@@ -116,6 +116,57 @@
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
 }
 
+.task-form-code-mirror {
+  border: 1px solid #1f2937;
+  border-radius: 0.65rem;
+  overflow: hidden;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
+}
+
+.task-form-code-mirror.is-python {
+  min-height: 150px;
+}
+
+.task-form-code-mirror.is-python.is-hint-example {
+  min-height: 36px;
+}
+
+.task-form-code-mirror.is-shell {
+  min-height: 36px;
+}
+
+.task-form-code-mirror .CodeMirror {
+  font: 500 0.9rem/1.6 "SFMono-Regular", Consolas, monospace;
+}
+
+.task-form-code-mirror.is-python .CodeMirror {
+  height: 300px !important;
+}
+
+.task-form-code-mirror.is-python.is-hint-example .CodeMirror,
+.task-form-code-mirror.is-shell .CodeMirror {
+  height: auto !important;
+}
+
+.task-form-code-mirror .CodeMirror-gutters,
+.task-form-code-mirror .CodeMirror-scroll {
+  background: #111827;
+}
+
+.task-form-code-mirror .CodeMirror-lines {
+  padding: 0.85rem 0;
+}
+
+.task-form-code-mirror.is-python.is-hint-example .CodeMirror-lines,
+.task-form-code-mirror.is-shell .CodeMirror-lines {
+  padding: 0.2rem 0;
+}
+
+.task-form-code-mirror .CodeMirror pre.CodeMirror-line,
+.task-form-code-mirror .CodeMirror pre.CodeMirror-line-like {
+  padding: 0 1rem;
+}
+
 .test-case-list {
   display: grid;
   gap: 0.65rem;
@@ -141,7 +192,7 @@
   display: grid;
   grid-template-columns: 120px 1fr 1fr auto;
   gap: 0.5rem;
-  align-items: center;
+  align-items: start;
   padding: 0.6rem;
   border: 1px solid #dbe4ee;
   border-radius: 0.65rem;
@@ -151,12 +202,17 @@
 .field-block {
   display: grid;
   gap: 0.2rem;
+  min-width: 0;
 }
 
 .mini-label {
   font-size: 0.76rem;
   font-weight: 600;
   color: #475569;
+}
+
+.test-case-row .task-form-code-mirror.is-shell {
+  min-height: 36px;
 }
 
 .test-case-head {
@@ -252,14 +308,96 @@
   margin-bottom: 0;
 }
 
-.preview-card .hint-card pre {
-  margin: 0;
-  padding: 0.9rem 1rem;
-  border-radius: 0.75rem;
-  background: #111827;
-  color: #dbeafe;
+.preview-card .preview-side-panel-section {
+  overflow: hidden;
+}
+
+.preview-card .section-header-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+}
+
+.preview-card .info-panel h3 {
+  font-size: 1.35rem;
+  margin-bottom: 1rem;
+}
+
+.preview-card .info-block,
+.preview-card .hint-card,
+.preview-card .case-card {
+  padding: 1rem 1.1rem;
+  border-radius: 1rem;
+  background: var(--bs-gray-100);
+  margin-bottom: 1rem;
+}
+
+.preview-card .hint-card p {
+  margin-bottom: 0;
+}
+
+.preview-card .preview-io-source,
+.preview-card .preview-hint-code-source {
+  display: none;
+}
+
+.preview-card .io-block .case-card {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.98));
+  color: var(--bs-gray-800);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+
+.preview-card .io-case-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #b84545;
+}
+
+.preview-card .io-case-card .CodeMirror {
+  margin-top: 0.55rem;
+  min-height: 56px;
+  height: auto;
+  border-radius: 0.85rem;
+  border: 1px solid rgba(15, 23, 42, 0.22);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
   font: 500 0.88rem/1.6 "SFMono-Regular", Consolas, monospace;
-  white-space: pre-wrap;
+}
+
+.preview-card .io-case-card .CodeMirror-gutters,
+.preview-card .io-case-card .CodeMirror-scroll {
+  background: #0f172a;
+}
+
+.preview-card .io-case-card .CodeMirror-lines {
+  padding: 0.85rem 0;
+}
+
+.preview-card .io-case-card .CodeMirror pre.CodeMirror-line,
+.preview-card .io-case-card .CodeMirror pre.CodeMirror-line-like {
+  padding: 0 1rem;
+}
+
+.preview-card .hint-card .CodeMirror {
+  margin-top: 0.55rem;
+  min-height: 60px;
+  height: auto;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(15, 23, 42, 0.18);
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.12);
+  font: 500 0.88rem/1.6 "SFMono-Regular", Consolas, monospace;
+}
+
+.preview-card .hint-card .CodeMirror-lines {
+  padding: 0.9rem 0;
+}
+
+.preview-card .hint-card .CodeMirror pre.CodeMirror-line,
+.preview-card .hint-card .CodeMirror pre.CodeMirror-line-like {
+  padding: 0 1rem;
 }
 
 .preview-card .task-list-card {
@@ -305,6 +443,61 @@
 .table thead th {
   color: var(--bs-gray-700);
   border-bottom: 2px solid #cbd5e1;
+}
+
+#taskTable {
+  min-width: 980px;
+}
+
+#taskTable thead th {
+  white-space: nowrap;
+  vertical-align: middle;
+  font-size: 0.84rem;
+  line-height: 1.3;
+}
+
+#taskTable td:last-child {
+  white-space: nowrap;
+}
+
+.table tbody tr.prompt-unset-row {
+  background: #fff7ed;
+}
+
+.table tbody tr.prompt-unset-row td {
+  background: #fff7ed;
+  border-top-color: var(--bs-table-border-color);
+  border-bottom-color: var(--bs-table-border-color);
+}
+
+.table tbody tr.prompt-unset-row:hover {
+  background: #ffedd5;
+}
+
+.table tbody tr.prompt-unset-row:hover td {
+  background: #ffedd5;
+}
+
+.prompt-status-link {
+  color: #2563eb;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.prompt-status-link.is-unset {
+  color: #c2410c;
+  font-weight: 700;
+}
+
+.prompt-status-link:hover,
+.prompt-status-link:focus {
+  color: #1d4ed8;
+  text-decoration: underline;
+}
+
+.prompt-status-link.is-unset:hover,
+.prompt-status-link.is-unset:focus {
+  color: #9a3412;
 }
 
 .table tbody tr:hover {
@@ -364,5 +557,9 @@
 
   .test-case-row {
     grid-template-columns: 1fr;
+  }
+
+  #taskTable {
+    min-width: 940px;
   }
 }

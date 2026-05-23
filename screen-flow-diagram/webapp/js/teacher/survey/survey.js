@@ -6,61 +6,130 @@
 // ダミーデータ（survey-format.csv から集約）
 const surveyData = [
   {
+    recordId: 'REC-20260519-0001',
     responseId: 'SRV-20260519-0001',
     submittedAt: '2026-05-19T09:12:34+09:00',
     studentId: 's001',
     school: '国際中等',
     className: '1年A組',
-    systemEvaluation: {
-      thinkingScore: 4,
-      attitudeScore: 4
-    },
     taskCode: 'TASK-001',
     taskTitle: 'じゃんけん判定プログラム',
     difficulty: '初級',
-    responses: [
-      { recordId: 'REC-20260519-0001-01', questionCode: 'Q1_THINKING', questionLabel: '設問1_思考力・判断力・表現力', score: 4, comment: '条件分岐の整理と入力チェックを自分で修正し、提出時点で意図した判定ができたため。' },
-      { recordId: 'REC-20260519-0001-02', questionCode: 'Q1_ATTITUDE', questionLabel: '設問1_主体的に取り組む態度', score: 4, comment: '実行結果を見ながら複数回修正し、途中で止めずに最後まで改善できたため。' },
-      { recordId: 'REC-20260519-0001-03', questionCode: 'Q2_PROCESS', questionLabel: '設問2_試行錯誤の過程が評価されることについて', score: 5, comment: '試行錯誤の途中過程が評価されると、失敗も学習として記録されるので納得感がある。' },
-      { recordId: 'REC-20260519-0001-04', questionCode: 'Q3_USABILITY', questionLabel: '設問3_システムの操作性', score: 4, comment: '評価画面とログ画面の導線が分かりやすく、全体として操作しやすかった。' }
-    ],
+    systemEvaluation: { thinkingScore: 4, attitudeScore: 4 },
+    q1ThinkingScore: 4,
+    q1ThinkingReason: '条件分岐の整理と入力チェックを自分で修正し、提出時点で意図した判定ができたため。',
+    q1ThinkingValidity: 4,
+    q1ThinkingValidityReason: '実行ログを見るとエラーからの修正過程が反映されており、評価は概ね妥当だと感じた。',
+    q2AttitudeScore: 4,
+    q2AttitudeReason: '実行結果を見ながら複数回修正し、途中で止めずに最後まで改善できたため。',
+    q2AttitudeValidity: 4,
+    q2AttitudeValidityReason: '保存回数や修正回数も考慮されており、取り組みの実態に近い評価だと感じた。',
+    q3ProcessResistanceScore: 2,
+    q3ProcessResistanceReason: '記録自体には抵抗は少ないが、評価への使われ方は少し気になる。',
+    q4UsabilityScore: 4,
+    q4UsabilityComment: '評価画面とログ画面の導線が分かりやすく、全体として操作しやすかった。',
     completionStatus: '完了',
     consentStatus: '同意'
   },
   {
+    recordId: 'REC-20260519-0002',
     responseId: 'SRV-20260519-0002',
     submittedAt: '2026-05-19T09:25:08+09:00',
     studentId: 's014',
     school: '国際中等',
     className: '1年B組',
-    systemEvaluation: {
-      thinkingScore: 4,
-      attitudeScore: 4
-    },
     taskCode: 'TASK-001',
     taskTitle: 'じゃんけん判定プログラム',
     difficulty: '初級',
-    responses: [
-      { recordId: 'REC-20260519-0002-01', questionCode: 'Q1_THINKING', questionLabel: '設問1_思考力・判断力・表現力', score: 3, comment: '基本的な実装はできたが、変数名や例外的な入力への対応が不十分だと感じたため。' },
-      { recordId: 'REC-20260519-0002-02', questionCode: 'Q1_ATTITUDE', questionLabel: '設問1_主体的に取り組む態度', score: 3, comment: '修正は続けたが、エラーの原因特定に時間がかかり、効率は高くなかったため。' },
-      { recordId: 'REC-20260519-0002-03', questionCode: 'Q2_PROCESS', questionLabel: '設問2_試行錯誤の過程が評価されることについて', score: 4, comment: '過程の評価があると、結果だけでなく改善の工夫を見てもらえる点がよい。' },
-      { recordId: 'REC-20260519-0002-04', questionCode: 'Q3_USABILITY', questionLabel: '設問3_システムの操作性', score: 3, comment: '機能は理解できたが、設問移動ボタンの位置に最初は少し迷った。' }
-    ],
+    systemEvaluation: { thinkingScore: 4, attitudeScore: 4 },
+    q1ThinkingScore: 3,
+    q1ThinkingReason: '基本的な実装はできたが、変数名や例外的な入力への対応が不十分だと感じたため。',
+    q1ThinkingValidity: 3,
+    q1ThinkingValidityReason: '結果はおおむね妥当だが、途中で試した改善案が十分に反映されていないように思った。',
+    q2AttitudeScore: 3,
+    q2AttitudeReason: '修正は続けたが、エラーの原因特定に時間がかかり、効率は高くなかったため。',
+    q2AttitudeValidity: 3,
+    q2AttitudeValidityReason: '粘り強さは評価されている一方で、学習意欲の面は少し低く見積もられていると感じた。',
+    q3ProcessResistanceScore: 3,
+    q3ProcessResistanceReason: '記録されることは理解できるが、常に見られている感覚が少しある。',
+    q4UsabilityScore: 3,
+    q4UsabilityComment: '機能は理解できたが、設問移動ボタンの位置に最初は少し迷った。',
+    completionStatus: '下書き',
+    consentStatus: '同意'
+  },
+  {
+    recordId: 'REC-20260519-0003',
+    responseId: 'SRV-20260519-0003',
+    submittedAt: '2026-05-19T10:03:11+09:00',
+    studentId: 's118',
+    school: '附属高校',
+    className: '4年2組',
+    taskCode: 'TASK-004',
+    taskTitle: '経路探索',
+    difficulty: '上級',
+    systemEvaluation: { thinkingScore: 5, attitudeScore: 4 },
+    q1ThinkingScore: 5,
+    q1ThinkingReason: '複数の探索手順を比較し、実行結果を見ながら最適な実装に改善できたため。',
+    q1ThinkingValidity: 5,
+    q1ThinkingValidityReason: 'コード修正の根拠と結果が一致しており、評価結果に強く納得している。',
+    q2AttitudeScore: 4,
+    q2AttitudeReason: '難しい課題でも実行と修正を継続できたため、高めに自己評価した。',
+    q2AttitudeValidity: 4,
+    q2AttitudeValidityReason: '試行回数や改善の履歴が評価に反映されていて妥当だと思う。',
+    q3ProcessResistanceScore: 1,
+    q3ProcessResistanceReason: '過程の記録・評価にはほとんど抵抗を感じない。',
+    q4UsabilityScore: 5,
+    q4UsabilityComment: '画面構成が分かりやすく、操作に迷うことがほぼなかった。',
     completionStatus: '完了',
+    consentStatus: '同意'
+  },
+  {
+    recordId: 'REC-20260519-0004',
+    responseId: 'SRV-20260519-0004',
+    submittedAt: '2026-05-19T10:21:57+09:00',
+    studentId: 's203',
+    school: '附属高校',
+    className: '4年4組',
+    taskCode: 'TASK-003',
+    taskTitle: '家計簿集計',
+    difficulty: '中級',
+    systemEvaluation: { thinkingScore: 2, attitudeScore: 2 },
+    q1ThinkingScore: 2,
+    q1ThinkingReason: '合計計算の分岐でミスが多く、安定した結果にできなかったため。',
+    q1ThinkingValidity: 2,
+    q1ThinkingValidityReason: '最終結果だけでなく途中の工夫も見てほしいので、現在の評価はやや厳しく感じる。',
+    q2AttitudeScore: 2,
+    q2AttitudeReason: '途中で詰まって手が止まる時間が長く、改善の継続が十分でなかった。',
+    q2AttitudeValidity: 2,
+    q2AttitudeValidityReason: '修正回数は記録されているが、原因分析に費やした時間は反映されにくいと感じた。',
+    q3ProcessResistanceScore: 4,
+    q3ProcessResistanceReason: '記録されることにやや抵抗を感じる。',
+    q4UsabilityScore: 2,
+    q4UsabilityComment: '画面遷移は分かるが、入力欄の説明が不足していて使いにくさを感じた。',
+    completionStatus: '下書き',
     consentStatus: '同意'
   }
 ];
 
 let filteredData = [...surveyData];
+let currentSortBy = 'submittedAtDesc';
+
+function getDifficultyBadgeClass(difficulty) {
+  if (difficulty === '初級') return 'difficulty-beginner';
+  if (difficulty === '中級') return 'difficulty-intermediate';
+  if (difficulty === '上級') return 'difficulty-advanced';
+  return 'bg-secondary';
+}
 
 window.addEventListener('DOMContentLoaded', () => {
   initializeControls();
-  renderTable();
+  initializeHeaderSorting();
+  applyFiltersAndSort();
 });
 
 function initializeControls() {
-  const changeIds = ['schoolFilter', 'classFilter', 'difficultyFilter', 'completionFilter', 'consentFilter', 'sortBy'];
-  const inputIds = ['thinkingExprFilter', 'attitudeExprFilter', 'processExprFilter', 'usabilityExprFilter', 'searchInput'];
+  const changeIds = ['schoolFilter', 'classFilter', 'taskFilter', 'difficultyFilter', 'completionFilter', 'consentFilter'];
+  const inputIds = ['thinkingExprFilter', 'thinkingValidityExprFilter', 'attitudeExprFilter', 'attitudeValidityExprFilter', 'resistanceExprFilter', 'usabilityExprFilter', 'searchInput'];
 
   changeIds.forEach((id) => {
     const el = document.querySelector(`#${id}`);
@@ -77,6 +146,49 @@ function initializeControls() {
   });
 }
 
+function initializeHeaderSorting() {
+  const headers = document.querySelectorAll('#surveyTable thead th.sortable');
+  headers.forEach((header) => {
+    header.addEventListener('click', () => {
+      const sortKey = header.dataset.sortKey;
+      if (!sortKey) return;
+
+      const currentKey = getSortKey(currentSortBy);
+      const currentDirection = getSortDirection(currentSortBy);
+      const nextDirection = currentKey === sortKey && currentDirection === 'asc' ? 'Desc' : 'Asc';
+      currentSortBy = `${sortKey}${nextDirection}`;
+
+      applyFiltersAndSort();
+    });
+  });
+}
+
+function updateHeaderSortIndicator(sortBy) {
+  const activeKey = getSortKey(sortBy);
+  const activeDirection = getSortDirection(sortBy);
+  const headers = document.querySelectorAll('#surveyTable thead th.sortable');
+
+  headers.forEach((header) => {
+    header.classList.remove('sorted-asc', 'sorted-desc');
+    header.removeAttribute('aria-sort');
+
+    if (header.dataset.sortKey === activeKey) {
+      header.classList.add(activeDirection === 'asc' ? 'sorted-asc' : 'sorted-desc');
+      header.setAttribute('aria-sort', activeDirection === 'asc' ? 'ascending' : 'descending');
+    }
+  });
+}
+
+function getSortKey(sortBy) {
+  if (sortBy.endsWith('Desc')) return sortBy.slice(0, -4);
+  if (sortBy.endsWith('Asc')) return sortBy.slice(0, -3);
+  return sortBy;
+}
+
+function getSortDirection(sortBy) {
+  return sortBy.endsWith('Desc') ? 'desc' : 'asc';
+}
+
 /**
  * テーブルをレンダリング
  */
@@ -87,21 +199,18 @@ function renderTable() {
   updateSurveySummary(filteredData);
 
   if (filteredData.length === 0) {
-    tableBody.innerHTML = '<tr><td colspan="13" class="text-center text-muted py-4">該当するアンケート結果がありません</td></tr>';
+    tableBody.innerHTML = '<tr><td colspan="15" class="text-center text-muted py-4">該当するアンケート結果がありません</td></tr>';
     return;
   }
 
   filteredData.forEach((survey) => {
-    // responses から各スコアを抽出
-    const q1ThinkingScore = survey.responses.find(r => r.questionCode === 'Q1_THINKING')?.score || '-';
-    const q1AttitudeScore = survey.responses.find(r => r.questionCode === 'Q1_ATTITUDE')?.score || '-';
-    const q2ProcessScore = survey.responses.find(r => r.questionCode === 'Q2_PROCESS')?.score || '-';
-    const q3UsabilityScore = survey.responses.find(r => r.questionCode === 'Q3_USABILITY')?.score || '-';
     const consentClass = survey.consentStatus === '同意'
       ? 'consent consent-ok'
       : survey.consentStatus === '未同意' || survey.consentStatus === '不同意'
         ? 'consent consent-no'
         : 'consent consent-pending';
+    const completionBadgeClass = survey.completionStatus === '完了' ? 'bg-success' : 'text-bg-secondary';
+    const difficultyBadgeClass = getDifficultyBadgeClass(survey.difficulty);
 
     const row = document.createElement('tr');
     row.innerHTML = `
@@ -109,29 +218,15 @@ function renderTable() {
       <td>${survey.school || '-'}</td>
       <td>${survey.className || '-'}</td>
       <td>${survey.taskTitle}</td>
-      <td><span class="badge bg-info">${survey.difficulty}</span></td>
-      <td class="text-center">
-        <span class="badge" id="score-thinking-${survey.responseId}">
-          ${q1ThinkingScore === '-' ? '-' : q1ThinkingScore}
-        </span>
-      </td>
-      <td class="text-center">
-        <span class="badge" id="score-attitude-${survey.responseId}">
-          ${q1AttitudeScore === '-' ? '-' : q1AttitudeScore}
-        </span>
-      </td>
-      <td class="text-center">
-        <span class="badge" id="score-process-${survey.responseId}">
-          ${q2ProcessScore === '-' ? '-' : q2ProcessScore}
-        </span>
-      </td>
-      <td class="text-center">
-        <span class="badge" id="score-usability-${survey.responseId}">
-          ${q3UsabilityScore === '-' ? '-' : q3UsabilityScore}
-        </span>
-      </td>
+      <td><span class="badge ${difficultyBadgeClass}">${survey.difficulty}</span></td>
+      <td class="text-center">${survey.q1ThinkingValidity ?? '-'}</td>
+      <td class="text-center">${survey.q1ThinkingScore ?? '-'}</td>
+      <td class="text-center">${survey.q2AttitudeValidity ?? '-'}</td>
+      <td class="text-center">${survey.q2AttitudeScore ?? '-'}</td>
+      <td class="text-center">${survey.q3ProcessResistanceScore ?? '-'}</td>
+      <td class="text-center">${survey.q4UsabilityScore ?? '-'}</td>
       <td>${formatDateTime(survey.submittedAt)}</td>
-      <td><span class="badge bg-success">${survey.completionStatus}</span></td>
+      <td><span class="badge ${completionBadgeClass}">${survey.completionStatus}</span></td>
       <td><span class="${consentClass}">${survey.consentStatus}</span></td>
       <td>
         <button class="btn btn-sm btn-outline-primary" onclick="viewDetail('${survey.responseId}')">
@@ -140,12 +235,6 @@ function renderTable() {
       </td>
     `;
     tableBody.appendChild(row);
-
-    // スコアバッジにカラーを付与
-    updateScoreBadgeColor(`score-thinking-${survey.responseId}`, q1ThinkingScore);
-    updateScoreBadgeColor(`score-attitude-${survey.responseId}`, q1AttitudeScore);
-    updateScoreBadgeColor(`score-process-${survey.responseId}`, q2ProcessScore);
-    updateScoreBadgeColor(`score-usability-${survey.responseId}`, q3UsabilityScore);
   });
 
   document.querySelector('#totalResponses').textContent = filteredData.length;
@@ -162,70 +251,56 @@ function updateTopStats(records) {
   if (consentedEl) consentedEl.textContent = String(consentedCount);
 }
 
-function getAverageScore(records, questionCode) {
-  const scores = records
-    .map((survey) => Number(survey.responses.find((r) => r.questionCode === questionCode)?.score || 0))
-    .filter((score) => score > 0);
 
-  if (scores.length === 0) return 0;
-
-  const sum = scores.reduce((acc, score) => acc + score, 0);
-  return sum / scores.length;
-}
 
 function updateSurveySummary(records) {
   const total = records.length;
   const completed = records.filter((survey) => survey.completionStatus === '完了').length;
-  const pending = Math.max(0, total - completed);
+  const pending = records.filter((survey) => survey.completionStatus === '下書き').length;
   const completionPct = total > 0 ? Math.round((completed / total) * 100) : 0;
 
-  const thinkingAvg = getAverageScore(records, 'Q1_THINKING');
-  const attitudeAvg = getAverageScore(records, 'Q1_ATTITUDE');
-  const processAvg = getAverageScore(records, 'Q2_PROCESS');
-  const usabilityAvg = getAverageScore(records, 'Q3_USABILITY');
-
-  const toPercent = (score) => {
-    const percent = (score / 5) * 100;
-    return Math.max(0, Math.min(100, percent));
+  const avg = (field) => {
+    const scores = records.map(s => Number(s[field] || 0)).filter(v => v > 0);
+    if (scores.length === 0) return 0;
+    return scores.reduce((a, b) => a + b, 0) / scores.length;
   };
 
-  const summaryTotalEl = document.querySelector('#summaryTotal');
-  if (summaryTotalEl) summaryTotalEl.textContent = String(total);
+  const toPercent = (score) => Math.max(0, Math.min(100, (score / 5) * 100));
 
-  const summaryPendingEl = document.querySelector('#summaryPending');
-  if (summaryPendingEl) summaryPendingEl.textContent = String(pending);
+  const set = (id, val) => {
+    const el = document.querySelector(`#${id}`);
+    if (el) el.textContent = val;
+  };
+  const setBar = (id, pct) => {
+    const el = document.querySelector(`#${id}`);
+    if (el) el.style.width = `${pct}%`;
+  };
 
-  const summaryCompleteEl = document.querySelector('#summaryComplete');
-  if (summaryCompleteEl) summaryCompleteEl.textContent = String(completed);
-
-  const pctEl = document.querySelector('#summaryCompletionPct');
-  if (pctEl) pctEl.textContent = `${completionPct}%`;
-
+  set('summaryTotal', String(total));
+  set('summaryPending', String(pending));
+  set('summaryComplete', String(completed));
+  set('summaryCompletionPct', `${completionPct}%`);
   const barEl = document.querySelector('#summaryCompletionBar');
   if (barEl) {
     barEl.style.width = `${completionPct}%`;
     barEl.setAttribute('aria-valuenow', String(completionPct));
   }
 
-  const thinkingAvgEl = document.querySelector('#summaryThinkingAvg');
-  if (thinkingAvgEl) thinkingAvgEl.textContent = thinkingAvg.toFixed(1);
-  const thinkingBarEl = document.querySelector('#summaryThinkingBar');
-  if (thinkingBarEl) thinkingBarEl.style.width = `${toPercent(thinkingAvg)}%`;
+  const thinkingValidityAvg = avg('q1ThinkingValidity');
+  set('summaryThinkingValidityAvg', thinkingValidityAvg.toFixed(1));
+  setBar('summaryThinkingValidityBar', toPercent(thinkingValidityAvg));
 
-  const attitudeAvgEl = document.querySelector('#summaryAttitudeAvg');
-  if (attitudeAvgEl) attitudeAvgEl.textContent = attitudeAvg.toFixed(1);
-  const attitudeBarEl = document.querySelector('#summaryAttitudeBar');
-  if (attitudeBarEl) attitudeBarEl.style.width = `${toPercent(attitudeAvg)}%`;
+  const attitudeValidityAvg = avg('q2AttitudeValidity');
+  set('summaryAttitudeValidityAvg', attitudeValidityAvg.toFixed(1));
+  setBar('summaryAttitudeValidityBar', toPercent(attitudeValidityAvg));
 
-  const processAvgEl = document.querySelector('#summaryProcessAvg');
-  if (processAvgEl) processAvgEl.textContent = processAvg.toFixed(1);
-  const processBarEl = document.querySelector('#summaryProcessBar');
-  if (processBarEl) processBarEl.style.width = `${toPercent(processAvg)}%`;
+  const resistanceAvg = avg('q3ProcessResistanceScore');
+  set('summaryResistanceAvg', resistanceAvg.toFixed(1));
+  setBar('summaryResistanceBar', toPercent(resistanceAvg));
 
-  const usabilityAvgEl = document.querySelector('#summaryUsabilityAvg');
-  if (usabilityAvgEl) usabilityAvgEl.textContent = usabilityAvg.toFixed(1);
-  const usabilityBarEl = document.querySelector('#summaryUsabilityBar');
-  if (usabilityBarEl) usabilityBarEl.style.width = `${toPercent(usabilityAvg)}%`;
+  const usabilityAvg = avg('q4UsabilityScore');
+  set('summaryUsabilityAvg', usabilityAvg.toFixed(1));
+  setBar('summaryUsabilityBar', toPercent(usabilityAvg));
 }
 
 function syncSummaryFilters() {
@@ -239,22 +314,6 @@ function syncSummaryFilters() {
   if (classFilterEl) classFilterEl.value = summaryClass;
 
   applyFiltersAndSort();
-}
-
-/**
- * スコアバッジに色を付与
- */
-function updateScoreBadgeColor(elementId, score) {
-  const element = document.querySelector(`#${elementId}`);
-  if (element && score !== '-') {
-    if (score >= 4) {
-      element.className = 'badge bg-success';
-    } else if (score === 3) {
-      element.className = 'badge bg-warning';
-    } else {
-      element.className = 'badge bg-danger';
-    }
-  }
 }
 
 /**
@@ -310,39 +369,62 @@ function applySort() {
 function applyFiltersAndSort() {
   const schoolFilter = document.querySelector('#schoolFilter')?.value || '';
   const classFilter = document.querySelector('#classFilter')?.value || '';
+  const taskFilter = document.querySelector('#taskFilter')?.value || '';
   const difficultyFilter = document.querySelector('#difficultyFilter')?.value || '';
   const completionFilter = document.querySelector('#completionFilter')?.value || '';
   const consentFilter = document.querySelector('#consentFilter')?.value || '';
   const thinkingExpr = document.querySelector('#thinkingExprFilter')?.value || '';
+  const thinkingValidityExpr = document.querySelector('#thinkingValidityExprFilter')?.value || '';
   const attitudeExpr = document.querySelector('#attitudeExprFilter')?.value || '';
-  const processExpr = document.querySelector('#processExprFilter')?.value || '';
+  const attitudeValidityExpr = document.querySelector('#attitudeValidityExprFilter')?.value || '';
+  const resistanceExpr = document.querySelector('#resistanceExprFilter')?.value || '';
   const usabilityExpr = document.querySelector('#usabilityExprFilter')?.value || '';
   const query = (document.querySelector('#searchInput')?.value || '').trim().toLowerCase();
   const summaryTask = document.querySelector('#summaryTask')?.value || '';
-  const sortBy = document.querySelector('#sortBy')?.value || 'submittedAt-desc';
-  const [sortKey, sortOrder] = sortBy.split('-');
+  const sortBy = currentSortBy;
+  const sortKey = getSortKey(sortBy);
+  const sortOrder = getSortDirection(sortBy);
 
   filteredData = surveyData.filter((survey) => {
-    const thinkingScore = Number(survey.responses.find(r => r.questionCode === 'Q1_THINKING')?.score || 0);
-    const attitudeScore = Number(survey.responses.find(r => r.questionCode === 'Q1_ATTITUDE')?.score || 0);
-    const processScore = Number(survey.responses.find(r => r.questionCode === 'Q2_PROCESS')?.score || 0);
-    const usabilityScore = Number(survey.responses.find(r => r.questionCode === 'Q3_USABILITY')?.score || 0);
     const searchable = `${survey.studentId} ${survey.taskTitle}`.toLowerCase();
 
-    const schoolMatch = !schoolFilter || survey.school === schoolFilter;
-    const classMatch = !classFilter || survey.className === classFilter;
-    const difficultyMatch = !difficultyFilter || survey.difficulty === difficultyFilter;
-    const completionMatch = !completionFilter || survey.completionStatus === completionFilter;
-    const consentMatch = !consentFilter || survey.consentStatus === consentFilter;
-    const thinkingMatch = parseScoreCondition(thinkingExpr, thinkingScore);
-    const attitudeMatch = parseScoreCondition(attitudeExpr, attitudeScore);
-    const processMatch = parseScoreCondition(processExpr, processScore);
-    const usabilityMatch = parseScoreCondition(usabilityExpr, usabilityScore);
-    const queryMatch = !query || searchable.includes(query);
-    const summaryTaskMatch = !summaryTask || survey.taskTitle === summaryTask;
-
-    return schoolMatch && classMatch && difficultyMatch && completionMatch && consentMatch && thinkingMatch && attitudeMatch && processMatch && usabilityMatch && queryMatch && summaryTaskMatch;
+    return (
+      (!schoolFilter || survey.school === schoolFilter) &&
+      (!classFilter || survey.className === classFilter) &&
+      (!taskFilter || survey.taskTitle === taskFilter) &&
+      (!difficultyFilter || survey.difficulty === difficultyFilter) &&
+      (!completionFilter || survey.completionStatus === completionFilter) &&
+      (!consentFilter || survey.consentStatus === consentFilter) &&
+      parseScoreCondition(thinkingExpr, Number(survey.q1ThinkingScore || 0)) &&
+      parseScoreCondition(thinkingValidityExpr, Number(survey.q1ThinkingValidity || 0)) &&
+      parseScoreCondition(attitudeExpr, Number(survey.q2AttitudeScore || 0)) &&
+      parseScoreCondition(attitudeValidityExpr, Number(survey.q2AttitudeValidity || 0)) &&
+      parseScoreCondition(resistanceExpr, Number(survey.q3ProcessResistanceScore || 0)) &&
+      parseScoreCondition(usabilityExpr, Number(survey.q4UsabilityScore || 0)) &&
+      (!query || searchable.includes(query)) &&
+      (!summaryTask || survey.taskTitle === summaryTask)
+    );
   });
+
+  const fieldMap = {
+    studentId: 'studentId',
+    school: 'school',
+    className: 'className',
+    taskTitle: 'taskTitle',
+    difficulty: 'difficulty',
+    thinkingScore: 'q1ThinkingScore',
+    thinkingValidity: 'q1ThinkingValidity',
+    attitudeScore: 'q2AttitudeScore',
+    attitudeValidity: 'q2AttitudeValidity',
+    resistanceScore: 'q3ProcessResistanceScore',
+    usabilityScore: 'q4UsabilityScore',
+    completionStatus: 'completionStatus',
+    consentStatus: 'consentStatus'
+  };
+
+  const difficultyOrder = { 初級: 1, 中級: 2, 上級: 3 };
+  const completionOrder = { 下書き: 1, 完了: 2 };
+  const consentOrder = { 未同意: 1, 不同意: 1, 未確認: 2, 同意: 3 };
 
   filteredData.sort((a, b) => {
     let aVal;
@@ -351,33 +433,43 @@ function applyFiltersAndSort() {
     if (sortKey === 'submittedAt') {
       aVal = new Date(a.submittedAt).getTime();
       bVal = new Date(b.submittedAt).getTime();
-    } else if (sortKey === 'studentId') {
-      aVal = a.studentId;
-      bVal = b.studentId;
-    } else if (sortKey === 'thinkingScore') {
-      aVal = Number(a.responses.find(r => r.questionCode === 'Q1_THINKING')?.score || 0);
-      bVal = Number(b.responses.find(r => r.questionCode === 'Q1_THINKING')?.score || 0);
-    } else if (sortKey === 'attitudeScore') {
-      aVal = Number(a.responses.find(r => r.questionCode === 'Q1_ATTITUDE')?.score || 0);
-      bVal = Number(b.responses.find(r => r.questionCode === 'Q1_ATTITUDE')?.score || 0);
-    } else if (sortKey === 'processScore') {
-      aVal = Number(a.responses.find(r => r.questionCode === 'Q2_PROCESS')?.score || 0);
-      bVal = Number(b.responses.find(r => r.questionCode === 'Q2_PROCESS')?.score || 0);
-    } else if (sortKey === 'usabilityScore') {
-      aVal = Number(a.responses.find(r => r.questionCode === 'Q3_USABILITY')?.score || 0);
-      bVal = Number(b.responses.find(r => r.questionCode === 'Q3_USABILITY')?.score || 0);
+    } else if (sortKey === 'difficulty') {
+      aVal = difficultyOrder[a.difficulty] || 99;
+      bVal = difficultyOrder[b.difficulty] || 99;
+    } else if (sortKey === 'completionStatus') {
+      aVal = completionOrder[a.completionStatus] || 99;
+      bVal = completionOrder[b.completionStatus] || 99;
+    } else if (sortKey === 'consentStatus') {
+      aVal = consentOrder[a.consentStatus] || 99;
+      bVal = consentOrder[b.consentStatus] || 99;
+    } else if (fieldMap[sortKey]) {
+      aVal = a[fieldMap[sortKey]];
+      bVal = b[fieldMap[sortKey]];
     } else {
       aVal = a.studentId;
       bVal = b.studentId;
+    }
+
+    if (typeof aVal === 'number' && typeof bVal === 'number') {
+      return sortOrder === 'asc' ? aVal - bVal : bVal - aVal;
+    }
+
+    if (fieldMap[sortKey] && /Score|Validity|Resistance|Usability/.test(sortKey)) {
+      const aNum = Number(aVal || 0);
+      const bNum = Number(bVal || 0);
+      return sortOrder === 'asc' ? aNum - bNum : bNum - aNum;
     }
 
     if (typeof aVal === 'string' && typeof bVal === 'string') {
       return sortOrder === 'asc' ? aVal.localeCompare(bVal, 'ja') : bVal.localeCompare(aVal, 'ja');
     }
 
-    return sortOrder === 'asc' ? aVal - bVal : bVal - aVal;
+    return sortOrder === 'asc'
+      ? String(aVal || '').localeCompare(String(bVal || ''), 'ja')
+      : String(bVal || '').localeCompare(String(aVal || ''), 'ja');
   });
 
+  updateHeaderSortIndicator(sortBy);
   renderTable();
 }
 
@@ -398,166 +490,110 @@ function displaySurveyInModal(survey) {
   // ヘッダー情報を設定
   document.querySelector('#modalStudentId').textContent = survey.studentId;
   document.querySelector('#modalTaskTitle').textContent = survey.taskTitle;
-  document.querySelector('#modalTaskDifficulty').textContent = survey.difficulty;
+  const modalDifficulty = document.querySelector('#modalTaskDifficulty');
+  modalDifficulty.textContent = survey.difficulty;
+  modalDifficulty.className = `badge ${getDifficultyBadgeClass(survey.difficulty)}`;
   document.querySelector('#modalSubmittedAt').textContent = formatDateTime(survey.submittedAt);
 
-  const q1Thinking = survey.responses.find(r => r.questionCode === 'Q1_THINKING');
-  const q1Attitude = survey.responses.find(r => r.questionCode === 'Q1_ATTITUDE');
-  const q2Process = survey.responses.find(r => r.questionCode === 'Q2_PROCESS');
-  const q3Usability = survey.responses.find(r => r.questionCode === 'Q3_USABILITY');
   const systemThinkingScore = survey.systemEvaluation?.thinkingScore;
   const systemAttitudeScore = survey.systemEvaluation?.attitudeScore;
 
-  // 評価サマリーは表示しない
-  const evaluationContainer = document.querySelector('#modalEvaluationSummary');
-  evaluationContainer.innerHTML = '';
+  const scoreBar = (score, labels = ['1', '2', '3', '4', '5'], extraClass = '') => {
+    const max = labels.length;
+    const pct = score != null ? ((score - 1) / (max - 1)) * 100 : 0;
+    return `
+      <div class="likert-display ${extraClass}">
+        <div class="likert-scale">${labels.map((label) => `<span>${label}</span>`).join('')}</div>
+        <div class="likert-indicator" style="width: 100%;">
+          <div class="likert-value" style="left: ${pct}%">${score ?? '-'}</div>
+        </div>
+      </div>`;
+  };
 
-  // 回答内容を生成（student/surveyの設問構成に準拠）
+  const validityLabels = ['妥当でない', 'あまり妥当でない', 'どちらともいえない', 'おおむね妥当', '妥当'];
+
+  const textBox = (label, text) =>
+    text ? `<div class="response-question-block"><div class="question-subheading">${label}</div><div class="response-text-box"><p>${text}</p></div></div>` : '';
+
+  // 回答内容
   const responseContainer = document.querySelector('#modalResponseContent');
-  let responseHTML = '';
+  responseContainer.innerHTML = `
+    <div class="response-section mb-4">
+      <span class="question-kicker">設問1</span>
+      <h3>思考力・判断力・表現力</h3>
+      <p class="text-muted mt-2 mb-0">システムが出した評価が妥当かどうかを回答したうえで、思考力・判断力・表現力について自分ではどのように評価するかを 5 段階で選び、それぞれの理由を記述した回答です。</p>
+      <div class="response-question-block">
+        <div class="question-subheading">システムの評価は妥当でしたか？</div>
+        ${scoreBar(survey.q1ThinkingValidity, validityLabels)}
+      </div>
+      ${textBox('その理由', survey.q1ThinkingValidityReason)}
+      <div class="response-question-block mt-3">
+        <div class="question-subheading">思考力・判断力・表現力の自己評価</div>
+        ${scoreBar(survey.q1ThinkingScore)}
+      </div>
+      <div class="response-question-block">
+        <div class="question-subheading">システム評価</div>
+        ${scoreBar(systemThinkingScore, ['1', '2', '3', '4', '5'], 'system-bar')}
+      </div>
+      ${textBox('その理由', survey.q1ThinkingReason)}
+    </div>
 
-  if (q1Thinking || q1Attitude) {
-    responseHTML += '<div class="response-section"><span class="question-kicker">設問1</span><h3>自己評価</h3>';
-    
-    if (q1Thinking) {
-      const thinkingPercentage = ((q1Thinking.score - 1) / 4) * 100;
-      const systemThinkingPercentage = systemThinkingScore != null ? ((systemThinkingScore - 1) / 4) * 100 : 0;
-      responseHTML += `
-        <div class="response-question-block mt-3">
-          <div class="question-subheading">思考力・判断力・表現力</div>
-          <div class="small text-muted mb-1">自己評価</div>
-          <div class="likert-display mb-2">
-            <div class="likert-scale">
-              <span>1</span>
-              <span>2</span>
-              <span>3</span>
-              <span>4</span>
-              <span>5</span>
-            </div>
-            <div class="likert-indicator" style="width: 100%;">
-              <div class="likert-value" style="left: ${thinkingPercentage}%">${q1Thinking.score}</div>
-            </div>
-          </div>
-          <div class="small text-muted mb-1">システム評価</div>
-          <div class="likert-display system-bar">
-            <div class="likert-scale">
-              <span>1</span>
-              <span>2</span>
-              <span>3</span>
-              <span>4</span>
-              <span>5</span>
-            </div>
-            <div class="likert-indicator" style="width: 100%;">
-              <div class="likert-value" style="left: ${systemThinkingPercentage}%">${systemThinkingScore ?? '-'}</div>
-            </div>
-          </div>
-          <div class="response-text-box">
-            <p>${q1Thinking.comment}</p>
-          </div>
-        </div>
-      `;
-    }
-    
-    if (q1Attitude) {
-      const attitudePercentage = ((q1Attitude.score - 1) / 4) * 100;
-      const systemAttitudePercentage = systemAttitudeScore != null ? ((systemAttitudeScore - 1) / 4) * 100 : 0;
-      responseHTML += `
-        <div class="response-question-block">
-          <div class="question-subheading">主体的に取り組む態度</div>
-          <div class="small text-muted mb-1">自己評価</div>
-          <div class="likert-display mb-2">
-            <div class="likert-scale">
-              <span>1</span>
-              <span>2</span>
-              <span>3</span>
-              <span>4</span>
-              <span>5</span>
-            </div>
-            <div class="likert-indicator" style="width: 100%;">
-              <div class="likert-value" style="left: ${attitudePercentage}%">${q1Attitude.score}</div>
-            </div>
-          </div>
-          <div class="small text-muted mb-1">システム評価</div>
-          <div class="likert-display system-bar">
-            <div class="likert-scale">
-              <span>1</span>
-              <span>2</span>
-              <span>3</span>
-              <span>4</span>
-              <span>5</span>
-            </div>
-            <div class="likert-indicator" style="width: 100%;">
-              <div class="likert-value" style="left: ${systemAttitudePercentage}%">${systemAttitudeScore ?? '-'}</div>
-            </div>
-          </div>
-          <div class="response-text-box">
-            <p>${q1Attitude.comment}</p>
-          </div>
-        </div>
-      `;
-    }
-    responseHTML += '</div>';
-  }
+    <div class="response-section mb-4">
+      <span class="question-kicker">設問2</span>
+      <h3>主体的に取り組む態度</h3>
+      <p class="text-muted mt-2 mb-0">システムが出した評価が妥当かどうかを回答したうえで、主体的に取り組む態度について自分ではどのように評価するかを 5 段階で選び、それぞれの理由を記述した回答です。</p>
+      <div class="response-question-block">
+        <div class="question-subheading">システムの評価は妥当でしたか？</div>
+        ${scoreBar(survey.q2AttitudeValidity, validityLabels)}
+      </div>
+      ${textBox('その理由', survey.q2AttitudeValidityReason)}
+      <div class="response-question-block mt-3">
+        <div class="question-subheading">主体的に取り組む態度の自己評価</div>
+        ${scoreBar(survey.q2AttitudeScore)}
+      </div>
+      <div class="response-question-block">
+        <div class="question-subheading">システム評価</div>
+        ${scoreBar(systemAttitudeScore, ['1', '2', '3', '4', '5'], 'system-bar')}
+      </div>
+      ${textBox('その理由', survey.q2AttitudeReason)}
+    </div>
 
-  // Q2: 試行錯誤プロセス評価
-  if (q2Process) {
-    const percentage = ((q2Process.score - 1) / 4) * 100;
-    responseHTML += `
-      <div class="response-section">
-        <span class="question-kicker">設問2</span>
-        <h3>試行錯誤の過程が評価されることについて</h3>
-        <div class="response-question-block mt-3">
-          <div class="question-subheading">試行錯誤の過程が評価されることについて</div>
-          <div class="likert-display">
-            <div class="likert-scale">
-              <span>強く否定する</span>
-              <span>やや否定する</span>
-              <span>中程度</span>
-              <span>やや肯定する</span>
-              <span>強く肯定する</span>
-            </div>
-            <div class="likert-indicator" style="width: 100%;">
-              <div class="likert-value" style="left: ${percentage}%">${q2Process.score}</div>
-            </div>
+    <div class="response-section mb-4">
+      <span class="question-kicker">設問3</span>
+      <h3>試行錯誤の過程が記録・評価されることへの抵抗感</h3>
+      <p class="text-muted mt-2 mb-0">すでに回答済みの場合は自動入力されています。回答内容に変化があれば修正し、変化がなければそのまま次の設問に進んでください。</p>
+      <div class="response-question-block mt-3">
+        <div class="question-subheading">あなたは、試行錯誤の過程が記録・評価されることに抵抗を感じますか</div>
+        <div class="likert-display">
+          <div class="likert-scale">
+            <span>全く感じない</span><span>あまり感じない</span><span>どちらともいえない</span><span>やや感じる</span><span>とても感じる</span>
           </div>
-          <div class="response-text-box">
-            <p>${q2Process.comment}</p>
+          <div class="likert-indicator" style="width: 100%;">
+            <div class="likert-value" style="left: ${survey.q3ProcessResistanceScore != null ? ((survey.q3ProcessResistanceScore - 1) / 4) * 100 : 0}%">${survey.q3ProcessResistanceScore ?? '-'}</div>
           </div>
         </div>
       </div>
-    `;
-  }
+      ${textBox('その理由', survey.q3ProcessResistanceReason)}
+    </div>
 
-  // Q3: 操作性評価
-  if (q3Usability) {
-    const usabilityPercentage = ((q3Usability.score - 1) / 4) * 100;
-    responseHTML += `
-      <div class="response-section">
-        <span class="question-kicker">設問3</span>
-        <h3>システムの操作性</h3>
-        <div class="response-question-block mt-3">
-          <div class="question-subheading">システムの操作性</div>
-          <div class="likert-display">
-            <div class="likert-scale">
-              <span>1</span>
-              <span>2</span>
-              <span>3</span>
-              <span>4</span>
-              <span>5</span>
-            </div>
-            <div class="likert-indicator" style="width: 100%;">
-              <div class="likert-value" style="left: ${usabilityPercentage}%">${q3Usability.score}</div>
-            </div>
+    <div class="response-section mb-4">
+      <span class="question-kicker">設問4</span>
+      <h3>システムの操作性</h3>
+      <p class="text-muted mt-2 mb-0">すでに回答済みの場合は自動入力されています。回答内容に変化があれば修正し、特に変化がなければそのまま送信してください。</p>
+      <div class="response-question-block mt-3">
+        <div class="question-subheading">エディター、評価画面、画面遷移などを含めて、システム全体の操作性を評価してください</div>
+        <div class="likert-display">
+          <div class="likert-scale">
+            <span>とても使いにくい</span><span>やや使いにくい</span><span>どちらともいえない</span><span>やや使いやすい</span><span>とても使いやすい</span>
           </div>
-          <div class="response-text-box">
-            <p>${q3Usability.comment}</p>
+          <div class="likert-indicator" style="width: 100%;">
+            <div class="likert-value" style="left: ${survey.q4UsabilityScore != null ? ((survey.q4UsabilityScore - 1) / 4) * 100 : 0}%">${survey.q4UsabilityScore ?? '-'}</div>
           </div>
         </div>
       </div>
-    `;
-  }
-
-  responseContainer.innerHTML = responseHTML;
+      ${textBox('操作性に関するコメント', survey.q4UsabilityComment)}
+    </div>
+  `;
 
   // モーダルを表示
   const modal = new bootstrap.Modal(document.querySelector('#surveyDetailModal'));
@@ -584,46 +620,36 @@ function refreshSurveys() {
  */
 function exportCSV() {
   const headers = [
-    '生徒ID',
-    '学校',
-    'クラス',
-    '課題名',
-    '難易度',
-    '思判表',
-    '態度',
-    '評価許容',
-    '操作性',
-    '思判表_記述',
-    '態度_記述',
-    '評価許容_記述',
-    '操作性_記述',
-    '回答日時',
-    '回答完了状態',
-    '研究同意状態'
+    'recordId', 'responseId', 'submittedAt', 'studentId', 'taskCode', 'taskTitle', 'difficulty',
+    'q1ThinkingValidity', 'q1ThinkingValidityReason', 'q1ThinkingScore', 'q1ThinkingReason',
+    'q2AttitudeValidity', 'q2AttitudeValidityReason', 'q2AttitudeScore', 'q2AttitudeReason',
+    'q3ProcessResistanceScore', 'q3ProcessResistanceReason',
+    'q4UsabilityScore', 'q4UsabilityComment',
+    '回答完了状態', '研究同意状態'
   ];
   const rows = [];
 
   filteredData.forEach(survey => {
-    const q1Thinking = survey.responses.find(r => r.questionCode === 'Q1_THINKING') || {};
-    const q1Attitude = survey.responses.find(r => r.questionCode === 'Q1_ATTITUDE') || {};
-    const q2Process = survey.responses.find(r => r.questionCode === 'Q2_PROCESS') || {};
-    const q3Usability = survey.responses.find(r => r.questionCode === 'Q3_USABILITY') || {};
-
     rows.push([
+      survey.recordId || '',
+      survey.responseId,
+      survey.submittedAt,
       survey.studentId,
-      survey.school || '',
-      survey.className || '',
+      survey.taskCode || '',
       survey.taskTitle,
       survey.difficulty,
-      q1Thinking.score || '',
-      q1Attitude.score || '',
-      q2Process.score || '',
-      q3Usability.score || '',
-      q1Thinking.comment || '',
-      q1Attitude.comment || '',
-      q2Process.comment || '',
-      q3Usability.comment || '',
-      formatDateTime(survey.submittedAt),
+      survey.q1ThinkingValidity ?? '',
+      survey.q1ThinkingValidityReason || '',
+      survey.q1ThinkingScore ?? '',
+      survey.q1ThinkingReason || '',
+      survey.q2AttitudeValidity ?? '',
+      survey.q2AttitudeValidityReason || '',
+      survey.q2AttitudeScore ?? '',
+      survey.q2AttitudeReason || '',
+      survey.q3ProcessResistanceScore ?? '',
+      survey.q3ProcessResistanceReason || '',
+      survey.q4UsabilityScore ?? '',
+      survey.q4UsabilityComment || '',
       survey.completionStatus,
       survey.consentStatus
     ]);

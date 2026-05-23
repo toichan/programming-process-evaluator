@@ -2,6 +2,21 @@
 
 let editTargetRow = null;
 let isEditingInCreateForm = false;
+let previewIoEditors = [];
+let previewHintEditors = [];
+let initialCodeEditor = null;
+
+function syncCompactEditorHeight(editor) {
+  if (!editor) {
+    return;
+  }
+
+  const lineCount = Math.max(editor.lineCount(), 1);
+  const lineHeight = editor.defaultTextHeight();
+  const verticalPadding = 16;
+  const borderSize = 2;
+  editor.setSize(null, (lineCount * lineHeight) + verticalPadding + borderSize);
+}
 
 const reusableHintLibrary = [
   {
@@ -124,11 +139,102 @@ function initializeTaskPage() {
   renderHintLibrary();
   updateSchoolDropdownLabel();
   updateClassDropdownLabel();
+  syncPromptStatusHighlight();
+
+  initializeInitialCodeEditor();
 
   addTestCaseRow();
   addTestCaseRow();
   addHintRow();
   updatePreview();
+}
+
+function initializeCodeMirrorTextarea(textarea, options) {
+  if (!textarea || typeof CodeMirror === 'undefined') {
+    return null;
+  }
+
+  if (textarea._cmEditor) {
+    return textarea._cmEditor;
+  }
+
+  const editor = CodeMirror.fromTextArea(textarea, options);
+  textarea._cmEditor = editor;
+  return editor;
+}
+
+function initializeInitialCodeEditor() {
+  const textarea = document.getElementById('initialCodeInput');
+  initialCodeEditor = initializeCodeMirrorTextarea(textarea, {
+    mode: 'python',
+    lineNumbers: true,
+    lineWrapping: true,
+    theme: 'material-darker',
+    indentUnit: 4,
+    tabSize: 4,
+    viewportMargin: Infinity
+  });
+
+  if (initialCodeEditor) {
+    initialCodeEditor.getWrapperElement().classList.add('task-form-code-mirror', 'is-python');
+    initialCodeEditor.on('change', updatePreview);
+  }
+}
+
+function initializeHintCodeEditor(textarea) {
+  const editor = initializeCodeMirrorTextarea(textarea, {
+    mode: 'python',
+    lineNumbers: true,
+    lineWrapping: true,
+    theme: 'material-darker',
+    indentUnit: 4,
+    tabSize: 4,
+    viewportMargin: Infinity
+  });
+
+  if (editor) {
+    editor.getWrapperElement().classList.add('task-form-code-mirror', 'is-python', 'is-hint-example');
+    syncCompactEditorHeight(editor);
+    editor.on('change', function(instance) {
+      syncCompactEditorHeight(instance);
+      updatePreview();
+    });
+  }
+
+  return editor;
+}
+
+function initializeShellEditor(textarea) {
+  const editor = initializeCodeMirrorTextarea(textarea, {
+    mode: 'shell',
+    lineNumbers: false,
+    lineWrapping: true,
+    theme: 'material-darker',
+    viewportMargin: Infinity
+  });
+
+  if (editor) {
+    editor.getWrapperElement().classList.add('task-form-code-mirror', 'is-shell');
+    syncCompactEditorHeight(editor);
+    editor.on('change', function(instance) {
+      syncCompactEditorHeight(instance);
+      updatePreview();
+    });
+  }
+
+  return editor;
+}
+
+function getElementValue(element) {
+  if (!element) {
+    return '';
+  }
+
+  if (element._cmEditor) {
+    return element._cmEditor.getValue().trim();
+  }
+
+  return typeof element.value === 'string' ? element.value.trim() : '';
 }
 
 function bindRowActionButtons() {
@@ -187,6 +293,51 @@ function bindPreviewEvents() {
       updatePreview();
     });
   });
+}
+
+function initializePreviewCodeMirrors() {
+  if (typeof CodeMirror === 'undefined') {
+    return;
+  }
+
+  previewIoEditors.forEach(function(editor) {
+    editor.toTextArea();
+  });
+  previewIoEditors = [];
+
+  previewHintEditors.forEach(function(editor) {
+    editor.toTextArea();
+  });
+  previewHintEditors = [];
+
+  document.querySelectorAll('.preview-io-source').forEach(function(textarea) {
+    const editor = CodeMirror.fromTextArea(textarea, {
+      mode: 'shell',
+      lineNumbers: false,
+      lineWrapping: true,
+      readOnly: true,
+      cursorBlinkRate: -1,
+      theme: 'material-darker'
+    });
+    previewIoEditors.push(editor);
+  });
+
+  document.querySelectorAll('.preview-hint-code-source').forEach(function(textarea) {
+    const editor = CodeMirror.fromTextArea(textarea, {
+      mode: 'python',
+      lineNumbers: false,
+      lineWrapping: true,
+      readOnly: true,
+      cursorBlinkRate: -1,
+      theme: 'material-darker',
+      indentUnit: 4,
+      tabSize: 4
+    });
+    previewHintEditors.push(editor);
+  });
+
+  previewIoEditors.forEach(function(editor) { editor.refresh(); });
+  previewHintEditors.forEach(function(editor) { editor.refresh(); });
 }
 
 function updateSchoolDropdownLabel() {
@@ -277,12 +428,13 @@ function updatePreview() {
       casesEl.innerHTML = '<p class="mb-0 text-muted">未設定</p>';
     } else {
       casesEl.innerHTML = Array.from(rows).map(function(row) {
-        const inputs = row.querySelectorAll('input');
-        const inputVal = inputs[0] ? inputs[0].value.trim() : '';
-        const outputVal = inputs[1] ? inputs[1].value.trim() : '';
-        return '<div class="case-card">' +
-          '<strong>入力:</strong> ' + escapeHtml(inputVal || '(未入力)') + '<br>' +
-          '<strong>出力:</strong> ' + escapeHtml(outputVal || '(未入力)') +
+        const inputVal = getElementValue(row.querySelector('.test-case-input'));
+        const outputVal = getElementValue(row.querySelector('.test-case-output'));
+        return '<div class="case-card io-case-card">' +
+          '<div class="io-case-label">入力</div>' +
+          '<textarea class="preview-io-source" spellcheck="false">' + escapeHtml(inputVal || '(未入力)') + '</textarea>' +
+          '<div class="io-case-label mt-3">出力</div>' +
+          '<textarea class="preview-io-source" spellcheck="false">' + escapeHtml(outputVal || '(未入力)') + '</textarea>' +
           '</div>';
       }).join('');
     }
@@ -315,19 +467,21 @@ function updatePreview() {
       hintCards.innerHTML =
         '<div class="hint-card">' +
           '<div class="info-label">未設定</div>' +
-          '<p class="mb-2">ヒント内容未設定</p>' +
-          '<pre># コード例未設定</pre>' +
+          '<p>ヒント内容未設定</p>' +
+          '<textarea class="preview-hint-code-source" spellcheck="false"># コード例未設定</textarea>' +
         '</div>';
     } else {
       hintCards.innerHTML = hintItems.map(function(item) {
         return '<div class="hint-card">' +
           '<div class="info-label">' + escapeHtml(item.title || '未設定') + '</div>' +
-          '<p class="mb-2">' + escapeHtml(item.content || 'ヒント内容未設定') + '</p>' +
-          '<pre>' + escapeHtml(item.code || '# コード例未設定') + '</pre>' +
+          '<p>' + escapeHtml(item.content || 'ヒント内容未設定') + '</p>' +
+          '<textarea class="preview-hint-code-source" spellcheck="false">' + escapeHtml(item.code || '# コード例未設定') + '</textarea>' +
         '</div>';
       }).join('');
     }
   }
+
+  initializePreviewCodeMirrors();
 }
 
 function addHintRow() {
@@ -369,7 +523,7 @@ function addHintRow() {
   const code = document.createElement('textarea');
   code.className = 'form-control mt-2 code-editor-input';
   code.placeholder = '例: player = input("手を入力してください: ")';
-  code.rows = 2;
+  code.rows = 1;
 
   wrapper.appendChild(contentLabel);
   wrapper.appendChild(content);
@@ -414,6 +568,7 @@ function addHintRow() {
   });
 
   list.appendChild(row);
+  initializeHintCodeEditor(code);
   updatePreview();
 }
 
@@ -483,11 +638,11 @@ function addTestCaseRow() {
     '<div class="test-case-head">テストケース' + index + '</div>' +
     '<div class="field-block">' +
       '<label class="mini-label">入力値</label>' +
-      '<input class="form-control" type="text" placeholder="例: パー">' +
+      '<textarea class="form-control shell-editor-input test-case-input" rows="1" placeholder="例: パー"></textarea>' +
     '</div>' +
     '<div class="field-block">' +
       '<label class="mini-label">期待出力</label>' +
-      '<input class="form-control" type="text" placeholder="例: あなたの勝ち">' +
+      '<textarea class="form-control shell-editor-input test-case-output" rows="1" placeholder="例: あなたの勝ち"></textarea>' +
     '</div>' +
     '<button class="btn btn-sm btn-outline-danger" type="button">削除</button>';
 
@@ -502,15 +657,26 @@ function addTestCaseRow() {
 
   list.appendChild(row);
 
-  // テストケース入力変更時にプレビュー更新
-  row.querySelectorAll('input').forEach(function(input) {
-    input.addEventListener('input', updatePreview);
-  });
+  const inputTextarea = row.querySelector('.test-case-input');
+  const outputTextarea = row.querySelector('.test-case-output');
+
+  if (inputTextarea) {
+    initializeShellEditor(inputTextarea);
+  }
+
+  if (outputTextarea) {
+    initializeShellEditor(outputTextarea);
+  }
 
   if (prefill) {
-    const inputs = row.querySelectorAll('input');
-    if (inputs[0]) inputs[0].value = prefill.input || '';
-    if (inputs[1]) inputs[1].value = prefill.output || '';
+    if (inputTextarea) {
+      if (inputTextarea._cmEditor) inputTextarea._cmEditor.setValue(prefill.input || '');
+      else inputTextarea.value = prefill.input || '';
+    }
+    if (outputTextarea) {
+      if (outputTextarea._cmEditor) outputTextarea._cmEditor.setValue(prefill.output || '');
+      else outputTextarea.value = prefill.output || '';
+    }
   }
 
   updatePreview();
@@ -527,6 +693,7 @@ function resetCreateForm() {
   if (!form) return;
 
   form.reset();
+  setValue('initialCodeInput', '');
 
   const testCaseList = document.getElementById('testCaseList');
   if (testCaseList) {
@@ -663,10 +830,9 @@ function saveCreateFormEditResult(status) {
   const updated = buildNowString();
 
   const testCases = Array.from(document.querySelectorAll('#testCaseList .test-case-row')).map(function(row) {
-    const inputs = row.querySelectorAll('input');
     return {
-      input: inputs[0] ? inputs[0].value.trim() : '',
-      output: inputs[1] ? inputs[1].value.trim() : ''
+      input: getElementValue(row.querySelector('.test-case-input')),
+      output: getElementValue(row.querySelector('.test-case-output'))
     };
   }).filter(function(tc) {
     return tc.input || tc.output;
@@ -679,8 +845,8 @@ function saveCreateFormEditResult(status) {
     return {
       hintOrder: order ? Number(order.value) || 1 : 1,
       hintTitle: title ? title.value.trim() : '',
-      hintContent: textareas[0] ? textareas[0].value.trim() : '',
-      hintCodeExample: textareas[1] ? textareas[1].value.trim() : ''
+      hintContent: textareas[0] ? getElementValue(textareas[0]) : '',
+      hintCodeExample: textareas[1] ? getElementValue(textareas[1]) : ''
     };
   }).filter(function(hint) {
     return hint.hintTitle || hint.hintContent || hint.hintCodeExample;
@@ -759,6 +925,20 @@ function applyStatusFilter() {
     const rowStatus = row.dataset.status || '';
     row.style.display = (!status || status === rowStatus) ? '' : 'none';
   });
+
+  syncPromptStatusHighlight();
+}
+
+function syncPromptStatusHighlight() {
+  document.querySelectorAll('#taskTable tbody tr').forEach(function(row) {
+    const isPromptUnset = (row.dataset.promptStatus || '') === '未設定';
+    row.classList.toggle('prompt-unset-row', isPromptUnset);
+
+    const promptLink = row.querySelector('.prompt-status-link');
+    if (promptLink) {
+      promptLink.classList.toggle('is-unset', isPromptUnset);
+    }
+  });
 }
 
 function refreshUpdatedAt() {
@@ -817,13 +997,18 @@ function buildNowString() {
 
 function getValue(id) {
   const el = document.getElementById(id);
-  return el ? el.value.trim() : '';
+  return getElementValue(el);
 }
 
 function setValue(id, value) {
   const el = document.getElementById(id);
   if (el) {
-    el.value = value;
+    if (el._cmEditor) {
+      el._cmEditor.setValue(value || '');
+      el._cmEditor.refresh();
+    } else {
+      el.value = value;
+    }
   }
 }
 
