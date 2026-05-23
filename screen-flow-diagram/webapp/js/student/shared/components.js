@@ -39,12 +39,80 @@ window.PPEComponents = {
                 課題
                 <span class="badge bg-warning text-dark ms-1">3</span>
               </a>
-              <ul class="dropdown-menu border-0 shadow-lg" aria-labelledby="tasksDropdown">
-                <li><a class="dropdown-item d-flex align-items-center" href="../editor/editor.html"><span class="badge bg-success me-2">済</span>変数とデータ型</a></li>
-                <li><a class="dropdown-item d-flex align-items-center" href="../editor/editor.html"><span class="badge bg-warning me-2">中</span>条件分岐</a></li>
-                <li><a class="dropdown-item d-flex align-items-center" href="../editor/editor.html"><span class="badge bg-danger me-2">未</span>繰り返し処理</a></li>
+              <ul class="dropdown-menu border-0 shadow-lg task-shortcut-menu" aria-labelledby="tasksDropdown">
+                <li>
+                  <a class="dropdown-item task-shortcut-overview" href="../home/home.html">
+                    <span class="task-shortcut-overview-label">課題一覧</span>
+                    <span class="task-shortcut-overview-text">3件の課題と状態を確認する</span>
+                  </a>
+                </li>
                 <li><hr class="dropdown-divider"></li>
-                <li><a class="dropdown-item text-primary fw-semibold" href="../home/home.html">すべての課題をみる</a></li>
+                <li>
+                  <div class="dropdown-item-text task-shortcut-card">
+                    <div class="task-shortcut-heading-row">
+                      <span class="task-shortcut-level is-beginner">初級</span>
+                      <div class="task-shortcut-name">じゃんけん判定プログラム</div>
+                    </div>
+                    <div class="task-shortcut-action-group">
+                      <div class="task-shortcut-action-item">
+                        <a class="task-shortcut-link is-task" href="../editor/editor.html">エディター</a>
+                        <span class="task-shortcut-status-badge is-unstarted">未着手</span>
+                      </div>
+                      <div class="task-shortcut-action-item">
+                        <a class="task-shortcut-link is-evaluation" href="../evaluation/evaluation.html">評価結果</a>
+                        <span class="task-shortcut-status-badge is-unrated">思: 未/5 態: 未/5</span>
+                      </div>
+                      <div class="task-shortcut-action-item">
+                        <a class="task-shortcut-link is-survey" href="../survey/survey.html">アンケート</a>
+                        <span class="task-shortcut-status-badge is-pending">未回答</span>
+                      </div>
+                    </div>
+                  </div>
+                </li>
+                <li>
+                  <div class="dropdown-item-text task-shortcut-card">
+                    <div class="task-shortcut-heading-row">
+                      <span class="task-shortcut-level is-intermediate">中級</span>
+                      <div class="task-shortcut-name">点数集計と平均計算</div>
+                    </div>
+                    <div class="task-shortcut-action-group">
+                      <div class="task-shortcut-action-item">
+                        <a class="task-shortcut-link is-task" href="../editor/editor.html">エディター</a>
+                        <span class="task-shortcut-status-badge is-editing">編集中</span>
+                      </div>
+                      <div class="task-shortcut-action-item">
+                        <a class="task-shortcut-link is-evaluation" href="../evaluation/evaluation.html">評価結果</a>
+                        <span class="task-shortcut-status-badge is-rated">思: 3/5 態: 2/5</span>
+                      </div>
+                      <div class="task-shortcut-action-item">
+                        <a class="task-shortcut-link is-survey" href="../survey/survey.html">アンケート</a>
+                        <span class="task-shortcut-status-badge is-pending">未回答</span>
+                      </div>
+                    </div>
+                  </div>
+                </li>
+                <li>
+                  <div class="dropdown-item-text task-shortcut-card">
+                    <div class="task-shortcut-heading-row">
+                      <span class="task-shortcut-level is-advanced">上級</span>
+                      <div class="task-shortcut-name">売上データの分析レポート</div>
+                    </div>
+                    <div class="task-shortcut-action-group">
+                      <div class="task-shortcut-action-item">
+                        <a class="task-shortcut-link is-task" href="../editor/editor.html">エディター</a>
+                        <span class="task-shortcut-status-badge is-submitted">提出済み</span>
+                      </div>
+                      <div class="task-shortcut-action-item">
+                        <a class="task-shortcut-link is-evaluation" href="../evaluation/evaluation.html">評価結果</a>
+                        <span class="task-shortcut-status-badge is-rated">思: 4/5 態: 5/5</span>
+                      </div>
+                      <div class="task-shortcut-action-item">
+                        <a class="task-shortcut-link is-survey" href="../survey/survey.html">アンケート</a>
+                        <span class="task-shortcut-status-badge is-completed">回答済み</span>
+                      </div>
+                    </div>
+                  </div>
+                </li>
               </ul>
             </li>
             <li class="nav-item">
