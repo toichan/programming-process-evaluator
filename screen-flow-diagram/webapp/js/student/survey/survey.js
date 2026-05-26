@@ -86,6 +86,112 @@ window.addEventListener('DOMContentLoaded', () => {
     stepAutoFillHint.textContent = '';
   }
 
+  function getActiveStepElement() {
+    return steps[activeStep] || null;
+  }
+
+  function isQuestionBlockValid(block) {
+    const radios = Array.from(block.querySelectorAll('input[type="radio"]'));
+    if (radios.length > 0) {
+      return radios.some((radio) => radio.checked);
+    }
+
+    const textField = block.querySelector('textarea, input[type="text"], input[type="number"], select');
+    if (textField) {
+      return Boolean(textField.value.trim());
+    }
+
+    return true;
+  }
+
+  function setQuestionBlockInvalidState(block, isInvalid) {
+    if (!block) {
+      return;
+    }
+
+    block.classList.toggle('is-invalid', isInvalid);
+
+    const textField = block.querySelector('textarea, input[type="text"], input[type="number"], select');
+    if (textField) {
+      textField.classList.toggle('is-invalid', isInvalid);
+    }
+
+    block.querySelectorAll('.scale-option, .likert-option').forEach((option) => {
+      option.classList.toggle('is-invalid', isInvalid);
+    });
+  }
+
+  function clearStepValidationState(stepElement) {
+    if (!stepElement) {
+      return;
+    }
+
+    stepElement.querySelectorAll('.question-block.is-invalid').forEach((block) => {
+      setQuestionBlockInvalidState(block, false);
+    });
+  }
+
+  function validateCurrentStep() {
+    const stepElement = getActiveStepElement();
+    if (!stepElement) {
+      return true;
+    }
+
+    clearStepValidationState(stepElement);
+
+    const requiredBlocks = Array.from(stepElement.querySelectorAll('.question-block')).filter((block) => {
+      return Boolean(block.querySelector('.required-badge'));
+    });
+
+    const invalidBlocks = requiredBlocks.filter((block) => {
+      return !isQuestionBlockValid(block);
+    });
+
+    invalidBlocks.forEach((block) => {
+      setQuestionBlockInvalidState(block, true);
+    });
+
+    const firstInvalidField = invalidBlocks[0];
+
+    if (!firstInvalidField) {
+      pageFeedback.clearInlineAlert();
+      return true;
+    }
+
+    pageFeedback.inlineAlert('この設問の必須項目を入力してください。', 'danger');
+
+    const focusTarget = firstInvalidField.querySelector('textarea, input, select');
+    if (focusTarget) {
+      focusTarget.focus();
+    }
+
+    return false;
+  }
+
+  if (surveyForm) {
+    surveyForm.addEventListener('input', (event) => {
+      const block = event.target.closest('.question-block');
+      if (!block || !block.classList.contains('is-invalid')) {
+        return;
+      }
+
+      if (isQuestionBlockValid(block)) {
+        setQuestionBlockInvalidState(block, false);
+      }
+    });
+
+    surveyForm.addEventListener('change', (event) => {
+      const block = event.target.closest('.question-block');
+      if (!block || !block.classList.contains('is-invalid')) {
+        return;
+      }
+
+      if (isQuestionBlockValid(block)) {
+        setQuestionBlockInvalidState(block, false);
+      }
+    });
+  }
+
   function collectSurveyDraft() {
     return {
       activeStep,
@@ -185,6 +291,10 @@ window.addEventListener('DOMContentLoaded', () => {
 
   if (nextStepButton) {
     nextStepButton.addEventListener('click', () => {
+      if (!validateCurrentStep()) {
+        return;
+      }
+
       activeStep = Math.min(steps.length - 1, activeStep + 1);
       renderSteps();
     });
@@ -223,6 +333,10 @@ window.addEventListener('DOMContentLoaded', () => {
     surveyForm.addEventListener('submit', async (event) => {
       event.preventDefault();
       pageFeedback.clearInlineAlert();
+
+      if (!validateCurrentStep()) {
+        return;
+      }
 
       const confirmed = await pageFeedback.confirm({
         title: 'アンケートを送信しますか？',
