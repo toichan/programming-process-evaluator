@@ -145,8 +145,8 @@ window.PPEComponents = {
               </a>
               <ul class="dropdown-menu dropdown-menu-end border-0 shadow-lg" aria-labelledby="notificationsDropdown">
                 <li class="dropdown-header fw-semibold">通知</li>
-                <li><a class="dropdown-item d-flex align-items-center" href="#"><div class="me-2"><span class="badge bg-success">済</span></div><div><div class="fw-semibold">課題完了</div><small class="text-muted">変数とデータ型の課題が評価されました</small></div></a></li>
-                <li><a class="dropdown-item d-flex align-items-center" href="#"><div class="me-2"><span class="badge bg-warning">新</span></div><div><div class="fw-semibold">新しい課題</div><small class="text-muted">条件分岐の課題が追加されました</small></div></a></li>
+                <li><a class="dropdown-item d-flex align-items-center notification-link" href="../editor/editor.html"><div class="me-2"><span class="badge notification-item-badge is-task">要</span></div><div><div class="fw-semibold">「初級：じゃんけん判定プログラム」が未提出です。</div><small class="text-muted">課題に取り組み提出してください。</small></div></a></li>
+                <li><a class="dropdown-item d-flex align-items-center notification-link" href="../evaluation/evaluation.html"><div class="me-2"><span class="badge notification-item-badge is-evaluation">再</span></div><div><div class="fw-semibold">「中級：点数集計と平均計算」が再評価されました。</div><small class="text-muted">評価を確認してください。</small></div></a></li>
               </ul>
             </li>
             <li class="nav-item dropdown">
