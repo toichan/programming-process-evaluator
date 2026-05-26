@@ -345,7 +345,6 @@ body {
 .log-title {
   font-weight: 700;
   color: var(--bs-gray-900);
-  margin-bottom: 0.35rem;
 }
 
 .log-text {
@@ -354,6 +353,33 @@ body {
 
 .log-body {
   min-width: 0;
+}
+
+.log-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 0.35rem;
+}
+
+.log-code-toggle {
+  flex-shrink: 0;
+  min-width: 7.5rem;
+}
+
+.log-code-toggle[aria-expanded="true"]::after {
+  content: "↑";
+  margin-left: 0.45rem;
+}
+
+.log-code-toggle[aria-expanded="false"]::after {
+  content: "↓";
+  margin-left: 0.45rem;
+}
+
+.log-code-panel[hidden] {
+  display: none !important;
 }
 
 .log-code-source {
