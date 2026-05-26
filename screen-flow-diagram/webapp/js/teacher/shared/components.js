@@ -6,8 +6,21 @@
 /**
  * ログアウト
  */
-function logout() {
-  if (confirm('ログアウトしてもよろしいですか？')) {
+async function logout() {
+  const feedback = window.PPEFeedback || {};
+  const confirmed = typeof feedback.showConfirmDialog === 'function'
+    ? await feedback.showConfirmDialog({
+      title: 'ログアウトしますか？',
+      message: '次の操作を実行します。',
+      detailTitle: '',
+      details: ['現在のログイン状態', '表示中の教師画面'],
+      confirmLabel: 'ログアウトする',
+      cancelLabel: '戻る',
+      variant: 'warning'
+    })
+    : window.confirm('ログアウトしてもよろしいですか？');
+
+  if (confirmed) {
     window.location.href = '../account/login.html';
   }
 }

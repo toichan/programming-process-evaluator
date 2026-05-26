@@ -5,6 +5,8 @@ let isEditingInCreateForm = false;
 let previewIoEditors = [];
 let previewHintEditors = [];
 let initialCodeEditor = null;
+const feedback = window.PPEFeedback || {};
+const pageFeedback = feedback.createPageFeedback({ title: '課題編集' });
 
 function syncCompactEditorHeight(editor) {
   if (!editor) {
@@ -76,10 +78,18 @@ function initializeTaskPage() {
 
   const resetFormButton = document.getElementById('resetFormButton');
   if (resetFormButton) {
-    resetFormButton.addEventListener('click', function() {
-      const ok = window.confirm(isEditingInCreateForm
-        ? '編集中の入力内容をリセットします。よろしいですか？'
-        : '入力内容をリセットします。よろしいですか？');
+    resetFormButton.addEventListener('click', async function() {
+      const ok = await pageFeedback.confirm({
+        title: isEditingInCreateForm ? '入力内容をリセットしますか？' : '作成内容をリセットしますか？',
+        message: '次の入力内容をリセットします。',
+        detailTitle: '',
+        details: isEditingInCreateForm
+          ? ['編集中の課題情報', '追加したテストケースとヒント']
+          : ['現在フォームに入力している課題情報', '追加したテストケースとヒント'],
+        confirmLabel: 'リセットする',
+        cancelLabel: '戻る',
+        variant: 'warning'
+      });
       if (!ok) return;
       resetCreateForm();
       if (isEditingInCreateForm) {
@@ -90,12 +100,20 @@ function initializeTaskPage() {
 
   const cancelEditButton = document.getElementById('cancelEditButton');
   if (cancelEditButton) {
-    cancelEditButton.addEventListener('click', function() {
-      const ok = window.confirm('編集を終了して新規作成モードに戻します。よろしいですか？');
+    cancelEditButton.addEventListener('click', async function() {
+      const ok = await pageFeedback.confirm({
+        title: '編集を終了しますか？',
+        message: '次の入力内容をリセットします。',
+        detailTitle: '',
+        details: ['編集中の未保存の課題情報', '新規作成フォームに移る前の編集状態'],
+        confirmLabel: '終了する',
+        cancelLabel: '戻る',
+        variant: 'warning'
+      });
       if (!ok) return;
       resetCreateForm();
       finishCreateFormEditMode();
-      showToast('編集を終了しました。');
+      pageFeedback.toast({ message: '編集を終了しました。', variant: 'success', delay: 2200 });
     });
   }
 
@@ -106,7 +124,7 @@ function initializeTaskPage() {
         saveCreateFormEditResult('下書き');
         return;
       }
-      showToast('下書きを保存しました。');
+      pageFeedback.toast({ message: '下書きを保存しました。', variant: 'success', delay: 2200 });
       increaseDraftCount();
     });
   }
@@ -119,7 +137,7 @@ function initializeTaskPage() {
         saveCreateFormEditResult('公開');
         return;
       }
-      showToast('課題を保存・公開しました。');
+      pageFeedback.toast({ message: '課題を保存・公開しました。', variant: 'success', delay: 2200 });
       increasePublishedCount();
     });
   }
@@ -247,16 +265,24 @@ function bindRowActionButtons() {
   });
 
   document.querySelectorAll('.delete-button').forEach(function(button) {
-    button.addEventListener('click', function() {
+    button.addEventListener('click', async function() {
       const row = button.closest('tr');
       if (!row) return;
 
       const taskName = row.dataset.name || '選択課題';
-      const ok = window.confirm('「' + taskName + '」を論理削除します。よろしいですか？');
+      const ok = await pageFeedback.confirm({
+        title: '課題を削除しますか？',
+        message: '次のデータを削除します。',
+        detailTitle: '',
+        details: ['課題名: ' + taskName, '課題一覧への表示状態'],
+        confirmLabel: '削除する',
+        cancelLabel: '戻る',
+        variant: 'danger'
+      });
       if (!ok) return;
 
       row.remove();
-      showToast('課題を論理削除しました。');
+      pageFeedback.toast({ message: '課題を論理削除しました。', variant: 'success', delay: 2200 });
       applyStatusFilter();
     });
   });
@@ -603,7 +629,7 @@ function importSelectedHints() {
   const checked = Array.from(document.querySelectorAll('.hint-library-check:checked'));
 
   if (checked.length === 0) {
-    showToast('追加するヒントを選択してください。');
+    pageFeedback.toast({ message: '追加するヒントを選択してください。', variant: 'warning', delay: 2200 });
     return;
   }
 
@@ -622,7 +648,7 @@ function importSelectedHints() {
     modal.hide();
   }
 
-  showToast('選択したヒントを追加しました。');
+  pageFeedback.toast({ message: '選択したヒントを追加しました。', variant: 'success', delay: 2200 });
 }
 
 function addTestCaseRow() {
@@ -781,7 +807,7 @@ function startCreateFormEditMode(row) {
     form.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
-  showToast('作成フォームに編集内容を読み込みました。');
+  pageFeedback.toast({ message: '作成フォームに編集内容を読み込みました。', variant: 'success', delay: 2200 });
 }
 
 function finishCreateFormEditMode() {
@@ -892,7 +918,7 @@ function saveCreateFormEditResult(status) {
     updatedAt.textContent = updated;
   }
 
-  showToast('課題を更新しました。');
+  pageFeedback.toast({ message: '課題を更新しました。', variant: 'success', delay: 2200 });
   applyStatusFilter();
   resetCreateForm();
   finishCreateFormEditMode();
@@ -955,18 +981,9 @@ function refreshUpdatedAt() {
     }
   });
 
-  showToast('一覧を更新しました。');
+  pageFeedback.toast({ message: '一覧を更新しました。', variant: 'success', delay: 2200 });
 }
 
-function showToast(message) {
-  setText('taskToastBody', message);
-
-  const toastEl = document.getElementById('taskToast');
-  if (!toastEl) return;
-
-  const toast = bootstrap.Toast.getOrCreateInstance(toastEl, { delay: 2000 });
-  toast.show();
-}
 
 function increasePublishedCount() {
   const el = document.getElementById('publishedCount');

@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Programming Process Evaluator - 確認ダイアログ一覧</title>
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet"
+    integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB"
+    crossorigin="anonymous">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+  <link href="../../css/student/shared/components.css" rel="stylesheet">
+  <link href="../../css/template/template.css" rel="stylesheet">
+  <link href="../../css/template/alert.css" rel="stylesheet">
+</head>
+<body>
+  <nav class="navbar navbar-expand-lg">
+    <div class="container-fluid">
+      <a class="navbar-brand d-flex align-items-center" href="template.html">
+        <svg class="me-2" width="32" height="32" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+          <path d="M4 4.5C4 3.67 4.67 3 5.5 3h13c.83 0 1.5.67 1.5 1.5v15c0 .83-.67 1.5-1.5 1.5h-13A1.5 1.5 0 0 1 4 19.5v-15zM5.5 4a.5.5 0 0 0-.5.5V8h15V4.5a.5.5 0 0 0-.5-.5h-14zM5 9v10.5c0 .28.22.5.5.5h13a.5.5 0 0 0 .5-.5V9H5z"/>
+          <path d="M8.75 13.5L7.25 12l1.5-1.5m6.5 3L16.75 12l-1.5-1.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M11 13.5h2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+        <div class="brand-text">
+          <span class="brand-line d-block">Programming</span>
+          <span class="brand-line d-block">Process</span>
+          <span class="brand-line d-block">Evaluator</span>
+        </div>
+      </a>
+    </div>
+  </nav>
+
+  <main class="py-5">
+    <div class="container">
+      <section class="sample-section alert-hero-section mb-4">
+        <div class="alert-hero-copy">
+          <span class="hero-kicker">Dialog Pattern Catalog</span>
+          <h1 class="section-title mb-3">確認ダイアログと通知方法の一覧</h1>
+          <p class="hero-description mb-3">
+            現在このリポジトリで使っている方法と、今後候補にできる方法を並べて比較するページです。
+            「本当に実行するかを止めて確認する方法」と「実行後に結果を伝える方法」を分けて見られるようにしています。
+          </p>
+          <div class="alert-guidance-grid">
+            <article class="alert-guidance-card">
+              <div class="alert-guidance-label">向いている場面</div>
+              <p class="mb-0">破壊的操作、送信前確認、対象件数の確認、戻れない操作</p>
+            </article>
+            <article class="alert-guidance-card">
+              <div class="alert-guidance-label">向いていない場面</div>
+              <p class="mb-0">単なる保存完了、補足情報だけの通知、頻繁に発生する軽い確認</p>
+            </article>
+          </div>
+        </div>
+        <aside class="alert-hero-summary">
+          <div class="summary-label">このページの見方</div>
+          <ol class="alert-hero-list mb-0">
+            <li>既存実装を先に確認</li>
+            <li>追加候補の特徴を比較</li>
+            <li>最後に用途別の推奨を選ぶ</li>
+          </ol>
+        </aside>
+      </section>
+
+      <section class="sample-section mb-4">
+        <h2 class="section-title">比較サマリー</h2>
+        <div class="table-responsive">
+          <table class="table alert-summary-table align-middle mb-0">
+            <thead>
+              <tr>
+                <th>方式</th>
+                <th>分類</th>
+                <th>現在の使用状況</th>
+                <th>強み</th>
+                <th>注意点</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>ブラウザ標準 alert</td>
+                <td><span class="pattern-chip is-existing">既存</span><span class="pattern-chip is-feedback">完了通知</span></td>
+                <td>学生アンケートの保存・送信完了</td>
+                <td>実装が最小で確実に出る</td>
+                <td>見た目を統一できず、連続利用で重い</td>
+              </tr>
+              <tr>
+                <td>ブラウザ標準 confirm</td>
+                <td><span class="pattern-chip is-existing">既存</span><span class="pattern-chip is-blocking">確認</span></td>
+                <td>教員プロンプト修正の入力リセット</td>
+                <td>実装が簡単で誤操作防止になる</td>
+                <td>文脈説明が弱く、デザイン統一できない</td>
+              </tr>
+              <tr>
+                <td>Bootstrap modal</td>
+                <td><span class="pattern-chip is-existing">既存</span><span class="pattern-chip is-blocking">確認</span></td>
+                <td>template 見本、教員再評価プレビュー</td>
+                <td>本文、件数、注意書き、ボタンを柔軟に置ける</td>
+                <td>実装は少し増える</td>
+              </tr>
+              <tr>
+                <td>Bootstrap toast</td>
+                <td><span class="pattern-chip is-existing">既存</span><span class="pattern-chip is-feedback">完了通知</span></td>
+                <td>教員プロンプト修正の保存・生成完了</td>
+                <td>軽くて連続操作に向く</td>
+                <td>重要確認には向かない</td>
+              </tr>
+              <tr>
+                <td>画面内 alert バナー</td>
+                <td><span class="pattern-chip is-existing">既存</span><span class="pattern-chip is-feedback">注意表示</span></td>
+                <td>template 見本、ホームのメッセージ表示に近い用途</td>
+                <td>文脈を保ったまま説明できる</td>
+                <td>ユーザーが見落とすことがある</td>
+              </tr>
+              <tr>
+                <td>インライン確認領域</td>
+                <td><span class="pattern-chip is-new">追加候補</span><span class="pattern-chip is-blocking">確認</span></td>
+                <td>未実装</td>
+                <td>画面遷移感が少なく、対象の近くで確認できる</td>
+                <td>目立たせ方を設計しないと弱い</td>
+              </tr>
+              <tr>
+                <td>下部シート / bottom sheet</td>
+                <td><span class="pattern-chip is-new">追加候補</span><span class="pattern-chip is-blocking">確認</span></td>
+                <td>未実装</td>
+                <td>モバイルで押しやすい</td>
+                <td>PC では少し大げさに見えることがある</td>
+              </tr>
+              <tr>
+                <td>Undo 付き toast</td>
+                <td><span class="pattern-chip is-new">追加候補</span><span class="pattern-chip is-feedback">実行後救済</span></td>
+                <td>未実装</td>
+                <td>操作を止めずにやり直し余地を出せる</td>
+                <td>即時送信や外部反映済み処理には不向き</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="sample-section mb-4">
+        <div class="section-heading-row">
+          <div>
+            <span class="hero-kicker mb-1 d-inline-block">Current</span>
+            <h2 class="section-title mb-0">現在使っている方法</h2>
+          </div>
+          <p class="section-note mb-0">リポジトリ内で既に使っているものを、そのまま見本化しています。</p>
+        </div>
+
+        <div class="pattern-grid">
+          <article class="pattern-card">
+            <div class="pattern-card-header">
+              <h3>1. ブラウザ標準 alert</h3>
+              <span class="pattern-chip is-existing">学生側で使用中</span>
+            </div>
+            <p class="pattern-summary">保存完了や送信完了をすぐ伝える最小構成です。現在の学生アンケートに近い動作です。</p>
+            <ul class="pattern-points">
+              <li>長所: 実装が非常に簡単</li>
+              <li>短所: デザイン統一ができない</li>
+              <li>向く場面: 仮実装、検証、短期確認</li>
+            </ul>
+            <div class="pattern-demo">
+              <button type="button" class="btn btn-outline-primary" id="nativeAlertDemoButton">alert を表示</button>
+              <div class="pattern-result" id="nativeAlertResult">まだ実行していません。</div>
+            </div>
+          </article>
+
+          <article class="pattern-card">
+            <div class="pattern-card-header">
+              <h3>2. ブラウザ標準 confirm</h3>
+              <span class="pattern-chip is-existing">教師側で使用中</span>
+            </div>
+            <p class="pattern-summary">実行前に OK / キャンセルを取る最小構成です。教員プロンプト修正のリセット確認に近い動作です。</p>
+            <ul class="pattern-points">
+              <li>長所: 誤操作防止にすぐ使える</li>
+              <li>短所: 対象や影響範囲を詳しく出しにくい</li>
+              <li>向く場面: 一時的な確認、内部向けツール</li>
+            </ul>
+            <div class="pattern-demo">
+              <button type="button" class="btn btn-outline-warning" id="nativeConfirmDemoButton">confirm を表示</button>
+              <div class="pattern-result" id="nativeConfirmResult">まだ実行していません。</div>
+            </div>
+          </article>
+
+          <article class="pattern-card">
+            <div class="pattern-card-header">
+              <h3>3. Bootstrap modal 確認</h3>
+              <span class="pattern-chip is-existing">template と教師側で使用</span>
+            </div>
+            <p class="pattern-summary">対象、注意点、件数、補足文をきちんと載せられる確認方式です。今後の主軸にしやすいです。</p>
+            <ul class="pattern-points">
+              <li>長所: 文脈を豊富に出せる</li>
+              <li>短所: 実装量はやや増える</li>
+              <li>向く場面: 送信、再評価、削除、公開</li>
+            </ul>
+            <div class="pattern-demo">
+              <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#catalogConfirmModal">modal を開く</button>
+              <div class="pattern-result" id="modalConfirmResult">まだ実行していません。</div>
+            </div>
+          </article>
+
+          <article class="pattern-card">
+            <div class="pattern-card-header">
+              <h3>4. 画面内 alert バナー</h3>
+              <span class="pattern-chip is-existing">既存部品あり</span>
+            </div>
+            <p class="pattern-summary">画面の文脈を壊さず、注意や補足を表示する方法です。確認そのものより補助説明に向いています。</p>
+            <ul class="pattern-points">
+              <li>長所: 画面遷移感がない</li>
+              <li>短所: 見落とされることがある</li>
+              <li>向く場面: 入力不足、送信条件、補足注意</li>
+            </ul>
+            <div class="pattern-demo stacked-demo">
+              <div class="alert alert-warning mb-2" role="alert">
+                未回答の設問があります。送信前に内容を確認してください。
+              </div>
+              <div class="alert alert-success mb-0" role="alert">
+                下書きは自動保存済みです。
+              </div>
+            </div>
+          </article>
+
+          <article class="pattern-card">
+            <div class="pattern-card-header">
+              <h3>5. Bootstrap toast</h3>
+              <span class="pattern-chip is-existing">教師側で使用中</span>
+            </div>
+            <p class="pattern-summary">実行後の軽いフィードバックに最適です。保存成功や生成完了など、止める必要がない通知に向きます。</p>
+            <ul class="pattern-points">
+              <li>長所: 軽くて連続操作に強い</li>
+              <li>短所: 重要な確認には弱い</li>
+              <li>向く場面: 保存完了、更新完了、読了通知</li>
+            </ul>
+            <div class="pattern-demo">
+              <button type="button" class="btn btn-outline-success" id="toastDemoButton">toast を表示</button>
+              <div class="pattern-result" id="toastDemoResult">まだ実行していません。</div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="sample-section mb-4">
+        <div class="section-heading-row">
+          <div>
+            <span class="hero-kicker mb-1 d-inline-block">Extended</span>
+            <h2 class="section-title mb-0">今実装されていない候補</h2>
+          </div>
+          <p class="section-note mb-0">既存の Bootstrap 中心構成で追加しやすいものを優先して並べています。</p>
+        </div>
+
+        <div class="pattern-grid">
+          <article class="pattern-card pattern-card-accent">
+            <div class="pattern-card-header">
+              <h3>6. 詳細つき破壊操作 modal</h3>
+              <span class="pattern-chip is-new">追加候補</span>
+            </div>
+            <p class="pattern-summary">対象名、件数、影響範囲、取り消し不可を明示した modal です。削除や一括反映に向いています。</p>
+            <div class="pattern-demo">
+              <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#destructiveConfirmModal">破壊操作の見本</button>
+            </div>
+          </article>
+
+          <article class="pattern-card pattern-card-accent">
+            <div class="pattern-card-header">
+              <h3>7. 下部シート確認</h3>
+              <span class="pattern-chip is-new">追加候補</span>
+            </div>
+            <p class="pattern-summary">スマホ向けに押しやすい確認 UI です。送信や保存の最終確認を親指領域で完結できます。</p>
+            <div class="pattern-demo">
+              <button type="button" class="btn btn-outline-dark" data-bs-toggle="offcanvas" data-bs-target="#bottomSheetDemo" aria-controls="bottomSheetDemo">bottom sheet を開く</button>
+            </div>
+          </article>
+
+          <article class="pattern-card pattern-card-accent">
+            <div class="pattern-card-header">
+              <h3>8. インライン確認領域</h3>
+              <span class="pattern-chip is-new">追加候補</span>
+            </div>
+            <p class="pattern-summary">押した場所の近くに確認 UI を展開する方式です。文脈がずれにくく、軽い確認に向いています。</p>
+            <div class="pattern-demo stacked-demo">
+              <button class="btn btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#inlineConfirmPanel" aria-expanded="false" aria-controls="inlineConfirmPanel">インライン確認を開く</button>
+              <div class="collapse" id="inlineConfirmPanel">
+                <div class="inline-confirm-panel">
+                  <div>
+                    <div class="fw-semibold">この下書きを保存しますか？</div>
+                    <div class="small text-muted">内容はあとから再編集できます。</div>
+                  </div>
+                  <div class="inline-confirm-actions">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#inlineConfirmPanel">キャンセル</button>
+                    <button type="button" class="btn btn-sm btn-primary" id="inlineConfirmActionButton">保存する</button>
+                  </div>
+                </div>
+              </div>
+              <div class="pattern-result" id="inlineConfirmResult">まだ実行していません。</div>
+            </div>
+          </article>
+
+          <article class="pattern-card pattern-card-accent">
+            <div class="pattern-card-header">
+              <h3>9. Undo 付き toast</h3>
+              <span class="pattern-chip is-new">追加候補</span>
+            </div>
+            <p class="pattern-summary">先に実行してしまい、短時間だけ取り消しを許す方式です。軽い状態変更に向きます。</p>
+            <div class="pattern-demo">
+              <button type="button" class="btn btn-outline-success" id="undoToastDemoButton">Undo toast を表示</button>
+              <div class="pattern-result" id="undoToastResult">まだ実行していません。</div>
+            </div>
+          </article>
+
+          <article class="pattern-card pattern-card-accent">
+            <div class="pattern-card-header">
+              <h3>10. 入力チェック付き confirm</h3>
+              <span class="pattern-chip is-new">追加候補</span>
+            </div>
+            <p class="pattern-summary">確認前にチェックボックスやキーワード入力を要求する方式です。取り消せない操作に強いです。</p>
+            <div class="pattern-demo">
+              <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#checkboxConfirmModal">チェック付き confirm</button>
+            </div>
+          </article>
+
+          <article class="pattern-card pattern-card-note">
+            <div class="pattern-card-header">
+              <h3>11. beforeunload の離脱警告</h3>
+              <span class="pattern-chip is-new">追加候補</span>
+            </div>
+            <p class="pattern-summary">編集中にページ離脱しそうなときだけブラウザが出す警告です。未保存対策には有効ですが、文言や見た目は制御できません。</p>
+            <ul class="pattern-points">
+              <li>長所: ブラウザ戻るやタブ閉じるも拾える</li>
+              <li>短所: カスタム文言不可、常用しにくい</li>
+              <li>向く場面: 長文入力、複数設問、コード編集</li>
+            </ul>
+          </article>
+        </div>
+      </section>
+
+      <section class="sample-section">
+        <h2 class="section-title">用途別の推奨</h2>
+        <div class="recommendation-grid">
+          <article class="recommendation-card">
+            <h3>保存完了</h3>
+            <p class="mb-2">第一候補は toast、次点は画面内 alert です。</p>
+            <p class="recommendation-note mb-0">毎回 alert を出すと操作が止まりすぎます。</p>
+          </article>
+          <article class="recommendation-card">
+            <h3>送信前確認</h3>
+            <p class="mb-2">第一候補は Bootstrap modal です。</p>
+            <p class="recommendation-note mb-0">対象、注意書き、送信後の扱いをまとめて載せられます。</p>
+          </article>
+          <article class="recommendation-card">
+            <h3>入力リセット</h3>
+            <p class="mb-2">軽ければ inline confirm、重ければ modal confirm が妥当です。</p>
+            <p class="recommendation-note mb-0">native confirm より文言と視認性を揃えやすいです。</p>
+          </article>
+          <article class="recommendation-card">
+            <h3>再評価や一括処理</h3>
+            <p class="mb-2">プレビュー付き modal か、チェック付き confirm を推奨します。</p>
+            <p class="recommendation-note mb-0">対象件数や影響範囲を出せることが重要です。</p>
+          </article>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <div class="toast-container position-fixed top-0 end-0 p-3">
+    <div id="catalogToast" class="toast border-0 shadow-lg" role="status" aria-live="polite" aria-atomic="true">
+      <div class="toast-header">
+        <strong class="me-auto">デモ通知</strong>
+        <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="閉じる"></button>
+      </div>
+      <div class="toast-body" id="catalogToastBody">保存が完了しました。</div>
+    </div>
+
+    <div id="undoToast" class="toast border-0 shadow-lg" role="status" aria-live="polite" aria-atomic="true">
+      <div class="toast-header">
+        <strong class="me-auto">自動保存</strong>
+        <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="閉じる"></button>
+      </div>
+      <div class="toast-body d-flex align-items-center justify-content-between gap-3">
+        <span>下書きを保存しました。</span>
+        <button type="button" class="btn btn-sm btn-outline-light undo-toast-button" id="undoToastActionButton">元に戻す</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="catalogConfirmModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">送信前の確認</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
+        </div>
+        <div class="modal-body">
+          <p class="mb-2">アンケートを送信すると内容は提出済みとして扱われます。</p>
+          <div class="dialog-summary-box">
+            <div>未回答: 0件</div>
+            <div>対象課題: 中級 点数集計と平均計算</div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">戻る</button>
+          <button type="button" class="btn btn-primary" id="catalogConfirmExecuteButton">送信する</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="destructiveConfirmModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content destructive-modal">
+        <div class="modal-header border-0 pb-0">
+          <h5 class="modal-title">評価例を削除しますか？</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
+        </div>
+        <div class="modal-body pt-3">
+          <div class="destructive-kicker">取り消しできない操作</div>
+          <p>次のデータが削除されます。</p>
+          <div class="dialog-summary-box is-danger">
+            <div>課題: 上級 売上データの分析レポート</div>
+            <div>対象: 評価例 12件</div>
+            <div>影響: Step 3 の確認結果が消えます</div>
+          </div>
+        </div>
+        <div class="modal-footer border-0 pt-0">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">キャンセル</button>
+          <button type="button" class="btn btn-danger" id="destructiveConfirmExecuteButton">削除する</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="checkboxConfirmModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">再評価を実行する前に確認</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
+        </div>
+        <div class="modal-body">
+          <p>再評価を始めると対象生徒の評価結果が更新されます。</p>
+          <div class="form-check dialog-check">
+            <input class="form-check-input" type="checkbox" value="" id="acknowledgeImpactCheckbox">
+            <label class="form-check-label" for="acknowledgeImpactCheckbox">
+              影響範囲を確認し、この操作を実行してよいことを理解しました。
+            </label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">キャンセル</button>
+          <button type="button" class="btn btn-primary" id="checkboxConfirmExecuteButton" disabled>再評価する</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="offcanvas offcanvas-bottom bottom-sheet-demo" tabindex="-1" id="bottomSheetDemo" aria-labelledby="bottomSheetDemoLabel">
+    <div class="offcanvas-header">
+      <h5 class="offcanvas-title" id="bottomSheetDemoLabel">送信してよろしいですか？</h5>
+      <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="閉じる"></button>
+    </div>
+    <div class="offcanvas-body small">
+      <p class="mb-3">スマホではこのような下部シート型も使えます。主要操作を下側に寄せたいときに有効です。</p>
+      <div class="d-flex gap-2 justify-content-end flex-wrap">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="offcanvas">戻る</button>
+        <button type="button" class="btn btn-primary" id="bottomSheetExecuteButton">送信する</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"
+    integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI"
+    crossorigin="anonymous"></script>
+  <script>
+    window.addEventListener('DOMContentLoaded', () => {
+      const resultMap = {
+        nativeAlertResult: document.getElementById('nativeAlertResult'),
+        nativeConfirmResult: document.getElementById('nativeConfirmResult'),
+        modalConfirmResult: document.getElementById('modalConfirmResult'),
+        toastDemoResult: document.getElementById('toastDemoResult'),
+        inlineConfirmResult: document.getElementById('inlineConfirmResult'),
+        undoToastResult: document.getElementById('undoToastResult')
+      };
+
+      const setResult = (id, message, state) => {
+        const el = resultMap[id];
+        if (!el) return;
+        el.textContent = message;
+        el.dataset.state = state || 'default';
+      };
+
+      const showToast = (toastId, bodyId, message, delay) => {
+        const toastEl = document.getElementById(toastId);
+        const bodyEl = bodyId ? document.getElementById(bodyId) : null;
+        if (!toastEl) return null;
+        if (bodyEl && typeof message === 'string') {
+          bodyEl.textContent = message;
+        }
+        const toast = bootstrap.Toast.getOrCreateInstance(toastEl, { delay: delay || 2000 });
+        toast.show();
+        return toast;
+      };
+
+      document.getElementById('nativeAlertDemoButton')?.addEventListener('click', () => {
+        window.alert('alert の例です。保存完了や検証用に使えます。');
+        setResult('nativeAlertResult', 'alert を閉じたあとに処理が再開しました。', 'success');
+      });
+
+      document.getElementById('nativeConfirmDemoButton')?.addEventListener('click', () => {
+        const ok = window.confirm('confirm の例です。このまま保存しますか？');
+        setResult('nativeConfirmResult', ok ? 'OK が選ばれました。' : 'キャンセルが選ばれました。', ok ? 'success' : 'warning');
+      });
+
+      document.getElementById('catalogConfirmExecuteButton')?.addEventListener('click', () => {
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('catalogConfirmModal')).hide();
+        setResult('modalConfirmResult', 'modal 内の確認を経て送信しました。', 'success');
+      });
+
+      document.getElementById('toastDemoButton')?.addEventListener('click', () => {
+        showToast('catalogToast', 'catalogToastBody', '保存が完了しました。', 1800);
+        setResult('toastDemoResult', 'toast を表示しました。処理は止まりません。', 'info');
+      });
+
+      document.getElementById('inlineConfirmActionButton')?.addEventListener('click', () => {
+        setResult('inlineConfirmResult', 'インライン確認から保存しました。', 'success');
+        const panel = document.getElementById('inlineConfirmPanel');
+        if (panel) {
+          bootstrap.Collapse.getOrCreateInstance(panel).hide();
+        }
+      });
+
+      document.getElementById('undoToastDemoButton')?.addEventListener('click', () => {
+        showToast('undoToast', null, null, 3500);
+        setResult('undoToastResult', '操作を実行しました。一定時間だけ元に戻せます。', 'info');
+      });
+
+      document.getElementById('undoToastActionButton')?.addEventListener('click', () => {
+        bootstrap.Toast.getOrCreateInstance(document.getElementById('undoToast')).hide();
+        setResult('undoToastResult', '元に戻しました。', 'warning');
+      });
+
+      document.getElementById('destructiveConfirmExecuteButton')?.addEventListener('click', () => {
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('destructiveConfirmModal')).hide();
+        showToast('catalogToast', 'catalogToastBody', '削除を実行しました。', 1800);
+      });
+
+      document.getElementById('bottomSheetExecuteButton')?.addEventListener('click', () => {
+        bootstrap.Offcanvas.getOrCreateInstance(document.getElementById('bottomSheetDemo')).hide();
+        showToast('catalogToast', 'catalogToastBody', 'bottom sheet から送信しました。', 1800);
+      });
+
+      const acknowledgeCheckbox = document.getElementById('acknowledgeImpactCheckbox');
+      const checkboxConfirmExecuteButton = document.getElementById('checkboxConfirmExecuteButton');
+      acknowledgeCheckbox?.addEventListener('change', () => {
+        if (checkboxConfirmExecuteButton) {
+          checkboxConfirmExecuteButton.disabled = !acknowledgeCheckbox.checked;
+        }
+      });
+
+      checkboxConfirmExecuteButton?.addEventListener('click', () => {
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('checkboxConfirmModal')).hide();
+        showToast('catalogToast', 'catalogToastBody', 'チェック付き confirm を通過して再評価を開始しました。', 2200);
+      });
+    });
+  </script>
+</body>
+</html>

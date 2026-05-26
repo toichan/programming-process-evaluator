@@ -1,11 +1,13 @@
 window.addEventListener('DOMContentLoaded', () => {
 	const { header, footer } = window.PPEComponents || {};
+	const feedback = window.PPEFeedback || {};
 	const headerPlaceholder = document.querySelector('#header-placeholder');
 	const footerPlaceholder = document.querySelector('#footer-placeholder');
 	const homeMessage = document.querySelector('#homeMessage');
 	const homeMessageTime = document.querySelector('#homeMessageTime');
 	const submittedMessage = window.sessionStorage.getItem('ppe-home-message');
 	const submittedTime = window.sessionStorage.getItem('ppe-home-message-time');
+	const submittedTitle = window.sessionStorage.getItem('ppe-home-message-title');
 
 	const setActionDisabled = (button, disabled) => {
 		if (!button) {
@@ -50,15 +52,28 @@ window.addEventListener('DOMContentLoaded', () => {
 	}
 
 	if (homeMessage && submittedMessage) {
-		homeMessage.classList.remove('d-none');
-		homeMessage.firstElementChild.textContent = submittedMessage;
+		if (typeof feedback.showToast === 'function') {
+			const toastMessage = submittedTime
+				? `${submittedMessage} (${submittedTime})`
+				: submittedMessage;
+			feedback.showToast({
+				title: submittedTitle || 'お知らせ',
+				message: toastMessage,
+				variant: 'success',
+				delay: 3200
+			});
+		} else {
+			homeMessage.classList.remove('d-none');
+			homeMessage.firstElementChild.textContent = submittedMessage;
 
-		if (homeMessageTime && submittedTime) {
-			homeMessageTime.textContent = `提出日時: ${submittedTime}`;
+			if (homeMessageTime && submittedTime) {
+				homeMessageTime.textContent = `提出日時: ${submittedTime}`;
+			}
 		}
 
 		window.sessionStorage.removeItem('ppe-home-message');
 		window.sessionStorage.removeItem('ppe-home-message-time');
+		window.sessionStorage.removeItem('ppe-home-message-title');
 	}
 
 	// Temporary: keep all action buttons navigable regardless of status.

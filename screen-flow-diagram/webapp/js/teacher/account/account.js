@@ -1,6 +1,11 @@
 // Teacher account page interactions
 
 let currentSortBy = 'idAsc';
+const feedback = window.PPEFeedback || {};
+const pageFeedback = feedback.createPageFeedback({
+  title: 'アカウント管理',
+  alertTarget: () => document.getElementById('createAccountForm')
+});
 
 document.addEventListener('DOMContentLoaded', function() {
   initializeEventListeners();
@@ -199,11 +204,14 @@ function createAccounts() {
   const schoolSelect = document.getElementById('schoolSelect');
   const classSelect = document.getElementById('classSelect');
   const accountCount = document.getElementById('accountCount');
+  const createAccountForm = document.getElementById('createAccountForm');
 
   if (!schoolSelect?.value || !classSelect?.value || !accountCount?.value) {
-    alert('すべてのフィールドを入力してください');
+    pageFeedback.inlineAlert('学校、クラス、作成件数を入力してください。', 'warning');
     return;
   }
+
+  pageFeedback.clearInlineAlert();
 
   const school = schoolSelect.value;
   const classValue = classSelect.value;
@@ -222,7 +230,11 @@ function createAccounts() {
   document.getElementById('createAccountForm')?.reset();
 
   // 成功メッセージを表示（アクチュアルな実装ではバックエンドに送信）
-  alert(`${count}件のアカウントを作成しました。`);
+  pageFeedback.toast({
+    title: 'アカウント管理',
+    message: `${count}件のアカウントを作成しました。`,
+    variant: 'success'
+  });
 }
 
 /**
@@ -253,19 +265,36 @@ function togglePassword(button) {
 /**
  * アカウントを削除
  */
-function deleteAccount(button) {
+async function deleteAccount(button) {
   const row = button.closest('tr');
   const id = row.cells[0]?.textContent || 'Unknown';
 
-  if (confirm(`ID "${id}" のアカウントを削除してもよろしいですか？`)) {
-    row.style.opacity = '0.5';
-    button.disabled = true;
+  const confirmed = await pageFeedback.confirm({
+    title: 'アカウントを削除しますか？',
+    message: '次のデータを削除します。',
+    detailTitle: '',
+    details: [`生徒ID: ${id}`, 'アカウント一覧の表示情報'],
+    confirmLabel: '削除する',
+    cancelLabel: '戻る',
+    variant: 'danger'
+  });
 
-    // デモ用：削除処理をシミュレート
-    setTimeout(() => {
-      row.remove();
-    }, 300);
+  if (!confirmed) {
+    return;
   }
+
+  row.style.opacity = '0.5';
+  button.disabled = true;
+
+  // デモ用：削除処理をシミュレート
+  setTimeout(() => {
+    row.remove();
+    pageFeedback.toast({
+      title: 'アカウント管理',
+      message: `ID ${id} のアカウントを削除しました。`,
+      variant: 'success'
+    });
+  }, 300);
 }
 
 /**
@@ -378,8 +407,18 @@ function getLoginHistoryByStudentId(studentId) {
 /**
  * ログアウト
  */
-function logout() {
-  if (confirm('ログアウトしてもよろしいですか？')) {
+async function logout() {
+  const confirmed = await pageFeedback.confirm({
+    title: 'ログアウトしますか？',
+    message: '次の操作を実行します。',
+    detailTitle: '',
+    details: ['現在のログイン状態', 'アカウント管理画面の表示内容'],
+    confirmLabel: 'ログアウトする',
+    cancelLabel: '戻る',
+    variant: 'warning'
+  });
+
+  if (confirmed) {
     window.location.href = '../account/login.html';
   }
 }

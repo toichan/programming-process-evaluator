@@ -3,6 +3,7 @@
 document.addEventListener('DOMContentLoaded', function() {
   initializeHistoryPage();
 });
+const pageFeedback = window.PPEFeedback.createPageFeedback({ title: '学習履歴確認' });
 
 let currentSortBy = 'updatedDesc';
 
@@ -309,7 +310,11 @@ function formatActivity(entry) {
 function exportDetailActivityCSV() {
   const studentId = document.getElementById('detailId')?.textContent?.trim() || '';
   if (!studentId || studentId === '-') {
-    alert('先に生徒の詳細を表示してください。');
+    pageFeedback.toast({
+      title: '学習履歴確認',
+      message: '先に生徒の詳細を表示してください。',
+      variant: 'warning'
+    });
     return;
   }
 

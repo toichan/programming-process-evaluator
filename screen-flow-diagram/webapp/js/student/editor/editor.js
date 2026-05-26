@@ -1,5 +1,6 @@
 window.addEventListener('DOMContentLoaded', () => {
   const { header, footer } = window.PPEComponents || {};
+  const feedback = window.PPEFeedback || {};
   const headerPlaceholder = document.querySelector('#header-placeholder');
   const footerPlaceholder = document.querySelector('#footer-placeholder');
   const codeEditor = document.querySelector('#codeEditor');
@@ -18,6 +19,7 @@ window.addEventListener('DOMContentLoaded', () => {
   const ioExampleEditors = [];
   const hintEditors = [];
   let hintEditorsInitialized = false;
+  const pageFeedback = feedback.createPageFeedback({ title: 'エディター' });
 
   if (headerPlaceholder && header) {
     headerPlaceholder.innerHTML = header;
@@ -190,6 +192,11 @@ window.addEventListener('DOMContentLoaded', () => {
     saveButton.addEventListener('click', () => {
       markSaved('保存');
       prependLog('手動保存', '現在のコードスナップショットを保存しました。');
+      pageFeedback.toast({
+        title: 'エディター',
+        message: 'コードを保存しました。',
+        variant: 'success'
+      });
     });
   }
 
@@ -202,8 +209,19 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 
   if (submitButton) {
-    submitButton.addEventListener('click', () => {
-      const confirmed = window.confirm('提出して評価を行います。よろしいですか？');
+    submitButton.addEventListener('click', async () => {
+      const confirmed = await pageFeedback.confirm({
+        title: '課題を提出しますか？',
+        message: '次のデータを送信します。',
+        detailTitle: '',
+        details: [
+          '現在入力しているコード',
+          '提出日時'
+        ],
+        confirmLabel: '提出する',
+        cancelLabel: '戻る',
+        variant: 'warning'
+      });
 
       if (!confirmed) {
         return;

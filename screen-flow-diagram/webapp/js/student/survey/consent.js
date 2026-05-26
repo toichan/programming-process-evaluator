@@ -1,10 +1,16 @@
 window.addEventListener('DOMContentLoaded', () => {
   const { header, footer } = window.PPEComponents || {};
+  const feedback = window.PPEFeedback || {};
   const headerPlaceholder = document.querySelector('#header-placeholder');
   const footerPlaceholder = document.querySelector('#footer-placeholder');
+  const consentFormSection = document.querySelector('.consent-form-section');
   const confirmRead = document.querySelector('#confirmRead');
   const saveConsentButton = document.querySelector('#saveConsentButton');
   const consentInputs = document.querySelectorAll('input[name="consentDecision"]');
+  const pageFeedback = feedback.createPageFeedback({
+    title: '研究同意確認',
+    alertTarget: consentFormSection
+  });
 
   if (headerPlaceholder && header) {
     headerPlaceholder.innerHTML = header;
@@ -35,14 +41,40 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 
     saveConsentButton.disabled = !(confirmRead?.checked && selectedDecision());
+
+    if (saveConsentButton.disabled) {
+      return;
+    }
+
+    pageFeedback.clearInlineAlert();
   }
 
   confirmRead?.addEventListener('change', syncButtonState);
   consentInputs.forEach((input) => input.addEventListener('change', syncButtonState));
 
-  saveConsentButton?.addEventListener('click', () => {
+  saveConsentButton?.addEventListener('click', async () => {
     const decision = selectedDecision();
     if (!confirmRead?.checked || !decision) {
+      pageFeedback.inlineAlert('説明を確認し、同意するかどうかを選択してください。', 'warning');
+      return;
+    }
+
+    pageFeedback.clearInlineAlert();
+
+    const confirmed = await pageFeedback.confirm({
+      title: '同意内容を確定しますか？',
+      message: '次のデータを送信します。',
+      detailTitle: '',
+      details: [
+        decision === 'agree' ? '選択した研究協力への同意' : '選択した研究協力への不同意',
+        '回答日時'
+      ],
+      confirmLabel: '確定する',
+      cancelLabel: '戻る',
+      variant: decision === 'agree' ? 'success' : 'warning'
+    });
+
+    if (!confirmed) {
       return;
     }
 
