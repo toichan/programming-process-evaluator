@@ -1,5 +1,6 @@
 window.addEventListener('DOMContentLoaded', () => {
   const { header, footer } = window.PPEComponents || {};
+  const feedback = window.PPEFeedback || {};
   const headerPlaceholder = document.querySelector('#header-placeholder');
   const footerPlaceholder = document.querySelector('#footer-placeholder');
   const codeEditor = document.querySelector('#codeEditor');
@@ -7,6 +8,8 @@ window.addEventListener('DOMContentLoaded', () => {
   const editorMessage = document.querySelector('#editorMessage');
   const lastSavedAt = document.querySelector('#lastSavedAt');
   const codeLogList = document.querySelector('#codeLogList');
+  const toggleLogButton = document.querySelector('#toggleLogButton');
+  const codeLogContent = document.querySelector('#codeLogContent');
   const saveButton = document.querySelector('#saveButton');
   const runButton = document.querySelector('#runButton');
   const runOutputButton = document.querySelector('#runOutputButton');
@@ -18,6 +21,7 @@ window.addEventListener('DOMContentLoaded', () => {
   const ioExampleEditors = [];
   const hintEditors = [];
   let hintEditorsInitialized = false;
+  const pageFeedback = feedback.createPageFeedback({ title: 'エディター' });
 
   if (headerPlaceholder && header) {
     headerPlaceholder.innerHTML = header;
@@ -81,9 +85,61 @@ window.addEventListener('DOMContentLoaded', () => {
     return editor;
   }
 
-  document.querySelectorAll('.log-code-source').forEach((textarea) => {
-    initializeLogEditor(textarea);
+  function toggleLogCode(button, panel, editor) {
+    if (!button || !panel) {
+      return;
+    }
+
+    const isExpanded = button.getAttribute('aria-expanded') === 'true';
+    const nextExpanded = !isExpanded;
+
+    button.setAttribute('aria-expanded', String(nextExpanded));
+    button.textContent = nextExpanded ? 'コードを隠す' : 'コードを表示';
+    panel.hidden = !nextExpanded;
+
+    if (nextExpanded && editor) {
+      editor.refresh();
+    }
+  }
+
+  function initializeLogItem(item) {
+    if (!item) {
+      return;
+    }
+
+    const textarea = item.querySelector('.log-code-source');
+    const toggleButton = item.querySelector('.log-code-toggle');
+    const codePanel = item.querySelector('.log-code-panel');
+    const editor = initializeLogEditor(textarea);
+
+    if (toggleButton && codePanel) {
+      toggleButton.addEventListener('click', () => {
+        toggleLogCode(toggleButton, codePanel, editor);
+      });
+    }
+  }
+
+  document.querySelectorAll('.code-log-item').forEach((item) => {
+    initializeLogItem(item);
   });
+
+  function syncLogToggleButton(isExpanded) {
+    if (!toggleLogButton) {
+      return;
+    }
+
+    toggleLogButton.textContent = isExpanded ? '折りたたむ' : '表示する';
+  }
+
+  if (toggleLogButton && codeLogContent) {
+    syncLogToggleButton(toggleLogButton.getAttribute('aria-expanded') === 'true');
+    codeLogContent.addEventListener('shown.bs.collapse', () => {
+      syncLogToggleButton(true);
+    });
+    codeLogContent.addEventListener('hidden.bs.collapse', () => {
+      syncLogToggleButton(false);
+    });
+  }
 
   document.querySelectorAll('.io-case-source').forEach((textarea) => {
     if (typeof CodeMirror === 'undefined') {
@@ -156,13 +212,18 @@ window.addEventListener('DOMContentLoaded', () => {
     item.innerHTML = `
       <div class="log-time">${nowTimeLabel()}</div>
       <div class="log-body">
-        <div class="log-title">${title}</div>
+        <div class="log-header-row">
+          <div class="log-title">${title}</div>
+          <button class="btn btn-outline-secondary btn-sm log-code-toggle" type="button" aria-expanded="false">コードを表示</button>
+        </div>
         <p class="log-text mb-0">${text}</p>
-        <textarea class="log-code-source" spellcheck="false">${getEditorValue()}</textarea>
+        <div class="log-code-panel" hidden>
+          <textarea class="log-code-source" spellcheck="false">${getEditorValue()}</textarea>
+        </div>
       </div>
     `;
     codeLogList.prepend(item);
-    initializeLogEditor(item.querySelector('.log-code-source'));
+    initializeLogItem(item);
   }
 
   function markSaved(prefix) {
@@ -190,6 +251,11 @@ window.addEventListener('DOMContentLoaded', () => {
     saveButton.addEventListener('click', () => {
       markSaved('保存');
       prependLog('手動保存', '現在のコードスナップショットを保存しました。');
+      pageFeedback.toast({
+        title: 'エディター',
+        message: 'コードを保存しました。',
+        variant: 'success'
+      });
     });
   }
 
@@ -202,8 +268,19 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 
   if (submitButton) {
-    submitButton.addEventListener('click', () => {
-      const confirmed = window.confirm('提出して評価を行います。よろしいですか？');
+    submitButton.addEventListener('click', async () => {
+      const confirmed = await pageFeedback.confirm({
+        title: '課題を提出しますか？',
+        message: '次のデータを送信します。',
+        detailTitle: '',
+        details: [
+          '現在入力しているコード',
+          '提出日時'
+        ],
+        confirmLabel: '提出する',
+        cancelLabel: '戻る',
+        variant: 'warning'
+      });
 
       if (!confirmed) {
         return;

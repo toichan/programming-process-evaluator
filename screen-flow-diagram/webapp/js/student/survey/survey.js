@@ -1,7 +1,9 @@
 window.addEventListener('DOMContentLoaded', () => {
   const { header, footer } = window.PPEComponents || {};
+  const feedback = window.PPEFeedback || {};
   const headerPlaceholder = document.querySelector('#header-placeholder');
   const footerPlaceholder = document.querySelector('#footer-placeholder');
+  const questionnaireSection = document.querySelector('.questionnaire-section');
   const steps = Array.from(document.querySelectorAll('.question-step'));
   const progressItems = Array.from(document.querySelectorAll('.step-progress-item'));
   const stepIndicator = document.querySelector('#stepIndicator');
@@ -12,6 +14,10 @@ window.addEventListener('DOMContentLoaded', () => {
   const stepAutoFillHint = document.querySelector('#stepAutoFillHint');
   const rubricTabs = document.querySelectorAll('[data-rubric-target]');
   const surveyForm = document.querySelector('.survey-form');
+  const pageFeedback = feedback.createPageFeedback({
+    title: 'アンケート',
+    alertTarget: () => questionnaireSection || surveyForm
+  });
 
   if (headerPlaceholder && header) {
     headerPlaceholder.innerHTML = header;
@@ -78,6 +84,112 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 
     stepAutoFillHint.textContent = '';
+  }
+
+  function getActiveStepElement() {
+    return steps[activeStep] || null;
+  }
+
+  function isQuestionBlockValid(block) {
+    const radios = Array.from(block.querySelectorAll('input[type="radio"]'));
+    if (radios.length > 0) {
+      return radios.some((radio) => radio.checked);
+    }
+
+    const textField = block.querySelector('textarea, input[type="text"], input[type="number"], select');
+    if (textField) {
+      return Boolean(textField.value.trim());
+    }
+
+    return true;
+  }
+
+  function setQuestionBlockInvalidState(block, isInvalid) {
+    if (!block) {
+      return;
+    }
+
+    block.classList.toggle('is-invalid', isInvalid);
+
+    const textField = block.querySelector('textarea, input[type="text"], input[type="number"], select');
+    if (textField) {
+      textField.classList.toggle('is-invalid', isInvalid);
+    }
+
+    block.querySelectorAll('.scale-option, .likert-option').forEach((option) => {
+      option.classList.toggle('is-invalid', isInvalid);
+    });
+  }
+
+  function clearStepValidationState(stepElement) {
+    if (!stepElement) {
+      return;
+    }
+
+    stepElement.querySelectorAll('.question-block.is-invalid').forEach((block) => {
+      setQuestionBlockInvalidState(block, false);
+    });
+  }
+
+  function validateCurrentStep() {
+    const stepElement = getActiveStepElement();
+    if (!stepElement) {
+      return true;
+    }
+
+    clearStepValidationState(stepElement);
+
+    const requiredBlocks = Array.from(stepElement.querySelectorAll('.question-block')).filter((block) => {
+      return Boolean(block.querySelector('.required-badge'));
+    });
+
+    const invalidBlocks = requiredBlocks.filter((block) => {
+      return !isQuestionBlockValid(block);
+    });
+
+    invalidBlocks.forEach((block) => {
+      setQuestionBlockInvalidState(block, true);
+    });
+
+    const firstInvalidField = invalidBlocks[0];
+
+    if (!firstInvalidField) {
+      pageFeedback.clearInlineAlert();
+      return true;
+    }
+
+    pageFeedback.inlineAlert('この設問の必須項目を入力してください。', 'danger');
+
+    const focusTarget = firstInvalidField.querySelector('textarea, input, select');
+    if (focusTarget) {
+      focusTarget.focus();
+    }
+
+    return false;
+  }
+
+  if (surveyForm) {
+    surveyForm.addEventListener('input', (event) => {
+      const block = event.target.closest('.question-block');
+      if (!block || !block.classList.contains('is-invalid')) {
+        return;
+      }
+
+      if (isQuestionBlockValid(block)) {
+        setQuestionBlockInvalidState(block, false);
+      }
+    });
+
+    surveyForm.addEventListener('change', (event) => {
+      const block = event.target.closest('.question-block');
+      if (!block || !block.classList.contains('is-invalid')) {
+        return;
+      }
+
+      if (isQuestionBlockValid(block)) {
+        setQuestionBlockInvalidState(block, false);
+      }
+    });
   }
 
   function collectSurveyDraft() {
@@ -179,6 +291,10 @@ window.addEventListener('DOMContentLoaded', () => {
 
   if (nextStepButton) {
     nextStepButton.addEventListener('click', () => {
+      if (!validateCurrentStep()) {
+        return;
+      }
+
       activeStep = Math.min(steps.length - 1, activeStep + 1);
       renderSteps();
     });
@@ -201,18 +317,54 @@ window.addEventListener('DOMContentLoaded', () => {
       try {
         const draft = collectSurveyDraft();
         localStorage.setItem('studentSurveyDraft', JSON.stringify(draft));
-        alert('入力内容を保存しました。');
+        pageFeedback.clearInlineAlert();
+        pageFeedback.toast({
+          title: 'アンケート',
+          message: '入力内容を保存しました。',
+          variant: 'success'
+        });
       } catch (_error) {
-        alert('保存に失敗しました。時間をおいて再度お試しください。');
+        pageFeedback.inlineAlert('保存に失敗しました。時間をおいて再度お試しください。', 'danger');
       }
     });
   }
 
   if (surveyForm) {
-    surveyForm.addEventListener('submit', (event) => {
+    surveyForm.addEventListener('submit', async (event) => {
       event.preventDefault();
+      pageFeedback.clearInlineAlert();
+
+      if (!validateCurrentStep()) {
+        return;
+      }
+
+      const confirmed = await pageFeedback.confirm({
+        title: 'アンケートを送信しますか？',
+        message: '次のデータを送信します。',
+        detailTitle: '',
+        details: [
+          '入力したアンケート回答',
+          '回答日時'
+        ],
+        confirmLabel: '送信する',
+        cancelLabel: '戻る',
+        variant: 'success'
+      });
+
+      if (!confirmed) {
+        return;
+      }
+
+      window.sessionStorage.setItem('ppe-home-message-title', 'アンケート');
+      window.sessionStorage.setItem('ppe-home-message', 'アンケートを送信しました。');
+      window.sessionStorage.setItem('ppe-home-message-time', new Date().toLocaleString('ja-JP', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+      }));
       localStorage.removeItem('studentSurveyDraft');
-      alert('回答が送信されました。');
       window.location.href = '../home/home.html';
     });
   }

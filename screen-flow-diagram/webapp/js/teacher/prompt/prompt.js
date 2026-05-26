@@ -1,5 +1,7 @@
 // Teacher prompt page interactions
 
+const pageFeedback = window.PPEFeedback.createPageFeedback({ title: 'プロンプト修正' });
+
 const fluctuationTemplateByTask = {
   'TASK-001': [
     {
@@ -116,12 +118,12 @@ function initializePromptPage() {
       event.preventDefault();
       const taskId = getTaskId();
       if (!taskId) {
-        showToast('課題を選択してください。');
+        pageFeedback.toast({ message: '課題を選択してください。', variant: 'warning', delay: 1800 });
         return;
       }
 
       const saved = saveNewVersion(taskId);
-      showToast('共通プロンプトを保存しました。');
+      pageFeedback.toast({ message: '共通プロンプトを保存しました。', variant: 'success', delay: 1800 });
       updateLastUpdated();
       appendHistoryRow({
         taskId: taskId,
@@ -140,7 +142,7 @@ function initializePromptPage() {
   if (savePromptButton) {
     savePromptButton.addEventListener('click', function() {
       if (!hasGeneratedFluctuations()) {
-        showToast('先に揺らぎ項目を生成してください。');
+        pageFeedback.toast({ message: '先に揺らぎ項目を生成してください。', variant: 'warning', delay: 1800 });
         return;
       }
 
@@ -151,18 +153,18 @@ function initializePromptPage() {
   if (runReevaluationButton) {
     runReevaluationButton.addEventListener('click', function() {
       if (!hasGeneratedFluctuations()) {
-        showToast('先に揺らぎ項目を生成してください。');
+        pageFeedback.toast({ message: '先に揺らぎ項目を生成してください。', variant: 'warning', delay: 1800 });
         return;
       }
 
       const taskId = getTaskId();
       if (!taskId) {
-        showToast('課題を選択してください。');
+        pageFeedback.toast({ message: '課題を選択してください。', variant: 'warning', delay: 1800 });
         return;
       }
 
       const saved = saveStep2Version(taskId);
-      showToast('課題プロンプトを保存しました。');
+      pageFeedback.toast({ message: '課題プロンプトを保存しました。', variant: 'success', delay: 1800 });
       updateLastUpdated();
       appendHistoryRow({
         taskId: taskId,
@@ -181,7 +183,7 @@ function initializePromptPage() {
   if (confirmReevaluationStep3Button) {
     confirmReevaluationStep3Button.addEventListener('click', function() {
       if (!hasGeneratedFluctuations()) {
-        showToast('先にSTEP2を作成してください。');
+        pageFeedback.toast({ message: '先にSTEP2を作成してください。', variant: 'warning', delay: 1800 });
         return;
       }
       openReevaluationPreviewModal();
@@ -209,7 +211,7 @@ function initializePromptPage() {
 
   if (refreshButton) {
     refreshButton.addEventListener('click', function() {
-      showToast('履歴を更新しました。');
+      pageFeedback.toast({ message: '履歴を更新しました。', variant: 'success', delay: 1800 });
       updateLastUpdated();
     });
   }
@@ -285,7 +287,7 @@ function onVersionChanged() {
   if (!record) return;
 
   applyVersionRecord(record);
-  showToast('ver.' + versionNumber + ' のプロンプトを読み込みました。');
+  pageFeedback.toast({ message: 'ver.' + versionNumber + ' のプロンプトを読み込みました。', variant: 'success', delay: 1800 });
   renderStep2VersionOptions(taskId);
 }
 
@@ -299,13 +301,13 @@ function onStep2VersionChanged() {
   if (!record) return;
 
   applyStep2VersionRecord(record);
-  showToast('ver.' + versionNumber + ' のSTEP2設定を読み込みました。');
+  pageFeedback.toast({ message: 'ver.' + versionNumber + ' のSTEP2設定を読み込みました。', variant: 'success', delay: 1800 });
 }
 
 function generateFluctuationItems() {
   const taskId = getTaskId();
   if (!taskId) {
-    showToast('課題を選択してください。');
+    pageFeedback.toast({ message: '課題を選択してください。', variant: 'warning', delay: 1800 });
     return;
   }
 
@@ -345,12 +347,12 @@ function generateFluctuationItems() {
   if (runReevaluationButton) runReevaluationButton.disabled = false;
   if (resetStep2Button) resetStep2Button.disabled = false;
 
-  showToast('揺らぎ項目を生成しました。');
+  pageFeedback.toast({ message: '揺らぎ項目を生成しました。', variant: 'success', delay: 1800 });
 }
 
 function runReevaluation() {
   if (!hasGeneratedFluctuations()) {
-    showToast('先に揺らぎ項目を生成してください。');
+    pageFeedback.toast({ message: '先に揺らぎ項目を生成してください。', variant: 'warning', delay: 1800 });
     return;
   }
 
@@ -447,13 +449,24 @@ function runReevaluation() {
         renderEvaluationExamples(taskId);
       }
 
-      showToast('評価例の生成が完了しました。');
+      pageFeedback.toast({ message: '評価例の生成が完了しました。', variant: 'success', delay: 1800 });
     }
   }, 180);
 }
 
-function resetPromptForm() {
-  const ok = window.confirm('入力内容をリセットします。よろしいですか？');
+async function resetPromptForm() {
+  const ok = await pageFeedback.confirm({
+    title: '入力内容をリセットしますか？',
+    message: '次の入力内容をリセットします。',
+    detailTitle: '',
+    details: [
+      'Step 1 から Step 3 の未保存の入力内容',
+      '追加評価指示や生成前の編集内容'
+    ],
+    confirmLabel: 'リセットする',
+    cancelLabel: '戻る',
+    variant: 'warning'
+  });
   if (!ok) return;
 
   const form = document.getElementById('commonPromptForm');
@@ -490,17 +503,28 @@ function resetPromptForm() {
 
   if (wrap) wrap.classList.add('d-none');
 
-  showToast('入力内容をリセットしました。');
+  pageFeedback.toast({ message: '入力内容をリセットしました。', variant: 'success', delay: 1800 });
 }
 
-function resetStep2Inputs() {
+async function resetStep2Inputs() {
   const hasStep2 = hasGeneratedFluctuations();
   if (!hasStep2) {
-    showToast('先に揺らぎ項目を生成してください。');
+    pageFeedback.toast({ message: '先に揺らぎ項目を生成してください。', variant: 'warning', delay: 1800 });
     return;
   }
 
-  const ok = window.confirm('STEP2の入力内容をリセットします。よろしいですか？');
+  const ok = await pageFeedback.confirm({
+    title: 'STEP2 の入力内容をリセットしますか？',
+    message: '次の入力内容をリセットします。',
+    detailTitle: '',
+    details: [
+      '追加評価指示',
+      '揺らぎ項目への回答内容'
+    ],
+    confirmLabel: 'リセットする',
+    cancelLabel: '戻る',
+    variant: 'warning'
+  });
   if (!ok) return;
 
   const additionalInstructionInput = document.getElementById('additionalInstructionInput');
@@ -511,7 +535,7 @@ function resetStep2Inputs() {
     field.value = '';
   });
 
-  showToast('STEP2の入力内容をリセットしました。');
+  pageFeedback.toast({ message: 'STEP2の入力内容をリセットしました。', variant: 'success', delay: 1800 });
 }
 
 function renderVersionOptions(taskId) {
@@ -846,19 +870,6 @@ function nowAsDisplayDate() {
   return y + '-' + m + '-' + d + ' ' + hh + ':' + mm + ':' + ss;
 }
 
-function showToast(message) {
-  const body = document.getElementById('promptToastBody');
-  const toastEl = document.getElementById('promptToast');
-  if (!toastEl) return;
-
-  if (body) body.textContent = message;
-
-  const toast = bootstrap.Toast.getOrCreateInstance(toastEl, {
-    delay: 1800
-  });
-  toast.show();
-}
-
 function renderEvaluationExamples(taskId) {
   const list = document.getElementById('evaluationExamplesList');
   const empty = document.getElementById('evaluationExamplesEmpty');
@@ -956,13 +967,13 @@ function saveEvaluationExamples(taskId, examples) {
 function saveStep3Examples() {
   const taskId = getTaskId();
   if (!taskId) {
-    showToast('課題を選択してください。');
+    pageFeedback.toast({ message: '課題を選択してください。', variant: 'warning', delay: 1800 });
     return;
   }
 
   const examples = getEvaluationExamplesForTask(taskId);
   if (!examples || examples.length === 0) {
-    showToast('保存する評価例がありません。');
+    pageFeedback.toast({ message: '保存する評価例がありません。', variant: 'warning', delay: 1800 });
     return;
   }
 
@@ -975,13 +986,13 @@ function saveStep3Examples() {
     reevaluation: '未実施'
   });
   updateLastUpdated();
-  showToast('評価例を保存しました。');
+  pageFeedback.toast({ message: '評価例を保存しました。', variant: 'success', delay: 1800 });
 }
 
 function openReevaluationPreviewModal() {
   const taskId = getTaskId();
   if (!taskId) {
-    showToast('課題を選択してください。');
+    pageFeedback.toast({ message: '課題を選択してください。', variant: 'warning', delay: 1800 });
     return;
   }
 
@@ -1083,7 +1094,7 @@ function clampScore(value) {
 function openEvaluationExampleDetail(taskId, exampleId) {
   const examples = getEvaluationExamplesForTask(taskId);
   if (!examples || !examples[exampleId]) {
-    showToast('評価例が見つかりません。');
+    pageFeedback.toast({ message: '評価例が見つかりません。', variant: 'warning', delay: 1800 });
     return;
   }
 

@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/theme/material-darker.css">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
   <link href="../../../css/student/shared/components.css" rel="stylesheet">
+  <link href="../../../css/student/shared/feedback.css" rel="stylesheet">
   <link href="../../../css/template/template.css" rel="stylesheet">
   <link href="../../../css/student/editor/editor.css" rel="stylesheet">
 </head>
@@ -93,7 +94,6 @@ else:
                 <p class="text-muted mb-0">標準出力とエラーメッセージをここに表示します。</p>
               </div>
               <div class="d-flex align-items-center gap-2">
-                <span class="console-badge">Console</span>
                 <button id="runOutputButton" class="btn btn-primary" type="button">実行</button>
               </div>
             </div>
@@ -110,25 +110,28 @@ else:
                 </div>
               </div>
               <div class="log-header-actions">
-                <span class="timeline-badge">Timeline</span>
                 <button
                   id="toggleLogButton"
                   class="btn btn-outline-secondary btn-sm log-toggle-button"
                   type="button"
                   data-bs-toggle="collapse"
                   data-bs-target="#codeLogContent"
-                  aria-expanded="true"
-                  aria-controls="codeLogContent">折りたたむ</button>
+                  aria-expanded="false"
+                  aria-controls="codeLogContent">表示する</button>
               </div>
             </div>
-            <div id="codeLogContent" class="log-content collapse show">
+            <div id="codeLogContent" class="log-content collapse">
               <div id="codeLogList" class="code-log-list">
                 <article class="code-log-item">
                   <div class="log-time">10:05:00</div>
                   <div class="log-body">
-                    <div class="log-title">自動保存</div>
+                    <div class="log-header-row">
+                      <div class="log-title">自動保存</div>
+                      <button class="btn btn-outline-secondary btn-sm log-code-toggle" type="button" aria-expanded="false">コードを表示</button>
+                    </div>
                     <p class="log-text mb-0">初期コードを保存しました。</p>
-                    <textarea class="log-code-source" spellcheck="false">player = input("あなたの手を入力してください: ")
+                    <div class="log-code-panel" hidden>
+                      <textarea class="log-code-source" spellcheck="false">player = input("あなたの手を入力してください: ")
 computer = "グー"
 
 if player == computer:
@@ -139,14 +142,19 @@ elif player == "チョキ":
     print("あなたの負け")
 else:
     print("グー・チョキ・パーを入力してください")</textarea>
+                    </div>
                   </div>
                 </article>
                 <article class="code-log-item">
                   <div class="log-time">10:05:30</div>
                   <div class="log-body">
-                    <div class="log-title">実行結果記録</div>
+                    <div class="log-header-row">
+                      <div class="log-title">実行結果記録</div>
+                      <button class="btn btn-outline-secondary btn-sm log-code-toggle" type="button" aria-expanded="false">コードを表示</button>
+                    </div>
                     <p class="log-text mb-0">出力メッセージをログに紐付ける想定です。</p>
-                    <textarea class="log-code-source" spellcheck="false">player = input("あなたの手を入力してください: ")
+                    <div class="log-code-panel" hidden>
+                      <textarea class="log-code-source" spellcheck="false">player = input("あなたの手を入力してください: ")
 computer = "グー"
 
 if player == computer:
@@ -157,6 +165,7 @@ elif player == "チョキ":
     print("あなたの負け")
 else:
     print("グー・チョキ・パーを入力してください")</textarea>
+                    </div>
                   </div>
                 </article>
               </div>
@@ -244,6 +253,7 @@ else:
   <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/mode/python/python.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/mode/shell/shell.js"></script>
   <script src="../../../js/student/shared/components.js"></script>
+  <script src="../../../js/student/shared/feedback.js"></script>
   <script src="../../../js/student/editor/editor.js"></script>
 </body>
 </html>

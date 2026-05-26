@@ -1,0 +1,85 @@
+/*
+ * Shared feedback styles for student pages.
+ *
+ * Use together with feedback.js when a page needs:
+ * - toast for lightweight success/info feedback
+ * - inline alert for validation and failure messages
+ * - confirm modal for submit/reset/execute confirmation
+ * - danger modal for delete or irreversible actions
+ */
+
+.ppe-feedback-toast .toast-header {
+  color: #ffffff;
+  border-bottom: 0;
+}
+
+.ppe-feedback-toast .toast-body {
+  background: #ffffff;
+  color: var(--bs-gray-800);
+}
+
+.ppe-inline-alert {
+  border-radius: 0.9rem;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+}
+
+.ppe-feedback-modal .modal-content {
+  border-radius: 1.1rem;
+  border: 1px solid rgba(203, 213, 225, 0.9);
+  box-shadow: 0 24px 48px rgba(15, 23, 42, 0.16);
+}
+
+.ppe-feedback-modal .modal-header,
+.ppe-feedback-modal .modal-footer {
+  border-color: rgba(226, 232, 240, 0.9);
+}
+
+.ppe-feedback-kicker {
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #2563eb;
+  margin-bottom: 0.2rem;
+}
+
+.ppe-feedback-detail-block {
+  border-radius: 0.9rem;
+  padding: 0.85rem 0.95rem;
+  background: rgba(248, 250, 252, 0.96);
+  border: 1px solid rgba(203, 213, 225, 0.9);
+}
+
+.ppe-feedback-detail-title {
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: var(--bs-gray-900);
+  margin-bottom: 0.55rem;
+}
+
+.ppe-feedback-detail-list {
+  color: var(--bs-gray-700);
+}
+
+.ppe-feedback-detail-bullets {
+  padding-left: 1.15rem;
+}
+
+.ppe-feedback-detail-item {
+  color: var(--bs-gray-700);
+  line-height: 1.5;
+  margin-bottom: 0.3rem;
+}
+
+.ppe-feedback-detail-item:last-child {
+  margin-bottom: 0;
+}
+
+.ppe-feedback-modal-danger .ppe-feedback-kicker {
+  color: #b91c1c;
+}
+
+.ppe-feedback-modal-danger .modal-content {
+  border-color: rgba(248, 113, 113, 0.32);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(255, 241, 242, 0.92));
+}
