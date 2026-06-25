@@ -239,18 +239,46 @@ function setupRubricBackToEvaluation() {
   if (!evaluationModalEl || !rubricModalEl || !window.bootstrap) return;
   if (!rubricBackButton) return;
 
-  rubricBackButton.classList.remove('d-none');
+  let openedFromEvaluationModal = false;
+
+  function updateOpenedFromEvaluationModal() {
+    openedFromEvaluationModal = evaluationModalEl.classList.contains('show');
+  }
+
+  function syncRubricBackButtonVisibility() {
+    rubricBackButton.classList.toggle('d-none', !openedFromEvaluationModal);
+  }
+
+  const rubricTriggers = document.querySelectorAll('[data-bs-target="#teacherRubricModal"]');
+  rubricTriggers.forEach(function(trigger) {
+    trigger.addEventListener('click', updateOpenedFromEvaluationModal);
+  });
+
+  rubricModalEl.addEventListener('show.bs.modal', syncRubricBackButtonVisibility);
+  rubricModalEl.addEventListener('shown.bs.modal', syncRubricBackButtonVisibility);
+  rubricModalEl.addEventListener('hidden.bs.modal', function() {
+    syncRubricBackButtonVisibility();
+    openedFromEvaluationModal = false;
+  });
+  syncRubricBackButtonVisibility();
 
   rubricBackButton.addEventListener('click', function() {
     const rubricModal = bootstrap.Modal.getOrCreateInstance(rubricModalEl);
-    if (!evaluationModalEl.classList.contains('show')) {
+    if (!openedFromEvaluationModal) {
       rubricModal.hide();
       return;
     }
 
     const evaluationModal = bootstrap.Modal.getOrCreateInstance(evaluationModalEl);
+    const handleRubricHidden = function() {
+      rubricModalEl.removeEventListener('hidden.bs.modal', handleRubricHidden);
+      evaluationModal.show();
+      openedFromEvaluationModal = false;
+      syncRubricBackButtonVisibility();
+    };
+
+    rubricModalEl.addEventListener('hidden.bs.modal', handleRubricHidden);
     rubricModal.hide();
-    evaluationModal.show();
   });
 }
 // openEvaluationDetailをグローバル公開
