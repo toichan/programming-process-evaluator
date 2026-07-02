@@ -135,6 +135,16 @@ window.PPEComponents = {
                 ルーブリック
               </button>
             </li>
+            <li class="nav-item ms-lg-2">
+              <a class="nav-link help-trigger" href="https://forms.cloud.microsoft/Pages/ResponsePage.aspx?id=DQSIkWdsW0yxEjajBLZtrQAAAAAAAAAAAAO__QTn_5NUQzZRTTU4UUdLQ01TQzhYSzhPTjRZRDdBQS4u" target="_blank" rel="noopener noreferrer" aria-label="システムトラブル解決窓口フォームを開く">
+                <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                  <path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm0-14.5a6.5 6.5 0 1 1 0 13 6.5 6.5 0 0 1 0-13z"/>
+                  <path d="M5.255 5.786a.237.237 0 0 0 .241.247h.825c.138 0 .247-.113.266-.25.09-.656.54-1.134 1.342-1.134.686 0 1.314.343 1.314 1.168 0 .635-.374.927-.965 1.371-.673.503-1.206.94-1.168 1.987l.003.217a.25.25 0 0 0 .25.246h.811a.25.25 0 0 0 .25-.25v-.105c0-.718.273-.927 1.01-1.486.609-.463 1.244-.977 1.244-2.056 0-1.511-1.276-2.241-2.673-2.241-1.267 0-2.655.59-2.75 2.286z"/>
+                  <circle cx="8" cy="12.2" r="1"/>
+                </svg>
+                ヘルプ
+              </a>
+            </li>
             <li class="nav-item dropdown">
               <a class="nav-link position-relative notification-trigger" href="#" id="notificationsDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                 <svg width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
@@ -157,10 +167,18 @@ window.PPEComponents = {
                     <path fill-rule="evenodd" d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8zm8-7a7 7 0 0 0-5.468 11.37C3.242 11.226 4.805 10 8 10s4.757 1.225 5.468 2.37A7 7 0 0 0 8 1z"/>
                   </svg>
                 </div>
-                <span class="d-none d-lg-inline">st001</span>
+                <span class="d-none d-lg-inline">s001</span>
               </a>
               <ul class="dropdown-menu dropdown-menu-end border-0 shadow-lg" aria-labelledby="userDropdown">
-                <li class="dropdown-header fw-semibold">生徒ID：st001</li>
+                <li><a class="dropdown-item d-flex align-items-center" href="../account/account.html">
+                  <svg class="me-2" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                    <path d="M11 6a3 3 0 1 1-6 0 3 3 0 0 1 6 0z"/>
+                    <path fill-rule="evenodd" d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8zm8-7a7 7 0 0 0-5.468 11.37C3.242 11.226 4.805 10 8 10s4.757 1.225 5.468 2.37A7 7 0 0 0 8 1z"/>
+                  </svg>
+                  アカウント情報
+                </a></li>
+                <li><hr class="dropdown-divider"></li>
+                <li class="dropdown-header fw-semibold">生徒ID：s001</li>
                 <li><span class="dropdown-item-text text-muted small">クラス：4年1組</span></li>
                 <li><span class="dropdown-item-text text-muted small">学校：国際中等</span></li>
                 <li><hr class="dropdown-divider"></li>

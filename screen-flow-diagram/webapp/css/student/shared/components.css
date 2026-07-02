@@ -339,6 +339,30 @@
   outline-offset: 2px;
 }
 
+.help-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: rgba(255, 255, 255, 0.9) !important;
+  border: 0;
+  border-radius: 0.75rem;
+  padding: 0.5rem 0.58rem;
+  font-weight: 600;
+  transition: background-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+.help-trigger:hover,
+.help-trigger:focus {
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff !important;
+  transform: translateY(-1px);
+}
+
+.help-trigger:focus-visible {
+  outline: 3px solid rgba(255, 255, 255, 0.32);
+  outline-offset: 2px;
+}
+
 .rubric-trigger {
   display: inline-flex;
   align-items: center;

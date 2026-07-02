@@ -106,7 +106,7 @@
 }
 
 #accountTable {
-  min-width: 980px;
+  min-width: 1280px;
 }
 
 .table-light thead th {
@@ -158,29 +158,6 @@
   background-color: #f0f4ff;
 }
 
-.table tbody tr.pending-consent-row {
-  background: #fff7ed;
-}
-
-.table tbody tr.pending-consent-row td {
-  background: #fff7ed;
-  border-top-color: var(--bs-table-border-color);
-  border-bottom-color: var(--bs-table-border-color);
-}
-
-.table tbody tr.pending-consent-row td.password-cell,
-.table tbody tr.pending-consent-row:hover td.password-cell {
-  background: #fff7ed !important;
-}
-
-.table tbody tr.pending-consent-row:hover {
-  background: #ffedd5;
-}
-
-.table tbody tr.pending-consent-row:hover td {
-  background: #ffedd5;
-}
-
 #accountTable td:nth-last-child(-n+2) {
   white-space: nowrap;
 }
@@ -198,21 +175,74 @@ code {
   font-size: 0.88rem;
 }
 
-.consent {
-  font-size: 0.8rem;
-  font-weight: 600;
+.security-chip,
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
 }
 
-.consent-ok {
-  color: #15803d;
+.security-chip {
+  padding: 0.32rem 0.7rem;
 }
 
-.consent-no {
+.security-chip.level-1 {
+  background: #e2e8f0;
+  color: #334155;
+}
+
+.security-chip.level-2 {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.status-pill {
+  padding: 0.28rem 0.65rem;
+}
+
+.status-pill.status-done,
+.status-pill.status-clear {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.status-pill.status-pending {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.status-pill.status-initial {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.status-pill.status-changed {
+  background: #ede9fe;
+  color: #6d28d9;
+}
+
+.status-pill.status-alert {
+  background: #fee2e2;
   color: #b91c1c;
 }
 
-.consent-pending {
+.status-pill.status-na {
+  background: #f1f5f9;
   color: #475569;
+}
+
+.password-mask.is-unavailable {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.password-mask.is-unavailable {
+  letter-spacing: 0;
+  font-family: inherit;
+  font-weight: 500;
 }
 
 .account-create-btn {
@@ -235,6 +265,22 @@ code {
   background-color: #f1f5f9;
   border-color: #94a3b8;
   color: var(--bs-gray-900);
+}
+
+.btn-reset-disabled,
+.btn-reset-disabled:disabled {
+  border-color: inherit;
+  background: transparent;
+  color: #94a3b8;
+  cursor: not-allowed;
+  opacity: 1;
+}
+
+.btn-reset-disabled:hover,
+.btn-reset-disabled:disabled:hover {
+  border-color: inherit;
+  background: transparent;
+  color: #94a3b8;
 }
 
 .modal-content {
@@ -292,10 +338,62 @@ code {
   color: #0f172a;
 }
 
+.detail-section-head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.detail-section-title {
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.detail-section-description {
+  font-size: 0.82rem;
+  color: #64748b;
+}
+
 .detail-table-wrap {
   border: 1px solid #e2e8f0;
   border-radius: 0.75rem;
   overflow: hidden;
+}
+
+.account-history-badge {
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.account-history-badge.is-success {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.account-history-badge.is-created {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.account-history-badge.is-warning {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.account-history-badge.is-danger {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.account-history-badge.is-neutral {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.account-history-badge.is-default {
+  background: #e2e8f0;
+  color: #334155;
 }
 
 td.password-cell {
@@ -307,6 +405,12 @@ td.password-cell {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+}
+
+.account-action-cell {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: nowrap;
 }
 
 .table tbody tr:hover td.password-cell {

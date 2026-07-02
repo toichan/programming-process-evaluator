@@ -31,16 +31,16 @@
             </div>
             <div class="hero-stats">
               <div class="stat-card">
-                <div class="stat-label">登録アカウント数</div>
-                <div class="stat-value">42</div>
-              </div>
-              <div class="stat-card">
                 <div class="stat-label">対象学校</div>
                 <div class="stat-value">2校</div>
               </div>
               <div class="stat-card">
                 <div class="stat-label">対象クラス</div>
                 <div class="stat-value">5組</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-label">登録アカウント数</div>
+                <div class="stat-value">42</div>
               </div>
             </div>
           </section>
@@ -73,6 +73,14 @@
                 <input type="text" class="form-control form-control-sm" placeholder="生徒IDで検索" id="searchInput">
               </div>
               <div>
+                <label class="form-label">セキュリティレベル</label>
+                <select class="form-select form-select-sm" id="filterSecurityLevel">
+                  <option selected>すべて</option>
+                  <option>レベル1</option>
+                  <option>レベル2</option>
+                </select>
+              </div>
+              <div>
                 <label class="form-label">学校</label>
                 <select class="form-select form-select-sm" id="filterSchool">
                   <option selected>すべて</option>
@@ -99,6 +107,15 @@
                 </select>
               </div>
               <div>
+                <label class="form-label">初回パスワード変更</label>
+                <select class="form-select form-select-sm" id="filterFirstLogin">
+                  <option selected>すべて</option>
+                  <option>完了</option>
+                  <option>未完了</option>
+                  <option>対象外</option>
+                </select>
+              </div>
+              <div>
                 <label class="form-label">研究同意</label>
                 <select class="form-select form-select-sm" id="filterConsent">
                   <option selected>すべて</option>
@@ -117,45 +134,44 @@
                 <thead class="table-light">
                   <tr>
                     <th style="width: 8%;" class="sortable" data-sort-key="id">生徒ID</th>
-                    <th style="width: 20%;">パスワード</th>
-                    <th style="width: 14%;" class="sortable" data-sort-key="school">学校</th>
-                    <th style="width: 10%;" class="sortable" data-sort-key="class">クラス</th>
-                    <th style="width: 18%;" class="sortable" data-sort-key="created">作成日時</th>
+                    <th style="width: 18%;">パスワード</th>
+                    <th style="width: 10%;" class="sortable" data-sort-key="security">セキュリティ</th>
+                    <th style="width: 13%;" class="sortable" data-sort-key="school">学校</th>
+                    <th style="width: 11%;" class="sortable" data-sort-key="class">クラス</th>
+                    <th style="width: 11%;" class="sortable" data-sort-key="firstLogin">初回変更</th>
                     <th style="width: 10%;" class="sortable" data-sort-key="consent">研究同意</th>
+                    <th style="width: 13%;" class="sortable" data-sort-key="created">作成日時</th>
                     <th style="width: 10%;">詳細</th>
-                    <th style="width: 10%;">操作</th>
+                    <th style="width: 14%;">操作</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr>
-                    <td><code>s001</code></td>
-                    <td class="password-cell">
+                  <tr data-security-level="2" data-account-status="変更済み">
+                    <td class="cell-id"><code>s001</code></td>
+                    <td class="password-cell cell-password" data-password-scope="確認不可">
                       <div class="password-content">
-                        <span class="password-mask" data-password="password123">••••••••</span>
-                        <button class="btn btn-sm btn-icon password-toggle" type="button" onclick="togglePassword(this)" title="パスワード表示">
-                          <svg class="eye-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                            <circle cx="12" cy="12" r="3"></circle>
-                          </svg>
-                        </button>
+                        <span class="password-mask is-unavailable" data-password="">変更済みのため確認不可</span>
                       </div>
                     </td>
-                    <td>国際中等</td>
-                    <td>1年A組</td>
-                    <td>2026-05-10 10:30:00</td>
-                    <td><span class="consent consent-ok">同意</span></td>
+                    <td class="cell-security"><span class="security-chip level-2">レベル2</span></td>
+                    <td class="cell-school">国際中等</td>
+                    <td class="cell-class">1年A組</td>
+                    <td class="cell-first-login"><span class="status-pill status-done">完了</span></td>
+                    <td class="cell-consent"><span class="status-pill status-done">同意</span></td>
+                    <td class="cell-created">2026-05-10 10:30:00</td>
                     <td>
                       <button class="btn btn-sm btn-outline-primary" onclick="openAccountDetail(this)">表示</button>
                     </td>
-                    <td>
+                    <td class="account-action-cell">
+                      <button class="btn btn-sm btn-outline-warning" onclick="resetPassword(this)">リセット</button>
                       <button class="btn btn-sm btn-outline-danger" onclick="deleteAccount(this)">削除</button>
                     </td>
                   </tr>
-                  <tr>
-                    <td><code>s002</code></td>
-                    <td class="password-cell">
+                  <tr data-security-level="2" data-account-status="初期">
+                    <td class="cell-id"><code>s002</code></td>
+                    <td class="password-cell cell-password" data-password-scope="リセット用">
                       <div class="password-content">
-                        <span class="password-mask" data-password="password456">••••••••</span>
+                        <span class="password-mask" data-password="QrS34#Ty">••••••••</span>
                         <button class="btn btn-sm btn-icon password-toggle" type="button" onclick="togglePassword(this)" title="パスワード表示">
                           <svg class="eye-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
@@ -164,22 +180,25 @@
                         </button>
                       </div>
                     </td>
-                    <td>国際中等</td>
-                    <td>1年A組</td>
-                    <td>2026-05-10 10:30:00</td>
-                    <td><span class="consent consent-pending">未確認</span></td>
+                    <td class="cell-security"><span class="security-chip level-2">レベル2</span></td>
+                    <td class="cell-school">国際中等</td>
+                    <td class="cell-class">1年A組</td>
+                    <td class="cell-first-login"><span class="status-pill status-pending">未完了</span></td>
+                    <td class="cell-consent"><span class="status-pill status-clear">同意</span></td>
+                    <td class="cell-created">2026-05-10 10:30:00</td>
                     <td>
                       <button class="btn btn-sm btn-outline-primary" onclick="openAccountDetail(this)">表示</button>
                     </td>
-                    <td>
+                    <td class="account-action-cell">
+                      <button class="btn btn-sm btn-outline-warning" onclick="resetPassword(this)">リセット</button>
                       <button class="btn btn-sm btn-outline-danger" onclick="deleteAccount(this)">削除</button>
                     </td>
                   </tr>
-                  <tr>
-                    <td><code>s003</code></td>
-                    <td class="password-cell">
+                  <tr data-security-level="1" data-account-status="初期">
+                    <td class="cell-id"><code>s003</code></td>
+                    <td class="password-cell cell-password" data-password-scope="現在">
                       <div class="password-content">
-                        <span class="password-mask" data-password="password789">••••••••</span>
+                        <span class="password-mask" data-password="UvW56$Za">••••••••</span>
                         <button class="btn btn-sm btn-icon password-toggle" type="button" onclick="togglePassword(this)" title="パスワード表示">
                           <svg class="eye-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
@@ -188,14 +207,17 @@
                         </button>
                       </div>
                     </td>
-                    <td>附属高校</td>
-                    <td>1年B組</td>
-                    <td>2026-05-10 10:35:00</td>
-                    <td><span class="consent consent-no">不同意</span></td>
+                    <td class="cell-security"><span class="security-chip level-1">レベル1</span></td>
+                    <td class="cell-school">附属高校</td>
+                    <td class="cell-class">1年B組</td>
+                    <td class="cell-first-login"><span class="status-pill status-na">対象外</span></td>
+                    <td class="cell-consent"><span class="status-pill status-alert">未確認</span></td>
+                    <td class="cell-created">2026-05-10 10:35:00</td>
                     <td>
                       <button class="btn btn-sm btn-outline-primary" onclick="openAccountDetail(this)">表示</button>
                     </td>
-                    <td>
+                    <td class="account-action-cell">
+                      <button class="btn btn-sm btn-reset-disabled" onclick="resetPassword(this)" disabled title="レベル1はリセット対象外">リセット</button>
                       <button class="btn btn-sm btn-outline-danger" onclick="deleteAccount(this)">削除</button>
                     </td>
                   </tr>
@@ -243,6 +265,18 @@
                       <label for="accountCount" class="form-label">作成件数</label>
                       <input type="number" class="form-control" id="accountCount" min="1" max="200" value="1" required>
                     </div>
+                    <div class="mt-3">
+                      <label for="securityLevelSelect" class="form-label">セキュリティレベル</label>
+                      <select class="form-select" id="securityLevelSelect" required>
+                        <option value="1">レベル1</option>
+                        <option value="2" selected>レベル2</option>
+                      </select>
+                    </div>
+                    <div class="mt-3">
+                      <label for="initialPassword" class="form-label">初期パスワード</label>
+                      <input type="text" class="form-control" id="initialPassword" placeholder="AbC12!@x" required>
+                      <div class="form-text">8〜32文字、英大文字・英小文字・数字・記号のうち3種類以上を含めます。</div>
+                    </div>
                   </div>
                   <div class="modal-footer">
                     <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">キャンセル</button>
@@ -259,31 +293,52 @@
           <div class="modal-dialog modal-lg modal-dialog-scrollable">
             <div class="modal-content">
               <div class="modal-header">
-                <h5 class="modal-title">ログイン履歴</h5>
+                <h5 class="modal-title">アカウント詳細</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
               </div>
               <div class="modal-body">
                 <div class="account-detail-head">
                   <div><span class="detail-label">ID</span><span class="detail-value" id="detailStudentId">-</span></div>
+                  <div><span class="detail-label">セキュリティ</span><span class="detail-value" id="detailSecurity">-</span></div>
                   <div><span class="detail-label">学校</span><span class="detail-value" id="detailSchool">-</span></div>
                   <div><span class="detail-label">クラス</span><span class="detail-value" id="detailClass">-</span></div>
+                  <div><span class="detail-label">初回変更</span><span class="detail-value" id="detailFirstLogin">-</span></div>
+                  <div><span class="detail-label">研究同意</span><span class="detail-value" id="detailConsent">-</span></div>
                 </div>
-                <div class="detail-table-wrap mt-3">
+                <div class="detail-section-head mt-4">
+                  <h6 class="detail-section-title mb-1">ログイン履歴</h6>
+                  <p class="detail-section-description mb-0">ログインの成功・失敗とセッション状態の履歴です。</p>
+                </div>
+                <div class="detail-table-wrap mt-2">
                   <table class="table table-sm align-middle mb-0">
                     <thead class="table-light">
                       <tr>
                         <th style="width: 26%;">日時</th>
-                        <th style="width: 20%;">結果</th>
-                        <th style="width: 22%;">IP</th>
-                        <th style="width: 32%;">端末</th>
+                        <th style="width: 20%;">操作</th>
+                        <th style="width: 18%;">結果</th>
+                        <th style="width: 36%;">エラーログ</th>
                       </tr>
                     </thead>
                     <tbody id="loginHistoryTableBody"></tbody>
                   </table>
                 </div>
-              </div>
-              <div class="modal-footer">
-                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">閉じる</button>
+
+                <div class="detail-section-head mt-4">
+                  <h6 class="detail-section-title mb-1">パスワード変更履歴</h6>
+                  <p class="detail-section-description mb-0">作成・初回変更・リセットなど、パスワード関連操作の履歴です。</p>
+                </div>
+                <div class="detail-table-wrap mt-2">
+                  <table class="table table-sm align-middle mb-0">
+                    <thead class="table-light">
+                      <tr>
+                        <th style="width: 32%;">日時</th>
+                        <th style="width: 28%;">操作</th>
+                        <th style="width: 40%;">実行者</th>
+                      </tr>
+                    </thead>
+                    <tbody id="passwordHistoryTableBody"></tbody>
+                  </table>
+                </div>
               </div>
             </div>
           </div>
