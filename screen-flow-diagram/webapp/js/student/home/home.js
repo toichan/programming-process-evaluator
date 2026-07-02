@@ -43,6 +43,46 @@ window.addEventListener('DOMContentLoaded', () => {
 		});
 	};
 
+	const syncTaskDeadlines = () => {
+		const taskCards = document.querySelectorAll('.task-list-card[data-due-at]');
+
+		const formatDueDateTime = (date) => {
+			const month = date.getMonth() + 1;
+			const day = date.getDate();
+			const hours = String(date.getHours()).padStart(2, '0');
+			const minutes = String(date.getMinutes()).padStart(2, '0');
+			return `${month}月${day}日 ${hours}:${minutes}`;
+		};
+
+		taskCards.forEach((card) => {
+			const dueDateRaw = card.getAttribute('data-due-at');
+			const dueDateText = card.querySelector('[data-task-deadline-date]');
+			const dueDateRemaining = card.querySelector('[data-task-deadline-remaining]');
+
+			if (!dueDateRaw || !dueDateText || !dueDateRemaining) {
+				return;
+			}
+
+			const dueDate = new Date(dueDateRaw);
+			if (Number.isNaN(dueDate.getTime())) {
+				return;
+			}
+
+			dueDateText.textContent = formatDueDateTime(dueDate);
+
+			const now = new Date();
+			const remainingDays = Math.max(0, Math.ceil((dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
+			dueDateRemaining.textContent = `残り${remainingDays}日`;
+			dueDateRemaining.classList.remove('is-soon', 'is-urgent');
+
+			if (remainingDays <= 3) {
+				dueDateRemaining.classList.add('is-urgent');
+			} else if (remainingDays <= 7) {
+				dueDateRemaining.classList.add('is-soon');
+			}
+		});
+	};
+
 	if (headerPlaceholder && header) {
 		headerPlaceholder.innerHTML = header;
 	}
@@ -76,5 +116,6 @@ window.addEventListener('DOMContentLoaded', () => {
 		window.sessionStorage.removeItem('ppe-home-message-title');
 	}
 
+	syncTaskDeadlines();
 	// Temporary: keep all action buttons navigable regardless of status.
 });

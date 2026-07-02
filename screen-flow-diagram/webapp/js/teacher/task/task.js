@@ -157,6 +157,7 @@ function initializeTaskPage() {
   renderHintLibrary();
   updateSchoolDropdownLabel();
   updateClassDropdownLabel();
+  refreshClassScheduleRows();
   syncPromptStatusHighlight();
 
   initializeInitialCodeEditor();
@@ -309,6 +310,7 @@ function bindPreviewEvents() {
   document.querySelectorAll('input[name="classTargets"]').forEach(function(el) {
     el.addEventListener('change', function() {
       updateClassDropdownLabel();
+      refreshClassScheduleRows();
       updatePreview();
     });
   });
@@ -404,6 +406,75 @@ function updateClassDropdownLabel() {
   }
 
   button.textContent = selected.length + '件選択中';
+}
+
+function getSelectedClassNames() {
+  return Array.from(document.querySelectorAll('input[name="classTargets"]:checked'))
+    .map(function(el) { return el.value; });
+}
+
+function collectClassSchedules() {
+  return Array.from(document.querySelectorAll('#classScheduleList .class-schedule-row')).map(function(row) {
+    const className = row.getAttribute('data-class-name') || '';
+    const publishAt = getElementValue(row.querySelector('.class-schedule-publish'));
+    const dueAt = getElementValue(row.querySelector('.class-schedule-deadline'));
+
+    return {
+      className: className,
+      publishAt: publishAt,
+      dueAt: dueAt
+    };
+  });
+}
+
+function toClassScheduleMap(schedules) {
+  return (Array.isArray(schedules) ? schedules : []).reduce(function(map, item) {
+    if (!item || !item.className) {
+      return map;
+    }
+
+    map[item.className] = {
+      publishAt: item.publishAt || '',
+      dueAt: item.dueAt || ''
+    };
+    return map;
+  }, {});
+}
+
+function refreshClassScheduleRows(prefillSchedules) {
+  const container = document.getElementById('classScheduleList');
+  if (!container) {
+    return;
+  }
+
+  const selectedClassNames = getSelectedClassNames();
+  const currentMap = toClassScheduleMap(collectClassSchedules());
+  const prefillMap = toClassScheduleMap(prefillSchedules);
+
+  container.innerHTML = '';
+
+  if (selectedClassNames.length === 0) {
+    container.innerHTML = '<p class="class-schedule-empty mb-0 text-muted">クラスを選択すると、公開日時と提出期限を設定できます。</p>';
+    return;
+  }
+
+  selectedClassNames.forEach(function(className) {
+    const seed = prefillMap[className] || currentMap[className] || { publishAt: '', dueAt: '' };
+    const row = document.createElement('div');
+    row.className = 'class-schedule-row';
+    row.setAttribute('data-class-name', className);
+    row.innerHTML =
+      '<div class="class-schedule-name">' + escapeHtml(className) + '</div>' +
+      '<div class="class-schedule-field">' +
+        '<label class="mini-label" for="schedulePublish-' + escapeHtml(className) + '">公開日時</label>' +
+        '<input id="schedulePublish-' + escapeHtml(className) + '" class="form-control class-schedule-publish" type="datetime-local" value="' + escapeHtml(seed.publishAt) + '">' +
+      '</div>' +
+      '<div class="class-schedule-field">' +
+        '<label class="mini-label" for="scheduleDeadline-' + escapeHtml(className) + '">提出期限</label>' +
+        '<input id="scheduleDeadline-' + escapeHtml(className) + '" class="form-control class-schedule-deadline" type="datetime-local" value="' + escapeHtml(seed.dueAt) + '">' +
+      '</div>';
+    container.appendChild(row);
+  });
 }
 
 function updatePreview() {
@@ -743,6 +814,7 @@ function resetCreateForm() {
   }
 
   updateClassDropdownLabel();
+  refreshClassScheduleRows();
   updateSchoolDropdownLabel();
   updatePreview();
 }
@@ -768,7 +840,7 @@ function startCreateFormEditMode(row) {
   setValue('featureInput', row.dataset.features || '');
   setValue('taskConstraintInput', row.dataset.constraint || '');
   setValue('initialCodeInput', row.dataset.initialCode || '');
-  setValue('publishDateInput', row.dataset.publishDate || '');
+  setValue('lateSubmissionPolicy', row.dataset.lateSubmissionPolicy || '');
 
   document.querySelectorAll('input[name="classTargets"]').forEach(function(el) {
     el.checked = classNames.includes(el.value);
@@ -777,6 +849,8 @@ function startCreateFormEditMode(row) {
   document.querySelectorAll('input[name="schoolTargets"]').forEach(function(el) {
     el.checked = schoolNames.includes(el.value);
   });
+
+  refreshClassScheduleRows(parseJsonArray(row.dataset.classSchedules));
 
   const testCases = parseJsonArray(row.dataset.testCases);
   const testCaseList = document.getElementById('testCaseList');
@@ -861,7 +935,8 @@ function saveCreateFormEditResult(status) {
   const features = getValue('featureInput');
   const constraint = getValue('taskConstraintInput');
   const initialCode = getValue('initialCodeInput');
-  const publishDate = getValue('publishDateInput');
+  const classSchedules = collectClassSchedules();
+  const lateSubmissionPolicy = getValue('lateSubmissionPolicy');
   const updated = buildNowString();
 
   const testCases = Array.from(document.querySelectorAll('#testCaseList .test-case-row')).map(function(row) {
@@ -900,7 +975,8 @@ function saveCreateFormEditResult(status) {
   editTargetRow.dataset.theme = theme;
   editTargetRow.dataset.features = features;
   editTargetRow.dataset.initialCode = initialCode;
-  editTargetRow.dataset.publishDate = publishDate;
+  editTargetRow.dataset.classSchedules = JSON.stringify(classSchedules);
+  editTargetRow.dataset.lateSubmissionPolicy = lateSubmissionPolicy;
   editTargetRow.dataset.testCases = JSON.stringify(testCases);
   editTargetRow.dataset.hints = JSON.stringify(hints);
 

@@ -120,8 +120,20 @@
                     </select>
                   </div>
                   <div class="col-md-6">
-                    <label for="publishDateInput" class="form-label">公開日時</label>
-                    <input id="publishDateInput" class="form-control" type="datetime-local">
+                    <label for="lateSubmissionPolicy" class="form-label">期限後の提出</label>
+                    <select id="lateSubmissionPolicy" class="form-select">
+                      <option value="">選択</option>
+                      <option value="allow">許可する</option>
+                      <option value="deny">許可しない</option>
+                    </select>
+                    <div class="form-text">提出期限を過ぎた後に、生徒の提出を受け付けるか選択します。</div>
+                  </div>
+                  <div class="col-12">
+                    <label class="form-label">クラス別の公開期間・提出期限</label>
+                    <div id="classScheduleList" class="class-schedule-list" aria-live="polite">
+                      <p class="class-schedule-empty mb-0 text-muted">クラスを選択すると、公開日時と提出期限を設定できます。</p>
+                    </div>
+                    <div class="form-text">クラスごとに公開日時と提出期限を個別に設定できます。</div>
                   </div>
                   <div class="col-12">
                     <label for="taskNameInput" class="form-label">課題名・授業</label>

@@ -440,6 +440,39 @@
   padding: 0.35rem 0.4rem 0.35rem 1.7rem;
 }
 
+.class-schedule-list {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.class-schedule-row {
+  display: grid;
+  grid-template-columns: 160px minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.6rem;
+  align-items: center;
+  padding: 0.7rem;
+  border: 1px solid #dbe4ee;
+  border-radius: 0.65rem;
+  background: #f8fafc;
+}
+
+.class-schedule-name {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #334155;
+}
+
+.class-schedule-field .mini-label {
+  margin-bottom: 0.25rem;
+}
+
+.class-schedule-empty {
+  padding: 0.75rem 0.9rem;
+  border: 1px dashed #cbd5e1;
+  border-radius: 0.6rem;
+  background: #f8fafc;
+}
+
 .table thead th {
   color: var(--bs-gray-700);
   border-bottom: 2px solid #cbd5e1;
@@ -556,6 +589,10 @@
   }
 
   .test-case-row {
+    grid-template-columns: 1fr;
+  }
+
+  .class-schedule-row {
     grid-template-columns: 1fr;
   }
 

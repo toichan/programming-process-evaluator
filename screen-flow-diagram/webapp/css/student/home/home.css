@@ -160,6 +160,79 @@ body {
   color: var(--bs-gray-800);
 }
 
+.task-deadline-chip-wrap {
+  --deadline-accent: #2563eb;
+  --deadline-bg-start: rgba(37, 99, 235, 0.06);
+  --deadline-bg-end: rgba(14, 165, 233, 0.08);
+  display: grid;
+  justify-items: end;
+  gap: 0.3rem;
+  padding: 0.6rem 0.78rem;
+  border-radius: 0.7rem;
+  background: linear-gradient(135deg, var(--deadline-bg-start), var(--deadline-bg-end));
+  border: 1px solid color-mix(in srgb, var(--deadline-accent) 22%, #ffffff);
+  border-left: 4px solid var(--deadline-accent);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.task-card-beginner .task-deadline-chip-wrap {
+  --deadline-accent: #059669;
+  --deadline-bg-start: rgba(5, 150, 105, 0.08);
+  --deadline-bg-end: rgba(16, 185, 129, 0.1);
+}
+
+.task-card-intermediate .task-deadline-chip-wrap {
+  --deadline-accent: #d97706;
+  --deadline-bg-start: rgba(245, 158, 11, 0.1);
+  --deadline-bg-end: rgba(251, 191, 36, 0.12);
+}
+
+.task-card-advanced .task-deadline-chip-wrap {
+  --deadline-accent: #dc2626;
+  --deadline-bg-start: rgba(248, 113, 113, 0.09);
+  --deadline-bg-end: rgba(239, 68, 68, 0.12);
+}
+
+.task-deadline-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: color-mix(in srgb, var(--deadline-accent) 86%, #0f172a);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.task-deadline-date {
+  display: block;
+  font-weight: 800;
+  color: #1f2937;
+  font-size: 0.95rem;
+}
+
+.task-deadline-remaining {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.18rem 0.56rem;
+  border-radius: 0.45rem;
+  background: rgba(37, 99, 235, 0.12);
+  color: #1d4ed8;
+  border: 1px solid rgba(37, 99, 235, 0.24);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.task-deadline-remaining.is-soon {
+  background: rgba(245, 158, 11, 0.16);
+  color: #92400e;
+  border-color: rgba(245, 158, 11, 0.28);
+}
+
+.task-deadline-remaining.is-urgent {
+  background: rgba(239, 68, 68, 0.14);
+  color: #b91c1c;
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
 .task-status-list {
   display: flex;
   flex-direction: column;
@@ -265,5 +338,10 @@ body {
 
   .task-status-item {
     grid-template-columns: 4.25rem minmax(0, 1fr);
+  }
+
+  .task-deadline-chip-wrap {
+    align-items: flex-start;
+    width: 100%;
   }
 }

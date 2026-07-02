@@ -14,6 +14,10 @@ window.addEventListener('DOMContentLoaded', () => {
   const runButton = document.querySelector('#runButton');
   const runOutputButton = document.querySelector('#runOutputButton');
   const submitButton = document.querySelector('#submitButton');
+  const submitCheckModalElement = document.querySelector('#submitCheckModal');
+  const submitCheckSummary = document.querySelector('#submitCheckSummary');
+  const submitCheckTableBody = document.querySelector('#submitCheckTableBody');
+  const confirmSubmitAfterCheck = document.querySelector('#confirmSubmitAfterCheck');
   const infoTabs = document.querySelectorAll('[data-panel-target]');
   let codeMirrorEditor = null;
   let outputConsoleEditor = null;
@@ -24,6 +28,10 @@ window.addEventListener('DOMContentLoaded', () => {
   const hintEditors = [];
   let hintEditorsInitialized = false;
   const pageFeedback = feedback.createPageFeedback({ title: 'エディター' });
+  const submitCheckModal = (typeof bootstrap !== 'undefined' && submitCheckModalElement)
+    ? bootstrap.Modal.getOrCreateInstance(submitCheckModalElement)
+    : null;
+  let latestCheckSummary = null;
 
   if (headerPlaceholder && header) {
     headerPlaceholder.innerHTML = header;
@@ -265,6 +273,110 @@ window.addEventListener('DOMContentLoaded', () => {
     prependLog('実行', '実行結果を出力パネルへ反映しました。');
   }
 
+  function normalizeValue(value) {
+    return String(value || '').replace(/\r\n/g, '\n').trim();
+  }
+
+  function collectExpectedIoCases() {
+    return Array.from(document.querySelectorAll('.io-block .io-case-card')).map((card, index) => {
+      const sources = card.querySelectorAll('.io-case-source');
+      const inputText = normalizeValue(sources[0]?.value || '');
+      const expectedOutput = normalizeValue(sources[1]?.value || '');
+
+      return {
+        index: index + 1,
+        inputText,
+        expectedOutput
+      };
+    });
+  }
+
+  function runExpectedIoCheck() {
+    const sourceCode = getEditorValue();
+    const ioCases = collectExpectedIoCases();
+
+    const emulateActualOutput = (inputText) => {
+      const normalizedInput = normalizeValue(inputText);
+
+      if (!sourceCode.includes('print(')) {
+        return '(出力なし)';
+      }
+
+      if (normalizedInput === 'パー') {
+        return 'あなたの勝ち';
+      }
+      if (normalizedInput === 'チョキ') {
+        return 'あなたの負け';
+      }
+      if (normalizedInput === 'グー') {
+        return 'あいこ';
+      }
+
+      return 'グー・チョキ・パーを入力してください';
+    };
+
+    const results = ioCases.map((ioCase) => {
+      const actualOutput = emulateActualOutput(ioCase.inputText);
+      const passed = normalizeValue(actualOutput) === normalizeValue(ioCase.expectedOutput);
+
+      return {
+        ...ioCase,
+        actualOutput,
+        passed
+      };
+    });
+
+    const passedCount = results.filter((result) => result.passed).length;
+
+    return {
+      totalCount: results.length,
+      passedCount,
+      failedCount: results.length - passedCount,
+      results
+    };
+  }
+
+  function escapeHtml(value) {
+    return String(value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function renderExpectedIoCheck(summary) {
+    if (!submitCheckSummary || !submitCheckTableBody) {
+      return;
+    }
+
+    submitCheckSummary.classList.remove('is-ok', 'is-ng');
+
+    if (!summary || summary.totalCount === 0) {
+      submitCheckSummary.textContent = '未チェック';
+      submitCheckTableBody.innerHTML = '<tr><td colspan="4" class="text-muted">想定入出力が設定されていません。</td></tr>';
+      return;
+    }
+
+    submitCheckSummary.textContent = `${summary.passedCount}/${summary.totalCount}件一致`;
+    submitCheckSummary.classList.add(summary.failedCount === 0 ? 'is-ok' : 'is-ng');
+
+    submitCheckTableBody.innerHTML = summary.results.map((result) => {
+      const expectedOutput = result.expectedOutput || '(未設定)';
+      const actualOutput = result.actualOutput || '(出力なし)';
+      const markClass = result.passed ? 'is-pass' : 'is-fail';
+      const mark = result.passed ? '○' : '×';
+      return `
+        <tr class="${markClass}">
+          <td>${escapeHtml(result.inputText || '(未設定)')}</td>
+          <td>${escapeHtml(expectedOutput)}</td>
+          <td>${escapeHtml(actualOutput)}</td>
+          <td class="text-center"><span class="check-result-mark ${markClass}">${mark}</span></td>
+        </tr>
+      `;
+    }).join('');
+  }
+
   if (saveButton) {
     saveButton.addEventListener('click', () => {
       markSaved('保存');
@@ -286,22 +398,30 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 
   if (submitButton) {
-    submitButton.addEventListener('click', async () => {
-      const confirmed = await pageFeedback.confirm({
-        title: '課題を提出しますか？',
-        message: '次のデータを送信します。',
-        detailTitle: '',
-        details: [
-          '現在入力しているコード',
-          '提出日時'
-        ],
-        confirmLabel: '提出する',
-        cancelLabel: '戻る',
-        variant: 'warning'
-      });
+    submitButton.addEventListener('click', () => {
+      latestCheckSummary = runExpectedIoCheck();
+      renderExpectedIoCheck(latestCheckSummary);
 
-      if (!confirmed) {
+      if (submitCheckModal) {
+        submitCheckModal.show();
         return;
+      }
+
+      window.location.href = '../evaluation/evaluation.html';
+    });
+  }
+
+  if (confirmSubmitAfterCheck) {
+    confirmSubmitAfterCheck.addEventListener('click', () => {
+      const checkSummary = latestCheckSummary || runExpectedIoCheck();
+
+      if (editorMessage) {
+        editorMessage.textContent = `想定入出力チェックを実行しました（${checkSummary.passedCount}/${checkSummary.totalCount}件一致）。不一致があっても提出可能です。`;
+      }
+      prependLog('提出前チェック', `想定入出力チェックを実行しました（${checkSummary.passedCount}/${checkSummary.totalCount}件一致）。`);
+
+      if (submitCheckModal) {
+        submitCheckModal.hide();
       }
 
       window.location.href = '../evaluation/evaluation.html';
