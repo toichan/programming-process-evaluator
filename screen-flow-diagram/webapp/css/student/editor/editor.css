@@ -207,8 +207,19 @@ body {
 
 .editor-shell .CodeMirror {
   min-height: 620px;
-  height: auto;
+  height: 620px;
   font: 500 0.95rem/1.7 "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  background: #0f172a;
+}
+
+.editor-shell .cm-s-material-darker.CodeMirror,
+.editor-shell .cm-s-material-darker .CodeMirror-scroll,
+.editor-shell .cm-s-material-darker .CodeMirror-gutters {
+  background: #0f172a;
+}
+
+.editor-shell .CodeMirror-scroll {
+  min-height: 620px;
 }
 
 .editor-shell .CodeMirror-gutters {
@@ -635,6 +646,12 @@ body {
   .editor-textarea {
     min-height: 460px;
     padding: 1rem;
+  }
+
+  .editor-shell .CodeMirror,
+  .editor-shell .CodeMirror-scroll {
+    min-height: 460px;
+    height: 460px;
   }
 
   .code-log-item {

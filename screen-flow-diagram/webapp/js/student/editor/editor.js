@@ -17,6 +17,8 @@ window.addEventListener('DOMContentLoaded', () => {
   const infoTabs = document.querySelectorAll('[data-panel-target]');
   let codeMirrorEditor = null;
   let outputConsoleEditor = null;
+  const EDITOR_HEIGHT_DESKTOP = 620;
+  const EDITOR_HEIGHT_MOBILE = 460;
   const codeLogEditors = [];
   const ioExampleEditors = [];
   const hintEditors = [];
@@ -42,6 +44,22 @@ window.addEventListener('DOMContentLoaded', () => {
       viewportMargin: Infinity
     });
   }
+
+  function syncMainEditorLayout() {
+    if (!codeMirrorEditor) {
+      return;
+    }
+
+    const targetHeight = window.matchMedia('(max-width: 767px)').matches
+      ? EDITOR_HEIGHT_MOBILE
+      : EDITOR_HEIGHT_DESKTOP;
+
+    codeMirrorEditor.setSize(null, targetHeight);
+    codeMirrorEditor.refresh();
+  }
+
+  syncMainEditorLayout();
+  window.addEventListener('resize', syncMainEditorLayout);
 
   if (outputConsole && typeof CodeMirror !== 'undefined') {
     const outputTextarea = document.createElement('textarea');

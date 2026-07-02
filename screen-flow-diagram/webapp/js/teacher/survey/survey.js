@@ -24,7 +24,7 @@ const surveyData = [
     q2AttitudeReason: '実行結果を見ながら複数回修正し、途中で止めずに最後まで改善できたため。',
     q2AttitudeValidity: 4,
     q2AttitudeValidityReason: '保存回数や修正回数も考慮されており、取り組みの実態に近い評価だと感じた。',
-    q3ProcessResistanceScore: 2,
+    q3ProcessResistanceScore: 4,
     q3ProcessResistanceReason: '記録自体には抵抗は少ないが、評価への使われ方は少し気になる。',
     q4UsabilityScore: 4,
     q4UsabilityComment: '評価画面とログ画面の導線が分かりやすく、全体として操作しやすかった。',
@@ -76,7 +76,7 @@ const surveyData = [
     q2AttitudeReason: '難しい課題でも実行と修正を継続できたため、高めに自己評価した。',
     q2AttitudeValidity: 4,
     q2AttitudeValidityReason: '試行回数や改善の履歴が評価に反映されていて妥当だと思う。',
-    q3ProcessResistanceScore: 1,
+    q3ProcessResistanceScore: 5,
     q3ProcessResistanceReason: '過程の記録・評価にはほとんど抵抗を感じない。',
     q4UsabilityScore: 5,
     q4UsabilityComment: '画面構成が分かりやすく、操作に迷うことがほぼなかった。',
@@ -102,7 +102,7 @@ const surveyData = [
     q2AttitudeReason: '途中で詰まって手が止まる時間が長く、改善の継続が十分でなかった。',
     q2AttitudeValidity: 2,
     q2AttitudeValidityReason: '修正回数は記録されているが、原因分析に費やした時間は反映されにくいと感じた。',
-    q3ProcessResistanceScore: 4,
+    q3ProcessResistanceScore: 2,
     q3ProcessResistanceReason: '記録されることにやや抵抗を感じる。',
     q4UsabilityScore: 2,
     q4UsabilityComment: '画面遷移は分かるが、入力欄の説明が不足していて使いにくさを感じた。',
@@ -560,13 +560,13 @@ function displaySurveyInModal(survey) {
 
     <div class="response-section mb-4">
       <span class="question-kicker">設問3</span>
-      <h3>試行錯誤の過程が記録・評価されることへの抵抗感</h3>
+      <h3>AIによって試行錯誤の過程が評価されることへの抵抗感</h3>
       <p class="text-muted mt-2 mb-0">すでに回答済みの場合は自動入力されています。回答内容に変化があれば修正し、変化がなければそのまま次の設問に進んでください。</p>
       <div class="response-question-block mt-3">
-        <div class="question-subheading">あなたは、試行錯誤の過程が記録・評価されることに抵抗を感じますか</div>
+        <div class="question-subheading">あなたは、AIによって試行錯誤の過程が評価されることに抵抗を感じますか？</div>
         <div class="likert-display">
           <div class="likert-scale">
-            <span>全く感じない</span><span>あまり感じない</span><span>どちらともいえない</span><span>やや感じる</span><span>とても感じる</span>
+            <span>とても感じる</span><span>やや感じる</span><span>どちらともいえない</span><span>あまり感じない</span><span>全く感じない</span>
           </div>
           <div class="likert-indicator" style="width: 100%;">
             <div class="likert-value" style="left: ${survey.q3ProcessResistanceScore != null ? ((survey.q3ProcessResistanceScore - 1) / 4) * 100 : 0}%">${survey.q3ProcessResistanceScore ?? '-'}</div>

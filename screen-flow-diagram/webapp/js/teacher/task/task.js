@@ -408,14 +408,23 @@ function updateClassDropdownLabel() {
 
 function updatePreview() {
   const name = getValue('taskNameInput');
-  const level = getValue('levelSelect');
+  const level = normalizeLevelSelection(getValue('levelSelect'));
   const theme = getValue('themeInput');
   const description = getValue('taskDescriptionInput');
   const features = getValue('featureInput');
   const constraint = getValue('taskConstraintInput');
 
   setText('previewName', name || '課題名未設定');
-  setText('previewLevel', level || '―');
+  const previewLevel = document.getElementById('previewLevel');
+  if (previewLevel) {
+    if (level) {
+      previewLevel.textContent = level;
+      previewLevel.classList.remove('d-none');
+    } else {
+      previewLevel.textContent = '';
+      previewLevel.classList.add('d-none');
+    }
+  }
   setText('previewTheme', theme || '―');
   setText('previewDescription', description || '説明未設定');
 
@@ -425,7 +434,6 @@ function updatePreview() {
     if (level === '初級') card.classList.add('task-card-beginner');
     else if (level === '中級') card.classList.add('task-card-intermediate');
     else if (level === '上級') card.classList.add('task-card-advanced');
-    else card.classList.add('task-card-beginner');
   }
 
   // エディター課題情報プレビュー
@@ -846,6 +854,7 @@ function saveCreateFormEditResult(status) {
   const classNames = Array.from(document.querySelectorAll('input[name="classTargets"]:checked'))
     .map(function(el) { return el.value; });
   const level = getValue('levelSelect');
+  const normalizedLevel = normalizeLevelSelection(level);
   const name = getValue('taskNameInput');
   const theme = getValue('themeInput');
   const description = getValue('taskDescriptionInput');
@@ -882,7 +891,7 @@ function saveCreateFormEditResult(status) {
     ' / ' + (classNames.length > 0 ? classNames.join(', ') : 'クラス未選択');
 
   editTargetRow.dataset.name = name;
-  editTargetRow.dataset.level = level;
+  editTargetRow.dataset.level = normalizedLevel;
   editTargetRow.dataset.target = target;
   editTargetRow.dataset.status = status;
   editTargetRow.dataset.description = description;
@@ -900,7 +909,7 @@ function saveCreateFormEditResult(status) {
   }
 
   if (editTargetRow.cells[1]) {
-    editTargetRow.cells[1].innerHTML = buildLevelBadgeHtml(level);
+    editTargetRow.cells[1].innerHTML = buildLevelBadgeHtml(normalizedLevel);
   }
 
   if (editTargetRow.cells[2]) {
@@ -925,6 +934,9 @@ function saveCreateFormEditResult(status) {
 }
 
 function buildLevelBadgeHtml(level) {
+  if (!level) {
+    return '';
+  }
   if (level === '中級') {
     return '<span class="badge difficulty-intermediate">中級</span>';
   }
@@ -932,6 +944,10 @@ function buildLevelBadgeHtml(level) {
     return '<span class="badge difficulty-advanced">上級</span>';
   }
   return '<span class="badge difficulty-beginner">初級</span>';
+}
+
+function normalizeLevelSelection(level) {
+  return level === '__none__' ? '' : level;
 }
 
 function parseJsonArray(text) {
