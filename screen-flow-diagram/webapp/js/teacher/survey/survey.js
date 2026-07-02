@@ -659,10 +659,10 @@ function exportCSV() {
   const csvContent = [
     headers.join(','),
     ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
-  ].join('\n');
+  ].join('\r\n');
 
   // ダウンロード
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const blob = new Blob(['\uFEFF', csvContent], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
   link.href = URL.createObjectURL(blob);
   link.download = `survey-results-${new Date().toISOString().split('T')[0]}.csv`;

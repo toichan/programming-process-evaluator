@@ -340,9 +340,9 @@ function exportDetailActivityCSV() {
 
   const csv = [header].concat(body)
     .map(function(cols) { return cols.map(escapeCSV).join(','); })
-    .join('\n');
+    .join('\r\n');
 
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const blob = new Blob(['\uFEFF', csv], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
   link.href = URL.createObjectURL(blob);
   link.download = 'activity_history_' + studentId + '_' + new Date().toISOString().slice(0, 10) + '.csv';
