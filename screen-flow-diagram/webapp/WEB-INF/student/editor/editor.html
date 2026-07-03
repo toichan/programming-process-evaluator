@@ -87,19 +87,6 @@ else:
             </div>
           </section>
 
-          <section class="sample-section output-section mt-4">
-            <div class="section-header-row">
-              <div>
-                <h2 class="card-title mb-2">実行結果</h2>
-                <p class="text-muted mb-0">標準出力とエラーメッセージをここに表示します。</p>
-              </div>
-              <div class="d-flex align-items-center gap-2">
-                <button id="runOutputButton" class="btn btn-primary" type="button">実行</button>
-              </div>
-            </div>
-            <pre id="outputConsole" class="output-console">実行待ちです。「実行」ボタンを押すと結果を表示します。</pre>
-          </section>
-
           <section class="sample-section log-section mt-4">
             <div class="section-header-row">
               <div>
@@ -243,6 +230,24 @@ else:
       </div>
     </div>
   </main>
+
+  <div class="modal fade run-result-modal" id="runResultModal" tabindex="-1" aria-labelledby="runResultModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 class="modal-title h5 mb-0" id="runResultModalLabel">実行結果</h2>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
+        </div>
+        <div class="modal-body">
+          <p class="text-muted mb-2">標準出力とエラーメッセージを表示します。</p>
+          <pre id="outputConsole" class="output-console">実行待ちです。「実行」ボタンを押すと結果を表示します。</pre>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">閉じる</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <div class="modal fade submit-check-modal" id="submitCheckModal" tabindex="-1" aria-labelledby="submitCheckModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-scrollable">

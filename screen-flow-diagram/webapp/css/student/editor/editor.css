@@ -128,7 +128,6 @@ body {
 }
 
 .editor-workspace-section,
-.output-section,
 .log-section,
 .side-panel-section {
   overflow: hidden;
@@ -166,13 +165,11 @@ body {
   color: var(--editor-accent-dark);
 }
 
-.editor-toolbar .btn-primary,
-#runOutputButton {
+.editor-toolbar .btn-primary {
   background: linear-gradient(135deg, var(--editor-accent), var(--editor-accent-alt));
 }
 
-.editor-toolbar .btn-primary:hover,
-#runOutputButton:hover {
+.editor-toolbar .btn-primary:hover {
   background: linear-gradient(135deg, var(--editor-accent-dark), #ad4f68);
 }
 
@@ -289,8 +286,16 @@ body {
   color: var(--editor-accent-dark);
 }
 
+.run-result-modal .modal-content {
+  border: 1px solid rgba(148, 163, 184, 0.35);
+}
+
+.run-result-modal .modal-body {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.96));
+}
+
 .output-console {
-  margin-top: 1.5rem;
+  margin-top: 0.75rem;
   padding: 1.25rem 1.5rem;
   min-height: 180px;
   border-radius: 1rem;
@@ -300,20 +305,20 @@ body {
   white-space: pre-wrap;
 }
 
-.output-section .CodeMirror {
-  margin-top: 1.5rem;
+.run-result-modal .CodeMirror {
+  margin-top: 0.75rem;
   min-height: 180px;
   height: auto;
   border-radius: 1rem;
   font: 500 0.92rem/1.7 "SFMono-Regular", Consolas, monospace;
 }
 
-.output-section .CodeMirror-lines {
+.run-result-modal .CodeMirror-lines {
   padding: 1.25rem 0;
 }
 
-.output-section .CodeMirror pre.CodeMirror-line,
-.output-section .CodeMirror pre.CodeMirror-line-like {
+.run-result-modal .CodeMirror pre.CodeMirror-line,
+.run-result-modal .CodeMirror pre.CodeMirror-line-like {
   padding: 0 1.5rem;
 }
 

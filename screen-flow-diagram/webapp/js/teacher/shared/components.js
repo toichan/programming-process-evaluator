@@ -51,6 +51,15 @@ function loadTeacherComponents() {
             <span>学習履歴確認</span>
           </a>
         </li>
+        <li class="sidebar-menu-item" data-page="submission">
+          <a href="../submission/submission.html" class="sidebar-menu-link">
+            <svg class="sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h6v2H7v-2zm0 3h10v2H7v-2z"/>
+              <path d="M14.5 5l-2.5 2.5L9.5 5H14.5z"/>
+            </svg>
+            <span>提出課題確認</span>
+          </a>
+        </li>
         <li class="sidebar-menu-item" data-page="evaluation">
           <a href="../evaluation/evaluation.html" class="sidebar-menu-link">
             <svg class="sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
@@ -286,6 +295,7 @@ function setActiveSidebarMenu() {
   const pageMap = {
     '/teacher/account/account.html': 'account',
     '/teacher/history/history.html': 'history',
+    '/teacher/submission/submission.html': 'submission',
     '/teacher/evaluation/evaluation.html': 'evaluation',
     '/teacher/survey/survey.html': 'survey',
     '/teacher/task/task.html': 'task',

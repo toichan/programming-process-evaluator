@@ -12,7 +12,7 @@ window.addEventListener('DOMContentLoaded', () => {
   const codeLogContent = document.querySelector('#codeLogContent');
   const saveButton = document.querySelector('#saveButton');
   const runButton = document.querySelector('#runButton');
-  const runOutputButton = document.querySelector('#runOutputButton');
+  const runResultModalElement = document.querySelector('#runResultModal');
   const submitButton = document.querySelector('#submitButton');
   const submitCheckModalElement = document.querySelector('#submitCheckModal');
   const submitCheckSummary = document.querySelector('#submitCheckSummary');
@@ -30,6 +30,9 @@ window.addEventListener('DOMContentLoaded', () => {
   const pageFeedback = feedback.createPageFeedback({ title: 'エディター' });
   const submitCheckModal = (typeof bootstrap !== 'undefined' && submitCheckModalElement)
     ? bootstrap.Modal.getOrCreateInstance(submitCheckModalElement)
+    : null;
+  const runResultModal = (typeof bootstrap !== 'undefined' && runResultModalElement)
+    ? bootstrap.Modal.getOrCreateInstance(runResultModalElement)
     : null;
   let latestCheckSummary = null;
 
@@ -268,9 +271,12 @@ window.addEventListener('DOMContentLoaded', () => {
       ? '$ python main.py\n入力待ちの処理が含まれています。\nテスト用入力: パー\n\n実行結果:\nあなたの勝ち'
       : '$ python main.py\n実行しました。\n\n標準出力:\n(ここに結果が表示されます)');
     if (editorMessage) {
-      editorMessage.textContent = '実行が完了しました。エラーがあればこの下に表示されます。';
+      editorMessage.textContent = '実行が完了しました。実行結果モーダルを確認してください。';
     }
-    prependLog('実行', '実行結果を出力パネルへ反映しました。');
+    prependLog('実行', '実行結果をモーダルへ表示しました。');
+    if (runResultModal) {
+      runResultModal.show();
+    }
   }
 
   function normalizeValue(value) {
@@ -391,10 +397,6 @@ window.addEventListener('DOMContentLoaded', () => {
 
   if (runButton) {
     runButton.addEventListener('click', runCode);
-  }
-
-  if (runOutputButton) {
-    runOutputButton.addEventListener('click', runCode);
   }
 
   if (submitButton) {
