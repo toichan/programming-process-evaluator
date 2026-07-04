@@ -131,9 +131,9 @@
                   <div class="col-12">
                     <label class="form-label">クラス別の公開期間・提出期限</label>
                     <div id="classScheduleList" class="class-schedule-list" aria-live="polite">
-                      <p class="class-schedule-empty mb-0 text-muted">クラスを選択すると、公開日時と提出期限を設定できます。</p>
+                      <p class="class-schedule-empty mb-0 text-muted">クラスを選択すると、公開日時（即時公開可）と提出期限を設定できます。</p>
                     </div>
-                    <div class="form-text">クラスごとに公開日時と提出期限を個別に設定できます。</div>
+                    <div class="form-text">クラスごとに公開日時（即時公開可）と提出期限（期限なし可）を個別に設定できます。</div>
                   </div>
                   <div class="col-12">
                     <label for="taskNameInput" class="form-label">課題名・授業</label>
@@ -181,7 +181,7 @@
                   </div>
                 </div>
 
-                <div class="d-flex gap-2 mt-4">
+                <div class="d-flex gap-2 mt-4 justify-content-center flex-wrap">
                   <button class="btn btn-primary" type="submit" id="publishTaskButton">保存・公開</button>
                   <button class="btn btn-outline-secondary" type="button" id="saveDraftButton">下書き保存</button>
                 </div>
@@ -231,12 +231,10 @@
                         <div id="previewEditorCases"><p class="mb-0 text-muted">未設定</p></div>
                       </div>
 
-                      <h3>Pythonコマンド仕様</h3>
                       <div id="previewHintCards">
                         <div class="hint-card">
                           <div class="info-label">未設定</div>
                           <p>ヒント内容未設定</p>
-                          <textarea class="preview-hint-code-source" spellcheck="false"># コード例未設定</textarea>
                         </div>
                       </div>
                     </div>
@@ -381,7 +379,6 @@
                   <th style="width: 70px;">順序</th>
                   <th style="width: 180px;">タイトル</th>
                   <th>内容</th>
-                  <th>コード例</th>
                 </tr>
               </thead>
               <tbody id="hintLibraryBody"></tbody>

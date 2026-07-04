@@ -70,18 +70,125 @@ body {
 }
 
 .lesson-tree-actions {
-  gap: 0.75rem;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.7rem;
+  align-items: start;
+}
+
+.lesson-tree-actions #newFolderButton {
+  grid-column: 1 / 3;
+}
+
+.lesson-tree-actions #newFileButton {
+  grid-column: 3 / 5;
+}
+
+.lesson-tree-actions #uploadButton {
+  grid-column: 1 / 3;
+}
+
+.lesson-tree-actions #downloadAllButton {
+  grid-column: 3 / 5;
+}
+
+.lesson-tree-actions .btn {
+  min-height: 3rem;
+  height: 3rem;
+  border-radius: 0.9rem;
+  border-width: 1px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  white-space: normal;
+  text-align: center;
+  line-height: 1.2;
+  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.06);
+}
+
+.lesson-tree-actions .btn:hover,
+.lesson-tree-actions .btn:focus {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.12);
+}
+
+.lesson-tree-actions #newFolderButton {
+  border-color: rgba(15, 118, 110, 0.32);
+  background: linear-gradient(135deg, rgba(15, 118, 110, 0.95), rgba(13, 148, 136, 0.95));
+  color: #ffffff;
+}
+
+.lesson-tree-actions #newFileButton {
+  border-color: rgba(37, 99, 235, 0.32);
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.95), rgba(59, 130, 246, 0.95));
+  color: #ffffff;
+}
+
+.lesson-tree-actions #uploadButton {
+  border: none;
+  background: #ffffff;
+  color: #0e7490;
+  border-radius: 0.75rem;
+  font-weight: 500;
+}
+
+.lesson-tree-actions #downloadAllButton {
+  border: none;
+  background: #ffffff;
+  color: #6c757d;
+  border-radius: 0.75rem;
+  font-weight: 500;
+}
+
+.lesson-tree-actions #uploadButton,
+.lesson-tree-actions #downloadAllButton {
+  border-style: solid;
+  white-space: nowrap;
+  letter-spacing: 0;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+.lesson-tree-actions #uploadButton {
+  border-style: none;
+}
+
+.lesson-tree-actions #downloadAllButton {
+  border-style: none;
+}
+
+.lesson-tree-actions #newFolderButton:hover,
+.lesson-tree-actions #newFolderButton:focus {
+  background: linear-gradient(135deg, rgba(17, 94, 89, 0.98), rgba(15, 118, 110, 0.98));
+}
+
+.lesson-tree-actions #newFileButton:hover,
+.lesson-tree-actions #newFileButton:focus {
+  background: linear-gradient(135deg, rgba(29, 78, 216, 0.98), rgba(37, 99, 235, 0.98));
+}
+
+.lesson-tree-actions #downloadAllButton:hover,
+.lesson-tree-actions #downloadAllButton:focus {
+  border: none;
+  background: #f8fafc;
+  color: #495057;
+}
+
+.lesson-tree-actions #uploadButton:hover,
+.lesson-tree-actions #uploadButton:focus {
+  border: none;
+  background: #ecfeff;
+  color: #0c6179;
 }
 
 .lesson-file-tree {
   display: grid;
-  gap: 0.55rem;
+  gap: 0.38rem;
 }
 
 .lesson-tree-folder,
 .lesson-tree-file {
   display: grid;
-  gap: 0.45rem;
+  gap: 0.32rem;
 }
 
 .lesson-tree-entry-row {
@@ -103,8 +210,8 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.65rem 0.8rem;
+  gap: 0.55rem;
+  padding: 0.5rem 0.65rem;
   border-radius: 0.9rem;
   background: rgba(15, 118, 110, 0.08);
   color: var(--lesson-accent-dark);
@@ -119,7 +226,7 @@ body {
 .lesson-tree-folder-title {
   display: flex;
   align-items: center;
-  gap: 0.55rem;
+  gap: 0.45rem;
   min-width: 0;
   flex-wrap: nowrap;
   flex: 1 1 auto;
@@ -130,8 +237,8 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.7rem;
-  height: 1.7rem;
+  width: 1.45rem;
+  height: 1.45rem;
   border: 0;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.72);
@@ -157,8 +264,10 @@ body {
 
 .lesson-tree-folder-children {
   display: grid;
-  gap: 0.45rem;
-  padding-left: 1rem;
+  gap: 0.32rem;
+  padding-left: 0.78rem;
+  margin-left: 0.28rem;
+  border-left: 1px solid rgba(203, 213, 225, 0.85);
 }
 
 .lesson-tree-folder-children.is-collapsed {
@@ -168,11 +277,11 @@ body {
 .lesson-tree-file-button {
   display: flex;
   align-items: center;
-  gap: 0.55rem;
+  gap: 0.45rem;
   flex: 1 1 auto;
   border: 1px solid rgba(203, 213, 225, 0.9);
   border-radius: 0.85rem;
-  padding: 0.7rem 0.8rem;
+  padding: 0.5rem 0.65rem;
   background: rgba(255, 255, 255, 0.88);
   color: var(--bs-gray-800);
   text-align: left;
@@ -217,9 +326,9 @@ body {
 
 .lesson-tree-entry-meta {
   display: block;
-  font-size: 0.74rem;
+  font-size: 0.71rem;
   color: #9a3412;
-  margin-top: 0.18rem;
+  margin-top: 0.1rem;
 }
 
 .lesson-tree-entry-actions {
@@ -240,11 +349,11 @@ body {
 }
 
 .lesson-tree-menu-toggle {
-  min-width: 2.6rem;
-  min-height: 2.6rem;
+  min-width: 2.2rem;
+  min-height: 2.2rem;
   border-radius: 0.85rem;
-  padding: 0.35rem 0.6rem;
-  font-size: 1.15rem;
+  padding: 0.2rem 0.45rem;
+  font-size: 1rem;
   line-height: 1;
 }
 
@@ -367,6 +476,92 @@ body {
   border: 1px dashed rgba(203, 213, 225, 0.9);
   color: var(--bs-gray-600);
   font-weight: 600;
+}
+
+.upload-entry-description {
+  margin: 0 0 0.9rem;
+  color: var(--bs-gray-600);
+  font-size: 0.9rem;
+}
+
+.upload-entry-modal .upload-entry-modal-dialog {
+  max-width: min(1160px, 94vw);
+}
+
+.upload-entry-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
+  gap: 1rem;
+}
+
+.upload-entry-file-panel,
+.upload-entry-folder-panel {
+  border: 1px solid rgba(203, 213, 225, 0.9);
+  border-radius: 1rem;
+  padding: 1rem;
+  background: rgba(248, 250, 252, 0.9);
+}
+
+.upload-entry-heading {
+  margin: 0 0 0.7rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--lesson-accent-dark);
+}
+
+.upload-entry-source-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.upload-entry-source-actions .btn {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.upload-entry-file-name {
+  margin: 0.75rem 0 0;
+  color: var(--bs-gray-700);
+  font-weight: 600;
+}
+
+.upload-file-preview-list {
+  margin: 0.6rem 0 0;
+  padding: 0.6rem 0.7rem;
+  list-style: none;
+  border: 1px solid rgba(203, 213, 225, 0.85);
+  border-radius: 0.8rem;
+  background: rgba(255, 255, 255, 0.9);
+  max-height: 170px;
+  overflow: auto;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.upload-file-preview-item {
+  font-size: 0.83rem;
+  color: var(--bs-gray-700);
+  line-height: 1.35;
+  word-break: break-all;
+}
+
+.upload-file-preview-empty {
+  color: var(--bs-gray-500);
+}
+
+.upload-entry-help {
+  margin-bottom: 0.7rem;
+  color: var(--bs-gray-600);
+  font-size: 0.88rem;
+}
+
+.upload-folder-tree {
+  display: grid;
+  gap: 0.55rem;
+  max-height: 280px;
+  overflow: auto;
+  padding-right: 0.15rem;
 }
 
 .lesson-info-card {
@@ -501,6 +696,29 @@ body {
   margin-top: 1rem;
 }
 
+.lesson-status-right {
+  margin-left: auto;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.45rem;
+}
+
+.lesson-language-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.4rem 0.78rem;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  background: #f3f4f6;
+  color: var(--bs-gray-700);
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
 .editor-message {
   color: var(--bs-gray-700);
   font-weight: 600;
@@ -590,9 +808,37 @@ body {
     align-items: stretch;
   }
 
-  .lesson-tree-actions,
+  .upload-entry-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .upload-entry-source-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .lesson-status-right {
+    width: 100%;
+    align-items: flex-start;
+    margin-left: 0;
+  }
+
+  .lesson-language-chip {
+    align-self: flex-end;
+  }
+
   .button-group {
     flex-direction: column;
+  }
+
+  .lesson-tree-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .lesson-tree-actions #newFolderButton,
+  .lesson-tree-actions #newFileButton,
+  .lesson-tree-actions #uploadButton,
+  .lesson-tree-actions #downloadAllButton {
+    grid-column: auto;
   }
 
   .lesson-tree-actions .btn,

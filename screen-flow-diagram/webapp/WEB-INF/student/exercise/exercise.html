@@ -48,6 +48,8 @@
             <div class="button-group lesson-tree-actions mb-3">
               <button id="newFolderButton" class="btn btn-outline-secondary" type="button">新しいフォルダ</button>
               <button id="newFileButton" class="btn btn-outline-primary" type="button">新しいファイル</button>
+              <button id="uploadButton" class="btn btn-outline-info" type="button">アップロード</button>
+              <button id="downloadAllButton" class="btn btn-outline-secondary" type="button">一括ダウンロード</button>
             </div>
 
             <div id="lessonFileTree" class="lesson-file-tree" aria-label="授業演習ファイルツリー"></div>
@@ -59,9 +61,9 @@
             <div class="editor-toolbar lesson-toolbar">
               <div class="toolbar-left">
                 <span id="currentPathBadge" class="task-badge">Path: ウォームアップ/greeting.py</span>
-                <span class="language-badge">Python 3.x</span>
               </div>
               <div class="button-group">
+                <button id="downloadButton" class="btn btn-outline-secondary" type="button">ダウンロード</button>
                 <button id="saveButton" class="btn btn-secondary" type="button">保存</button>
                 <button id="runButton" class="btn btn-primary" type="button">実行</button>
               </div>
@@ -77,8 +79,10 @@ print(f"こんにちは、{name}さん")</textarea>
             </div>
 
             <div class="editor-status-row lesson-status-row">
-              <div id="lessonEditorMessage" class="editor-message">演習ファイルを選択して編集できます。保存すると最終状態が更新されます。</div>
-              <div class="status-note mb-0">最終保存: <span id="lastSavedAt">未保存</span></div>
+              <div id="lessonEditorMessage" class="editor-message">保存状態: 未保存の変更があります。保存すると最終状態が更新されます。</div>
+              <div class="lesson-status-right">
+                <span class="lesson-language-chip">Python 3.x</span>
+              </div>
             </div>
           </section>
 
@@ -115,7 +119,7 @@ print(f"こんにちは、{name}さん")</textarea>
   </div>
 
   <div class="modal fade move-entry-modal" id="moveEntryModal" tabindex="-1" aria-labelledby="moveEntryModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
       <div class="modal-content">
         <div class="modal-header">
           <div>
@@ -137,6 +141,44 @@ print(f"こんにちは、{name}さん")</textarea>
     </div>
   </div>
 
+  <div class="modal fade upload-entry-modal" id="uploadEntryModal" tabindex="-1" aria-labelledby="uploadEntryModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl upload-entry-modal-dialog modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <div>
+            <h2 class="modal-title h5 mb-1" id="uploadEntryModalLabel">ファイル・フォルダをアップロード</h2>
+          </div>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
+        </div>
+        <div class="modal-body">
+          <p class="upload-entry-description">複数ファイルまたはフォルダを選択し、追加先フォルダへ取り込みます。</p>
+          <div class="upload-entry-layout">
+            <section class="upload-entry-file-panel">
+              <h3 class="upload-entry-heading">1. ファイル/フォルダ選択</h3>
+              <div class="upload-entry-source-actions">
+                <button id="uploadSelectFilesButton" class="btn btn-outline-primary" type="button">ファイルを選択</button>
+                <button id="uploadSelectFolderButton" class="btn btn-outline-secondary" type="button">フォルダを選択</button>
+              </div>
+              <input id="uploadSourceFile" class="d-none" type="file" accept=".py" multiple>
+              <input id="uploadSourceDirectory" class="d-none" type="file" accept=".py" multiple webkitdirectory directory>
+              <p id="uploadFileName" class="upload-entry-file-name">未選択</p>
+              <ul id="uploadFilePreviewList" class="upload-file-preview-list" aria-label="選択したファイル一覧"></ul>
+            </section>
+            <section class="upload-entry-folder-panel">
+              <h3 class="upload-entry-heading">2. 追加先フォルダ</h3>
+              <p class="upload-entry-help">追加先のフォルダをクリックしてください。</p>
+              <div id="uploadFolderTree" class="upload-folder-tree"></div>
+            </section>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">キャンセル</button>
+          <button id="uploadEntryConfirmButton" type="button" class="btn btn-primary" disabled>アップロードして追加</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div id="footer-placeholder"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"
@@ -145,6 +187,7 @@ print(f"こんにちは、{name}さん")</textarea>
   <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/lib/codemirror.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/mode/python/python.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/mode/shell/shell.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   <script src="../../../js/student/shared/components.js"></script>
   <script src="../../../js/student/shared/feedback.js"></script>
   <script src="../../../js/student/exercise/exercise.js"></script>

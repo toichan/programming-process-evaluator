@@ -60,6 +60,14 @@ function loadTeacherComponents() {
             <span>授業演習コード確認</span>
           </a>
         </li>
+        <li class="sidebar-menu-item" data-page="distribution">
+          <a href="../distribution/distribution.html" class="sidebar-menu-link">
+            <svg class="sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M3 5a2 2 0 0 1 2-2h5.17a2 2 0 0 1 1.41.59l.83.82A2 2 0 0 0 13.83 5H19a2 2 0 0 1 2 2v2H3V5zm0 5h18v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-9zm9 2l-4 4h3v3h2v-3h3l-4-4z"/>
+            </svg>
+            <span>コード配信</span>
+          </a>
+        </li>
         <li class="sidebar-menu-item" data-page="submission">
           <a href="../submission/submission.html" class="sidebar-menu-link">
             <svg class="sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
@@ -305,6 +313,7 @@ function setActiveSidebarMenu() {
     '/teacher/account/account.html': 'account',
     '/teacher/progress/progress.html': 'progress',
     '/teacher/exercise/exercise.html': 'exercise',
+    '/teacher/distribution/distribution.html': 'distribution',
     '/teacher/submission/submission.html': 'submission',
     '/teacher/evaluation/evaluation.html': 'evaluation',
     '/teacher/survey/survey.html': 'survey',

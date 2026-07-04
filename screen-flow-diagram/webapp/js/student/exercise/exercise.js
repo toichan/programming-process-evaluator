@@ -19,9 +19,21 @@ window.addEventListener('DOMContentLoaded', () => {
   const lastSavedAt = document.querySelector('#lastSavedAt');
   const newFolderButton = document.querySelector('#newFolderButton');
   const newFileButton = document.querySelector('#newFileButton');
+  const uploadButton = document.querySelector('#uploadButton');
+  const downloadAllButton = document.querySelector('#downloadAllButton');
+  const downloadButton = document.querySelector('#downloadButton');
   const saveButton = document.querySelector('#saveButton');
   const runButton = document.querySelector('#runButton');
   const runResultModalElement = document.querySelector('#runResultModal');
+  const uploadEntryModalElement = document.querySelector('#uploadEntryModal');
+  const uploadSelectFilesButton = document.querySelector('#uploadSelectFilesButton');
+  const uploadSelectFolderButton = document.querySelector('#uploadSelectFolderButton');
+  const uploadSourceFile = document.querySelector('#uploadSourceFile');
+  const uploadSourceDirectory = document.querySelector('#uploadSourceDirectory');
+  const uploadFileName = document.querySelector('#uploadFileName');
+  const uploadFilePreviewList = document.querySelector('#uploadFilePreviewList');
+  const uploadFolderTree = document.querySelector('#uploadFolderTree');
+  const uploadEntryConfirmButton = document.querySelector('#uploadEntryConfirmButton');
   const moveEntryModalElement = document.querySelector('#moveEntryModal');
   const moveEntryModalTree = document.querySelector('#moveEntryModalTree');
   const moveEntryModalEmpty = document.querySelector('#moveEntryModalEmpty');
@@ -34,6 +46,9 @@ window.addEventListener('DOMContentLoaded', () => {
     : null;
   const runResultModal = (typeof bootstrap !== 'undefined' && runResultModalElement)
     ? bootstrap.Modal.getOrCreateInstance(runResultModalElement)
+    : null;
+  const uploadEntryModal = (typeof bootstrap !== 'undefined' && uploadEntryModalElement)
+    ? bootstrap.Modal.getOrCreateInstance(uploadEntryModalElement)
     : null;
   const moveEntryModal = (typeof bootstrap !== 'undefined' && moveEntryModalElement)
     ? bootstrap.Modal.getOrCreateInstance(moveEntryModalElement)
@@ -99,6 +114,11 @@ window.addEventListener('DOMContentLoaded', () => {
   let currentSelectionId = currentFileId;
   let pendingMoveDestinationPath = null;
   const collapsedFolderIds = new Set([RECYCLE_BIN_ID]);
+  let pendingUploadFolderId = ROOT_FOLDER_ID;
+  let pendingUploadItems = [];
+  let pendingUploadSourceMode = '';
+  let pendingUploadExcludedCount = 0;
+  const MAX_UPLOAD_PREVIEW_ITEMS = 12;
 
   if (headerPlaceholder && header) {
     headerPlaceholder.innerHTML = header;
@@ -408,7 +428,6 @@ window.addEventListener('DOMContentLoaded', () => {
 
     const childFolders = (entry.children || []).filter((child) => isFolder(child) && validTargetIds.has(child.id));
     const escapedName = escapeHtml(isRootNode ? ROOT_FOLDER_NAME : entry.name);
-    const escapedPath = escapeHtml(isRootNode ? ROOT_FOLDER_NAME : entry.path);
     const canSelect = isRootNode || validTargetIds.has(entry.id);
     const isSelectedTarget = pendingMoveDestinationPath === (isRootNode ? ROOT_FOLDER_LABEL : entry.path);
 
@@ -421,7 +440,6 @@ window.addEventListener('DOMContentLoaded', () => {
             </svg>
             <span class="move-entry-folder-name">${escapedName}</span>
           </div>
-          <span class="move-entry-folder-path">${escapedPath}</span>
         </button>
         ${childFolders.length > 0 ? `<div class="move-entry-children">${childFolders.map((child) => renderMoveFolderTree(child, validTargetIds)).join('')}</div>` : ''}
       </div>
@@ -484,6 +502,297 @@ window.addEventListener('DOMContentLoaded', () => {
 
     if (moveEntryModalEmpty) {
       moveEntryModalEmpty.classList.add('d-none');
+    }
+  }
+
+  function resetUploadState() {
+    pendingUploadFolderId = ROOT_FOLDER_ID;
+    pendingUploadItems = [];
+    pendingUploadSourceMode = '';
+    pendingUploadExcludedCount = 0;
+    if (uploadSourceFile) {
+      uploadSourceFile.value = '';
+    }
+    if (uploadSourceDirectory) {
+      uploadSourceDirectory.value = '';
+    }
+    if (uploadFileName) {
+      uploadFileName.textContent = '未選択';
+    }
+    if (uploadFilePreviewList) {
+      uploadFilePreviewList.innerHTML = '<li class="upload-file-preview-item upload-file-preview-empty">選択したファイル名がここに表示されます。</li>';
+    }
+    if (uploadEntryConfirmButton) {
+      uploadEntryConfirmButton.disabled = true;
+    }
+  }
+
+  function isPythonUploadFile(file) {
+    const rawPath = String(file?.webkitRelativePath || file?.name || '').trim();
+    return /\.py$/i.test(rawPath);
+  }
+
+  function isValidUploadTarget(folder) {
+    return isFolder(folder) && !isRecycleBin(folder) && !folder.deletedAt;
+  }
+
+  function renderUploadFolderTreeNode(entry, isRootNode = false) {
+    if (!isValidUploadTarget(entry)) {
+      return '';
+    }
+
+    const isSelected = entry.id === pendingUploadFolderId;
+    const childFolders = (entry.children || []).filter((child) => isValidUploadTarget(child));
+    const escapedName = escapeHtml(isRootNode ? ROOT_FOLDER_NAME : entry.name);
+
+    return `
+      <div class="move-entry-folder${isRootNode ? ' is-root-node' : ''}${isSelected ? ' is-selected-target' : ''}">
+        <button class="move-entry-folder-button" type="button" data-upload-folder-id="${entry.id}">
+          <div class="move-entry-folder-main">
+            <svg class="move-entry-folder-icon" width="18" height="18" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+              <path d="M.75 3A1.75 1.75 0 0 1 2.5 1.25h3.379c.464 0 .908.184 1.237.513l.72.72c.141.14.331.22.53.22H13.5A1.75 1.75 0 0 1 15.25 4.5v7A1.75 1.75 0 0 1 13.5 13.25h-11A1.75 1.75 0 0 1 .75 11.5V3z"/>
+            </svg>
+            <span class="move-entry-folder-name">${escapedName}</span>
+          </div>
+        </button>
+        ${childFolders.length > 0 ? `<div class="move-entry-children">${childFolders.map((child) => renderUploadFolderTreeNode(child)).join('')}</div>` : ''}
+      </div>
+    `;
+  }
+
+  function renderUploadFolderTree() {
+    if (!uploadFolderTree) {
+      return;
+    }
+
+    const rootFolder = getRootFolder();
+    if (!rootFolder || !isValidUploadTarget(rootFolder)) {
+      uploadFolderTree.innerHTML = '';
+      pendingUploadFolderId = null;
+      return;
+    }
+
+    if (!pendingUploadFolderId || !isValidUploadTarget(findEntryById(lessonState, pendingUploadFolderId)?.entry)) {
+      pendingUploadFolderId = rootFolder.id;
+    }
+
+    uploadFolderTree.innerHTML = renderUploadFolderTreeNode(rootFolder, true);
+  }
+
+  function setPendingUploadItems(files, mode) {
+    const selectedItems = Array.from(files || []).filter((file) => file && file.name);
+    pendingUploadItems = selectedItems.filter((file) => isPythonUploadFile(file));
+    pendingUploadExcludedCount = Math.max(0, selectedItems.length - pendingUploadItems.length);
+    pendingUploadSourceMode = pendingUploadItems.length ? mode : '';
+
+    if (uploadFileName) {
+      if (!pendingUploadItems.length) {
+        uploadFileName.textContent = pendingUploadExcludedCount > 0
+          ? '.py ファイルが選択されていません'
+          : '未選択';
+      } else if (mode === 'folder') {
+        const firstPath = pendingUploadItems[0].webkitRelativePath || pendingUploadItems[0].name;
+        const rootName = firstPath.split('/').filter(Boolean)[0] || 'フォルダ';
+        uploadFileName.textContent = `${rootName}（${pendingUploadItems.length}件の .py）`;
+      } else if (pendingUploadItems.length === 1) {
+        uploadFileName.textContent = pendingUploadItems[0].name;
+      } else {
+        uploadFileName.textContent = `${pendingUploadItems.length}件の .py ファイルを選択中`;
+      }
+
+      if (pendingUploadExcludedCount > 0 && pendingUploadItems.length > 0) {
+        uploadFileName.textContent += `（.py以外 ${pendingUploadExcludedCount}件は除外）`;
+      }
+    }
+
+    if (uploadFilePreviewList) {
+      if (!pendingUploadItems.length) {
+        uploadFilePreviewList.innerHTML = '<li class="upload-file-preview-item upload-file-preview-empty">選択したファイル名がここに表示されます。</li>';
+      } else {
+        const previewItems = pendingUploadItems.slice(0, MAX_UPLOAD_PREVIEW_ITEMS).map((file) => {
+          const rawPath = pendingUploadSourceMode === 'folder'
+            ? (file.webkitRelativePath || file.name)
+            : file.name;
+          return `<li class="upload-file-preview-item">${escapeHtml(rawPath)}</li>`;
+        });
+
+        const remaining = pendingUploadItems.length - previewItems.length;
+        if (remaining > 0) {
+          previewItems.push(`<li class="upload-file-preview-item upload-file-preview-empty">...ほか ${remaining} 件</li>`);
+        }
+
+        if (pendingUploadExcludedCount > 0) {
+          previewItems.push(`<li class="upload-file-preview-item upload-file-preview-empty">.py以外 ${pendingUploadExcludedCount} 件はアップロード対象外です。</li>`);
+        }
+
+        uploadFilePreviewList.innerHTML = previewItems.join('');
+      }
+    }
+
+    updateUploadConfirmState();
+  }
+
+  function updateUploadConfirmState() {
+    if (!uploadEntryConfirmButton) {
+      return;
+    }
+
+    const hasFile = pendingUploadItems.length > 0;
+    const hasTarget = Boolean(pendingUploadFolderId);
+    uploadEntryConfirmButton.disabled = !(hasFile && hasTarget);
+  }
+
+  function openUploadEntryModal() {
+    resetUploadState();
+    renderUploadFolderTree();
+    updateUploadConfirmState();
+
+    if (uploadEntryModal) {
+      uploadEntryModal.show();
+      return;
+    }
+
+    setMessage('アップロードモーダルを表示できませんでした。', 'warning');
+  }
+
+  async function uploadFileToSelectedFolder() {
+    const sourceFiles = pendingUploadItems.slice();
+    if (!sourceFiles.length) {
+      setMessage('アップロードするファイルまたはフォルダを選択してください。', 'warning');
+      return;
+    }
+
+    const foundTarget = pendingUploadFolderId
+      ? findEntryById(lessonState, pendingUploadFolderId)
+      : null;
+    const targetFolder = foundTarget?.entry;
+
+    if (!targetFolder || !isFolder(targetFolder) || isRecycleBin(targetFolder)) {
+      setMessage('追加先フォルダを選択してください。', 'warning');
+      return;
+    }
+
+    let firstAddedFileId = null;
+    let addedCount = 0;
+    const skippedNames = [];
+
+    for (const sourceFile of sourceFiles) {
+      const rawPath = pendingUploadSourceMode === 'folder'
+        ? (sourceFile.webkitRelativePath || sourceFile.name)
+        : sourceFile.name;
+      const pathSegments = String(rawPath || '').split('/').filter((segment) => segment);
+      if (!pathSegments.length) {
+        skippedNames.push(sourceFile.name || '不明なファイル');
+        continue;
+      }
+
+      const effectiveSegments = pendingUploadSourceMode === 'folder' && pathSegments.length > 1
+        ? pathSegments.slice(1)
+        : pathSegments;
+      if (!effectiveSegments.length) {
+        skippedNames.push(sourceFile.name || '不明なファイル');
+        continue;
+      }
+
+      let cursor = targetFolder;
+      let cursorDepth = getEntryDepth(targetFolder);
+      const folderSegments = effectiveSegments.slice(0, -1);
+      let hasInvalidPath = false;
+
+      for (const rawFolderName of folderSegments) {
+        const folderName = String(rawFolderName || '').trim();
+        if (!folderName || folderName.length > MAX_ENTRY_NAME_LENGTH) {
+          hasInvalidPath = true;
+          break;
+        }
+
+        const duplicateByName = (cursor.children || []).find((child) => child.name === folderName);
+        if (duplicateByName && !isFolder(duplicateByName)) {
+          hasInvalidPath = true;
+          break;
+        }
+
+        let nextFolder = (cursor.children || []).find((child) => isFolder(child) && child.name === folderName);
+        if (!nextFolder) {
+          if (cursorDepth + 1 > MAX_FOLDER_DEPTH) {
+            hasInvalidPath = true;
+            break;
+          }
+
+          nextFolder = {
+            id: createId('folder'),
+            type: 'folder',
+            name: folderName,
+            children: []
+          };
+          cursor.children.push(nextFolder);
+        }
+
+        cursor = nextFolder;
+        cursorDepth += 1;
+      }
+
+      if (hasInvalidPath) {
+        skippedNames.push(rawPath);
+        continue;
+      }
+
+      const normalizedName = String(effectiveSegments[effectiveSegments.length - 1] || '').trim();
+      if (!normalizedName || normalizedName.length > MAX_ENTRY_NAME_LENGTH) {
+        skippedNames.push(rawPath);
+        continue;
+      }
+
+      if (!/\.py$/i.test(normalizedName)) {
+        skippedNames.push(rawPath);
+        continue;
+      }
+
+      const fileName = normalizedName;
+      if (hasNameConflict(cursor, fileName)) {
+        skippedNames.push(rawPath);
+        continue;
+      }
+
+      const content = await sourceFile.text();
+      const newFile = {
+        id: createId('file'),
+        type: 'file',
+        name: fileName,
+        content
+      };
+      cursor.children.push(newFile);
+
+      if (!firstAddedFileId) {
+        firstAddedFileId = newFile.id;
+      }
+      addedCount += 1;
+    }
+
+    if (!addedCount) {
+      setMessage('追加できるファイルがありませんでした。名前重複や階層制限を確認してください。', 'warning');
+      return;
+    }
+
+    currentFileId = firstAddedFileId;
+    currentSelectionId = firstAddedFileId;
+    refreshState();
+    renderFileTree(lessonState);
+    updateActiveFileUI();
+
+    const skippedCount = skippedNames.length;
+    const suffix = skippedCount > 0 ? `（${skippedCount}件は重複または無効のため未追加）` : '';
+    setMessage(`${addedCount}件のファイルを「${targetFolder.path}」に追加しました。${suffix}`, 'success');
+    if (pageFeedback && typeof pageFeedback.toast === 'function') {
+      pageFeedback.toast({
+        title: '授業演習',
+        message: `${addedCount}件のファイルをアップロードしました。${suffix}`,
+        variant: 'success'
+      });
+    }
+
+    if (uploadEntryModal) {
+      uploadEntryModal.hide();
     }
   }
 
@@ -620,6 +929,63 @@ window.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  if (uploadEntryModalElement) {
+    uploadEntryModalElement.addEventListener('hidden.bs.modal', () => {
+      resetUploadState();
+    });
+
+    uploadEntryModalElement.addEventListener('click', (event) => {
+      const folderButton = event.target.closest('[data-upload-folder-id]');
+      if (!folderButton) {
+        return;
+      }
+
+      pendingUploadFolderId = folderButton.getAttribute('data-upload-folder-id');
+      renderUploadFolderTree();
+      updateUploadConfirmState();
+    });
+  }
+
+  if (uploadSourceFile) {
+    uploadSourceFile.addEventListener('change', () => {
+      if (uploadSourceDirectory) {
+        uploadSourceDirectory.value = '';
+      }
+      setPendingUploadItems(uploadSourceFile.files, 'files');
+    });
+  }
+
+  if (uploadSourceDirectory) {
+    uploadSourceDirectory.addEventListener('change', () => {
+      if (uploadSourceFile) {
+        uploadSourceFile.value = '';
+      }
+      setPendingUploadItems(uploadSourceDirectory.files, 'folder');
+    });
+  }
+
+  if (uploadSelectFilesButton && uploadSourceFile) {
+    uploadSelectFilesButton.addEventListener('click', () => {
+      uploadSourceFile.click();
+    });
+  }
+
+  if (uploadSelectFolderButton && uploadSourceDirectory) {
+    uploadSelectFolderButton.addEventListener('click', () => {
+      uploadSourceDirectory.click();
+    });
+  }
+
+  if (uploadEntryConfirmButton) {
+    uploadEntryConfirmButton.addEventListener('click', async () => {
+      try {
+        await uploadFileToSelectedFolder();
+      } catch (error) {
+        setMessage('ファイルの追加に失敗しました。', 'danger');
+      }
+    });
+  }
+
   if (moveEntryConfirmButton) {
     moveEntryConfirmButton.addEventListener('click', () => {
       if (!pendingMoveEntryId || !pendingMoveDestinationPath) {
@@ -659,7 +1025,101 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 
     if (showMessage) {
-      setMessage(`「${file.name}」を保存しました。`, 'success');
+      setMessage(`保存状態: 保存済みです（${file.name}）。最終状態を更新しました。`, 'success');
+    }
+  }
+
+  function buildDownloadFileName() {
+    const file = getCurrentFile();
+    const baseName = file?.name || 'lesson_code.py';
+    const sanitized = baseName
+      .replace(/[\\/:*?"<>|]/g, '_')
+      .replace(/\s+/g, '_')
+      .replace(/_+/g, '_')
+      .replace(/^_+|_+$/g, '');
+    const withExtension = sanitized || 'lesson_code.py';
+    return /\.py$/i.test(withExtension) ? withExtension : `${withExtension}.py`;
+  }
+
+  function downloadCurrentCode() {
+    const code = getEditorValue();
+    const blob = new Blob([code], { type: 'text/x-python;charset=utf-8' });
+    const objectUrl = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+
+    anchor.href = objectUrl;
+    anchor.download = buildDownloadFileName();
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(objectUrl);
+  }
+
+  function buildBulkDownloadFileName() {
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    return `${ROOT_FOLDER_NAME}_exercise_${timestamp}.zip`;
+  }
+
+  function appendEntryToZip(entry, zipFolder, counter) {
+    if (isFolder(entry)) {
+      if (isRecycleBin(entry) || entry.deletedAt) {
+        return;
+      }
+
+      const nestedFolder = zipFolder.folder(entry.name);
+      (entry.children || []).forEach((child) => appendEntryToZip(child, nestedFolder, counter));
+      return;
+    }
+
+    if (!isFile(entry) || entry.deletedAt) {
+      return;
+    }
+
+    zipFolder.file(entry.name, entry.content || '');
+    counter.count += 1;
+  }
+
+  async function downloadAllEntriesAsZip() {
+    if (typeof JSZip === 'undefined') {
+      setMessage('一括ダウンロードの準備に失敗しました。時間をおいて再試行してください。', 'warning');
+      return;
+    }
+
+    const rootFolder = getRootFolder();
+    if (!rootFolder || !Array.isArray(rootFolder.children)) {
+      setMessage('ダウンロード対象のフォルダが見つかりませんでした。', 'warning');
+      return;
+    }
+
+    const zip = new JSZip();
+    const exportRoot = zip.folder(ROOT_FOLDER_NAME);
+    const counter = { count: 0 };
+
+    rootFolder.children.forEach((child) => appendEntryToZip(child, exportRoot, counter));
+
+    if (counter.count === 0) {
+      setMessage('ダウンロード対象のファイルがありません。', 'warning');
+      return;
+    }
+
+    const blob = await zip.generateAsync({ type: 'blob' });
+    const objectUrl = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+
+    anchor.href = objectUrl;
+    anchor.download = buildBulkDownloadFileName();
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(objectUrl);
+
+    setMessage(`フォルダとファイルを一括ダウンロードしました（${counter.count}件）。`, 'success');
+    if (pageFeedback && typeof pageFeedback.toast === 'function') {
+      pageFeedback.toast({
+        title: '授業演習',
+        message: `フォルダとファイルを一括ダウンロードしました（${counter.count}件）。`,
+        variant: 'success'
+      });
     }
   }
 
@@ -963,7 +1423,21 @@ window.addEventListener('DOMContentLoaded', () => {
     ensureCurrentFileSelection();
     renderFileTree(lessonState);
     updateActiveFileUI();
-    setMessage(`「${found.entry.name}」を削除済みフォルダへ移動しました。`, 'warning');
+    const deleteMessage = `「${found.entry.name}」を削除済みフォルダへ移動しました。`;
+    setMessage(deleteMessage, 'success');
+    if (pageFeedback && typeof pageFeedback.toast === 'function') {
+      pageFeedback.toast({
+        title: '授業演習',
+        message: deleteMessage,
+        variant: 'success'
+      });
+    } else if (typeof feedback.showToast === 'function') {
+      feedback.showToast({
+        title: '授業演習',
+        message: deleteMessage,
+        variant: 'success'
+      });
+    }
   }
 
   async function handleTreeAction(action, entryId) {
@@ -1110,9 +1584,39 @@ window.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  if (uploadButton) {
+    uploadButton.addEventListener('click', () => {
+      openUploadEntryModal();
+    });
+  }
+
+  if (downloadAllButton) {
+    downloadAllButton.addEventListener('click', async () => {
+      try {
+        await downloadAllEntriesAsZip();
+      } catch (error) {
+        setMessage('一括ダウンロードに失敗しました。', 'danger');
+      }
+    });
+  }
+
   if (saveButton) {
     saveButton.addEventListener('click', () => {
       saveCurrentFile(true);
+    });
+  }
+
+  if (downloadButton) {
+    downloadButton.addEventListener('click', () => {
+      downloadCurrentCode();
+      setMessage('コードをダウンロードしました。', 'success');
+      if (pageFeedback && typeof pageFeedback.toast === 'function') {
+        pageFeedback.toast({
+          title: '授業演習',
+          message: 'コードをダウンロードしました。',
+          variant: 'success'
+        });
+      }
     });
   }
 

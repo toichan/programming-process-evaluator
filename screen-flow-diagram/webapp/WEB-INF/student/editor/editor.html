@@ -59,9 +59,9 @@
             <div class="editor-toolbar">
               <div class="toolbar-left">
                 <span class="task-badge">課題: じゃんけん判定プログラム</span>
-                <span class="language-badge">Python 3.x</span>
               </div>
               <div class="button-group">
+                <button id="downloadButton" class="btn btn-outline-secondary" type="button">ダウンロード</button>
                 <button id="saveButton" class="btn btn-secondary" type="button">保存</button>
                 <button id="runButton" class="btn btn-primary" type="button">実行</button>
                 <button id="submitButton" class="btn btn-warning" type="button">提出する</button>
@@ -83,7 +83,8 @@ else:
             </div>
 
             <div class="editor-status-row">
-              <div id="editorMessage" class="editor-message">編集中です。保存するとコードログに反映されます。</div>
+              <div id="editorMessage" class="editor-message">保存状態: 未保存の変更があります。保存するとコードログへ反映されます。</div>
+              <span class="editor-language-chip">Python 3.x</span>
             </div>
           </section>
 
@@ -93,7 +94,6 @@ else:
                 <h2 class="card-title mb-2">コードログ</h2>
                 <div class="log-status-row">
                   <div class="status-chip"><span class="status-dot"></span> 自動保存 30秒間隔</div>
-                  <div class="status-note mb-0">最終保存: <span id="lastSavedAt">未保存</span></div>
                 </div>
               </div>
               <div class="log-header-actions">

@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Programming Process Evaluator - コード配信</title>
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet"
+    integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB"
+    crossorigin="anonymous">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+  <link href="../../../css/teacher/shared/components.css" rel="stylesheet">
+  <link href="../../../css/teacher/shared/feedback.css" rel="stylesheet">
+  <link href="../../../css/template/template.css" rel="stylesheet">
+  <link href="../../../css/teacher/distribution/distribution.css" rel="stylesheet">
+</head>
+<body>
+  <main class="flex-grow-1">
+    <div class="page-content py-5">
+      <div class="container-fluid px-4">
+        <section class="distribution-hero mb-4">
+          <div>
+            <span class="hero-kicker">Code Distribution</span>
+            <h1 class="section-title mb-2">コード配信</h1>
+            <p class="hero-description mb-0">学校・クラスを指定して、授業演習用のフォルダ・ファイルテンプレートを作成・配信します。</p>
+          </div>
+          <div class="hero-stats">
+            <div class="stat-card">
+              <div class="stat-label">公開テンプレート</div>
+              <div class="stat-value" id="templateCount">0</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">予約配信</div>
+              <div class="stat-value" id="scheduledCount">0</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">配信履歴</div>
+              <div class="stat-value" id="historyCount">0</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel-card mb-4">
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+            <div>
+              <span class="hero-kicker mb-1 d-inline-block">Create</span>
+              <h2 class="subheading mb-0">新規配信テンプレートの作成</h2>
+            </div>
+            <div class="d-flex gap-2">
+              <button class="btn btn-outline-secondary btn-sm" type="button" id="resetFormButton">入力をリセット</button>
+            </div>
+          </div>
+          <div class="row g-4">
+            <div class="col-12">
+              <form id="distributionForm" class="distribution-form">
+                <h3 class="form-section-title">配信対象・スケジュール</h3>
+                <div class="row g-3">
+                  <div class="col-md-6">
+                    <label class="form-label d-block">学校</label>
+                    <div class="dropdown class-dropdown" id="distributionSchoolCheckboxGroup" aria-describedby="distributionSchoolHelp">
+                      <button
+                        id="distributionSchoolDropdownButton"
+                        class="btn btn-outline-secondary form-control text-start dropdown-toggle"
+                        type="button"
+                        data-bs-toggle="dropdown"
+                        data-bs-auto-close="outside"
+                        aria-expanded="false">学校を選択</button>
+                      <div class="dropdown-menu class-dropdown-menu p-2 w-100">
+                        <div class="form-check">
+                          <input class="form-check-input" type="checkbox" id="distributionSchoolKokusai" name="distributionSchoolTargets" value="国際中等">
+                          <label class="form-check-label" for="distributionSchoolKokusai">国際中等</label>
+                        </div>
+                        <div class="form-check">
+                          <input class="form-check-input" type="checkbox" id="distributionSchoolFuzoku" name="distributionSchoolTargets" value="附属高校">
+                          <label class="form-check-label" for="distributionSchoolFuzoku">附属高校</label>
+                        </div>
+                        <div class="form-check">
+                          <input class="form-check-input" type="checkbox" id="distributionSchoolResearch" name="distributionSchoolTargets" value="研究校共通">
+                          <label class="form-check-label" for="distributionSchoolResearch">研究校共通</label>
+                        </div>
+                      </div>
+                    </div>
+                    <div id="distributionSchoolHelp" class="form-text">複数選択できます。</div>
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label d-block">クラス</label>
+                    <div class="dropdown class-dropdown" id="distributionClassCheckboxGroup" aria-describedby="distributionClassHelp">
+                      <button
+                        id="distributionClassDropdownButton"
+                        class="btn btn-outline-secondary form-control text-start dropdown-toggle"
+                        type="button"
+                        data-bs-toggle="dropdown"
+                        data-bs-auto-close="outside"
+                        aria-expanded="false">クラスを選択</button>
+                      <div class="dropdown-menu class-dropdown-menu p-2 w-100">
+                        <div class="form-check">
+                          <input class="form-check-input" type="checkbox" id="distributionClass1A" name="distributionClassTargets" value="1年A組">
+                          <label class="form-check-label" for="distributionClass1A">1年A組</label>
+                        </div>
+                        <div class="form-check">
+                          <input class="form-check-input" type="checkbox" id="distributionClass1B" name="distributionClassTargets" value="1年B組">
+                          <label class="form-check-label" for="distributionClass1B">1年B組</label>
+                        </div>
+                        <div class="form-check">
+                          <input class="form-check-input" type="checkbox" id="distributionClass42" name="distributionClassTargets" value="4年2組">
+                          <label class="form-check-label" for="distributionClass42">4年2組</label>
+                        </div>
+                        <div class="form-check">
+                          <input class="form-check-input" type="checkbox" id="distributionClass44" name="distributionClassTargets" value="4年4組">
+                          <label class="form-check-label" for="distributionClass44">4年4組</label>
+                        </div>
+                      </div>
+                    </div>
+                    <div id="distributionClassHelp" class="form-text">複数選択できます。</div>
+                  </div>
+                  <div class="col-12">
+                    <label class="form-label">クラス別の配信日時</label>
+                    <div id="distributionClassScheduleList" class="class-schedule-list" aria-live="polite">
+                      <p class="class-schedule-empty mb-0 text-muted">クラスを選択すると、クラスごとに配信日時（即時配信可）を設定できます。</p>
+                    </div>
+                    <div class="form-text">各クラスに対して、即時配信または配信日時を個別に設定します。</div>
+                  </div>
+                </div>
+
+                <h3 class="form-section-title mt-4">テンプレート内容</h3>
+                <div class="row g-3">
+                  <div class="col-md-6">
+                    <label class="form-label" for="templateName">テンプレート名</label>
+                    <input class="form-control" id="templateName" type="text" placeholder="例: 条件分岐セット" required>
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label" for="templateRoot">root</label>
+                    <input class="form-control" id="templateRoot" type="text" placeholder="例: lesson01/task01" aria-describedby="templateRootHelp">
+                    <div id="templateRootHelp" class="form-text">フォルダが存在しない場合はルート配下に配信されます。</div>
+                  </div>
+                  <div class="col-12">
+                    <label class="form-label">配信構成（フォルダ・ファイル）</label>
+                    <div class="row g-3 distribution-structure-workspace">
+                      <div class="col-lg-4">
+                        <div class="distribution-file-panel">
+                          <div class="distribution-structure-toolbar mb-2">
+                            <div class="button-group">
+                              <button class="btn btn-outline-secondary btn-sm" type="button" id="distributionAddFolderButton">新しいフォルダ</button>
+                              <button class="btn btn-outline-primary btn-sm" type="button" id="distributionAddFileButton">新しいファイル</button>
+                              <button class="btn btn-outline-info btn-sm" type="button" id="distributionUploadButton">アップロード</button>
+                              <button class="btn btn-outline-secondary btn-sm" type="button" id="distributionDownloadAllButton">一括ダウンロード</button>
+                            </div>
+                          </div>
+                          <div id="distributionTemplateTree" class="distribution-template-tree" aria-label="配信テンプレート構成"></div>
+                        </div>
+                      </div>
+                      <div class="col-lg-8">
+                        <div class="distribution-editor-panel">
+                          <div class="distribution-editor-toolbar">
+                            <span id="distributionCurrentPathBadge" class="distribution-path-badge">Path: -</span>
+                            <div class="distribution-editor-actions">
+                              <button class="btn btn-outline-secondary btn-sm" type="button" id="distributionDownloadFileButton">ダウンロード</button>
+                              <button class="btn btn-secondary btn-sm" type="button" id="distributionSaveFileButton">保存</button>
+                              <button class="btn btn-primary btn-sm" type="button" id="distributionRunFileButton">実行</button>
+                            </div>
+                          </div>
+                          <div class="distribution-file-tab-row">
+                            <span id="distributionCurrentFileTab" class="distribution-file-tab">ファイル未選択</span>
+                          </div>
+                          <textarea id="distributionFileEditor" class="form-control distribution-file-editor monospace" rows="10" placeholder="ファイルを選択すると内容を編集できます。" disabled></textarea>
+                          <div id="distributionEditorMessage" class="form-text mt-2">ファイルを選択して内容を編集できます。</div>
+                        </div>
+                      </div>
+                    </div>
+                    <textarea class="d-none" id="templateFiles" aria-hidden="true"></textarea>
+                  </div>
+                </div>
+
+                <div class="d-flex gap-2 mt-4 flex-wrap justify-content-center">
+                  <button class="btn btn-primary" type="submit" id="scheduleDistributionButton">配信</button>
+                  <button class="btn btn-outline-secondary" type="button" id="saveTemplateButton">下書き保存</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel-card">
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+            <div>
+              <span class="hero-kicker mb-1 d-inline-block">Distribution History</span>
+              <h2 class="subheading mb-0">配信履歴</h2>
+              <div class="form-text">配信予約は編集可能、配信済みは編集不可です。</div>
+            </div>
+            <button class="btn btn-outline-primary btn-sm" type="button" id="downloadHistoryCsvButton">CSVダウンロード</button>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0" id="distributionHistoryTable">
+              <thead class="table-light">
+                <tr>
+                  <th>設定日時</th>
+                  <th>対象</th>
+                  <th>テンプレート</th>
+                  <th>配信者</th>
+                  <th>状態</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="distributionHistoryBody"></tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <div class="modal fade" id="distributionMoveEntryModal" tabindex="-1" aria-labelledby="distributionMoveEntryModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <div>
+            <h2 class="modal-title h5 mb-1" id="distributionMoveEntryModalLabel">移動先を選択</h2>
+            <p id="distributionMoveEntryCurrentPath" class="distribution-move-current-path mb-0">現在: -</p>
+          </div>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
+        </div>
+        <div class="modal-body">
+          <p class="distribution-move-help mb-3">移動先のフォルダをクリックしてください。</p>
+          <div id="distributionMoveEntryTree" class="distribution-move-tree"></div>
+          <div id="distributionMoveEntryEmpty" class="distribution-move-empty d-none">移動できるフォルダがありません。</div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">キャンセル</button>
+          <button id="distributionMoveEntryConfirmButton" type="button" class="btn btn-primary" disabled>この場所に移動</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="distributionUploadEntryModal" tabindex="-1" aria-labelledby="distributionUploadEntryModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl distribution-upload-modal-dialog modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <div>
+            <h2 class="modal-title h5 mb-1" id="distributionUploadEntryModalLabel">ファイル・フォルダをアップロード</h2>
+          </div>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
+        </div>
+        <div class="modal-body">
+          <p class="distribution-upload-description">複数ファイルまたはフォルダを選択し、追加先フォルダへ取り込みます。</p>
+          <div class="distribution-upload-layout">
+            <section class="distribution-upload-file-panel">
+              <h3 class="distribution-upload-heading">1. ファイル/フォルダ選択</h3>
+              <div class="distribution-upload-source-actions">
+                <button id="distributionUploadSelectFilesButton" class="btn btn-outline-primary" type="button">ファイルを選択</button>
+                <button id="distributionUploadSelectFolderButton" class="btn btn-outline-secondary" type="button">フォルダを選択</button>
+              </div>
+              <input id="distributionUploadSourceFile" class="d-none" type="file" accept=".py" multiple>
+              <input id="distributionUploadSourceDirectory" class="d-none" type="file" accept=".py" multiple webkitdirectory directory>
+              <p id="distributionUploadFileName" class="distribution-upload-file-name">未選択</p>
+              <ul id="distributionUploadFilePreviewList" class="distribution-upload-preview-list" aria-label="選択したファイル一覧"></ul>
+            </section>
+            <section class="distribution-upload-folder-panel">
+              <h3 class="distribution-upload-heading">2. 追加先フォルダ</h3>
+              <p class="distribution-upload-help">追加先のフォルダをクリックしてください。</p>
+              <div id="distributionUploadFolderTree" class="distribution-upload-folder-tree"></div>
+            </section>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">キャンセル</button>
+          <button id="distributionUploadEntryConfirmButton" type="button" class="btn btn-primary" disabled>アップロードして追加</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="distributionRunResultModal" tabindex="-1" aria-labelledby="distributionRunResultModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 class="modal-title h5" id="distributionRunResultModalLabel">実行結果</h2>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <h3 class="h6 mb-2">標準出力</h3>
+            <pre id="distributionRunStdout" class="distribution-console-output mb-0"></pre>
+          </div>
+          <div>
+            <h3 class="h6 mb-2">エラー出力</h3>
+            <pre id="distributionRunStderr" class="distribution-console-output mb-0"></pre>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">閉じる</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"
+    integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI"
+    crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <script src="../../../js/teacher/shared/feedback.js"></script>
+  <script src="../../../js/teacher/shared/components.js"></script>
+  <script src="../../../js/teacher/distribution/distribution.js"></script>
+</body>
+</html>

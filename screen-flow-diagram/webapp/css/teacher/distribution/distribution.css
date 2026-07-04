@@ -1,0 +1,884 @@
+/* Teacher code distribution page styles */
+
+.page-content {
+  background:
+    radial-gradient(circle at top left, rgba(14, 165, 233, 0.14), transparent 28%),
+    linear-gradient(135deg, #effcfb 0%, #f8fafc 52%, #eef4ff 100%);
+  flex-grow: 1;
+}
+
+.distribution-hero {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 1.25rem;
+  align-items: stretch;
+}
+
+.hero-kicker {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.45rem 0.85rem;
+  border-radius: 999px;
+  background: rgba(15, 118, 110, 0.12);
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #115e59;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 1rem;
+}
+
+.section-title {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--bs-gray-900);
+}
+
+.hero-description {
+  color: var(--bs-gray-600);
+}
+
+.hero-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+}
+
+.stat-card {
+  background: linear-gradient(135deg, rgba(15, 118, 110, 0.95), rgba(13, 148, 136, 0.95));
+  color: #fff;
+  border-radius: 0.85rem;
+  padding: 1rem;
+  box-shadow: 0 8px 22px rgba(15, 118, 110, 0.2);
+}
+
+.stat-label {
+  font-size: 0.8rem;
+  opacity: 0.9;
+}
+
+.stat-value {
+  font-size: 1.7rem;
+  font-weight: 700;
+}
+
+.panel-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 1rem;
+  padding: 1.25rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.subheading {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.form-section-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 0.9rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.form-label {
+  font-weight: 500;
+  color: var(--bs-gray-700);
+  margin-bottom: 0.35rem;
+  font-size: 0.88rem;
+}
+
+.form-control,
+.form-select {
+  border: 1px solid #cbd5e1;
+  border-radius: 0.5rem;
+}
+
+.form-control:focus,
+.form-select:focus {
+  border-color: #0f766e;
+  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.12);
+}
+
+.distribution-grid {
+  display: contents;
+}
+
+.monospace {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+.code-editor-input {
+  background: #111827;
+  color: #dbeafe;
+  border-color: #1f2937;
+  font: 500 0.9rem/1.6 "SFMono-Regular", Consolas, monospace;
+}
+
+.code-editor-input::placeholder {
+  color: #94a3b8;
+}
+
+.code-editor-input:focus {
+  background: #111827;
+  color: #dbeafe;
+  border-color: #334155;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+}
+
+.preview-card {
+  border: 1px solid #cbd5e1;
+  border-radius: 0.85rem;
+  padding: 1rem;
+  background: linear-gradient(180deg, #f8fafc, #ffffff);
+}
+
+.preview-header {
+  margin-bottom: 0.8rem;
+}
+
+.preview-kicker {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #4f46e5;
+}
+
+.preview-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin: 0.2rem 0 0;
+}
+
+.distribution-preview-card {
+  border: 1px solid #dbe4ee;
+  border-radius: 0.75rem;
+  padding: 0.9rem;
+  background: #ffffff;
+}
+
+.preview-meta-row {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 0.5rem;
+  align-items: start;
+  padding: 0.32rem 0;
+  border-bottom: 1px dashed #e2e8f0;
+}
+
+.preview-meta-row:last-child {
+  border-bottom: none;
+}
+
+.meta-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #475569;
+}
+
+.meta-value {
+  font-size: 0.88rem;
+  color: #0f172a;
+}
+
+.preview-file-list-section {
+  border-top: 1px solid #e2e8f0;
+  padding-top: 0.85rem;
+}
+
+.preview-subheading {
+  font-size: 0.92rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+  color: #1f2937;
+}
+
+.preview-file-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.preview-file-list li {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  padding: 0.35rem 0.55rem;
+  font-size: 0.84rem;
+}
+
+.badge-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.badge-status.is-active {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.badge-status.is-draft {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.row-actions {
+  display: inline-flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.class-dropdown .dropdown-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.class-dropdown-menu {
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.class-dropdown-menu .form-check {
+  padding: 0.35rem 0.4rem 0.35rem 1.7rem;
+}
+
+.class-schedule-list {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.class-schedule-row {
+  display: grid;
+  grid-template-columns: 160px minmax(0, 1fr);
+  gap: 0.6rem;
+  align-items: center;
+  padding: 0.7rem;
+  border: 1px solid #dbe4ee;
+  border-radius: 0.65rem;
+  background: #f8fafc;
+}
+
+.class-schedule-name {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #334155;
+}
+
+.class-schedule-field .mini-label {
+  margin-bottom: 0.25rem;
+  display: inline-block;
+}
+
+.class-schedule-empty {
+  padding: 0.75rem 0.9rem;
+  border: 1px dashed #cbd5e1;
+  border-radius: 0.6rem;
+  background: #f8fafc;
+}
+
+.distribution-structure-toolbar {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.distribution-structure-toolbar .btn {
+  min-height: 2.7rem;
+  border-radius: 0.9rem;
+  font-weight: 700;
+}
+
+#distributionAddFolderButton {
+  border-color: rgba(15, 118, 110, 0.32);
+  background: linear-gradient(135deg, rgba(15, 118, 110, 0.95), rgba(13, 148, 136, 0.95));
+  color: #fff;
+}
+
+#distributionAddFileButton {
+  border-color: rgba(37, 99, 235, 0.32);
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.95), rgba(59, 130, 246, 0.95));
+  color: #fff;
+}
+
+#distributionUploadButton,
+#distributionDownloadAllButton {
+  border: none;
+  background: #fff;
+  border-radius: 0.75rem;
+  font-weight: 500;
+}
+
+#distributionUploadButton {
+  color: #0e7490;
+}
+
+#distributionDownloadAllButton {
+  color: #6c757d;
+}
+
+.distribution-file-panel,
+.distribution-editor-panel {
+  border: 1px solid #dbe4ee;
+  border-radius: 0.75rem;
+  background: #ffffff;
+  padding: 0.75rem;
+}
+
+.distribution-file-panel {
+  border: 1px solid #dbe4ee;
+  border-radius: 0.75rem;
+  background: #ffffff;
+  padding: 0.75rem;
+  overflow: visible;
+}
+
+.distribution-editor-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.distribution-editor-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.distribution-path-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  background: rgba(15, 118, 110, 0.12);
+  color: #0f766e;
+  font-size: 0.84rem;
+  font-weight: 700;
+  padding: 0.4rem 0.75rem;
+}
+
+.distribution-file-tab-row {
+  margin-top: 0.6rem;
+}
+
+.distribution-file-tab {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.42rem 0.75rem;
+  border: 1px solid #cbd5e1;
+  border-bottom: 0;
+  border-radius: 0.6rem 0.6rem 0 0;
+  background: #f8fafc;
+  color: #334155;
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.distribution-file-editor {
+  border-radius: 0 0.7rem 0.7rem 0.7rem;
+  min-height: 280px;
+  background: #111827;
+  color: #dbeafe;
+  border-color: #1f2937;
+  font: 500 0.9rem/1.6 "SFMono-Regular", Consolas, monospace;
+}
+
+.distribution-file-editor:focus {
+  background: #111827;
+  color: #dbeafe;
+  border-color: #334155;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.18);
+}
+
+.distribution-file-editor:disabled {
+  opacity: 0.85;
+  cursor: not-allowed;
+}
+
+.distribution-template-tree {
+  display: grid;
+  gap: 0.35rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+  max-height: 340px;
+  overflow: auto;
+}
+
+.distribution-template-tree.is-menu-open {
+  overflow: visible;
+}
+
+.distribution-tree-empty {
+  color: #64748b;
+  padding: 0.35rem 0.2rem;
+}
+
+.distribution-tree-folder,
+.distribution-tree-entry-row {
+  display: grid;
+  gap: 0.32rem;
+}
+
+.distribution-tree-entry-row {
+  display: flex;
+  gap: 0.6rem;
+  align-items: stretch;
+}
+
+.distribution-tree-folder-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.5rem 0.65rem;
+  border-radius: 0.9rem;
+  background: rgba(15, 118, 110, 0.08);
+  color: #0f766e;
+  font-weight: 700;
+}
+
+.distribution-tree-folder-header.is-selected-folder {
+  border: 1px solid rgba(15, 118, 110, 0.34);
+  box-shadow: 0 8px 18px rgba(15, 118, 110, 0.12);
+}
+
+.distribution-tree-folder-title {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-weight: inherit;
+  text-align: left;
+  min-width: 0;
+  flex-wrap: nowrap;
+  flex: 1 1 auto;
+  cursor: pointer;
+}
+
+.distribution-tree-folder-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.45rem;
+  height: 1.45rem;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  color: #115e59;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.distribution-tree-folder-toggle-icon {
+  font-size: 0.92rem;
+  line-height: 1;
+  transition: transform 0.18s ease;
+}
+
+.distribution-tree-folder-toggle.is-collapsed .distribution-tree-folder-toggle-icon {
+  transform: rotate(-90deg);
+}
+
+.distribution-tree-file-button {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex: 1 1 auto;
+  border: 1px solid rgba(203, 213, 225, 0.9);
+  border-radius: 0.85rem;
+  padding: 0.5rem 0.65rem;
+  background: rgba(255, 255, 255, 0.88);
+  color: #1f2937;
+  text-align: left;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+}
+
+.distribution-tree-file-copy {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.distribution-tree-file-name {
+  display: block;
+  font-weight: 700;
+  color: #111827;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.distribution-tree-folder-name {
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.distribution-tree-file-button:hover,
+.distribution-tree-file-button:focus {
+  border-color: rgba(37, 99, 235, 0.34);
+  box-shadow: 0 8px 18px rgba(148, 163, 184, 0.18);
+  transform: translateY(-1px);
+}
+
+.distribution-tree-file-button.is-active {
+  border-color: rgba(37, 99, 235, 0.44);
+  background: linear-gradient(135deg, rgba(219, 234, 254, 0.9), rgba(236, 253, 245, 0.92));
+  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.12);
+}
+
+.distribution-tree-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.distribution-tree-folder-icon,
+.distribution-tree-file-icon {
+  flex-shrink: 0;
+}
+
+.distribution-tree-remove {
+  flex-shrink: 0;
+}
+
+.distribution-tree-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+.distribution-tree-entry-menu {
+  flex-shrink: 0;
+  align-self: flex-start;
+}
+
+.distribution-tree-menu-toggle {
+  min-width: 2.2rem;
+  min-height: 2.2rem;
+  border-radius: 0.85rem;
+  padding: 0.2rem 0.45rem;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.distribution-tree-menu-toggle::after {
+  display: none;
+}
+
+.distribution-tree-menu-dropdown {
+  min-width: 10rem;
+  padding: 0.45rem;
+  border-radius: 0.9rem;
+  border: 1px solid rgba(203, 213, 225, 0.9);
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.12);
+}
+
+.distribution-tree-menu-item {
+  border-radius: 0.7rem;
+  padding: 0.55rem 0.75rem;
+  font-weight: 600;
+}
+
+.distribution-move-current-path {
+  font-size: 0.9rem;
+  color: var(--bs-gray-600);
+}
+
+.distribution-move-help {
+  color: var(--bs-gray-700);
+  font-weight: 600;
+}
+
+.distribution-move-tree,
+.distribution-upload-folder-tree {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.distribution-move-folder {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.distribution-move-folder-button {
+  display: flex;
+  width: 100%;
+  padding: 0.72rem 0.88rem;
+  border: 1px solid rgba(203, 213, 225, 0.95);
+  border-radius: 0.9rem;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--bs-gray-800);
+  text-align: left;
+}
+
+.distribution-move-folder.is-selected-target > .distribution-move-folder-button {
+  border-color: rgba(37, 99, 235, 0.44);
+  background: linear-gradient(135deg, rgba(219, 234, 254, 0.92), rgba(236, 253, 245, 0.9));
+}
+
+.distribution-move-folder.is-root-node > .distribution-move-folder-button {
+  background: rgba(15, 118, 110, 0.08);
+  border-color: rgba(15, 118, 110, 0.14);
+}
+
+.distribution-move-folder-main {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.distribution-move-folder-icon {
+  color: #0f766e;
+  flex-shrink: 0;
+}
+
+.distribution-move-folder-name {
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.distribution-move-children {
+  display: grid;
+  gap: 0.65rem;
+  padding-left: 1rem;
+  border-left: 1px solid rgba(203, 213, 225, 0.82);
+}
+
+.distribution-move-empty {
+  padding: 0.95rem;
+  border-radius: 0.85rem;
+  background: rgba(248, 250, 252, 0.96);
+  border: 1px dashed rgba(203, 213, 225, 0.9);
+  color: var(--bs-gray-600);
+  font-weight: 600;
+}
+
+.distribution-upload-modal-dialog {
+  max-width: min(1180px, 94vw);
+}
+
+.distribution-upload-description {
+  margin: 0 0 0.9rem;
+  color: var(--bs-gray-600);
+  font-size: 0.9rem;
+}
+
+.distribution-upload-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
+  gap: 1rem;
+}
+
+.distribution-upload-file-panel,
+.distribution-upload-folder-panel {
+  border: 1px solid rgba(203, 213, 225, 0.9);
+  border-radius: 1rem;
+  padding: 1rem;
+  background: rgba(248, 250, 252, 0.9);
+}
+
+.distribution-upload-heading {
+  margin: 0 0 0.7rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #0f766e;
+}
+
+.distribution-upload-source-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.distribution-upload-source-actions .btn {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.distribution-upload-file-name {
+  margin: 0.75rem 0 0;
+  color: var(--bs-gray-700);
+  font-weight: 600;
+}
+
+.distribution-upload-preview-list {
+  margin: 0.6rem 0 0;
+  padding: 0.6rem 0.7rem;
+  list-style: none;
+  border: 1px solid rgba(203, 213, 225, 0.85);
+  border-radius: 0.8rem;
+  background: rgba(255, 255, 255, 0.9);
+  max-height: 170px;
+  overflow: auto;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.distribution-upload-preview-item {
+  font-size: 0.83rem;
+  color: var(--bs-gray-700);
+  line-height: 1.35;
+  word-break: break-all;
+}
+
+.distribution-upload-preview-item.is-empty {
+  color: var(--bs-gray-500);
+}
+
+.distribution-upload-help {
+  margin-bottom: 0.7rem;
+  color: var(--bs-gray-600);
+  font-size: 0.88rem;
+}
+
+.distribution-console-output {
+  background: #111827;
+  color: #dbeafe;
+  border: 1px solid #1f2937;
+  border-radius: 0.6rem;
+  padding: 0.8rem;
+  min-height: 120px;
+  max-height: 260px;
+  overflow: auto;
+  font: 500 0.84rem/1.5 "SFMono-Regular", Consolas, monospace;
+  white-space: pre-wrap;
+}
+
+.distribution-tree-children {
+  display: grid;
+  gap: 0.3rem;
+  margin-left: 0.75rem;
+  padding-left: 0.7rem;
+  border-left: 1px solid #d1dbe7;
+}
+
+.distribution-tree-folder-children {
+  display: grid;
+  gap: 0.32rem;
+  padding-left: 0.78rem;
+  margin-left: 0.28rem;
+  border-left: 1px solid rgba(203, 213, 225, 0.85);
+}
+
+.distribution-tree-folder-children.is-empty {
+  display: none;
+}
+
+.distribution-tree-folder-children.is-collapsed {
+  display: none;
+}
+
+.table > :not(caption) > * > * {
+  vertical-align: middle;
+}
+
+#distributionHistoryTable thead th {
+  white-space: nowrap;
+  font-size: 0.84rem;
+}
+
+#templateTable thead th {
+  white-space: nowrap;
+  font-size: 0.84rem;
+}
+
+@media (max-width: 1200px) {
+  .preview-meta-row {
+    grid-template-columns: 95px 1fr;
+  }
+}
+
+@media (max-width: 992px) {
+  .distribution-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-stats {
+    grid-template-columns: repeat(3, minmax(120px, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .preview-meta-row {
+    grid-template-columns: 1fr;
+    gap: 0.2rem;
+  }
+
+  .class-schedule-row {
+    grid-template-columns: 1fr;
+  }
+
+  .row-actions {
+    width: 100%;
+  }
+
+  .row-actions .btn {
+    flex: 1 1 auto;
+  }
+
+  #templateTable,
+  #distributionHistoryTable {
+    min-width: 760px;
+  }
+
+  .distribution-editor-toolbar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .distribution-editor-actions {
+    width: 100%;
+  }
+
+  .distribution-editor-actions .btn {
+    flex: 1 1 calc(50% - 0.35rem);
+  }
+
+  .distribution-upload-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .distribution-upload-source-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .distribution-tree-actions {
+    width: 100%;
+  }
+
+  .distribution-tree-actions .btn {
+    flex: 1 1 auto;
+  }
+
+  .distribution-file-editor {
+    min-height: 220px;
+  }
+}

@@ -10,6 +10,7 @@ window.addEventListener('DOMContentLoaded', () => {
   const codeLogList = document.querySelector('#codeLogList');
   const toggleLogButton = document.querySelector('#toggleLogButton');
   const codeLogContent = document.querySelector('#codeLogContent');
+  const downloadButton = document.querySelector('#downloadButton');
   const saveButton = document.querySelector('#saveButton');
   const runButton = document.querySelector('#runButton');
   const runResultModalElement = document.querySelector('#runResultModal');
@@ -226,6 +227,30 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  function buildDownloadFileName() {
+    const titleText = document.querySelector('.learning-flow-task-name')?.textContent || '';
+    const normalized = titleText
+      .replace(/[\\/:*?"<>|]/g, '_')
+      .replace(/\s+/g, '_')
+      .replace(/_+/g, '_')
+      .replace(/^_+|_+$/g, '');
+
+    return (normalized || 'editor_code') + '.py';
+  }
+
+  function downloadCurrentCode() {
+    const code = getEditorValue();
+    const blob = new Blob([code], { type: 'text/x-python;charset=utf-8' });
+    const objectUrl = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = objectUrl;
+    anchor.download = buildDownloadFileName();
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(objectUrl);
+  }
+
   function nowTimeLabel() {
     return new Date().toLocaleTimeString('ja-JP', {
       hour: '2-digit',
@@ -264,7 +289,7 @@ window.addEventListener('DOMContentLoaded', () => {
       lastSavedAt.textContent = time;
     }
     if (editorMessage) {
-      editorMessage.textContent = `${prefix}しました。コードログへ記録しています。`;
+      editorMessage.textContent = `保存状態: 保存済みです（${prefix}）。コードログへ反映済みです。`;
     }
   }
 
@@ -413,6 +438,17 @@ window.addEventListener('DOMContentLoaded', () => {
       pageFeedback.toast({
         title: 'エディター',
         message: 'コードを保存しました。',
+        variant: 'success'
+      });
+    });
+  }
+
+  if (downloadButton) {
+    downloadButton.addEventListener('click', () => {
+      downloadCurrentCode();
+      pageFeedback.toast({
+        title: 'エディター',
+        message: 'コードをダウンロードしました。',
         variant: 'success'
       });
     });
