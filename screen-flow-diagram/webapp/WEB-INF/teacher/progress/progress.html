@@ -3,16 +3,18 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Programming Process Evaluator - 学習履歴確認</title>
+  <title>Programming Process Evaluator - 課題進捗確認機能</title>
 
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet"
     integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB"
     crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/lib/codemirror.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/theme/material-darker.css">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
   <link href="../../../css/teacher/shared/components.css" rel="stylesheet">
   <link href="../../../css/teacher/shared/feedback.css" rel="stylesheet">
   <link href="../../../css/template/template.css" rel="stylesheet">
-  <link href="../../../css/teacher/history/history.css" rel="stylesheet">
+  <link href="../../../css/teacher/progress/progress.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 </head>
 <body>
@@ -21,8 +23,8 @@
       <div class="container-fluid px-4">
         <section class="history-hero mb-4">
           <div>
-            <span class="hero-kicker">Learning Monitor</span>
-            <h1 class="section-title mb-2">学習履歴確認</h1>
+            <span class="hero-kicker">Assignment Progress Monitor</span>
+            <h1 class="section-title mb-2">課題進捗確認機能</h1>
             <p class="hero-description mb-0">クラス別の進捗、実施中課題、研究同意状態を一覧で確認できます。</p>
           </div>
           <div class="hero-stats">
@@ -109,8 +111,8 @@
         <section class="panel-card mb-4">
           <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
             <div>
-              <span class="hero-kicker mb-1 d-inline-block">Learning History List</span>
-              <h2 class="summary-heading mb-0">学習履歴一覧</h2>
+              <span class="hero-kicker mb-1 d-inline-block">Assignment Progress List</span>
+              <h2 class="summary-heading mb-0">課題進捗一覧</h2>
             </div>
             <div class="action-buttons">
               <button class="btn btn-outline-secondary btn-sm" onclick="refreshRows()">更新</button>
@@ -120,7 +122,7 @@
           <div class="filter-grid">
               <div>
                 <label class="form-label">検索</label>
-                <input type="text" class="form-control form-control-sm" id="searchInput" placeholder="ID / 課題名で検索">
+                <input type="text" class="form-control form-control-sm" id="searchInput" placeholder="生徒ID / 課題名で検索">
               </div>
               <div>
                 <label class="form-label">学校</label>
@@ -362,31 +364,53 @@
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
       <div class="modal-content">
         <div class="modal-header">
-          <h5 class="modal-title">学習履歴詳細</h5>
+          <h5 class="modal-title">課題進捗詳細</h5>
           <div class="modal-header-actions">
-            <button class="btn btn-outline-secondary btn-sm" type="button" onclick="exportDetailActivityCSV()">履歴をダウンロード</button>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
+            <button class="btn btn-outline-primary btn-sm" type="button" onclick="exportLatestCodeFile()">ファイルをダウンロード</button>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
           </div>
         </div>
         <div class="modal-body">
-          <div class="detail-grid mb-3">
-            <div><span class="detail-label">生徒ID</span><div class="detail-value" id="detailId">-</div></div>
-            <div><span class="detail-label">学校 / クラス</span><div class="detail-value" id="detailClass">-</div></div>
-            <div><span class="detail-label">課題</span><div class="detail-value" id="detailTask">-</div></div>
-            <div><span class="detail-label">状態</span><div class="detail-value" id="detailStatus">-</div></div>
+          <div class="mb-3">
+            <p class="detail-meta mb-0" id="historyDetailMeta">-</p>
           </div>
-          <div class="timeline-card">
-            <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+          <div class="d-none">
+            <div id="detailId">-</div>
+            <div id="detailClass">-</div>
+            <div id="detailTask">-</div>
+            <div id="detailStatus">-</div>
+          </div>
+          <div class="timeline-card mt-3">
+            <div class="d-flex justify-content-between align-items-start gap-2 mb-2 flex-wrap">
               <div>
-                <h6 class="mb-1">アクティビティ履歴</h6>
-                <p class="text-muted small mb-0">手動保存と実行の履歴を全件表示します。</p>
+                <h6 class="mb-1">最新コード</h6>
+                <p class="text-muted small mb-0">最終保存時点のコードを確認できます。</p>
+              </div>
+              <div class="code-meta-group">
+                <span class="code-meta-chip" id="detailCodeUpdatedAt">更新: -</span>
               </div>
             </div>
-            <ul class="timeline mb-0" id="detailTimeline">
-              <li>10:25:04 - コード保存</li>
-              <li>10:23:41 - 実行（成功）</li>
-              <li>10:21:10 - コード保存</li>
-            </ul>
+            <textarea id="latestCodeViewer" class="code-source" spellcheck="false"></textarea>
+          </div>
+
+          <div class="timeline-card mt-3">
+            <div class="detail-section-head">
+              <h6 class="detail-section-title mb-1">アクティビティ履歴</h6>
+              <p class="detail-section-description mb-0">手動保存と実行の履歴を表示します。</p>
+            </div>
+            <div class="detail-table-wrap mt-2">
+              <table class="table table-sm align-middle mb-0">
+                <thead class="table-light">
+                  <tr>
+                    <th style="width: 34%;">日時</th>
+                    <th style="width: 22%;">操作</th>
+                    <th style="width: 16%;">結果</th>
+                    <th style="width: 28%;">備考</th>
+                  </tr>
+                </thead>
+                <tbody id="detailTimelineTableBody"></tbody>
+              </table>
+            </div>
           </div>
         </div>
       </div>
@@ -396,8 +420,10 @@
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"
     integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI"
     crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/lib/codemirror.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/mode/python/python.js"></script>
   <script src="../../../js/teacher/shared/feedback.js"></script>
   <script src="../../../js/teacher/shared/components.js"></script>
-  <script src="../../../js/teacher/history/history.js"></script>
+  <script src="../../../js/teacher/progress/progress.js"></script>
 </body>
 </html>

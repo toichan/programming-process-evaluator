@@ -3,9 +3,10 @@
 document.addEventListener('DOMContentLoaded', function() {
   initializeHistoryPage();
 });
-const pageFeedback = window.PPEFeedback.createPageFeedback({ title: '学習履歴確認' });
+const pageFeedback = window.PPEFeedback.createPageFeedback({ title: '課題進捗確認機能' });
 
 let currentSortBy = 'updatedDesc';
+let latestCodeEditor = null;
 
 const STATUS_SORT_ORDER = {
   '未着手': 1,
@@ -26,6 +27,7 @@ const CONSENT_SORT_ORDER = {
 };
 
 function initializeHistoryPage() {
+  initializeCodeViewer();
   syncUpdatedDateDisplay();
   initializeHeaderSorting();
 
@@ -43,6 +45,20 @@ function initializeHistoryPage() {
 
   initSummaryChart();
   applyFiltersAndSort();
+}
+
+function initializeCodeViewer() {
+  const textarea = document.getElementById('latestCodeViewer');
+  if (!textarea || typeof CodeMirror === 'undefined') return;
+
+  latestCodeEditor = CodeMirror.fromTextArea(textarea, {
+    mode: 'python',
+    lineNumbers: true,
+    lineWrapping: false,
+    readOnly: true,
+    cursorBlinkRate: -1,
+    theme: 'material-darker'
+  });
 }
 
 function initializeHeaderSorting() {
@@ -288,6 +304,80 @@ const ACTIVITY_HISTORY_BY_STUDENT = {
   ]
 };
 
+const LATEST_CODE_BY_STUDENT = {
+  s001: {
+    fileName: 'janken.py',
+    updatedAt: '2026-05-12 10:24:20',
+    code: 'player = input().strip()\ncomputer = "グー"\n\nif player == computer:\n    print("あいこ")\nelif player == "パー":\n    print("あなたの勝ち")\nelse:\n    print("あなたの負け")'
+  },
+  s002: {
+    fileName: 'stock.py',
+    updatedAt: '2026-05-12 10:10:02',
+    code: 'stock = int(input())\nused = int(input())\n\nrest = stock - used\nprint(rest)'
+  },
+  s117: {
+    fileName: 'route.py',
+    updatedAt: '2026-05-11 16:32:18',
+    code: 'from collections import deque\n\nstart = input().strip()\ngoal = input().strip()\n\nqueue = deque([start])\nvisited = {start}\n\nwhile queue:\n    node = queue.popleft()\n    if node == goal:\n        break\n\nprint(start + "->" + goal)'
+  },
+  s003: {
+    fileName: 'janken.py',
+    updatedAt: '2026-05-11 14:20:00',
+    code: 'you = input().strip()\npc = "チョキ"\n\nif you == pc:\n    print("あいこ")\nelif (you == "グー" and pc == "チョキ") or (you == "チョキ" and pc == "パー") or (you == "パー" and pc == "グー"):\n    print("あなたの勝ち")\nelse:\n    print("あなたの負け")'
+  },
+  s004: {
+    fileName: 'janken.py',
+    updatedAt: '2026-05-11 09:00:00',
+    code: '# まだ実装途中\nplayer = input()\nprint(player)'
+  },
+  s005: {
+    fileName: 'janken.py',
+    updatedAt: '2026-05-12 09:55:11',
+    code: 'hand = input().strip()\npc = "パー"\n\nif hand == pc:\n    print("あいこ")\nelif hand == "チョキ":\n    print("あなたの勝ち")\nelse:\n    print("あなたの負け")'
+  },
+  s006: {
+    fileName: 'janken.py',
+    updatedAt: '2026-05-11 09:00:00',
+    code: '# 未着手\n'
+  },
+  s118: {
+    fileName: 'route.py',
+    updatedAt: '2026-05-12 08:40:00',
+    code: 'n, m = map(int, input().split())\nedges = []\nfor _ in range(m):\n    a, b = map(int, input().split())\n    edges.append((a, b))\n\nprint(len(edges))'
+  },
+  s119: {
+    fileName: 'route.py',
+    updatedAt: '2026-05-12 10:15:00',
+    code: 'graph = {"A": ["B", "C"], "B": ["D"], "C": ["D"], "D": []}\nstart = input().strip()\ngoal = input().strip()\n\nprint(start + "->" + goal)'
+  },
+  s203: {
+    fileName: 'budget.py',
+    updatedAt: '2026-05-12 10:25:04',
+    code: 'values = list(map(int, input().split()))\n\nprint(sum(values))\nprint(max(values))\nprint(min(values))'
+  },
+  s204: {
+    fileName: 'budget.py',
+    updatedAt: '2026-05-11 15:30:00',
+    code: 'items = list(map(int, input().split()))\n\ntotal = sum(items)\navg = total / len(items)\nprint(total)\nprint(round(avg, 2))'
+  },
+  s205: {
+    fileName: 'budget.py',
+    updatedAt: '2026-05-11 09:00:00',
+    code: '# 未着手\n'
+  }
+};
+
+function getLatestCode(studentId, fallbackUpdatedAt) {
+  const latest = LATEST_CODE_BY_STUDENT[studentId];
+  if (latest) return latest;
+
+  return {
+    fileName: '-',
+    updatedAt: fallbackUpdatedAt || '-',
+    code: '# 最新コードがありません'
+  };
+}
+
 function getActivityHistory(studentId, updatedAt) {
   const history = ACTIVITY_HISTORY_BY_STUDENT[studentId];
   if (history && history.length > 0) {
@@ -307,11 +397,29 @@ function formatActivity(entry) {
   return time + ' - 手動保存';
 }
 
+function getActivityTypeLabel(entry) {
+  return entry.type === 'run' ? '実行' : '手動保存';
+}
+
+function getActivityResult(entry) {
+  if (entry.type === 'run') {
+    return entry.success ? '成功' : '失敗';
+  }
+  return '完了';
+}
+
+function getActivityNote(entry) {
+  if (entry.type === 'run') {
+    return entry.success ? '入出力チェック実行' : '実行エラーあり';
+  }
+  return 'コード保存スナップショット';
+}
+
 function exportDetailActivityCSV() {
   const studentId = document.getElementById('detailId')?.textContent?.trim() || '';
   if (!studentId || studentId === '-') {
     pageFeedback.toast({
-      title: '学習履歴確認',
+      title: '課題進捗確認機能',
       message: '先に生徒の詳細を表示してください。',
       variant: 'warning'
     });
@@ -340,12 +448,43 @@ function exportDetailActivityCSV() {
 
   const csv = [header].concat(body)
     .map(function(cols) { return cols.map(escapeCSV).join(','); })
-    .join('\n');
+    .join('\r\n');
 
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const blob = new Blob(['\uFEFF', csv], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
   link.href = URL.createObjectURL(blob);
   link.download = 'activity_history_' + studentId + '_' + new Date().toISOString().slice(0, 10) + '.csv';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+
+  pageFeedback.toast({
+    title: '課題進捗確認機能',
+    message: 'CSVをダウンロードしました。',
+    variant: 'success'
+  });
+}
+
+function exportLatestCodeFile() {
+  const studentId = document.getElementById('detailId')?.textContent?.trim() || '';
+  if (!studentId || studentId === '-') {
+    pageFeedback.toast({
+      title: '課題進捗確認機能',
+      message: '先に生徒の詳細を表示してください。',
+      variant: 'warning'
+    });
+    return;
+  }
+
+  const detailRow = document.querySelector('#historyTable tbody tr[data-id="' + studentId + '"]');
+  const latestCode = getLatestCode(studentId, detailRow?.dataset.updated || '');
+  const fileName = latestCode.fileName && latestCode.fileName !== '-' ? latestCode.fileName : 'latest_code.py';
+  const code = latestCode.code || '# 最新コードがありません';
+
+  const blob = new Blob([code], { type: 'text/plain;charset=utf-8;' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = studentId + '_' + fileName;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
@@ -359,16 +498,36 @@ function openHistoryDetail(button) {
   setText('detailClass', row.dataset.school + ' / ' + row.dataset.class);
   setText('detailTask', row.dataset.task + ' / ' + row.dataset.level);
   setText('detailStatus', row.dataset.status + '（' + row.dataset.elapsed + '）');
+  setText('historyDetailMeta', row.dataset.id + ' / '
+    + row.dataset.school + ' ' + row.dataset.class + ' / '
+    + row.dataset.task + '（' + row.dataset.level + '） / 更新: '
+    + (row.dataset.updated || '-'));
 
-  const timeline = document.getElementById('detailTimeline');
-  if (timeline) {
-    timeline.innerHTML = '';
+  const timelineTableBody = document.getElementById('detailTimelineTableBody');
+  if (timelineTableBody) {
     const history = getActivityHistory(row.dataset.id, row.dataset.updated);
-    history.forEach(function(entry) {
-      const li = document.createElement('li');
-      li.textContent = formatActivity(entry);
-      timeline.appendChild(li);
-    });
+    timelineTableBody.innerHTML = history.map(function(entry) {
+      const typeLabel = getActivityTypeLabel(entry);
+      const result = getActivityResult(entry);
+      const note = getActivityNote(entry);
+      const badgeClass = entry.type === 'run'
+        ? (entry.success ? 'bg-success-subtle text-success-emphasis' : 'bg-danger-subtle text-danger-emphasis')
+        : 'bg-secondary-subtle text-secondary-emphasis';
+
+      return '<tr>'
+        + '<td>' + entry.datetime + '</td>'
+        + '<td><span class="badge ' + badgeClass + '">' + typeLabel + '</span></td>'
+        + '<td>' + result + '</td>'
+        + '<td>' + note + '</td>'
+        + '</tr>';
+    }).join('');
+  }
+
+  const latestCode = getLatestCode(row.dataset.id, row.dataset.updated);
+  setText('detailCodeUpdatedAt', '更新: ' + (latestCode.updatedAt || '-'));
+  if (latestCodeEditor) {
+    latestCodeEditor.setValue(latestCode.code || '');
+    latestCodeEditor.refresh();
   }
 
   const modalEl = document.getElementById('historyDetailModal');
@@ -427,6 +586,12 @@ function exportHistoryCSV() {
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+
+  pageFeedback.toast({
+    title: '課題進捗確認機能',
+    message: 'CSVをダウンロードしました。',
+    variant: 'success'
+  });
 }
 
 function escapeCSV(value) {

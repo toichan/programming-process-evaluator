@@ -213,6 +213,13 @@ code {
   color: #475569;
 }
 
+.detail-meta {
+  color: #475569;
+  font-size: 1.02rem;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
 .detail-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -239,6 +246,14 @@ code {
   margin-left: auto;
 }
 
+.modal-detail-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
 .timeline-card {
   background: #f8fafc;
   border: 1px solid #e2e8f0;
@@ -246,14 +261,82 @@ code {
   padding: 1rem;
 }
 
-.timeline {
-  padding-left: 1.2rem;
-  max-height: 280px;
-  overflow-y: auto;
+.activity-history-details {
+  border: 0;
 }
 
-.timeline li {
-  margin-bottom: 0.4rem;
+.activity-history-summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.activity-history-summary::-webkit-details-marker {
+  display: none;
+}
+
+.activity-history-summary::after {
+  content: '＋';
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.4rem;
+  height: 1.4rem;
+  border-radius: 999px;
+  background: #e2e8f0;
+  color: #475569;
+  font-weight: 700;
+}
+
+.activity-history-details[open] .activity-history-summary::after {
+  content: '−';
+}
+
+.activity-history-summary-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.activity-history-summary-desc {
+  margin-left: auto;
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
+.detail-table-wrap {
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  overflow: hidden;
+  background: #fff;
+}
+
+.code-meta-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.code-meta-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #475569;
+  background: #e2e8f0;
+}
+
+.timeline-card .CodeMirror {
+  margin-top: 0.4rem;
+  height: 240px;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.55rem;
+  font-size: 0.86rem;
 }
 
 /* ── 進捗サマリーセクション ── */

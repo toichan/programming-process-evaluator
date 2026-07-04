@@ -138,7 +138,7 @@ main.flex-grow-1 {
   position: fixed;
   left: 1rem;
   bottom: 1rem;
-  z-index: 1055;
+  z-index: 1049;
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
@@ -182,6 +182,10 @@ main.flex-grow-1 {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
+}
+
+.modal-header {
+  background-color: #f8fafc;
 }
 
 .rubric-modal .modal-title {

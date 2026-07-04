@@ -3,7 +3,6 @@
 let editTargetRow = null;
 let isEditingInCreateForm = false;
 let previewIoEditors = [];
-let previewHintEditors = [];
 let initialCodeEditor = null;
 const feedback = window.PPEFeedback || {};
 const pageFeedback = feedback.createPageFeedback({ title: '課題編集' });
@@ -25,29 +24,25 @@ const reusableHintLibrary = [
     taskId: 'TASK-001',
     hintOrder: 1,
     hintTitle: 'input()',
-    hintContent: '文字列を受け取るための関数です。',
-    hintCodeExample: 'player = input("手を入力してください: ")'
+    hintContent: '文字列を受け取るための関数です。'
   },
   {
     taskId: 'TASK-001',
     hintOrder: 2,
     hintTitle: 'if / elif / else',
-    hintContent: '条件によって処理を分岐する構文です。',
-    hintCodeExample: 'if player == "グー":\n    print("...")\nelif player == "パー":\n    print("...")\nelse:\n    print("...")'
+    hintContent: '条件によって処理を分岐する構文です。'
   },
   {
     taskId: 'TASK-002',
     hintOrder: 1,
     hintTitle: 'for 文',
-    hintContent: '複数の値を順に処理する繰り返し構文です。',
-    hintCodeExample: 'total = 0\nfor score in scores:\n    total += score'
+    hintContent: '複数の値を順に処理する繰り返し構文です。'
   },
   {
     taskId: 'TASK-003',
     hintOrder: 1,
     hintTitle: '辞書の集計',
-    hintContent: 'キーごとに値を合計して分析できます。',
-    hintCodeExample: 'summary[item] = summary.get(item, 0) + amount'
+    hintContent: 'キーごとに値を合計して分析できます。'
   }
 ];
 
@@ -157,6 +152,7 @@ function initializeTaskPage() {
   renderHintLibrary();
   updateSchoolDropdownLabel();
   updateClassDropdownLabel();
+  refreshClassScheduleRows();
   syncPromptStatusHighlight();
 
   initializeInitialCodeEditor();
@@ -197,29 +193,6 @@ function initializeInitialCodeEditor() {
     initialCodeEditor.getWrapperElement().classList.add('task-form-code-mirror', 'is-python');
     initialCodeEditor.on('change', updatePreview);
   }
-}
-
-function initializeHintCodeEditor(textarea) {
-  const editor = initializeCodeMirrorTextarea(textarea, {
-    mode: 'python',
-    lineNumbers: true,
-    lineWrapping: true,
-    theme: 'material-darker',
-    indentUnit: 4,
-    tabSize: 4,
-    viewportMargin: Infinity
-  });
-
-  if (editor) {
-    editor.getWrapperElement().classList.add('task-form-code-mirror', 'is-python', 'is-hint-example');
-    syncCompactEditorHeight(editor);
-    editor.on('change', function(instance) {
-      syncCompactEditorHeight(instance);
-      updatePreview();
-    });
-  }
-
-  return editor;
 }
 
 function initializeShellEditor(textarea) {
@@ -309,6 +282,7 @@ function bindPreviewEvents() {
   document.querySelectorAll('input[name="classTargets"]').forEach(function(el) {
     el.addEventListener('change', function() {
       updateClassDropdownLabel();
+      refreshClassScheduleRows();
       updatePreview();
     });
   });
@@ -331,11 +305,6 @@ function initializePreviewCodeMirrors() {
   });
   previewIoEditors = [];
 
-  previewHintEditors.forEach(function(editor) {
-    editor.toTextArea();
-  });
-  previewHintEditors = [];
-
   document.querySelectorAll('.preview-io-source').forEach(function(textarea) {
     const editor = CodeMirror.fromTextArea(textarea, {
       mode: 'shell',
@@ -348,22 +317,7 @@ function initializePreviewCodeMirrors() {
     previewIoEditors.push(editor);
   });
 
-  document.querySelectorAll('.preview-hint-code-source').forEach(function(textarea) {
-    const editor = CodeMirror.fromTextArea(textarea, {
-      mode: 'python',
-      lineNumbers: false,
-      lineWrapping: true,
-      readOnly: true,
-      cursorBlinkRate: -1,
-      theme: 'material-darker',
-      indentUnit: 4,
-      tabSize: 4
-    });
-    previewHintEditors.push(editor);
-  });
-
   previewIoEditors.forEach(function(editor) { editor.refresh(); });
-  previewHintEditors.forEach(function(editor) { editor.refresh(); });
 }
 
 function updateSchoolDropdownLabel() {
@@ -406,16 +360,136 @@ function updateClassDropdownLabel() {
   button.textContent = selected.length + '件選択中';
 }
 
+function getSelectedClassNames() {
+  return Array.from(document.querySelectorAll('input[name="classTargets"]:checked'))
+    .map(function(el) { return el.value; });
+}
+
+function collectClassSchedules() {
+  return Array.from(document.querySelectorAll('#classScheduleList .class-schedule-row')).map(function(row) {
+    const className = row.getAttribute('data-class-name') || '';
+    const publishImmediate = !!(row.querySelector('.class-schedule-publish-immediate') && row.querySelector('.class-schedule-publish-immediate').checked);
+    const dueNone = !!(row.querySelector('.class-schedule-deadline-none') && row.querySelector('.class-schedule-deadline-none').checked);
+    const publishAt = publishImmediate ? '' : getElementValue(row.querySelector('.class-schedule-publish'));
+    const dueAt = dueNone ? '' : getElementValue(row.querySelector('.class-schedule-deadline'));
+
+    return {
+      className: className,
+      publishImmediate: publishImmediate,
+      publishAt: publishAt,
+      dueNone: dueNone,
+      dueAt: dueAt
+    };
+  });
+}
+
+function toClassScheduleMap(schedules) {
+  return (Array.isArray(schedules) ? schedules : []).reduce(function(map, item) {
+    if (!item || !item.className) {
+      return map;
+    }
+
+    map[item.className] = {
+      publishImmediate: item.publishImmediate === true || item.publishMode === 'immediate',
+      publishAt: item.publishAt || '',
+      dueNone: item.dueNone === true,
+      dueAt: item.dueAt || ''
+    };
+    return map;
+  }, {});
+}
+
+function refreshClassScheduleRows(prefillSchedules) {
+  const container = document.getElementById('classScheduleList');
+  if (!container) {
+    return;
+  }
+
+  const selectedClassNames = getSelectedClassNames();
+  const currentMap = toClassScheduleMap(collectClassSchedules());
+  const prefillMap = toClassScheduleMap(prefillSchedules);
+
+  container.innerHTML = '';
+
+  if (selectedClassNames.length === 0) {
+    container.innerHTML = '<p class="class-schedule-empty mb-0 text-muted">クラスを選択すると、公開日時（即時公開可）と提出期限を設定できます。</p>';
+    return;
+  }
+
+  selectedClassNames.forEach(function(className) {
+    const seed = prefillMap[className] || currentMap[className] || { publishImmediate: false, publishAt: '', dueNone: false, dueAt: '' };
+    const row = document.createElement('div');
+    row.className = 'class-schedule-row';
+    row.setAttribute('data-class-name', className);
+    row.innerHTML =
+      '<div class="class-schedule-name">' + escapeHtml(className) + '</div>' +
+      '<div class="class-schedule-field">' +
+        '<label class="mini-label" for="schedulePublish-' + escapeHtml(className) + '">公開日時</label>' +
+        '<input id="schedulePublish-' + escapeHtml(className) + '" class="form-control class-schedule-publish" type="datetime-local" value="' + escapeHtml(seed.publishAt) + '">' +
+        '<div class="form-check mt-2">' +
+          '<input class="form-check-input class-schedule-publish-immediate" type="checkbox" id="schedulePublishImmediate-' + escapeHtml(className) + '"' + (seed.publishImmediate ? ' checked' : '') + '>' +
+          '<label class="form-check-label" for="schedulePublishImmediate-' + escapeHtml(className) + '">即時公開</label>' +
+        '</div>' +
+      '</div>' +
+      '<div class="class-schedule-field">' +
+        '<label class="mini-label" for="scheduleDeadline-' + escapeHtml(className) + '">提出期限</label>' +
+        '<input id="scheduleDeadline-' + escapeHtml(className) + '" class="form-control class-schedule-deadline" type="datetime-local" value="' + escapeHtml(seed.dueAt) + '">' +
+        '<div class="form-check mt-2">' +
+          '<input class="form-check-input class-schedule-deadline-none" type="checkbox" id="scheduleDeadlineNone-' + escapeHtml(className) + '"' + (seed.dueNone ? ' checked' : '') + '>' +
+          '<label class="form-check-label" for="scheduleDeadlineNone-' + escapeHtml(className) + '">提出期限なし</label>' +
+        '</div>' +
+      '</div>';
+    container.appendChild(row);
+
+    const publishImmediateEl = row.querySelector('.class-schedule-publish-immediate');
+    const publishAtEl = row.querySelector('.class-schedule-publish');
+    if (publishImmediateEl && publishAtEl) {
+      const applyPublishMode = function() {
+        const immediate = publishImmediateEl.checked;
+        publishAtEl.disabled = immediate;
+        if (immediate) {
+          publishAtEl.value = '';
+        }
+      };
+      publishImmediateEl.addEventListener('change', applyPublishMode);
+      applyPublishMode();
+    }
+
+    const dueNoneEl = row.querySelector('.class-schedule-deadline-none');
+    const dueAtEl = row.querySelector('.class-schedule-deadline');
+    if (dueNoneEl && dueAtEl) {
+      const applyDueMode = function() {
+        const noDeadline = dueNoneEl.checked;
+        dueAtEl.disabled = noDeadline;
+        if (noDeadline) {
+          dueAtEl.value = '';
+        }
+      };
+      dueNoneEl.addEventListener('change', applyDueMode);
+      applyDueMode();
+    }
+  });
+}
+
 function updatePreview() {
   const name = getValue('taskNameInput');
-  const level = getValue('levelSelect');
+  const level = normalizeLevelSelection(getValue('levelSelect'));
   const theme = getValue('themeInput');
   const description = getValue('taskDescriptionInput');
   const features = getValue('featureInput');
   const constraint = getValue('taskConstraintInput');
 
   setText('previewName', name || '課題名未設定');
-  setText('previewLevel', level || '―');
+  const previewLevel = document.getElementById('previewLevel');
+  if (previewLevel) {
+    if (level) {
+      previewLevel.textContent = level;
+      previewLevel.classList.remove('d-none');
+    } else {
+      previewLevel.textContent = '';
+      previewLevel.classList.add('d-none');
+    }
+  }
   setText('previewTheme', theme || '―');
   setText('previewDescription', description || '説明未設定');
 
@@ -425,7 +499,6 @@ function updatePreview() {
     if (level === '初級') card.classList.add('task-card-beginner');
     else if (level === '中級') card.classList.add('task-card-intermediate');
     else if (level === '上級') card.classList.add('task-card-advanced');
-    else card.classList.add('task-card-beginner');
   }
 
   // エディター課題情報プレビュー
@@ -477,13 +550,11 @@ function updatePreview() {
       const order = orderEl ? Number(orderEl.value) : Number.POSITIVE_INFINITY;
       const title = titleEl ? titleEl.value.trim() : '';
       const content = textareas[0] ? textareas[0].value.trim() : '';
-      const code = textareas[1] ? textareas[1].value.trim() : '';
 
       return {
         order: Number.isFinite(order) ? order : Number.POSITIVE_INFINITY,
         title: title,
-        content: content,
-        code: code
+        content: content
       };
     }).sort(function(a, b) {
       return a.order - b.order;
@@ -494,14 +565,12 @@ function updatePreview() {
         '<div class="hint-card">' +
           '<div class="info-label">未設定</div>' +
           '<p>ヒント内容未設定</p>' +
-          '<textarea class="preview-hint-code-source" spellcheck="false"># コード例未設定</textarea>' +
         '</div>';
     } else {
       hintCards.innerHTML = hintItems.map(function(item) {
         return '<div class="hint-card">' +
           '<div class="info-label">' + escapeHtml(item.title || '未設定') + '</div>' +
           '<p>' + escapeHtml(item.content || 'ヒント内容未設定') + '</p>' +
-          '<textarea class="preview-hint-code-source" spellcheck="false">' + escapeHtml(item.code || '# コード例未設定') + '</textarea>' +
         '</div>';
       }).join('');
     }
@@ -542,19 +611,8 @@ function addHintRow() {
   content.placeholder = '例: 文字列を受け取るための関数です。';
   content.rows = 2;
 
-  const codeLabel = document.createElement('label');
-  codeLabel.className = 'mini-label mt-2';
-  codeLabel.textContent = 'コード例';
-
-  const code = document.createElement('textarea');
-  code.className = 'form-control mt-2 code-editor-input';
-  code.placeholder = '例: player = input("手を入力してください: ")';
-  code.rows = 1;
-
   wrapper.appendChild(contentLabel);
   wrapper.appendChild(content);
-  wrapper.appendChild(codeLabel);
-  wrapper.appendChild(code);
   row.appendChild(wrapper);
 
   if (prefill) {
@@ -569,7 +627,6 @@ function addHintRow() {
     }
 
     content.value = prefill.hintContent || '';
-    code.value = prefill.hintCodeExample || '';
   }
 
   const deleteButton = row.querySelector('button');
@@ -583,8 +640,7 @@ function addHintRow() {
   const liveInputs = [
     row.querySelector('.hint-order'),
     row.querySelector('.hint-title'),
-    content,
-    code
+    content
   ];
 
   liveInputs.forEach(function(el) {
@@ -594,7 +650,6 @@ function addHintRow() {
   });
 
   list.appendChild(row);
-  initializeHintCodeEditor(code);
   updatePreview();
 }
 
@@ -611,8 +666,7 @@ function renderHintLibrary() {
       '<td><span class="badge text-bg-light">' + escapeHtml(hint.taskId) + '</span></td>' +
       '<td>' + String(hint.hintOrder) + '</td>' +
       '<td>' + escapeHtml(hint.hintTitle) + '</td>' +
-      '<td>' + escapeHtml(hint.hintContent) + '</td>' +
-      '<td><pre class="hint-library-code">' + escapeHtml(hint.hintCodeExample) + '</pre></td>';
+      '<td>' + escapeHtml(hint.hintContent) + '</td>';
     body.appendChild(tr);
   });
 }
@@ -735,6 +789,7 @@ function resetCreateForm() {
   }
 
   updateClassDropdownLabel();
+  refreshClassScheduleRows();
   updateSchoolDropdownLabel();
   updatePreview();
 }
@@ -760,7 +815,7 @@ function startCreateFormEditMode(row) {
   setValue('featureInput', row.dataset.features || '');
   setValue('taskConstraintInput', row.dataset.constraint || '');
   setValue('initialCodeInput', row.dataset.initialCode || '');
-  setValue('publishDateInput', row.dataset.publishDate || '');
+  setValue('lateSubmissionPolicy', row.dataset.lateSubmissionPolicy || '');
 
   document.querySelectorAll('input[name="classTargets"]').forEach(function(el) {
     el.checked = classNames.includes(el.value);
@@ -769,6 +824,8 @@ function startCreateFormEditMode(row) {
   document.querySelectorAll('input[name="schoolTargets"]').forEach(function(el) {
     el.checked = schoolNames.includes(el.value);
   });
+
+  refreshClassScheduleRows(parseJsonArray(row.dataset.classSchedules));
 
   const testCases = parseJsonArray(row.dataset.testCases);
   const testCaseList = document.getElementById('testCaseList');
@@ -846,13 +903,15 @@ function saveCreateFormEditResult(status) {
   const classNames = Array.from(document.querySelectorAll('input[name="classTargets"]:checked'))
     .map(function(el) { return el.value; });
   const level = getValue('levelSelect');
+  const normalizedLevel = normalizeLevelSelection(level);
   const name = getValue('taskNameInput');
   const theme = getValue('themeInput');
   const description = getValue('taskDescriptionInput');
   const features = getValue('featureInput');
   const constraint = getValue('taskConstraintInput');
   const initialCode = getValue('initialCodeInput');
-  const publishDate = getValue('publishDateInput');
+  const classSchedules = collectClassSchedules();
+  const lateSubmissionPolicy = getValue('lateSubmissionPolicy');
   const updated = buildNowString();
 
   const testCases = Array.from(document.querySelectorAll('#testCaseList .test-case-row')).map(function(row) {
@@ -871,18 +930,17 @@ function saveCreateFormEditResult(status) {
     return {
       hintOrder: order ? Number(order.value) || 1 : 1,
       hintTitle: title ? title.value.trim() : '',
-      hintContent: textareas[0] ? getElementValue(textareas[0]) : '',
-      hintCodeExample: textareas[1] ? getElementValue(textareas[1]) : ''
+      hintContent: textareas[0] ? getElementValue(textareas[0]) : ''
     };
   }).filter(function(hint) {
-    return hint.hintTitle || hint.hintContent || hint.hintCodeExample;
+    return hint.hintTitle || hint.hintContent;
   });
 
   const target = (schoolNames.length > 0 ? schoolNames.join(', ') : '学校未選択') +
     ' / ' + (classNames.length > 0 ? classNames.join(', ') : 'クラス未選択');
 
   editTargetRow.dataset.name = name;
-  editTargetRow.dataset.level = level;
+  editTargetRow.dataset.level = normalizedLevel;
   editTargetRow.dataset.target = target;
   editTargetRow.dataset.status = status;
   editTargetRow.dataset.description = description;
@@ -891,7 +949,8 @@ function saveCreateFormEditResult(status) {
   editTargetRow.dataset.theme = theme;
   editTargetRow.dataset.features = features;
   editTargetRow.dataset.initialCode = initialCode;
-  editTargetRow.dataset.publishDate = publishDate;
+  editTargetRow.dataset.classSchedules = JSON.stringify(classSchedules);
+  editTargetRow.dataset.lateSubmissionPolicy = lateSubmissionPolicy;
   editTargetRow.dataset.testCases = JSON.stringify(testCases);
   editTargetRow.dataset.hints = JSON.stringify(hints);
 
@@ -900,7 +959,7 @@ function saveCreateFormEditResult(status) {
   }
 
   if (editTargetRow.cells[1]) {
-    editTargetRow.cells[1].innerHTML = buildLevelBadgeHtml(level);
+    editTargetRow.cells[1].innerHTML = buildLevelBadgeHtml(normalizedLevel);
   }
 
   if (editTargetRow.cells[2]) {
@@ -925,6 +984,9 @@ function saveCreateFormEditResult(status) {
 }
 
 function buildLevelBadgeHtml(level) {
+  if (!level) {
+    return '';
+  }
   if (level === '中級') {
     return '<span class="badge difficulty-intermediate">中級</span>';
   }
@@ -932,6 +994,10 @@ function buildLevelBadgeHtml(level) {
     return '<span class="badge difficulty-advanced">上級</span>';
   }
   return '<span class="badge difficulty-beginner">初級</span>';
+}
+
+function normalizeLevelSelection(level) {
+  return level === '__none__' ? '' : level;
 }
 
 function parseJsonArray(text) {

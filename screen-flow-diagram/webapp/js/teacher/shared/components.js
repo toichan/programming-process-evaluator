@@ -10,15 +10,15 @@ async function logout() {
   const feedback = window.PPEFeedback || {};
   const confirmed = typeof feedback.showConfirmDialog === 'function'
     ? await feedback.showConfirmDialog({
-      title: 'ログアウトしますか？',
-      message: '次の操作を実行します。',
+      title: 'ログアウトの確認',
+      message: 'ログアウトしてログイン画面へ移動します。',
       detailTitle: '',
       details: ['現在のログイン状態', '表示中の教師画面'],
       confirmLabel: 'ログアウトする',
       cancelLabel: '戻る',
       variant: 'warning'
     })
-    : window.confirm('ログアウトしてもよろしいですか？');
+    : window.confirm('ログアウトの確認\nログアウトしてログイン画面へ移動します。');
 
   if (confirmed) {
     window.location.href = '../account/login.html';
@@ -43,12 +43,38 @@ function loadTeacherComponents() {
             <span>生徒アカウント管理</span>
           </a>
         </li>
-        <li class="sidebar-menu-item" data-page="history">
-          <a href="../history/history.html" class="sidebar-menu-link">
+        <li class="sidebar-menu-item" data-page="progress">
+          <a href="../progress/progress.html" class="sidebar-menu-link">
             <svg class="sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
               <path d="M9 11H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2zm2-7h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V9h14v11z"/>
             </svg>
-            <span>学習履歴確認</span>
+            <span>課題進捗確認機能</span>
+          </a>
+        </li>
+        <li class="sidebar-menu-item" data-page="exercise">
+          <a href="../exercise/exercise.html" class="sidebar-menu-link">
+            <svg class="sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M8.59 16.59L4 12l4.59-4.59L10 8.82 6.83 12 10 15.18l-1.41 1.41zm6.82 0L14 15.18 17.17 12 14 8.82l1.41-1.41L20 12l-4.59 4.59z"/>
+              <path d="M13.83 4h1.85l-5.5 16h-1.85l5.5-16z"/>
+            </svg>
+            <span>授業演習コード確認</span>
+          </a>
+        </li>
+        <li class="sidebar-menu-item" data-page="distribution">
+          <a href="../distribution/distribution.html" class="sidebar-menu-link">
+            <svg class="sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M3 5a2 2 0 0 1 2-2h5.17a2 2 0 0 1 1.41.59l.83.82A2 2 0 0 0 13.83 5H19a2 2 0 0 1 2 2v2H3V5zm0 5h18v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-9zm9 2l-4 4h3v3h2v-3h3l-4-4z"/>
+            </svg>
+            <span>コード配信</span>
+          </a>
+        </li>
+        <li class="sidebar-menu-item" data-page="submission">
+          <a href="../submission/submission.html" class="sidebar-menu-link">
+            <svg class="sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h6v2H7v-2zm0 3h10v2H7v-2z"/>
+              <path d="M14.5 5l-2.5 2.5L9.5 5H14.5z"/>
+            </svg>
+            <span>提出課題確認</span>
           </a>
         </li>
         <li class="sidebar-menu-item" data-page="evaluation">
@@ -285,7 +311,10 @@ function setActiveSidebarMenu() {
   const path = window.location.pathname;
   const pageMap = {
     '/teacher/account/account.html': 'account',
-    '/teacher/history/history.html': 'history',
+    '/teacher/progress/progress.html': 'progress',
+    '/teacher/exercise/exercise.html': 'exercise',
+    '/teacher/distribution/distribution.html': 'distribution',
+    '/teacher/submission/submission.html': 'submission',
     '/teacher/evaluation/evaluation.html': 'evaluation',
     '/teacher/survey/survey.html': 'survey',
     '/teacher/task/task.html': 'task',

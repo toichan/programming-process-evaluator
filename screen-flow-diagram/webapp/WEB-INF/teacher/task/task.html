@@ -111,20 +111,33 @@
                   </div>
                   <div class="col-md-6">
                     <label for="levelSelect" class="form-label">難易度</label>
-                    <select id="levelSelect" class="form-select" required>
+                    <select id="levelSelect" class="form-select">
                       <option value="">選択</option>
+                      <option value="__none__">なし</option>
                       <option>初級</option>
                       <option>中級</option>
                       <option>上級</option>
                     </select>
                   </div>
                   <div class="col-md-6">
-                    <label for="publishDateInput" class="form-label">公開日時</label>
-                    <input id="publishDateInput" class="form-control" type="datetime-local">
+                    <label for="lateSubmissionPolicy" class="form-label">期限後の提出</label>
+                    <select id="lateSubmissionPolicy" class="form-select">
+                      <option value="">選択</option>
+                      <option value="allow">許可する</option>
+                      <option value="deny">許可しない</option>
+                    </select>
+                    <div class="form-text">提出期限を過ぎた後に、生徒の提出を受け付けるか選択します。</div>
                   </div>
                   <div class="col-12">
-                    <label for="taskNameInput" class="form-label">課題名</label>
-                    <input id="taskNameInput" class="form-control" type="text" placeholder="例: じゃんけん" required>
+                    <label class="form-label">クラス別の公開期間・提出期限</label>
+                    <div id="classScheduleList" class="class-schedule-list" aria-live="polite">
+                      <p class="class-schedule-empty mb-0 text-muted">クラスを選択すると、公開日時（即時公開可）と提出期限を設定できます。</p>
+                    </div>
+                    <div class="form-text">クラスごとに公開日時（即時公開可）と提出期限（期限なし可）を個別に設定できます。</div>
+                  </div>
+                  <div class="col-12">
+                    <label for="taskNameInput" class="form-label">課題名・授業</label>
+                    <input id="taskNameInput" class="form-control" type="text" placeholder="例: じゃんけん, Lesson1" required>
                   </div>
                   <div class="col-12">
                     <label for="themeInput" class="form-label">テーマ</label>
@@ -168,7 +181,7 @@
                   </div>
                 </div>
 
-                <div class="d-flex gap-2 mt-4">
+                <div class="d-flex gap-2 mt-4 justify-content-center flex-wrap">
                   <button class="btn btn-primary" type="submit" id="publishTaskButton">保存・公開</button>
                   <button class="btn btn-outline-secondary" type="button" id="saveDraftButton">下書き保存</button>
                 </div>
@@ -184,7 +197,7 @@
                 <article id="previewCard" class="task-list-card task-card task-card-beginner mt-2">
                   <div class="task-header-row">
                     <div>
-                      <span id="previewLevel" class="task-level">初級</span>
+                      <span id="previewLevel" class="task-level d-none"></span>
                       <h3 id="previewName" class="mt-2 mb-0" style="font-size:1.15rem;">課題名未設定</h3>
                     </div>
                   </div>
@@ -218,12 +231,10 @@
                         <div id="previewEditorCases"><p class="mb-0 text-muted">未設定</p></div>
                       </div>
 
-                      <h3>Pythonコマンド仕様</h3>
                       <div id="previewHintCards">
                         <div class="hint-card">
                           <div class="info-label">未設定</div>
                           <p>ヒント内容未設定</p>
-                          <textarea class="preview-hint-code-source" spellcheck="false"># コード例未設定</textarea>
                         </div>
                       </div>
                     </div>
@@ -368,7 +379,6 @@
                   <th style="width: 70px;">順序</th>
                   <th style="width: 180px;">タイトル</th>
                   <th>内容</th>
-                  <th>コード例</th>
                 </tr>
               </thead>
               <tbody id="hintLibraryBody"></tbody>

@@ -723,8 +723,13 @@ h6 { font-size: 1rem; }
 
 .modal-title {
   font-weight: 600;
-  color: white;
+  color: var(--bs-gray-900);
   font-size: 1.25rem;
+}
+
+.modal-header.bg-primary .modal-title,
+.modal-header.bg-warning .modal-title {
+  color: white;
 }
 
 .modal-body {

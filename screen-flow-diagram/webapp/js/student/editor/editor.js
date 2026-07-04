@@ -10,18 +10,33 @@ window.addEventListener('DOMContentLoaded', () => {
   const codeLogList = document.querySelector('#codeLogList');
   const toggleLogButton = document.querySelector('#toggleLogButton');
   const codeLogContent = document.querySelector('#codeLogContent');
+  const downloadButton = document.querySelector('#downloadButton');
   const saveButton = document.querySelector('#saveButton');
   const runButton = document.querySelector('#runButton');
-  const runOutputButton = document.querySelector('#runOutputButton');
+  const runResultModalElement = document.querySelector('#runResultModal');
   const submitButton = document.querySelector('#submitButton');
+  const submitCheckModalElement = document.querySelector('#submitCheckModal');
+  const submitCheckSummary = document.querySelector('#submitCheckSummary');
+  const submitCheckTableBody = document.querySelector('#submitCheckTableBody');
+  const confirmSubmitAfterCheck = document.querySelector('#confirmSubmitAfterCheck');
   const infoTabs = document.querySelectorAll('[data-panel-target]');
   let codeMirrorEditor = null;
   let outputConsoleEditor = null;
+  let errorConsoleEditor = null;
+  const EDITOR_HEIGHT_DESKTOP = 620;
+  const EDITOR_HEIGHT_MOBILE = 460;
   const codeLogEditors = [];
   const ioExampleEditors = [];
   const hintEditors = [];
   let hintEditorsInitialized = false;
   const pageFeedback = feedback.createPageFeedback({ title: 'エディター' });
+  const submitCheckModal = (typeof bootstrap !== 'undefined' && submitCheckModalElement)
+    ? bootstrap.Modal.getOrCreateInstance(submitCheckModalElement)
+    : null;
+  const runResultModal = (typeof bootstrap !== 'undefined' && runResultModalElement)
+    ? bootstrap.Modal.getOrCreateInstance(runResultModalElement)
+    : null;
+  let latestCheckSummary = null;
 
   if (headerPlaceholder && header) {
     headerPlaceholder.innerHTML = header;
@@ -43,13 +58,28 @@ window.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  if (outputConsole && typeof CodeMirror !== 'undefined') {
-    const outputTextarea = document.createElement('textarea');
-    outputTextarea.id = 'outputConsoleEditor';
-    outputTextarea.value = outputConsole.textContent || '';
-    outputConsole.replaceWith(outputTextarea);
+  function syncMainEditorLayout() {
+    if (!codeMirrorEditor) {
+      return;
+    }
 
-    outputConsoleEditor = CodeMirror.fromTextArea(outputTextarea, {
+    const targetHeight = window.matchMedia('(max-width: 767px)').matches
+      ? EDITOR_HEIGHT_MOBILE
+      : EDITOR_HEIGHT_DESKTOP;
+
+    codeMirrorEditor.setSize(null, targetHeight);
+    codeMirrorEditor.refresh();
+  }
+
+  syncMainEditorLayout();
+  window.addEventListener('resize', syncMainEditorLayout);
+
+  function createReadOnlyConsole(sourceTextarea) {
+    if (!sourceTextarea || typeof CodeMirror === 'undefined') {
+      return null;
+    }
+
+    return CodeMirror.fromTextArea(sourceTextarea, {
       mode: 'shell',
       lineNumbers: false,
       lineWrapping: true,
@@ -59,6 +89,9 @@ window.addEventListener('DOMContentLoaded', () => {
       viewportMargin: Infinity
     });
   }
+
+  outputConsoleEditor = createReadOnlyConsole(outputConsole);
+  errorConsoleEditor = createReadOnlyConsole(document.querySelector('#errorConsole'));
 
   function getEditorValue() {
     return codeMirrorEditor ? codeMirrorEditor.getValue() : (codeEditor?.value || '');
@@ -182,16 +215,40 @@ window.addEventListener('DOMContentLoaded', () => {
     hintEditorsInitialized = true;
   }
 
-  function setOutputValue(value) {
-    if (outputConsoleEditor) {
-      outputConsoleEditor.setValue(value);
-      outputConsoleEditor.refresh();
+  function setConsoleValue(editor, textarea, value) {
+    if (editor) {
+      editor.setValue(value);
+      editor.refresh();
       return;
     }
 
-    if (outputConsole) {
-      outputConsole.textContent = value;
+    if (textarea) {
+      textarea.value = value;
     }
+  }
+
+  function buildDownloadFileName() {
+    const titleText = document.querySelector('.learning-flow-task-name')?.textContent || '';
+    const normalized = titleText
+      .replace(/[\\/:*?"<>|]/g, '_')
+      .replace(/\s+/g, '_')
+      .replace(/_+/g, '_')
+      .replace(/^_+|_+$/g, '');
+
+    return (normalized || 'editor_code') + '.py';
+  }
+
+  function downloadCurrentCode() {
+    const code = getEditorValue();
+    const blob = new Blob([code], { type: 'text/x-python;charset=utf-8' });
+    const objectUrl = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = objectUrl;
+    anchor.download = buildDownloadFileName();
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(objectUrl);
   }
 
   function nowTimeLabel() {
@@ -232,19 +289,146 @@ window.addEventListener('DOMContentLoaded', () => {
       lastSavedAt.textContent = time;
     }
     if (editorMessage) {
-      editorMessage.textContent = `${prefix}しました。コードログへ記録しています。`;
+      editorMessage.textContent = `保存状態: 保存済みです（${prefix}）。コードログへ反映済みです。`;
     }
   }
 
   function runCode() {
     const hasInput = getEditorValue().includes('input(');
-    setOutputValue(hasInput
+    const stdout = hasInput
       ? '$ python main.py\n入力待ちの処理が含まれています。\nテスト用入力: パー\n\n実行結果:\nあなたの勝ち'
-      : '$ python main.py\n実行しました。\n\n標準出力:\n(ここに結果が表示されます)');
+      : '$ python main.py\n実行しました。\n\n標準入出力:\n(ここに結果が表示されます)';
+    const stderr = hasInput
+      ? 'エラーはありません。'
+      : 'エラーはありません。';
+
+    setConsoleValue(outputConsoleEditor, outputConsole, stdout);
+    setConsoleValue(errorConsoleEditor, document.querySelector('#errorConsole'), stderr);
+
     if (editorMessage) {
-      editorMessage.textContent = '実行が完了しました。エラーがあればこの下に表示されます。';
+      editorMessage.textContent = '実行が完了しました。実行結果モーダルを確認してください。';
     }
-    prependLog('実行', '実行結果を出力パネルへ反映しました。');
+
+    prependLog('実行', '実行結果をモーダルへ表示しました。');
+    if (runResultModal) {
+      runResultModal.show();
+    }
+  }
+
+  if (runResultModalElement) {
+    runResultModalElement.addEventListener('shown.bs.modal', () => {
+      if (outputConsoleEditor) {
+        outputConsoleEditor.refresh();
+      }
+
+      if (errorConsoleEditor) {
+        errorConsoleEditor.refresh();
+      }
+    });
+  }
+
+  function normalizeValue(value) {
+    return String(value || '').replace(/\r\n/g, '\n').trim();
+  }
+
+  function collectExpectedIoCases() {
+    return Array.from(document.querySelectorAll('.io-block .io-case-card')).map((card, index) => {
+      const sources = card.querySelectorAll('.io-case-source');
+      const inputText = normalizeValue(sources[0]?.value || '');
+      const expectedOutput = normalizeValue(sources[1]?.value || '');
+
+      return {
+        index: index + 1,
+        inputText,
+        expectedOutput
+      };
+    });
+  }
+
+  function runExpectedIoCheck() {
+    const sourceCode = getEditorValue();
+    const ioCases = collectExpectedIoCases();
+
+    const emulateActualOutput = (inputText) => {
+      const normalizedInput = normalizeValue(inputText);
+
+      if (!sourceCode.includes('print(')) {
+        return '(出力なし)';
+      }
+
+      if (normalizedInput === 'パー') {
+        return 'あなたの勝ち';
+      }
+      if (normalizedInput === 'チョキ') {
+        return 'あなたの負け';
+      }
+      if (normalizedInput === 'グー') {
+        return 'あいこ';
+      }
+
+      return 'グー・チョキ・パーを入力してください';
+    };
+
+    const results = ioCases.map((ioCase) => {
+      const actualOutput = emulateActualOutput(ioCase.inputText);
+      const passed = normalizeValue(actualOutput) === normalizeValue(ioCase.expectedOutput);
+
+      return {
+        ...ioCase,
+        actualOutput,
+        passed
+      };
+    });
+
+    const passedCount = results.filter((result) => result.passed).length;
+
+    return {
+      totalCount: results.length,
+      passedCount,
+      failedCount: results.length - passedCount,
+      results
+    };
+  }
+
+  function escapeHtml(value) {
+    return String(value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function renderExpectedIoCheck(summary) {
+    if (!submitCheckSummary || !submitCheckTableBody) {
+      return;
+    }
+
+    submitCheckSummary.classList.remove('is-ok', 'is-ng');
+
+    if (!summary || summary.totalCount === 0) {
+      submitCheckSummary.textContent = '未チェック';
+      submitCheckTableBody.innerHTML = '<tr><td colspan="4" class="text-muted">想定入出力が設定されていません。</td></tr>';
+      return;
+    }
+
+    submitCheckSummary.textContent = `${summary.passedCount}/${summary.totalCount}件一致`;
+    submitCheckSummary.classList.add(summary.failedCount === 0 ? 'is-ok' : 'is-ng');
+
+    submitCheckTableBody.innerHTML = summary.results.map((result) => {
+      const expectedOutput = result.expectedOutput || '(未設定)';
+      const actualOutput = result.actualOutput || '(出力なし)';
+      const markClass = result.passed ? 'is-pass' : 'is-fail';
+      const mark = result.passed ? '○' : '×';
+      return `
+        <tr class="${markClass}">
+          <td>${escapeHtml(result.inputText || '(未設定)')}</td>
+          <td>${escapeHtml(expectedOutput)}</td>
+          <td>${escapeHtml(actualOutput)}</td>
+          <td class="text-center"><span class="check-result-mark ${markClass}">${mark}</span></td>
+        </tr>
+      `;
+    }).join('');
   }
 
   if (saveButton) {
@@ -259,31 +443,46 @@ window.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  if (downloadButton) {
+    downloadButton.addEventListener('click', () => {
+      downloadCurrentCode();
+      pageFeedback.toast({
+        title: 'エディター',
+        message: 'コードをダウンロードしました。',
+        variant: 'success'
+      });
+    });
+  }
+
   if (runButton) {
     runButton.addEventListener('click', runCode);
   }
 
-  if (runOutputButton) {
-    runOutputButton.addEventListener('click', runCode);
+  if (submitButton) {
+    submitButton.addEventListener('click', () => {
+      latestCheckSummary = runExpectedIoCheck();
+      renderExpectedIoCheck(latestCheckSummary);
+
+      if (submitCheckModal) {
+        submitCheckModal.show();
+        return;
+      }
+
+      window.location.href = '../evaluation/evaluation.html';
+    });
   }
 
-  if (submitButton) {
-    submitButton.addEventListener('click', async () => {
-      const confirmed = await pageFeedback.confirm({
-        title: '課題を提出しますか？',
-        message: '次のデータを送信します。',
-        detailTitle: '',
-        details: [
-          '現在入力しているコード',
-          '提出日時'
-        ],
-        confirmLabel: '提出する',
-        cancelLabel: '戻る',
-        variant: 'warning'
-      });
+  if (confirmSubmitAfterCheck) {
+    confirmSubmitAfterCheck.addEventListener('click', () => {
+      const checkSummary = latestCheckSummary || runExpectedIoCheck();
 
-      if (!confirmed) {
-        return;
+      if (editorMessage) {
+        editorMessage.textContent = `入出力チェックを実行しました（${checkSummary.passedCount}/${checkSummary.totalCount}件一致）。不一致があっても提出可能です。`;
+      }
+      prependLog('提出前チェック', `入出力チェックを実行しました（${checkSummary.passedCount}/${checkSummary.totalCount}件一致）。`);
+
+      if (submitCheckModal) {
+        submitCheckModal.hide();
       }
 
       window.location.href = '../evaluation/evaluation.html';
