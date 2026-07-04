@@ -6,6 +6,7 @@ let previewIoEditors = [];
 let initialCodeEditor = null;
 const feedback = window.PPEFeedback || {};
 const pageFeedback = feedback.createPageFeedback({ title: '課題編集' });
+const CURRENT_TEACHER_ID = 'toida'; // プロトタイプ用プレースホルダー。本実装ではセッション情報から取得する。
 
 function syncCompactEditorHeight(editor) {
   if (!editor) {
@@ -119,8 +120,7 @@ function initializeTaskPage() {
         saveCreateFormEditResult('下書き');
         return;
       }
-      pageFeedback.toast({ message: '下書きを保存しました。', variant: 'success', delay: 2200 });
-      increaseDraftCount();
+      saveNewTaskRow('下書き');
     });
   }
 
@@ -132,8 +132,7 @@ function initializeTaskPage() {
         saveCreateFormEditResult('公開');
         return;
       }
-      pageFeedback.toast({ message: '課題を保存・公開しました。', variant: 'success', delay: 2200 });
-      increasePublishedCount();
+      saveNewTaskRow('公開');
     });
   }
 
@@ -1109,4 +1108,104 @@ function escapeHtml(text) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+function saveNewTaskRow(status) {
+  const schoolNames = Array.from(document.querySelectorAll('input[name="schoolTargets"]:checked'))
+    .map(function(el) { return el.value; });
+  const classNames = Array.from(document.querySelectorAll('input[name="classTargets"]:checked'))
+    .map(function(el) { return el.value; });
+  const level = getValue('levelSelect');
+  const normalizedLevel = normalizeLevelSelection(level);
+  const name = getValue('taskNameInput');
+  const theme = getValue('themeInput');
+  const description = getValue('taskDescriptionInput');
+  const features = getValue('featureInput');
+  const constraint = getValue('taskConstraintInput');
+  const initialCode = getValue('initialCodeInput');
+  const classSchedules = collectClassSchedules();
+  const lateSubmissionPolicy = getValue('lateSubmissionPolicy');
+  const updated = buildNowString();
+
+  const testCases = Array.from(document.querySelectorAll('#testCaseList .test-case-row')).map(function(row) {
+    return {
+      input: getElementValue(row.querySelector('.test-case-input')),
+      output: getElementValue(row.querySelector('.test-case-output'))
+    };
+  }).filter(function(tc) {
+    return tc.input || tc.output;
+  });
+
+  const hints = Array.from(document.querySelectorAll('#hintList .test-case-item')).map(function(row) {
+    const order = row.querySelector('.hint-order');
+    const title = row.querySelector('.hint-title');
+    const textareas = row.querySelectorAll('textarea');
+    return {
+      hintOrder: order ? Number(order.value) || 1 : 1,
+      hintTitle: title ? title.value.trim() : '',
+      hintContent: textareas[0] ? getElementValue(textareas[0]) : ''
+    };
+  }).filter(function(hint) {
+    return hint.hintTitle || hint.hintContent;
+  });
+
+  const target = (schoolNames.length > 0 ? schoolNames.join(', ') : '学校未選択') +
+    ' / ' + (classNames.length > 0 ? classNames.join(', ') : 'クラス未選択');
+  const creator = CURRENT_TEACHER_ID;
+  const taskId = 'TASK-' + String(Date.now()).slice(-6) + '-' + Math.random().toString(36).slice(2, 6);
+
+  const tr = document.createElement('tr');
+  tr.setAttribute('data-task-id', taskId);
+  tr.setAttribute('data-name', name);
+  tr.setAttribute('data-level', normalizedLevel);
+  tr.setAttribute('data-target', target);
+  tr.setAttribute('data-status', status);
+  tr.setAttribute('data-prompt-status', '未設定');
+  tr.setAttribute('data-creator', creator);
+  tr.setAttribute('data-description', description);
+  tr.setAttribute('data-constraint', constraint);
+  tr.setAttribute('data-updated', updated);
+  tr.setAttribute('data-theme', theme);
+  tr.setAttribute('data-features', features);
+  tr.setAttribute('data-initial-code', initialCode);
+  tr.setAttribute('data-class-schedules', JSON.stringify(classSchedules));
+  tr.setAttribute('data-late-submission-policy', lateSubmissionPolicy);
+  tr.setAttribute('data-test-cases', JSON.stringify(testCases));
+  tr.setAttribute('data-hints', JSON.stringify(hints));
+
+  const statusBadge = status === '公開'
+    ? '<span class="badge text-bg-success">公開</span>'
+    : '<span class="badge text-bg-secondary">下書き</span>';
+
+  tr.innerHTML =
+    '<td>' + escapeHtml(name || '課題名未設定') + '</td>' +
+    '<td>' + buildLevelBadgeHtml(normalizedLevel) + '</td>' +
+    '<td>' + escapeHtml(target) + '</td>' +
+    '<td>' + statusBadge + '</td>' +
+    '<td><a class="prompt-status-link is-unset" href="../prompt/prompt.html?taskId=' + escapeHtml(taskId) + '">未設定</a></td>' +
+    '<td class="creator-id">' + escapeHtml(creator) + '</td>' +
+    '<td class="updated-at">' + escapeHtml(updated) + '</td>' +
+    '<td><div class="d-flex gap-2">' +
+      '<button class="btn btn-sm btn-outline-primary edit-button" type="button">編集</button>' +
+      '<button class="btn btn-sm btn-outline-danger delete-button" type="button">削除</button>' +
+    '</div></td>';
+
+  const tbody = document.querySelector('#taskTable tbody');
+  if (tbody) {
+    tbody.appendChild(tr);
+  }
+
+  bindRowActionButtons();
+  syncPromptStatusHighlight();
+  applyStatusFilter();
+
+  if (status === '公開') {
+    increasePublishedCount();
+    pageFeedback.toast({ message: '課題を保存・公開しました。', variant: 'success', delay: 2200 });
+  } else {
+    increaseDraftCount();
+    pageFeedback.toast({ message: '下書きを保存しました。', variant: 'success', delay: 2200 });
+  }
+
+  resetCreateForm();
 }
