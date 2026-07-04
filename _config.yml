@@ -1,0 +1,9 @@
+exclude:
+  - bin/
+  - src/
+  - containers/
+  - docker-compose.yml
+  - build.gradle
+  - settings.gradle
+  - .env.sample
+  - AGENTS.md
