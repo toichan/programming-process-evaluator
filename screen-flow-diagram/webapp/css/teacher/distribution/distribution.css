@@ -1,9 +1,7 @@
 /* Teacher code distribution page styles */
 
 .page-content {
-  background:
-    radial-gradient(circle at top left, rgba(14, 165, 233, 0.14), transparent 28%),
-    linear-gradient(135deg, #effcfb 0%, #f8fafc 52%, #eef4ff 100%);
+  background-color: #f8fafc;
   flex-grow: 1;
 }
 
@@ -15,17 +13,13 @@
 }
 
 .hero-kicker {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.45rem 0.85rem;
-  border-radius: 999px;
-  background: rgba(15, 118, 110, 0.12);
-  font-size: 0.85rem;
-  font-weight: 700;
-  color: #115e59;
+  display: inline-block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #4f46e5;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  margin-bottom: 1rem;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.4rem;
 }
 
 .section-title {
@@ -45,11 +39,11 @@
 }
 
 .stat-card {
-  background: linear-gradient(135deg, rgba(15, 118, 110, 0.95), rgba(13, 148, 136, 0.95));
-  color: #fff;
+  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  color: #ffffff;
   border-radius: 0.85rem;
   padding: 1rem;
-  box-shadow: 0 8px 22px rgba(15, 118, 110, 0.2);
+  box-shadow: 0 8px 22px rgba(79, 70, 229, 0.2);
 }
 
 .stat-label {

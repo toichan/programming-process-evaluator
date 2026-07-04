@@ -16,7 +16,7 @@ async function logout() {
       details: ['現在のログイン状態', '表示中の教師画面'],
       confirmLabel: 'ログアウトする',
       cancelLabel: '戻る',
-      variant: 'warning'
+      variant: 'primary'
     })
     : window.confirm('ログアウトの確認\nログアウトしてログイン画面へ移動します。');
 
