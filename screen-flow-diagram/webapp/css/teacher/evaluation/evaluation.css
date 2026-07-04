@@ -492,36 +492,37 @@ code {
   display: block;
 }
 
-#evaluationDetailModal .modal-header {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  align-items: center;
-  column-gap: 0.5rem;
-}
-
-#evaluationDetailModal .modal-header .modal-title {
-  margin-right: 0;
-  min-width: 0;
-}
-
-.evaluation-detail-header-actions {
+.evaluation-detail-toolbar {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.detail-meta {
+  color: #475569;
+  font-size: 1.02rem;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.evaluation-detail-action-row {
+  display: flex;
+  flex: 0 1 auto;
+  margin-left: auto;
   align-items: center;
   justify-content: flex-end;
   gap: 0.5rem;
-  flex-wrap: nowrap;
-  margin-right: 0;
+  flex-wrap: wrap;
 }
 
-.evaluation-detail-header-actions .btn {
+.evaluation-detail-action-row .btn {
   white-space: nowrap;
 }
 
-.evaluation-download-actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 0.5rem;
+#evaluationDetailModal .modal-header > .btn-close {
+  margin-left: 0.5rem;
 }
 
 .btn-rubric-action {
@@ -565,24 +566,13 @@ code {
 }
 
 @media (max-width: 768px) {
-  #evaluationDetailModal .modal-header {
-    grid-template-columns: minmax(0, 1fr) auto auto;
-    align-items: center;
+  .evaluation-detail-toolbar {
+    flex-direction: column;
+    align-items: stretch;
   }
 
-  .evaluation-detail-header-actions {
-    width: auto;
-    justify-content: flex-end;
-    margin-top: 0;
-  }
-
-  .evaluation-download-actions {
-    width: auto;
-  }
-
-  .evaluation-detail-header-actions .btn {
-    flex: 0 0 auto;
-    min-width: auto;
+  .evaluation-detail-toolbar .evaluation-detail-action-row .btn {
+    width: 100%;
   }
 
   .filter-grid {

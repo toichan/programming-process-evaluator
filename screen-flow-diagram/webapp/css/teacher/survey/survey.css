@@ -267,6 +267,13 @@
   font-size: 0.9rem;
 }
 
+.detail-meta {
+  color: #475569;
+  font-size: 1.02rem;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
 .action-buttons {
   display: flex;
   gap: 0.5rem;

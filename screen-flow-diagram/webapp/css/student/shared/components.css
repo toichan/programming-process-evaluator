@@ -1,11 +1,38 @@
 /* Student shared components styles */
 
+#header-placeholder {
+  position: relative;
+}
+
 /* Header styles */
 .navbar {
   background: linear-gradient(135deg, var(--bs-primary), #1d4ed8);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   border-radius: 0 0 1rem 1rem;
   padding: 1rem 0;
+  position: relative;
+  z-index: 2000;
+  overflow: visible;
+}
+
+.navbar-collapse,
+.navbar-nav,
+.navbar .dropdown {
+  position: relative;
+  z-index: 2001;
+}
+
+.navbar .dropdown-menu {
+  position: absolute;
+  z-index: 2100;
+}
+
+.modal-backdrop {
+  z-index: 2190;
+}
+
+.modal {
+  z-index: 2200;
 }
 
 .navbar-brand {
@@ -387,6 +414,10 @@
 
 .rubric-trigger svg {
   flex-shrink: 0;
+}
+
+.modal-header {
+  background-color: #f8fafc;
 }
 
 .rubric-modal .modal-content {

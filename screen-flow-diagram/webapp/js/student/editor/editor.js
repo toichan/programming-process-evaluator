@@ -21,6 +21,7 @@ window.addEventListener('DOMContentLoaded', () => {
   const infoTabs = document.querySelectorAll('[data-panel-target]');
   let codeMirrorEditor = null;
   let outputConsoleEditor = null;
+  let errorConsoleEditor = null;
   const EDITOR_HEIGHT_DESKTOP = 620;
   const EDITOR_HEIGHT_MOBILE = 460;
   const codeLogEditors = [];
@@ -72,13 +73,12 @@ window.addEventListener('DOMContentLoaded', () => {
   syncMainEditorLayout();
   window.addEventListener('resize', syncMainEditorLayout);
 
-  if (outputConsole && typeof CodeMirror !== 'undefined') {
-    const outputTextarea = document.createElement('textarea');
-    outputTextarea.id = 'outputConsoleEditor';
-    outputTextarea.value = outputConsole.textContent || '';
-    outputConsole.replaceWith(outputTextarea);
+  function createReadOnlyConsole(sourceTextarea) {
+    if (!sourceTextarea || typeof CodeMirror === 'undefined') {
+      return null;
+    }
 
-    outputConsoleEditor = CodeMirror.fromTextArea(outputTextarea, {
+    return CodeMirror.fromTextArea(sourceTextarea, {
       mode: 'shell',
       lineNumbers: false,
       lineWrapping: true,
@@ -88,6 +88,9 @@ window.addEventListener('DOMContentLoaded', () => {
       viewportMargin: Infinity
     });
   }
+
+  outputConsoleEditor = createReadOnlyConsole(outputConsole);
+  errorConsoleEditor = createReadOnlyConsole(document.querySelector('#errorConsole'));
 
   function getEditorValue() {
     return codeMirrorEditor ? codeMirrorEditor.getValue() : (codeEditor?.value || '');
@@ -211,15 +214,15 @@ window.addEventListener('DOMContentLoaded', () => {
     hintEditorsInitialized = true;
   }
 
-  function setOutputValue(value) {
-    if (outputConsoleEditor) {
-      outputConsoleEditor.setValue(value);
-      outputConsoleEditor.refresh();
+  function setConsoleValue(editor, textarea, value) {
+    if (editor) {
+      editor.setValue(value);
+      editor.refresh();
       return;
     }
 
-    if (outputConsole) {
-      outputConsole.textContent = value;
+    if (textarea) {
+      textarea.value = value;
     }
   }
 
@@ -267,16 +270,36 @@ window.addEventListener('DOMContentLoaded', () => {
 
   function runCode() {
     const hasInput = getEditorValue().includes('input(');
-    setOutputValue(hasInput
+    const stdout = hasInput
       ? '$ python main.py\n入力待ちの処理が含まれています。\nテスト用入力: パー\n\n実行結果:\nあなたの勝ち'
-      : '$ python main.py\n実行しました。\n\n標準出力:\n(ここに結果が表示されます)');
+      : '$ python main.py\n実行しました。\n\n標準入出力:\n(ここに結果が表示されます)';
+    const stderr = hasInput
+      ? 'エラーはありません。'
+      : 'エラーはありません。';
+
+    setConsoleValue(outputConsoleEditor, outputConsole, stdout);
+    setConsoleValue(errorConsoleEditor, document.querySelector('#errorConsole'), stderr);
+
     if (editorMessage) {
       editorMessage.textContent = '実行が完了しました。実行結果モーダルを確認してください。';
     }
+
     prependLog('実行', '実行結果をモーダルへ表示しました。');
     if (runResultModal) {
       runResultModal.show();
     }
+  }
+
+  if (runResultModalElement) {
+    runResultModalElement.addEventListener('shown.bs.modal', () => {
+      if (outputConsoleEditor) {
+        outputConsoleEditor.refresh();
+      }
+
+      if (errorConsoleEditor) {
+        errorConsoleEditor.refresh();
+      }
+    });
   }
 
   function normalizeValue(value) {
@@ -418,9 +441,9 @@ window.addEventListener('DOMContentLoaded', () => {
       const checkSummary = latestCheckSummary || runExpectedIoCheck();
 
       if (editorMessage) {
-        editorMessage.textContent = `想定入出力チェックを実行しました（${checkSummary.passedCount}/${checkSummary.totalCount}件一致）。不一致があっても提出可能です。`;
+        editorMessage.textContent = `入出力チェックを実行しました（${checkSummary.passedCount}/${checkSummary.totalCount}件一致）。不一致があっても提出可能です。`;
       }
-      prependLog('提出前チェック', `想定入出力チェックを実行しました（${checkSummary.passedCount}/${checkSummary.totalCount}件一致）。`);
+      prependLog('提出前チェック', `入出力チェックを実行しました（${checkSummary.passedCount}/${checkSummary.totalCount}件一致）。`);
 
       if (submitCheckModal) {
         submitCheckModal.hide();

@@ -232,18 +232,27 @@ else:
   </main>
 
   <div class="modal fade run-result-modal" id="runResultModal" tabindex="-1" aria-labelledby="runResultModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
       <div class="modal-content">
         <div class="modal-header">
           <h2 class="modal-title h5 mb-0" id="runResultModalLabel">実行結果</h2>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
         </div>
         <div class="modal-body">
-          <p class="text-muted mb-2">標準出力とエラーメッセージを表示します。</p>
-          <pre id="outputConsole" class="output-console">実行待ちです。「実行」ボタンを押すと結果を表示します。</pre>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">閉じる</button>
+          <div class="row g-4">
+            <div class="col-lg-6">
+              <div class="output-panel">
+                <div class="output-panel-label">標準入出力</div>
+                <textarea id="outputConsole" class="output-console-source" spellcheck="false">実行待ちです。「実行」ボタンを押すと結果を表示します。</textarea>
+              </div>
+            </div>
+            <div class="col-lg-6">
+              <div class="output-panel is-error">
+                <div class="output-panel-label">エラー</div>
+                <textarea id="errorConsole" class="output-console-source" spellcheck="false">エラーはありません。</textarea>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -253,11 +262,10 @@ else:
     <div class="modal-dialog modal-xl modal-dialog-scrollable">
       <div class="modal-content">
         <div class="modal-header">
-          <h2 class="modal-title h5 mb-0" id="submitCheckModalLabel">想定入出力チェック</h2>
+          <h2 class="modal-title h5 mb-0" id="submitCheckModalLabel">入出力チェック</h2>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
         </div>
         <div class="modal-body">
-          <h5 class="submit-check-heading">入出力チェック</h5>
           <p class="text-muted mb-2">想定入出力をもとに、チェックしています。不一致があっても提出できます。</p>
           <div id="submitCheckSummary" class="check-result-summary">未チェック</div>
           <div class="table-responsive mt-3">

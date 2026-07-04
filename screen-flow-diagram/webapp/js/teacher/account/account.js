@@ -412,6 +412,12 @@ function exportCSV() {
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+
+  pageFeedback.toast({
+    title: 'アカウント管理',
+    message: 'CSVをダウンロードしました。',
+    variant: 'success'
+  });
 }
 
 /**
@@ -606,8 +612,8 @@ async function resetPassword(button) {
  */
 async function logout() {
   const confirmed = await pageFeedback.confirm({
-    title: 'ログアウトしますか？',
-    message: '次の操作を実行します。',
+    title: 'ログアウトの確認',
+    message: 'ログアウトしてログイン画面へ移動します。',
     detailTitle: '',
     details: ['現在のログイン状態', 'アカウント管理画面の表示内容'],
     confirmLabel: 'ログアウトする',

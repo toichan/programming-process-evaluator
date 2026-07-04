@@ -437,6 +437,141 @@ function runWorkingCode() {
   });
 }
 
+function downloadSubmittedCodeFile() {
+  if (detailIndex < 0 || detailIndex >= filteredRows.length) {
+    pageFeedback.toast({
+      title: '提出課題確認',
+      message: '先に詳細を表示してください。',
+      variant: 'warning'
+    });
+    return;
+  }
+
+  const item = filteredRows[detailIndex];
+  const taskSegment = String(item.taskTitle || 'task').replace(/[\\/:*?"<>|\s]+/g, '_');
+  const filename = item.studentId + '_' + taskSegment + '.py';
+  const content = item.submittedCode || '';
+
+  const blob = new Blob([content], { type: 'text/plain;charset=utf-8;' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(link.href);
+
+  pageFeedback.toast({
+    title: '提出課題確認',
+    message: '提出コードをダウンロードしました。',
+    variant: 'success'
+  });
+}
+
+function refreshSubmissionRows() {
+  applyFiltersAndSort();
+
+  pageFeedback.toast({
+    title: '提出課題確認',
+    message: '一覧を更新しました。',
+    variant: 'success'
+  });
+}
+
+function exportSubmissionCSV() {
+  if (!filteredRows.length) {
+    pageFeedback.toast({
+      title: '提出課題確認',
+      message: '出力対象の提出データがありません。',
+      variant: 'warning'
+    });
+    return;
+  }
+
+  const header = ['生徒ID', '学校', 'クラス', '課題名', '難易度', '一致件数', '提出日時', '研究同意'];
+  const body = filteredRows.map(function(item) {
+    const summary = summarizeIoChecks(item);
+    return [
+      item.studentId,
+      item.school,
+      item.className,
+      item.taskTitle,
+      item.level,
+      summary.passedCount + '/' + summary.totalCount,
+      item.submittedAt,
+      item.consent
+    ];
+  });
+
+  const csv = [header].concat(body)
+    .map(function(cols) { return cols.map(escapeCSV).join(','); })
+    .join('\r\n');
+
+  const blob = new Blob(['\uFEFF', csv], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = 'submission_list_' + new Date().toISOString().slice(0, 10) + '.csv';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+
+  pageFeedback.toast({
+    title: '提出課題確認',
+    message: 'CSVをダウンロードしました。',
+    variant: 'success'
+  });
+}
+
+async function bulkSaveSubmissionFiles() {
+  if (!filteredRows.length) {
+    pageFeedback.toast({
+      title: '提出課題確認',
+      message: 'ダウンロード対象の提出データがありません。',
+      variant: 'warning'
+    });
+    return;
+  }
+
+  if (typeof JSZip === 'undefined') {
+    pageFeedback.toast({
+      title: '提出課題確認',
+      message: 'ZIPライブラリの読み込みに失敗しました。',
+      variant: 'danger'
+    });
+    return;
+  }
+
+  try {
+    const zip = new JSZip();
+    filteredRows.forEach(function(item) {
+      const taskSegment = String(item.taskTitle || 'task').replace(/[\\/:*?"<>|\s]+/g, '_');
+      const fileName = item.studentId + '_' + taskSegment + '.py';
+      zip.file('submissions/' + fileName, item.submittedCode || '');
+    });
+
+    const blob = await zip.generateAsync({ type: 'blob' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'submission_files_' + new Date().toISOString().slice(0, 10) + '.zip';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(link.href);
+
+    pageFeedback.toast({
+      title: '提出課題確認',
+      message: '提出ファイルを一括ダウンロードしました。',
+      variant: 'success'
+    });
+  } catch (error) {
+    pageFeedback.toast({
+      title: '提出課題確認',
+      message: '一括ダウンロードに失敗しました。',
+      variant: 'danger'
+    });
+  }
+}
+
 function persistWorkingCode() {
   if (detailIndex < 0 || detailIndex >= filteredRows.length || !workingCodeEditor) {
     return;
@@ -527,4 +662,12 @@ function escapeHtml(value) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+function escapeCSV(value) {
+  const text = String(value ?? '');
+  if (text.includes(',') || text.includes('"') || text.includes('\n')) {
+    return '"' + text.replace(/"/g, '""') + '"';
+  }
+  return text;
 }

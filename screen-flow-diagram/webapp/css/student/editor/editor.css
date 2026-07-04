@@ -294,23 +294,38 @@ body {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.96));
 }
 
-.output-console {
-  margin-top: 0.75rem;
-  padding: 1.25rem 1.5rem;
-  min-height: 180px;
-  border-radius: 1rem;
-  background: #111827;
-  color: #dbeafe;
-  font: 500 0.92rem/1.7 "SFMono-Regular", Consolas, monospace;
-  white-space: pre-wrap;
+.output-panel {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.output-panel-label {
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--editor-accent-alt);
+}
+
+.output-panel.is-error .output-panel-label {
+  color: #b91c1c;
+}
+
+.output-console-source {
+  display: none;
 }
 
 .run-result-modal .CodeMirror {
-  margin-top: 0.75rem;
   min-height: 180px;
   height: auto;
   border-radius: 1rem;
   font: 500 0.92rem/1.7 "SFMono-Regular", Consolas, monospace;
+}
+
+.run-result-modal .cm-s-material-darker.CodeMirror,
+.run-result-modal .cm-s-material-darker .CodeMirror-scroll,
+.run-result-modal .cm-s-material-darker .CodeMirror-gutters {
+  background: #111827;
 }
 
 .run-result-modal .CodeMirror-lines {

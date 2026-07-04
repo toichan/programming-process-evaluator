@@ -70,6 +70,11 @@
   color: #27304a;
 }
 
+.action-buttons {
+  display: flex;
+  gap: 0.5rem;
+}
+
 .filter-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(150px, 1fr));

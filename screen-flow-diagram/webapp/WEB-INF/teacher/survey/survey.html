@@ -287,39 +287,15 @@
 
   <!-- 詳細表示モーダル -->
   <div class="modal fade" id="surveyDetailModal" tabindex="-1" role="dialog" aria-labelledby="surveyDetailLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg" role="document">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">
       <div class="modal-content">
         <div class="modal-header">
-          <h5 class="modal-title" id="surveyDetailLabel">アンケート回答詳細</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          <h5 class="modal-title" id="surveyDetailLabel">アンケート結果詳細</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
         </div>
         <div class="modal-body">
-          <!-- ヘッダー情報 -->
-          <div class="row g-3 mb-4 pb-3 border-bottom">
-            <div class="col-md-6">
-              <div class="detail-info-item">
-                <label class="detail-label">生徒ID</label>
-                <div class="detail-value" id="modalStudentId">s001</div>
-              </div>
-            </div>
-            <div class="col-md-6">
-              <div class="detail-info-item">
-                <label class="detail-label">課題名</label>
-                <div class="detail-value" id="modalTaskTitle">じゃんけん判定プログラム</div>
-              </div>
-            </div>
-            <div class="col-md-6">
-              <div class="detail-info-item">
-                <label class="detail-label">難易度</label>
-                <div class="detail-value"><span class="badge difficulty-beginner" id="modalTaskDifficulty">初級</span></div>
-              </div>
-            </div>
-            <div class="col-md-6">
-              <div class="detail-info-item">
-                <label class="detail-label">回答日時</label>
-                <div class="detail-value" id="modalSubmittedAt">2026-05-19 09:12:34</div>
-              </div>
-            </div>
+          <div class="mb-3">
+            <p class="detail-meta mb-0" id="surveyDetailMeta">-</p>
           </div>
 
           <!-- 生徒のアンケート回答 -->
@@ -400,9 +376,6 @@
               </div>
             </div>
           </div>
-        </div>
-        <div class="modal-footer border-0 pt-0">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">閉じる</button>
         </div>
       </div>
     </div>

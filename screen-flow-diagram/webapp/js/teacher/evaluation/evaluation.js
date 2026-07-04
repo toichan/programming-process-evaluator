@@ -1,5 +1,16 @@
 // Teacher evaluation page interactions
 
+function showEvaluationToast(message, variant) {
+  const feedback = window.PPEFeedback;
+  if (feedback && typeof feedback.toast === 'function') {
+    feedback.toast({
+      title: '評価確認',
+      message,
+      variant
+    });
+  }
+}
+
 let currentSortBy = 'evaluatedDesc';
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -7,7 +18,6 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function initializeEvaluationPage() {
-  setupRubricBackToEvaluation();
   setupEvaluationSummary();
   setupTableFiltersAndSort();
   initializeHeaderSorting();
@@ -232,55 +242,6 @@ function updateEvaluationSummary() {
   }
 }
 
-function setupRubricBackToEvaluation() {
-  const evaluationModalEl = document.getElementById('evaluationDetailModal');
-  const rubricModalEl = document.getElementById('teacherRubricModal');
-  const rubricBackButton = document.getElementById('teacherRubricBackButton');
-  if (!evaluationModalEl || !rubricModalEl || !window.bootstrap) return;
-  if (!rubricBackButton) return;
-
-  let openedFromEvaluationModal = false;
-
-  function updateOpenedFromEvaluationModal() {
-    openedFromEvaluationModal = evaluationModalEl.classList.contains('show');
-  }
-
-  function syncRubricBackButtonVisibility() {
-    rubricBackButton.classList.toggle('d-none', !openedFromEvaluationModal);
-  }
-
-  const rubricTriggers = document.querySelectorAll('[data-bs-target="#teacherRubricModal"]');
-  rubricTriggers.forEach(function(trigger) {
-    trigger.addEventListener('click', updateOpenedFromEvaluationModal);
-  });
-
-  rubricModalEl.addEventListener('show.bs.modal', syncRubricBackButtonVisibility);
-  rubricModalEl.addEventListener('shown.bs.modal', syncRubricBackButtonVisibility);
-  rubricModalEl.addEventListener('hidden.bs.modal', function() {
-    syncRubricBackButtonVisibility();
-    openedFromEvaluationModal = false;
-  });
-  syncRubricBackButtonVisibility();
-
-  rubricBackButton.addEventListener('click', function() {
-    const rubricModal = bootstrap.Modal.getOrCreateInstance(rubricModalEl);
-    if (!openedFromEvaluationModal) {
-      rubricModal.hide();
-      return;
-    }
-
-    const evaluationModal = bootstrap.Modal.getOrCreateInstance(evaluationModalEl);
-    const handleRubricHidden = function() {
-      rubricModalEl.removeEventListener('hidden.bs.modal', handleRubricHidden);
-      evaluationModal.show();
-      openedFromEvaluationModal = false;
-      syncRubricBackButtonVisibility();
-    };
-
-    rubricModalEl.addEventListener('hidden.bs.modal', handleRubricHidden);
-    rubricModal.hide();
-  });
-}
 // openEvaluationDetailをグローバル公開
 window.openEvaluationDetail = openEvaluationDetail;
 function sortRows(rows, sortBy) {
@@ -389,6 +350,154 @@ function downloadJsonFile(payload, fileName) {
   anchor.click();
   document.body.removeChild(anchor);
   URL.revokeObjectURL(url);
+}
+
+function buildEvaluationRowData(row) {
+  return {
+    studentId: row.dataset.id,
+    school: row.dataset.school,
+    class: row.dataset.class,
+    task: row.dataset.task,
+    difficulty: row.dataset.level,
+    evaluatedAt: row.dataset.evaluated,
+    thinking: Number(row.dataset.thinking),
+    attitude: Number(row.dataset.attitude),
+    overall: Number(row.dataset.overall),
+    consent: row.dataset.consent
+  };
+}
+
+function buildEvaluationLogEntries() {
+  return [
+    {
+      id: 931327,
+      createdAt: '2022-04-21 12:56:54',
+      content: '#include<stdio.h>\nint main(){\n  int a,b,c;\n}'
+    },
+    {
+      id: 931335,
+      createdAt: '2022-04-21 12:57:57',
+      content: '#include<stdio.h>\nint main(){\n  int a,b,c;\n  scanf("%d%d%d",&a,&b,&c);\n  if(a>=b && a>=c){\n    printf("最大値は%d\\n",a);\n  }\n}'
+    },
+    {
+      id: 931348,
+      createdAt: '2022-04-21 12:59:28',
+      content: '#include<stdio.h>\nint main(){\n  int a,b,c;\n  scanf("%d%d%d",&a,&b,&c);\n  if(a>=b && a>=c){\n    printf("最大値は%d\\n",a);\n    if(b>=c){\n      printf("最小値は%d\\n",c);\n    }else{\n      printf("最小値は%d\\n",b);\n    }\n  }\n}'
+    },
+    {
+      id: 931372,
+      createdAt: '2022-04-21 13:01:28',
+      content: '#include<stdio.h>\nint main(){\n  int a,b,c;\n  scanf("%d%d%d",&a,&b,&c);\n  if(a>=b && a>=c){\n    printf("最大値は%d\\n",a);\n  }else if(b>=c && b>=a){\n    printf("最大値は%d\\n",b);\n  }else{\n    printf("最大値は%d\\n",c);\n  }\n}'
+    }
+  ];
+}
+
+function getVisibleEvaluationRows() {
+  return Array.from(document.querySelectorAll('#evaluationTable tbody tr'))
+    .filter(function(row) { return row.style.display !== 'none'; });
+}
+
+function normalizeFileToken(value) {
+  return String(value || '')
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/[\\/:*?"<>|]/g, '_');
+}
+
+function triggerDownload(blob, fileName) {
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(link.href);
+}
+
+function bulkSaveEvaluationResults() {
+  const rows = getVisibleEvaluationRows();
+  if (rows.length === 0) {
+    showEvaluationToast('ダウンロード対象の評価結果がありません。', 'warning');
+    return;
+  }
+
+  const dateLabel = new Date().toISOString().slice(0, 10);
+  const fileName = 'evaluation_results_' + dateLabel + '.zip';
+
+  if (!window.JSZip) {
+    rows.forEach(function(row) {
+      const data = buildEvaluationRowData(row);
+      const payload = buildEvaluationJsonPayload(data);
+      const baseName = normalizeFileToken(data.studentId + '_' + data.task);
+      downloadJsonFile(payload, 'evaluation-' + baseName + '.json');
+    });
+    showEvaluationToast('評価結果を一括ダウンロードしました。', 'success');
+    return;
+  }
+
+  const zip = new JSZip();
+  rows.forEach(function(row) {
+    const data = buildEvaluationRowData(row);
+    const payload = buildEvaluationJsonPayload(data);
+    const baseName = normalizeFileToken(data.studentId + '_' + data.task);
+    zip.file('evaluation-' + baseName + '.json', JSON.stringify(payload, null, '\t'));
+  });
+
+  zip.generateAsync({ type: 'blob' })
+    .then(function(blob) {
+      triggerDownload(blob, fileName);
+      showEvaluationToast('評価結果を一括ダウンロードしました。', 'success');
+    })
+    .catch(function() {
+      showEvaluationToast('評価結果の一括ダウンロードに失敗しました。', 'danger');
+    });
+}
+
+function bulkSaveEvaluationLogs() {
+  const rows = getVisibleEvaluationRows();
+  if (rows.length === 0) {
+    showEvaluationToast('ダウンロード対象のログがありません。', 'warning');
+    return;
+  }
+
+  const dateLabel = new Date().toISOString().slice(0, 10);
+  const fileName = 'evaluation_logs_' + dateLabel + '.zip';
+
+  if (!window.JSZip) {
+    rows.forEach(function(row) {
+      const data = buildEvaluationRowData(row);
+      const logEntries = buildEvaluationLogEntries();
+      const baseName = normalizeFileToken(data.studentId + '_' + data.task);
+
+      downloadJsonFile(buildLogJsonPayload(data, logEntries), baseName + '_log.json');
+      downloadJsonFile(buildCompilesJsonPayload(logEntries), baseName + '_compiles.json');
+      downloadJsonFile(buildExecutionsJsonPayload(logEntries), baseName + '_executions.json');
+    });
+    showEvaluationToast('ログを一括ダウンロードしました。', 'success');
+    return;
+  }
+
+  const zip = new JSZip();
+  rows.forEach(function(row) {
+    const data = buildEvaluationRowData(row);
+    const logEntries = buildEvaluationLogEntries();
+    const folderName = normalizeFileToken(data.studentId + '_' + data.task);
+    const folder = zip.folder(folderName);
+    if (!folder) return;
+
+    folder.file('log.json', JSON.stringify(buildLogJsonPayload(data, logEntries), null, '\t'));
+    folder.file('compiles.json', JSON.stringify(buildCompilesJsonPayload(logEntries), null, '\t'));
+    folder.file('executions.json', JSON.stringify(buildExecutionsJsonPayload(logEntries), null, '\t'));
+  });
+
+  zip.generateAsync({ type: 'blob' })
+    .then(function(blob) {
+      triggerDownload(blob, fileName);
+      showEvaluationToast('ログを一括ダウンロードしました。', 'success');
+    })
+    .catch(function() {
+      showEvaluationToast('ログの一括ダウンロードに失敗しました。', 'danger');
+    });
 }
 
 function buildEvaluationJsonPayload(data) {
@@ -699,22 +808,19 @@ function openEvaluationDetail(button) {
   const row = button.closest('tr');
   if (!row) return;
 
+  const detailMeta = document.getElementById('evaluationDetailMeta');
+  if (detailMeta) {
+    detailMeta.textContent = row.dataset.id + ' / '
+      + row.dataset.school + ' ' + row.dataset.class + ' / '
+      + row.dataset.task + '（' + row.dataset.level + '） / 評価: '
+      + (row.dataset.evaluated || '-');
+  }
+
 
   // student/evaluation.htmlの構造・クラス・内容をほぼそのまま再現
   const container = document.getElementById('teacherEvaluationDetailContent');
   if (container) {
-    const data = {
-      studentId: row.dataset.id,
-      school: row.dataset.school,
-      class: row.dataset.class,
-      task: row.dataset.task,
-      difficulty: row.dataset.level,
-      evaluatedAt: row.dataset.evaluated,
-      thinking: Number(row.dataset.thinking),
-      attitude: Number(row.dataset.attitude),
-      overall: Number(row.dataset.overall),
-      consent: row.dataset.consent
-    };
+    const data = buildEvaluationRowData(row);
 
     const downloadButton = document.getElementById('downloadEvaluationJsonButton');
     if (downloadButton) {
@@ -741,28 +847,7 @@ function openEvaluationDetail(button) {
     // student用CSSをモーダル内にインジェクト
     const studentCssPath = '../../../css/student/evaluation/evaluation.css';
     const studentLogCssPath = '../../../css/student/evaluation/log.css';
-    const logEntries = [
-      {
-        id: 931327,
-        createdAt: '2022-04-21 12:56:54',
-        content: '#include<stdio.h>\nint main(){\n  int a,b,c;\n}'
-      },
-      {
-        id: 931335,
-        createdAt: '2022-04-21 12:57:57',
-        content: '#include<stdio.h>\nint main(){\n  int a,b,c;\n  scanf("%d%d%d",&a,&b,&c);\n  if(a>=b && a>=c){\n    printf("最大値は%d\\n",a);\n  }\n}'
-      },
-      {
-        id: 931348,
-        createdAt: '2022-04-21 12:59:28',
-        content: '#include<stdio.h>\nint main(){\n  int a,b,c;\n  scanf("%d%d%d",&a,&b,&c);\n  if(a>=b && a>=c){\n    printf("最大値は%d\\n",a);\n    if(b>=c){\n      printf("最小値は%d\\n",c);\n    }else{\n      printf("最小値は%d\\n",b);\n    }\n  }\n}'
-      },
-      {
-        id: 931372,
-        createdAt: '2022-04-21 13:01:28',
-        content: '#include<stdio.h>\nint main(){\n  int a,b,c;\n  scanf("%d%d%d",&a,&b,&c);\n  if(a>=b && a>=c){\n    printf("最大値は%d\\n",a);\n  }else if(b>=c && b>=a){\n    printf("最大値は%d\\n",b);\n  }else{\n    printf("最大値は%d\\n",c);\n  }\n}'
-      }
-    ];
+    const logEntries = buildEvaluationLogEntries();
 
     const renderLogView = function() {
       const reasonData = {
@@ -1618,6 +1703,8 @@ function exportEvaluationCSV() {
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+
+  showEvaluationToast('CSVをダウンロードしました。', 'success');
 }
 
 function escapeCSV(value) {

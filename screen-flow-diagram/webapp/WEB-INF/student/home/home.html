@@ -26,24 +26,28 @@
 
       <section class="sample-section hero-section mb-4">
         <div class="hero-copy">
-          <span class="hero-kicker">Task List</span>
-          <h1 class="section-title mb-3">課題一覧</h1>
+          <span class="hero-kicker">Home</span>
+          <h1 class="section-title mb-3">ホーム</h1>
           <p class="hero-description mb-0">
-            レベルを選択して課題に取り組んでください。初級から順番に進める必要はありません。
+            ここから課題演習と授業演習を選んで学習を進められます。目的に応じて学習モードを選択してください。
           </p>
+          <div class="button-group hero-action-group mt-4" aria-label="学習導線">
+            <a class="btn btn-primary" href="../exercise/exercise.html">授業演習へ進む</a>
+            <a class="btn btn-outline-primary" href="#taskListSection">課題一覧を見る</a>
+          </div>
         </div>
         <div class="hero-status-card">
-          <div class="status-label">現在の状況</div>
+          <div class="status-label">学習の状況</div>
           <div class="status-value">1/3 完了</div>
-          <div class="status-meta">3つの課題のうち、1つが提出済みです。</div>
+          <div class="status-meta">課題演習は3つの課題のうち1つが提出済みです。</div>
         </div>
       </section>
 
-      <section class="sample-section">
+      <section id="taskListSection" class="sample-section">
         <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3 mb-4">
           <div>
-            <h2 class="card-title mb-2">課題一覧</h2>
-            <p class="text-muted mb-0">仮の課題を3件表示しています。</p>
+            <h2 class="card-title mb-2">課題演習一覧</h2>
+            <p class="text-muted mb-0">課題演習で取り組む課題を3件表示しています。</p>
           </div>
           <div class="task-summary-pill">3 Tasks</div>
         </div>

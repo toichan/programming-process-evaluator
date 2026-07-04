@@ -48,6 +48,11 @@
               <span class="hero-kicker mb-1 d-inline-block">Submission Filters</span>
               <h2 class="summary-heading mb-0">提出一覧フィルタ</h2>
             </div>
+            <div class="action-buttons">
+              <button class="btn btn-outline-secondary btn-sm" type="button" onclick="refreshSubmissionRows()">更新</button>
+              <button class="btn btn-outline-primary btn-sm" type="button" onclick="bulkSaveSubmissionFiles()">ファイルを一括ダウンロード</button>
+              <button class="btn btn-primary btn-sm" type="button" onclick="exportSubmissionCSV()">CSVエクスポート</button>
+            </div>
           </div>
           <div class="filter-grid">
             <div>
@@ -130,13 +135,16 @@
     <div class="modal-dialog modal-fullscreen modal-dialog-scrollable">
       <div class="modal-content">
         <div class="modal-header">
-          <div>
-            <h2 class="modal-title h5 mb-1" id="submissionDetailModalLabel">提出課題詳細</h2>
-            <p class="detail-meta mb-0" id="detailMeta">-</p>
+          <h5 class="modal-title" id="submissionDetailModalLabel">提出課題詳細</h5>
+          <div class="d-flex align-items-center gap-2 ms-auto">
+            <button type="button" class="btn btn-outline-primary btn-sm" onclick="downloadSubmittedCodeFile()">ファイルをダウンロード</button>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
           </div>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
         </div>
         <div class="modal-body">
+          <div class="mb-3">
+            <p class="detail-meta mb-0" id="detailMeta">-</p>
+          </div>
           <section class="detail-card mb-3">
             <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap mb-2">
               <h3 class="detail-title mb-0">入出力チェック結果</h3>
@@ -187,7 +195,6 @@
           <div class="d-flex gap-2 detail-footer-actions">
             <button type="button" class="btn btn-outline-secondary" id="detailPrevButton">戻る</button>
             <button type="button" class="btn btn-outline-secondary" id="detailNextButton">次へ</button>
-            <button type="button" class="btn btn-primary" data-bs-dismiss="modal">閉じる</button>
           </div>
         </div>
       </div>
@@ -197,6 +204,7 @@
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"
     integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI"
     crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/lib/codemirror.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/mode/python/python.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/mode/shell/shell.js"></script>

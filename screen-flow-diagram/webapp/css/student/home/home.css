@@ -32,6 +32,10 @@ body {
   color: var(--bs-gray-600);
 }
 
+.hero-action-group {
+  gap: 0.75rem;
+}
+
 .hero-status-card {
   padding: 1.5rem;
   border-radius: 1rem;
@@ -342,6 +346,10 @@ body {
 
   .task-deadline-chip-wrap {
     align-items: flex-start;
+    width: 100%;
+  }
+
+  .hero-action-group .btn {
     width: 100%;
   }
 }

@@ -111,6 +111,17 @@ const surveyData = [
   }
 ];
 
+function showSurveyToast(message, variant) {
+  const feedback = window.PPEFeedback;
+  if (feedback && typeof feedback.toast === 'function') {
+    feedback.toast({
+      title: 'アンケート結果確認',
+      message,
+      variant
+    });
+  }
+}
+
 let filteredData = [...surveyData];
 let currentSortBy = 'submittedAtDesc';
 
@@ -487,13 +498,11 @@ function viewDetail(responseId) {
  * モーダルに詳細情報を表示
  */
 function displaySurveyInModal(survey) {
-  // ヘッダー情報を設定
-  document.querySelector('#modalStudentId').textContent = survey.studentId;
-  document.querySelector('#modalTaskTitle').textContent = survey.taskTitle;
-  const modalDifficulty = document.querySelector('#modalTaskDifficulty');
-  modalDifficulty.textContent = survey.difficulty;
-  modalDifficulty.className = `badge ${getDifficultyBadgeClass(survey.difficulty)}`;
-  document.querySelector('#modalSubmittedAt').textContent = formatDateTime(survey.submittedAt);
+  const detailMeta = document.querySelector('#surveyDetailMeta');
+  if (detailMeta) {
+    detailMeta.textContent = survey.studentId + ' / ' + (survey.school || '-') + ' ' + (survey.className || '-')
+      + ' / ' + survey.taskTitle + '（' + survey.difficulty + '） / 回答: ' + formatDateTime(survey.submittedAt);
+  }
 
   const systemThinkingScore = survey.systemEvaluation?.thinkingScore;
   const systemAttitudeScore = survey.systemEvaluation?.attitudeScore;
@@ -667,4 +676,6 @@ function exportCSV() {
   link.href = URL.createObjectURL(blob);
   link.download = `survey-results-${new Date().toISOString().split('T')[0]}.csv`;
   link.click();
+
+  showSurveyToast('CSVをダウンロードしました。', 'success');
 }
