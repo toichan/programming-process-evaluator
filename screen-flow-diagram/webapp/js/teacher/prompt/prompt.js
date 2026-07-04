@@ -1,6 +1,8 @@
 // Teacher prompt page interactions
 
 const pageFeedback = window.PPEFeedback.createPageFeedback({ title: 'プロンプト修正' });
+const teacherAudit = window.PPETeacherAudit || null;
+let promptAuditDetailModal = null;
 
 const fluctuationTemplateByTask = {
   'TASK-001': [
@@ -84,6 +86,13 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function initializePromptPage() {
+  if (typeof bootstrap !== 'undefined') {
+    const promptAuditModalElement = document.getElementById('promptAuditDetailModal');
+    if (promptAuditModalElement) {
+      promptAuditDetailModal = bootstrap.Modal.getOrCreateInstance(promptAuditModalElement);
+    }
+  }
+
   initializeCommonPromptEditor();
   ensureCommonPromptTemplate();
 
@@ -220,6 +229,7 @@ function initializePromptPage() {
   renderVersionOptions(getTaskId());
   renderStep2VersionOptions(getTaskId());
   renderEvaluationExamples(getTaskId());
+  bindPromptHistoryDetailButtons();
 }
 
 function onTaskChanged() {
@@ -391,6 +401,7 @@ function runReevaluation() {
         step3Version: incrementStep3Version(getTaskId()),
         reevaluation: '実施済み'
       });
+      recordPromptAudit('再評価', getTaskId(), '全体再評価を実行');
       updateLastUpdated();
 
       const taskId = getTaskId();
@@ -580,6 +591,7 @@ function saveNewVersion(taskId) {
   list.push(record);
   store[taskId] = list;
   saveVersionStore(store);
+  recordPromptAudit('編集', taskId, 'STEP1 共通プロンプトを保存: ver.' + String(nextVersion));
 
   renderVersionOptions(taskId);
   const versionSelect = document.getElementById('versionSelect');
@@ -665,6 +677,7 @@ function saveStep2Version(taskId) {
   list.push(record);
   store[taskId] = list;
   saveStep2VersionStore(store);
+  recordPromptAudit('編集', taskId, 'STEP2 課題プロンプトを保存: ver.' + String(nextVersion));
 
   renderStep2VersionOptions(taskId);
   const versionSelect = document.getElementById('versionSelectStep2');
@@ -805,6 +818,7 @@ function appendHistoryRow(entry) {
     : '<span class="badge text-bg-secondary">未実施</span>';
 
   const row = document.createElement('tr');
+  const taskId = String(entry.taskId || '');
   row.innerHTML = '' +
     '<td>' + escapeHtml(date) + '</td>' +
     '<td>' + escapeHtml(String(toTaskIdNumber(entry.taskId))) + '</td>' +
@@ -812,9 +826,73 @@ function appendHistoryRow(entry) {
     '<td>' + escapeHtml(String(entry.step1Version || '-')) + '</td>' +
     '<td>' + escapeHtml(String(entry.step2Version || '-')) + '</td>' +
     '<td>' + escapeHtml(String(entry.step3Version || '-')) + '</td>' +
-    '<td>' + reevaluationBadge + '</td>';
+    '<td>' + reevaluationBadge + '</td>' +
+    '<td><button class="btn btn-sm btn-outline-primary prompt-history-detail" type="button" data-task-id="' + escapeHtml(taskId) + '">表示</button></td>';
 
   table.prepend(row);
+  bindPromptHistoryDetailButtons();
+}
+
+function bindPromptHistoryDetailButtons() {
+  document.querySelectorAll('.prompt-history-detail').forEach(function(button) {
+    if (button.dataset.bound === '1') {
+      return;
+    }
+    button.addEventListener('click', function() {
+      const taskId = button.getAttribute('data-task-id') || '';
+      openPromptAuditDetail(taskId);
+    });
+    button.dataset.bound = '1';
+  });
+}
+
+function recordPromptAudit(action, taskId, detail) {
+  if (!teacherAudit || typeof teacherAudit.record !== 'function') {
+    return;
+  }
+  teacherAudit.record({
+    feature: 'prompt',
+    action: action,
+    targetType: 'prompt_task',
+    targetId: taskId || '',
+    result: 'SUCCESS',
+    detail: detail || ''
+  });
+}
+
+function openPromptAuditDetail(taskId) {
+  const targetLabel = document.getElementById('promptAuditDetailTarget');
+  const detailBody = document.getElementById('promptAuditDetailBody');
+  if (!detailBody) {
+    return;
+  }
+
+  if (targetLabel) {
+    targetLabel.textContent = '対象: ' + (taskId || '課題未指定');
+  }
+
+  let events = [];
+  if (teacherAudit && typeof teacherAudit.query === 'function') {
+    events = teacherAudit.query({ feature: 'prompt', targetType: 'prompt_task', targetId: taskId });
+  }
+
+  if (!events.length) {
+    detailBody.innerHTML = '<tr><td colspan="5" class="text-muted">この課題の更新履歴はまだありません。</td></tr>';
+  } else {
+    detailBody.innerHTML = events.map(function(event) {
+      return '<tr>'
+        + '<td>' + escapeHtml(event.occurredAt || '-') + '</td>'
+        + '<td>' + escapeHtml(event.actorTeacherId || '-') + '</td>'
+        + '<td>' + escapeHtml(event.action || '-') + '</td>'
+        + '<td>' + escapeHtml(event.result || '-') + '</td>'
+        + '<td>' + escapeHtml(event.detail || '-') + '</td>'
+        + '</tr>';
+    }).join('');
+  }
+
+  if (promptAuditDetailModal) {
+    promptAuditDetailModal.show();
+  }
 }
 
 function updateLastUpdated() {

@@ -1,4 +1,5 @@
 window.addEventListener('DOMContentLoaded', () => {
+  const TEACHER_SESSION_STORAGE_KEY = 'ppeTeacherSession';
   const teacherLoginForm = document.querySelector('#teacher-login');
   const teacherIdInput = document.querySelector('#teacherId');
   const teacherPasswordInput = document.querySelector('#teacherPassword');
@@ -26,6 +27,12 @@ window.addEventListener('DOMContentLoaded', () => {
       teacherLoginForm.reportValidity();
       return;
     }
+
+    const session = {
+      teacherId: teacherIdInput.value.trim(),
+      school: 'all'
+    };
+    window.localStorage.setItem(TEACHER_SESSION_STORAGE_KEY, JSON.stringify(session));
 
     // ログイン成功時に教師アカウント管理画面へ遷移
     window.location.href = './account.html';

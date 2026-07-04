@@ -69,6 +69,16 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
+#historyTable {
+  min-width: 980px;
+}
+
+#historyTable th,
+#historyTable td,
+#historyTable .btn {
+  white-space: nowrap;
+}
+
 .subheading {
   font-size: 1.2rem;
   font-weight: 700;

@@ -170,6 +170,7 @@
                   <th>STEP2 ver.</th>
                   <th>STEP3 ver.</th>
                   <th>再評価</th>
+                  <th>詳細</th>
                 </tr>
               </thead>
               <tbody>
@@ -181,6 +182,7 @@
                   <td>1</td>
                   <td>1</td>
                   <td><span class="badge text-bg-success">実施済み</span></td>
+                  <td><button class="btn btn-sm btn-outline-primary prompt-history-detail" type="button" data-task-id="TASK-001">表示</button></td>
                 </tr>
                 <tr>
                   <td>2026-05-19 14:09:03</td>
@@ -190,6 +192,7 @@
                   <td>-</td>
                   <td>-</td>
                   <td><span class="badge text-bg-secondary">未実施</span></td>
+                  <td><button class="btn btn-sm btn-outline-primary prompt-history-detail" type="button" data-task-id="TASK-001">表示</button></td>
                 </tr>
                 <tr>
                   <td>2026-05-19 13:52:16</td>
@@ -199,6 +202,7 @@
                   <td>1</td>
                   <td>1</td>
                   <td><span class="badge text-bg-success">実施済み</span></td>
+                  <td><button class="btn btn-sm btn-outline-primary prompt-history-detail" type="button" data-task-id="TASK-001">表示</button></td>
                 </tr>
                 <tr>
                   <td>2026-05-18 17:10:08</td>
@@ -208,6 +212,7 @@
                   <td>1</td>
                   <td>-</td>
                   <td><span class="badge text-bg-secondary">未実施</span></td>
+                  <td><button class="btn btn-sm btn-outline-primary prompt-history-detail" type="button" data-task-id="TASK-003">表示</button></td>
                 </tr>
               </tbody>
             </table>
@@ -258,6 +263,37 @@
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-primary" id="executeReevaluationFromModalButton">この内容で再評価する</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="promptAuditDetailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">プロンプト更新履歴の詳細</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3 text-dark fw-semibold" id="promptAuditDetailTarget">対象: -</div>
+          <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th>日時</th>
+                  <th>実行者</th>
+                  <th>操作</th>
+                  <th>結果</th>
+                  <th>詳細</th>
+                </tr>
+              </thead>
+              <tbody id="promptAuditDetailBody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">閉じる</button>
         </div>
       </div>
     </div>

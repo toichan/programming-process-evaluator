@@ -75,6 +75,11 @@
   gap: 0.5rem;
 }
 
+.action-buttons .btn,
+.account-action-cell .btn {
+  white-space: nowrap;
+}
+
 .filter-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(150px, 1fr));
@@ -107,6 +112,10 @@
 
 #accountTable {
   min-width: 1280px;
+}
+
+#accountTable tbody td {
+  white-space: nowrap;
 }
 
 .table-light thead th {
