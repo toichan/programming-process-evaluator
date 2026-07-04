@@ -237,8 +237,8 @@ async function logout() {
  * 教師共有コンポーネント（サイドメニュー、ヘッダー）を生成・挿入
  */
 function loadTeacherComponents() {
-  const teacherId = escapeTeacherComponentText(getCurrentTeacherId());
-  const school = escapeTeacherComponentText(getCurrentTeacherSchool());
+  const teacherDisplayIdText = 'ID: toida';
+  const teacherDisplaySchoolText = '学校: 国際中等, 附属高校';
   const sidebarHTML = `
     <nav class="teacher-sidebar bg-light border-end">
       <div class="sidebar-header">
@@ -340,13 +340,11 @@ function loadTeacherComponents() {
               <svg class="teacher-info-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
               </svg>
-              <span class="teacher-info-text">ID: ${teacherId}</span>
-            </div>
-            <div class="teacher-info-item">
-              <svg class="teacher-info-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+              <span class="teacher-info-text">${teacherDisplayIdText}</span>
+              <svg class="teacher-info-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                 <path d="M5 3v18h14V3H5zm6 2h2v2h-2V5zM7 9h2v2H7V9zm4 0h2v2h-2V9zm4 0h2v2h-2V9zM7 13h2v2H7v-2zm4 0h2v2h-2v-2zm4 0h2v2h-2v-2zM10 17h4v4h-4v-4z"/>
               </svg>
-              <span class="teacher-info-text">学校: ${school}</span>
+              <span class="teacher-info-text">${teacherDisplaySchoolText}</span>
             </div>
           </div>
           <button class="btn btn-sm btn-outline-secondary" onclick="logout()">ログアウト</button>

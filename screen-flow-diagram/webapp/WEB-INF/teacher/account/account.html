@@ -169,7 +169,7 @@
                     <td class="cell-consent"><span class="status-pill status-done">同意</span></td>
                     <td class="cell-created">2026-05-10 10:30:00</td>
                     <td class="account-action-cell">
-                      <button class="btn btn-sm btn-outline-warning" onclick="resetPassword(this)">リセット</button>
+                      <button class="btn btn-sm btn-outline-warning" onclick="resetPassword(this)">PW再設定</button>
                     </td>
                     <td>
                       <button class="btn btn-sm btn-outline-primary" onclick="openAccountDetail(this)">表示</button>
@@ -198,7 +198,7 @@
                     <td class="cell-consent"><span class="status-pill status-clear">同意</span></td>
                     <td class="cell-created">2026-05-10 10:30:00</td>
                     <td class="account-action-cell">
-                      <button class="btn btn-sm btn-outline-warning" onclick="resetPassword(this)">リセット</button>
+                      <button class="btn btn-sm btn-outline-warning" onclick="resetPassword(this)">PW再設定</button>
                     </td>
                     <td>
                       <button class="btn btn-sm btn-outline-primary" onclick="openAccountDetail(this)">表示</button>
@@ -227,7 +227,7 @@
                     <td class="cell-consent"><span class="status-pill status-alert">未確認</span></td>
                     <td class="cell-created">2026-05-10 10:35:00</td>
                     <td class="account-action-cell">
-                      <button class="btn btn-sm btn-reset-disabled" onclick="resetPassword(this)" disabled title="レベル1はリセット対象外">リセット</button>
+                      <button class="btn btn-sm btn-outline-warning" onclick="resetPassword(this)">PW再設定</button>
                     </td>
                     <td>
                       <button class="btn btn-sm btn-outline-primary" onclick="openAccountDetail(this)">表示</button>
@@ -295,6 +295,25 @@
                     <button type="button" class="btn btn-primary account-create-btn" onclick="createAccounts()">作成する</button>
                   </div>
                 </form>
+              </div>
+            </div>
+          </div>
+
+          <div class="modal fade" id="studentResetPasswordModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h5 class="modal-title">PW再設定情報</h5>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                  <p class="mb-2 text-muted">表示時に自動でクリップボードへコピーします。</p>
+                  <pre id="studentResetCopyText" class="student-reset-copy-block">-</pre>
+                  <div class="d-flex justify-content-end mt-2">
+                    <button type="button" id="studentResetCopyButton" class="btn btn-outline-secondary btn-sm">再コピー</button>
+                  </div>
+                  <p class="mb-0 mt-2 small text-muted" id="studentResetCopyStatus" aria-live="polite"></p>
+                </div>
               </div>
             </div>
           </div>

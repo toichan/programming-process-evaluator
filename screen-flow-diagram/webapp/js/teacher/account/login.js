@@ -34,7 +34,12 @@ window.addEventListener('DOMContentLoaded', () => {
     };
     window.localStorage.setItem(TEACHER_SESSION_STORAGE_KEY, JSON.stringify(session));
 
-    // ログイン成功時に教師アカウント管理画面へ遷移
+    if (session.teacherId.toLowerCase() === 'admin') {
+      window.location.href = '../../admin/account-management.html';
+      return;
+    }
+
+    // ログイン成功時に生徒アカウント管理画面へ遷移
     window.location.href = './account.html';
   });
 });

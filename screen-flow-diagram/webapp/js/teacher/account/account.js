@@ -1,6 +1,7 @@
 // Teacher account page interactions
 
 let currentSortBy = 'idAsc';
+const STUDENT_LOGIN_URL = 'https://toichan.github.io/programming-process-evaluator/screen-flow-diagram/webapp/WEB-INF/student/account/login.html';
 const feedback = window.PPEFeedback || {};
 const pageFeedback = feedback.createPageFeedback({
   title: 'アカウント管理',
@@ -21,6 +22,7 @@ function initializeEventListeners() {
   const searchInput = document.getElementById('searchInput');
   const selectAllAccounts = document.getElementById('selectAllAccounts');
   const bulkDeleteButton = document.getElementById('bulkDeleteButton');
+  const studentResetCopyButton = document.getElementById('studentResetCopyButton');
 
   initializeHeaderSorting();
 
@@ -58,6 +60,10 @@ function initializeEventListeners() {
 
   if (bulkDeleteButton) {
     bulkDeleteButton.addEventListener('click', bulkDeleteAccounts);
+  }
+
+  if (studentResetCopyButton) {
+    studentResetCopyButton.addEventListener('click', copyStudentResetGuideText);
   }
 
   if (createAccountForm) {
@@ -650,19 +656,14 @@ async function resetPassword(button) {
   const row = button.closest('tr');
   if (!row) return;
 
-  const securityLevel = row.querySelector('.cell-security')?.textContent.trim() || '';
   const studentId = row.querySelector('.cell-id')?.textContent.trim() || '';
-  if (securityLevel !== 'レベル2') {
-    pageFeedback.inlineAlert('パスワードリセットはレベル2の生徒のみ実行できます。', 'warning');
-    return;
-  }
 
   const confirmed = await pageFeedback.confirm({
-    title: 'パスワードをリセットしますか？',
+    title: 'パスワードをPW再設定しますか？',
     message: '次の内容で一時パスワードを再発行します。',
     detailTitle: '',
     details: [`生徒ID: ${studentId}`, '一時パスワードを新しく設定', '次回ログイン時にパスワード変更を必須化'],
-    confirmLabel: 'リセットする',
+    confirmLabel: 'PW再設定する',
     cancelLabel: '戻る',
     variant: 'warning'
   });
@@ -705,11 +706,84 @@ async function resetPassword(button) {
     passwordCell.dataset.passwordScope = 'リセット用';
   }
 
+  await openStudentResetPasswordModal(studentId, tempPassword);
+
   pageFeedback.toast({
     title: 'アカウント管理',
     message: `${studentId} の一時パスワードを再発行しました。`,
     variant: 'success'
   });
+}
+
+async function openStudentResetPasswordModal(studentId, password) {
+  const copyText = document.getElementById('studentResetCopyText');
+  const status = document.getElementById('studentResetCopyStatus');
+  const modalEl = document.getElementById('studentResetPasswordModal');
+  const message = buildStudentResetGuideText(studentId, password);
+
+  if (copyText) {
+    copyText.textContent = message;
+  }
+  if (status) {
+    status.textContent = '';
+  }
+
+  if (modalEl) {
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    modal.show();
+  }
+
+  const copied = await copyTextToClipboard(message, copyText);
+  if (status) {
+    status.textContent = copied
+      ? '自動でコピーしました。'
+      : '自動コピーに失敗しました。「再コピー」を押してください。';
+  }
+}
+
+function buildStudentResetGuideText(studentId, password) {
+  return 'パスワードを再設定しました。次のアカウントでログインしてください。\n\n'
+    + '生徒用ID: ' + String(studentId || '-') + '\n'
+    + 'パスワード: ' + String(password || '-') + '\n\n'
+    + STUDENT_LOGIN_URL;
+}
+
+async function copyStudentResetGuideText() {
+  const copyText = document.getElementById('studentResetCopyText');
+  const status = document.getElementById('studentResetCopyStatus');
+  if (!copyText) {
+    return;
+  }
+
+  const copied = await copyTextToClipboard(copyText.textContent || '', copyText);
+  if (status) {
+    status.textContent = copied ? 'コピーしました。' : 'コピーに失敗しました。手動でコピーしてください。';
+  }
+}
+
+async function copyTextToClipboard(text, fallbackNode) {
+  let copied = false;
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      copied = true;
+    } catch (error) {
+      copied = false;
+    }
+  }
+
+  if (!copied && fallbackNode) {
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(fallbackNode);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    copied = document.execCommand('copy');
+    selection.removeAllRanges();
+  }
+
+  return copied;
 }
 
 /**

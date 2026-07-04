@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Programming Process Evaluator - 教師アカウント管理</title>
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet"
+    integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB"
+    crossorigin="anonymous">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+  <link href="../../css/template/template.css" rel="stylesheet">
+  <link href="../../css/teacher/shared/feedback.css" rel="stylesheet">
+  <link href="../../css/admin/account-management.css" rel="stylesheet">
+</head>
+<body>
+  <main class="py-4">
+    <div class="container-fluid px-4">
+      <section class="admin-hero mb-4">
+        <div>
+          <span class="hero-kicker">Admin Console</span>
+          <h1 class="section-title mb-2">教師アカウント管理</h1>
+          <p class="hero-description mb-0">教師アカウントの作成・権限管理・削除履歴確認を行います。</p>
+        </div>
+        <div class="hero-actions">
+          <span class="admin-id" id="adminSessionLabel">管理者: admin</span>
+          <button class="btn btn-outline-secondary btn-sm" type="button" id="adminLogoutButton">ログアウト</button>
+        </div>
+      </section>
+
+      <section class="panel-card mb-4 create-panel-card">
+        <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2 create-panel-header">
+          <div>
+            <span class="hero-kicker mb-1 d-inline-block">Create Account</span>
+            <h2 class="summary-heading mb-0">教師アカウント作成</h2>
+            <p class="create-panel-description mb-0">対象学校と利用機能を選択して、教師アカウントを作成します。</p>
+          </div>
+        </div>
+        <form id="createTeacherForm" class="create-grid create-form-surface">
+          <div class="grid-col-2 create-field create-row">
+            <label class="form-label" for="teacherIdInput">教師ID</label>
+            <input id="teacherIdInput" class="form-control form-control-sm" type="text" placeholder="name" required>
+          </div>
+          <div class="grid-col-2 create-field permission-block create-row">
+            <label class="form-label d-block">閲覧可能な学校</label>
+            <div class="chip-group" id="schoolPermissionGroup">
+              <label class="form-check"><input class="form-check-input" type="checkbox" value="国際中等" checked> <span>国際中等</span></label>
+              <label class="form-check"><input class="form-check-input" type="checkbox" value="附属高校"> <span>附属高校</span></label>
+            </div>
+          </div>
+          <div class="grid-col-2 create-field permission-block create-row">
+            <label class="form-label d-block">機能利用制限<br>（利用可のみチェック）</label>
+            <div class="chip-group" id="featurePermissionGroup">
+              <label class="form-check"><input class="form-check-input" type="checkbox" value="生徒アカウント管理" checked> <span>生徒アカウント管理</span></label>
+              <label class="form-check"><input class="form-check-input" type="checkbox" value="課題進捗確認" checked> <span>課題進捗確認</span></label>
+              <label class="form-check"><input class="form-check-input" type="checkbox" value="授業演習コード確認" checked> <span>授業演習コード確認</span></label>
+              <label class="form-check"><input class="form-check-input" type="checkbox" value="提出課題確認" checked> <span>提出課題確認</span></label>
+              <label class="form-check"><input class="form-check-input" type="checkbox" value="コード配信" checked> <span>コード配信</span></label>
+              <label class="form-check"><input class="form-check-input" type="checkbox" value="評価確認" checked> <span>評価確認</span></label>
+              <label class="form-check"><input class="form-check-input" type="checkbox" value="アンケート結果確認" checked> <span>アンケート結果確認</span></label>
+              <label class="form-check"><input class="form-check-input" type="checkbox" value="課題編集" checked> <span>課題編集</span></label>
+              <label class="form-check"><input class="form-check-input" type="checkbox" value="プロンプト修正" checked> <span>プロンプト修正</span></label>
+            </div>
+          </div>
+          <div class="grid-col-2 d-flex justify-content-end gap-2 create-actions">
+            <button class="btn btn-outline-secondary btn-sm" type="reset">リセット</button>
+            <button class="btn btn-primary btn-sm" type="submit">作成</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="panel-card mb-4">
+        <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+          <div>
+            <span class="hero-kicker mb-1 d-inline-block">Teacher Accounts</span>
+            <h2 class="summary-heading mb-0">教師アカウント一覧</h2>
+          </div>
+          <div class="action-buttons">
+            <button class="btn btn-outline-secondary btn-sm" type="button" id="refreshAccountsButton">更新</button>
+            <button class="btn btn-primary btn-sm" type="button" id="exportAccountsCsvButton">CSVエクスポート</button>
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0" id="teacherAccountTable">
+            <thead class="table-light">
+              <tr>
+                <th>教師ID</th>
+                <th class="permission-column-header">国際中等</th>
+                <th class="permission-column-header">附属高校</th>
+                <th class="permission-column-header"><span class="th-two-line">生徒アカウント<br>管理</span></th>
+                <th class="permission-column-header"><span class="th-two-line">課題進捗<br>確認</span></th>
+                <th class="permission-column-header"><span class="th-two-line">授業演習コード<br>確認</span></th>
+                <th class="permission-column-header"><span class="th-two-line">提出課題<br>確認</span></th>
+                <th class="permission-column-header">コード配信</th>
+                <th class="permission-column-header">評価確認</th>
+                <th class="permission-column-header"><span class="th-two-line">アンケート結果<br>確認</span></th>
+                <th class="permission-column-header">課題編集</th>
+                <th class="permission-column-header"><span class="th-two-line">プロンプト<br>修正</span></th>
+                <th>作成日時</th>
+                <th>作成者</th>
+                <th>操作</th>
+                <th>詳細</th>
+              </tr>
+            </thead>
+            <tbody id="teacherAccountTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel-card">
+        <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+          <div>
+            <span class="hero-kicker mb-1 d-inline-block">Login History / Delete History</span>
+            <h2 class="summary-heading mb-0">ログイン履歴・削除履歴</h2>
+          </div>
+        </div>
+        <ul class="nav nav-tabs mb-3" id="auditTab" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="login-log-tab" data-bs-toggle="tab" data-bs-target="#login-log-pane" type="button" role="tab">ログイン履歴</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="delete-log-tab" data-bs-toggle="tab" data-bs-target="#delete-log-pane" type="button" role="tab">削除履歴</button>
+          </li>
+        </ul>
+
+        <div class="tab-content" id="auditTabContent">
+          <div class="tab-pane fade show active" id="login-log-pane" role="tabpanel">
+            <div class="table-responsive">
+              <table class="table table-sm table-hover align-middle mb-0">
+                <thead class="table-light">
+                  <tr>
+                    <th>日時</th>
+                    <th>操作</th>
+                    <th>結果</th>
+                    <th>IP</th>
+                    <th>エラーログ</th>
+                  </tr>
+                </thead>
+                <tbody id="loginHistoryBody"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="tab-pane fade" id="delete-log-pane" role="tabpanel">
+            <div class="table-responsive">
+              <table class="table table-sm table-hover align-middle mb-0">
+                <thead class="table-light">
+                  <tr>
+                    <th>実行日時</th>
+                    <th>対象</th>
+                    <th>操作種別</th>
+                    <th>実行結果</th>
+                    <th>詳細</th>
+                  </tr>
+                </thead>
+                <tbody id="deleteHistoryBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <div class="modal fade" id="passwordModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">教師アカウント情報</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
+        </div>
+        <div class="modal-body">
+          <p class="mb-2 text-muted">表示時に自動でクリップボードへコピーします。</p>
+          <pre id="passwordModalCopyText" class="password-copy-block">-</pre>
+          <div class="d-flex justify-content-end mt-2">
+            <button type="button" id="passwordModalCopyButton" class="btn btn-outline-secondary btn-sm">再コピー</button>
+          </div>
+          <p class="mb-0 mt-2 small text-muted" id="passwordModalCopyStatus" aria-live="polite"></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="adminAccountDetailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">教師アカウント履歴</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
+        </div>
+        <div class="modal-body">
+          <div class="detail-id-row mb-3">
+            <strong id="detailTeacherId" class="detail-id-text">教師ID: -</strong>
+          </div>
+
+          <ul class="nav nav-tabs mb-3" id="accountDetailTab" role="tablist">
+            <li class="nav-item" role="presentation">
+              <button class="nav-link active" id="detail-login-tab" data-bs-toggle="tab" data-bs-target="#detail-login-pane" type="button" role="tab">ログイン履歴</button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="detail-delete-tab" data-bs-toggle="tab" data-bs-target="#detail-delete-pane" type="button" role="tab">削除履歴</button>
+            </li>
+          </ul>
+
+          <div class="tab-content" id="accountDetailTabContent">
+            <div class="tab-pane fade show active" id="detail-login-pane" role="tabpanel">
+              <div class="table-responsive">
+                <table class="table table-sm table-hover align-middle mb-0">
+                  <thead class="table-light">
+                    <tr>
+                      <th>日時</th>
+                      <th>操作</th>
+                      <th>結果</th>
+                      <th>IP</th>
+                      <th>エラーログ</th>
+                    </tr>
+                  </thead>
+                  <tbody id="detailLoginHistoryBody"></tbody>
+                </table>
+              </div>
+            </div>
+            <div class="tab-pane fade" id="detail-delete-pane" role="tabpanel">
+              <div class="table-responsive">
+                <table class="table table-sm table-hover align-middle mb-0">
+                  <thead class="table-light">
+                    <tr>
+                      <th>実行日時</th>
+                      <th>対象</th>
+                      <th>操作種別</th>
+                      <th>実行結果</th>
+                      <th>詳細</th>
+                    </tr>
+                  </thead>
+                  <tbody id="detailDeleteHistoryBody"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"
+    integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI"
+    crossorigin="anonymous"></script>
+  <script src="../../js/teacher/shared/feedback.js"></script>
+  <script src="../../js/admin/account-management.js"></script>
+</body>
+</html>
