@@ -232,7 +232,80 @@
 .row-actions {
   display: inline-flex;
   gap: 0.35rem;
+  flex-wrap: nowrap;
+}
+
+.history-stop:disabled,
+.history-stop.disabled {
+  color: #6c757d;
+  border-color: #6c757d;
+  background: #fff;
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.history-stop:disabled:hover,
+.history-stop.disabled:hover {
+  color: #6c757d;
+  border-color: #6c757d;
+  background: #fff;
+}
+
+#distributionHistoryTable {
+  min-width: 980px;
+}
+
+#distributionHistoryTable th,
+#distributionHistoryTable td,
+#distributionHistoryTable .btn {
+  white-space: nowrap;
+}
+
+.distribution-history-actions {
+  display: flex;
+  gap: 0.5rem;
   flex-wrap: wrap;
+}
+
+.history-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(180px, 1fr));
+  gap: 0.75rem;
+}
+
+#distributionHistoryTable thead th.sortable {
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+  padding-right: 1.5rem;
+}
+
+#distributionHistoryTable thead th.sortable::after {
+  content: '↕';
+  position: absolute;
+  right: 0.45rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #94a3b8;
+  font-size: 0.78rem;
+}
+
+#distributionHistoryTable thead th.sortable.sorted-asc::after {
+  content: '▲';
+  color: #4f46e5;
+}
+
+#distributionHistoryTable thead th.sortable.sorted-desc::after {
+  content: '▼';
+  color: #4f46e5;
+}
+
+#distributionHistoryTable .history-creator-id {
+  background: #eef2ff;
+  color: #4f46e5;
+  padding: 0.2rem 0.45rem;
+  border-radius: 0.35rem;
+  font-size: 0.88rem;
 }
 
 .class-dropdown .dropdown-toggle {

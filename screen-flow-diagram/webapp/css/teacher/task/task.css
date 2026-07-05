@@ -64,6 +64,21 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
+#taskTable {
+  min-width: 1120px;
+}
+
+#taskTable th,
+#taskTable td,
+#taskTable .btn,
+#taskTable a {
+  white-space: nowrap;
+}
+
+#taskTable td .d-flex {
+  flex-wrap: nowrap;
+}
+
 .subheading {
   font-size: 1.2rem;
   font-weight: 700;

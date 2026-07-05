@@ -180,25 +180,67 @@
           </div>
         </section>
 
-        <section class="panel-card">
+        <section class="panel-card mb-4">
           <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
             <div>
               <span class="hero-kicker mb-1 d-inline-block">Distribution History</span>
               <h2 class="subheading mb-0">配信履歴</h2>
               <div class="form-text">配信予約は編集可能、配信済みは編集不可です。</div>
             </div>
-            <button class="btn btn-outline-primary btn-sm" type="button" id="downloadHistoryCsvButton">CSVダウンロード</button>
+            <div class="distribution-history-actions">
+              <button class="btn btn-outline-secondary btn-sm" type="button" id="distributionHistoryRefreshButton">更新</button>
+              <button class="btn btn-primary btn-sm" type="button" id="downloadHistoryCsvButton">CSVエクスポート</button>
+            </div>
           </div>
+          <div class="history-filter-grid">
+            <div>
+              <label class="form-label">検索</label>
+              <input type="text" class="form-control form-control-sm" id="distributionHistorySearch" placeholder="テンプレート / 作成者で検索">
+            </div>
+            <div>
+              <label class="form-label">学校</label>
+              <select class="form-select form-select-sm" id="distributionHistoryFilterSchool">
+                <option value="すべて" selected>すべて</option>
+              </select>
+            </div>
+            <div>
+              <label class="form-label">クラス</label>
+              <select class="form-select form-select-sm" id="distributionHistoryFilterClass">
+                <option value="すべて" selected>すべて</option>
+              </select>
+            </div>
+            <div>
+              <label class="form-label">状態</label>
+              <select class="form-select form-select-sm" id="distributionHistoryFilterStatus">
+                <option value="すべて" selected>すべて</option>
+                <option value="下書き">下書き</option>
+                <option value="配信予約">配信予約</option>
+                <option value="配信済み">配信済み</option>
+                <option value="停止">停止</option>
+              </select>
+            </div>
+            <div>
+              <label class="form-label">作成者</label>
+              <select class="form-select form-select-sm" id="distributionHistoryFilterOperator">
+                <option value="すべて" selected>すべて</option>
+              </select>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel-card">
           <div class="table-responsive">
             <table class="table table-hover align-middle mb-0" id="distributionHistoryTable">
               <thead class="table-light">
                 <tr>
-                  <th>設定日時</th>
-                  <th>対象</th>
-                  <th>テンプレート</th>
-                  <th>配信者</th>
-                  <th>状態</th>
+                  <th class="sortable" data-sort-key="datetime">作成日時</th>
+                  <th class="sortable" data-sort-key="template">テンプレート</th>
+                  <th class="sortable" data-sort-key="school">学校</th>
+                  <th class="sortable" data-sort-key="class">クラス</th>
+                  <th class="sortable" data-sort-key="status">状態</th>
+                  <th class="sortable" data-sort-key="operator">作成者</th>
                   <th>操作</th>
+                  <th>詳細</th>
                 </tr>
               </thead>
               <tbody id="distributionHistoryBody"></tbody>
@@ -285,6 +327,37 @@
           <div>
             <h3 class="h6 mb-2">エラー出力</h3>
             <pre id="distributionRunStderr" class="distribution-console-output mb-0"></pre>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">閉じる</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="distributionAuditDetailModal" tabindex="-1" aria-labelledby="distributionAuditDetailModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 class="modal-title h5" id="distributionAuditDetailModalLabel">配信履歴の詳細</h2>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3 text-dark fw-semibold" id="distributionAuditDetailTarget">対象: -</div>
+          <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th>日時</th>
+                  <th>実行者</th>
+                  <th>操作</th>
+                  <th>結果</th>
+                  <th>詳細</th>
+                </tr>
+              </thead>
+              <tbody id="distributionAuditDetailBody"></tbody>
+            </table>
           </div>
         </div>
         <div class="modal-footer">

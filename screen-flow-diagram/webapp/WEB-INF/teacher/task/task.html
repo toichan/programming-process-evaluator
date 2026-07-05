@@ -272,11 +272,13 @@
                   <th>プロンプト</th>
                   <th>作成者</th>
                   <th>最終更新</th>
+                  <th>作成者</th>
                   <th>操作</th>
+                  <th>詳細</th>
                 </tr>
               </thead>
               <tbody>
-                <tr data-task-id="TASK-001" data-name="じゃんけん判定" data-level="初級" data-target="国際中等 / 1年A組" data-status="公開" data-prompt-status="設定済み" data-creator="toida" data-description="ユーザー入力に応じて勝敗を判定する。" data-constraint="整数入力のみ" data-updated="2026-05-18 09:10:00">
+                <tr data-task-id="TASK-001" data-name="じゃんけん判定" data-level="初級" data-target="国際中等 / 1年A組" data-status="公開" data-prompt-status="設定済み" data-description="ユーザー入力に応じて勝敗を判定する。" data-constraint="整数入力のみ" data-updated="2026-05-18 09:10:00" data-creator="t001">
                   <td>じゃんけん判定</td>
                   <td><span class="badge difficulty-beginner">初級</span></td>
                   <td>国際中等 / 1年A組</td>
@@ -284,14 +286,17 @@
                   <td><a class="prompt-status-link" href="../prompt/prompt.html?taskId=TASK-001">設定済み</a></td>
                   <td class="creator-id">toida</td>
                   <td class="updated-at">2026-05-18 09:10:00</td>
+                  <td class="task-creator">t001</td>
                   <td>
                     <div class="d-flex gap-2">
                       <button class="btn btn-sm btn-outline-primary edit-button" type="button">編集</button>
+                      <button class="btn btn-sm btn-outline-secondary duplicate-button" type="button">複製</button>
                       <button class="btn btn-sm btn-outline-danger delete-button" type="button">削除</button>
                     </div>
                   </td>
+                  <td><button class="btn btn-sm btn-outline-primary history-button" type="button">表示</button></td>
                 </tr>
-                <tr data-task-id="TASK-002" data-name="在庫管理" data-level="中級" data-target="国際中等 / 1年B組" data-status="公開" data-prompt-status="未設定" data-creator="toida" data-description="入出庫処理と在庫数表示を実装する。" data-constraint="数量は0以上" data-updated="2026-05-17 15:42:00">
+                <tr data-task-id="TASK-002" data-name="在庫管理" data-level="中級" data-target="国際中等 / 1年B組" data-status="公開" data-prompt-status="未設定" data-description="入出庫処理と在庫数表示を実装する。" data-constraint="数量は0以上" data-updated="2026-05-17 15:42:00" data-creator="t001">
                   <td>在庫管理</td>
                   <td><span class="badge difficulty-intermediate">中級</span></td>
                   <td>国際中等 / 1年B組</td>
@@ -299,14 +304,17 @@
                   <td><a class="prompt-status-link" href="../prompt/prompt.html?taskId=TASK-002">未設定</a></td>
                   <td class="creator-id">toida</td>
                   <td class="updated-at">2026-05-17 15:42:00</td>
+                  <td class="task-creator">t001</td>
                   <td>
                     <div class="d-flex gap-2">
                       <button class="btn btn-sm btn-outline-primary edit-button" type="button">編集</button>
+                      <button class="btn btn-sm btn-outline-secondary duplicate-button" type="button">複製</button>
                       <button class="btn btn-sm btn-outline-danger delete-button" type="button">削除</button>
                     </div>
                   </td>
+                  <td><button class="btn btn-sm btn-outline-primary history-button" type="button">表示</button></td>
                 </tr>
-                <tr data-task-id="TASK-003" data-name="経路探索" data-level="上級" data-target="附属高校 / 4年2組" data-status="下書き" data-prompt-status="設定済み" data-creator="yamada" data-description="条件に応じて最短経路を探索する。" data-constraint="再帰使用可" data-updated="2026-05-15 11:20:00">
+                <tr data-task-id="TASK-003" data-name="経路探索" data-level="上級" data-target="附属高校 / 4年2組" data-status="下書き" data-prompt-status="設定済み" data-description="条件に応じて最短経路を探索する。" data-constraint="再帰使用可" data-updated="2026-05-15 11:20:00" data-creator="t001">
                   <td>経路探索</td>
                   <td><span class="badge difficulty-advanced">上級</span></td>
                   <td>附属高校 / 4年2組</td>
@@ -314,12 +322,15 @@
                   <td><a class="prompt-status-link" href="../prompt/prompt.html?taskId=TASK-003">設定済み</a></td>
                   <td class="creator-id">yamada</td>
                   <td class="updated-at">2026-05-15 11:20:00</td>
+                  <td class="task-creator">t001</td>
                   <td>
                     <div class="d-flex gap-2">
                       <button class="btn btn-sm btn-outline-primary edit-button" type="button">編集</button>
+                      <button class="btn btn-sm btn-outline-secondary duplicate-button" type="button">複製</button>
                       <button class="btn btn-sm btn-outline-danger delete-button" type="button">削除</button>
                     </div>
                   </td>
+                  <td><button class="btn btn-sm btn-outline-primary history-button" type="button">表示</button></td>
                 </tr>
               </tbody>
             </table>
@@ -392,6 +403,37 @@
         <div class="modal-footer">
           <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">キャンセル</button>
           <button type="button" class="btn btn-primary" id="importHintsButton">選択したヒントを追加</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="taskAuditDetailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">課題変更履歴の詳細</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3 text-dark fw-semibold" id="taskAuditDetailTarget">対象: -</div>
+          <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th>日時</th>
+                  <th>実行者</th>
+                  <th>操作</th>
+                  <th>結果</th>
+                  <th>詳細</th>
+                </tr>
+              </thead>
+              <tbody id="taskAuditDetailBody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">閉じる</button>
         </div>
       </div>
     </div>

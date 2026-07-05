@@ -689,8 +689,8 @@ h6 { font-size: 1rem; }
 }
 
 .alert-warning {
-  background: linear-gradient(135deg, #fef3c7, #fde68a);
-  color: #92400e;
+  background: linear-gradient(135deg, #fff1f2, #ffe4e6);
+  color: #9f1239;
 }
 
 .alert-danger {

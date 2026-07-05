@@ -1,7 +1,10 @@
 const feedback = window.PPEFeedback || {};
 const pageFeedback = feedback.createPageFeedback ? feedback.createPageFeedback({ title: 'コード配信' }) : null;
+const teacherAudit = window.PPETeacherAudit || null;
 const DISTRIBUTION_STATUS_SCHEDULED = '配信予約';
 const DISTRIBUTION_STATUS_DISTRIBUTED = '配信済み';
+const DISTRIBUTION_STATUS_STOPPED = '停止';
+const DISTRIBUTION_STATUS_DRAFT = '下書き';
 const DISTRIBUTION_TREE_ROOT_ID = 'distribution-tree-root';
 const DISTRIBUTION_MAX_ENTRY_NAME_LENGTH = 100;
 const DISTRIBUTION_ROOT_LABEL = 'root';
@@ -22,6 +25,7 @@ const collapsedDistributionFolderIds = new Set();
 let distributionRunResultModal = null;
 let distributionUploadEntryModal = null;
 let distributionMoveEntryModal = null;
+let distributionAuditDetailModal = null;
 let pendingDistributionUploadFolderId = DISTRIBUTION_TREE_ROOT_ID;
 let pendingDistributionUploadItems = [];
 let pendingDistributionUploadSourceMode = '';
@@ -30,6 +34,7 @@ let pendingDistributionMoveEntryId = '';
 let pendingDistributionMoveDestinationId = '';
 let openedDistributionTreeMenuCount = 0;
 const DISTRIBUTION_UPLOAD_PREVIEW_LIMIT = 12;
+let distributionHistorySortBy = 'datetimeDesc';
 
 const distributionState = {
   templates: [
@@ -64,6 +69,8 @@ const distributionState = {
   history: [
     {
       distributedAt: '2026-07-04 09:10',
+      school: '国際中等',
+      className: '1年A組, 1年B組',
       target: '国際中等 / 1年A組, 1年B組',
       templateId: 'TPL-001',
       template: '条件分岐セット',
@@ -72,6 +79,8 @@ const distributionState = {
     },
     {
       distributedAt: '2026-07-03 14:30',
+      school: '附属高校',
+      className: '4年2組',
       target: '附属高校 / 4年2組',
       templateId: 'TPL-002',
       template: 'グラフ探索セット',
@@ -102,14 +111,21 @@ function initializeDistributionPage() {
     if (runResultModalElement) {
       distributionRunResultModal = bootstrap.Modal.getOrCreateInstance(runResultModalElement);
     }
+
+    const auditDetailModalElement = document.getElementById('distributionAuditDetailModal');
+    if (auditDetailModalElement) {
+      distributionAuditDetailModal = bootstrap.Modal.getOrCreateInstance(auditDetailModalElement);
+    }
   }
 
   initializeDistributionStructureEditor();
   bindFormEvents();
   bindActionButtons();
+  initializeDistributionHistoryHeaderSorting();
   updateSchoolDropdownLabel();
   updateClassDropdownLabel();
   refreshClassScheduleRows();
+  refreshDistributionHistoryFilterOptions();
   renderHistoryTable();
   updateStats();
   syncPreview();
@@ -409,9 +425,122 @@ function bindActionButtons() {
   const downloadHistoryCsvButton = document.getElementById('downloadHistoryCsvButton');
   if (downloadHistoryCsvButton) {
     downloadHistoryCsvButton.addEventListener('click', function() {
-      toast('配信履歴CSVを出力しました。（モック）', 'success');
+      exportDistributionHistoryCsv();
     });
   }
+
+  const distributionHistoryRefreshButton = document.getElementById('distributionHistoryRefreshButton');
+  if (distributionHistoryRefreshButton) {
+    distributionHistoryRefreshButton.addEventListener('click', function() {
+      refreshDistributionHistoryRows();
+    });
+  }
+
+  ['distributionHistorySearch', 'distributionHistoryFilterSchool', 'distributionHistoryFilterClass', 'distributionHistoryFilterStatus', 'distributionHistoryFilterOperator']
+    .forEach(function(id) {
+      const element = document.getElementById(id);
+      if (!element) {
+        return;
+      }
+
+      const eventName = id === 'distributionHistorySearch' ? 'input' : 'change';
+      element.addEventListener(eventName, function() {
+      renderHistoryTable();
+    });
+    });
+}
+
+function initializeDistributionHistoryHeaderSorting() {
+  const headers = document.querySelectorAll('#distributionHistoryTable thead th.sortable');
+  headers.forEach(function(header) {
+    header.addEventListener('click', function() {
+      const sortKey = header.dataset.sortKey;
+      if (!sortKey) {
+        return;
+      }
+
+      const currentKey = getDistributionHistorySortKey(distributionHistorySortBy);
+      const currentDirection = getDistributionHistorySortDirection(distributionHistorySortBy);
+      const nextDirection = currentKey === sortKey && currentDirection === 'asc' ? 'Desc' : 'Asc';
+      distributionHistorySortBy = sortKey + nextDirection;
+
+      renderHistoryTable();
+    });
+  });
+}
+
+function getDistributionHistorySortKey(sortBy) {
+  if (sortBy.endsWith('Desc')) {
+    return sortBy.slice(0, -4);
+  }
+  if (sortBy.endsWith('Asc')) {
+    return sortBy.slice(0, -3);
+  }
+  return sortBy;
+}
+
+function getDistributionHistorySortDirection(sortBy) {
+  return sortBy.endsWith('Desc') ? 'desc' : 'asc';
+}
+
+function updateDistributionHistoryHeaderSortIndicator(sortBy) {
+  const activeKey = getDistributionHistorySortKey(sortBy);
+  const activeDirection = getDistributionHistorySortDirection(sortBy);
+  const headers = document.querySelectorAll('#distributionHistoryTable thead th.sortable');
+  headers.forEach(function(header) {
+    header.classList.remove('sorted-asc', 'sorted-desc');
+    header.removeAttribute('aria-sort');
+    const key = header.dataset.sortKey;
+    if (key === activeKey) {
+      header.classList.add(activeDirection === 'asc' ? 'sorted-asc' : 'sorted-desc');
+      header.setAttribute('aria-sort', activeDirection === 'asc' ? 'ascending' : 'descending');
+    }
+  });
+}
+
+function refreshDistributionHistoryRows() {
+  renderHistoryTable();
+  toast('配信履歴を更新しました。', 'success');
+}
+
+function exportDistributionHistoryCsv() {
+  const entries = getSortedDistributionHistoryEntries();
+  const header = ['作成日時', 'テンプレート', '学校', 'クラス', '状態', '作成者'];
+  const body = entries.map(function(entry) {
+    return [
+      entry.item.distributedAt,
+      entry.item.template,
+      getDistributionHistorySchoolText(entry.item),
+      getDistributionHistoryClassText(entry.item),
+      entry.item.status,
+      entry.item.operator
+    ];
+  });
+
+  const csv = [header].concat(body)
+    .map(function(cols) {
+      return cols.map(function(value) {
+        return escapeDistributionCsv(String(value || ''));
+      }).join(',');
+    })
+    .join('\n');
+
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = 'distribution_history_' + new Date().toISOString().slice(0, 10) + '.csv';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+
+  toast('配信履歴CSVを出力しました。', 'success');
+}
+
+function escapeDistributionCsv(value) {
+  if (value.includes(',') || value.includes('"') || value.includes('\n')) {
+    return '"' + value.replace(/"/g, '""') + '"';
+  }
+  return value;
 }
 
 function initializeDistributionStructureEditor() {
@@ -1119,7 +1248,11 @@ async function confirmAndRemoveDistributionEntry(entryId) {
     return;
   }
 
+  const removedPath = getDistributionNodePath(entryId);
   removeDistributionEntry(entryId);
+  recordDistributionAudit('削除', 'distribution_structure', entryId, {
+    detail: 'テンプレート構成から削除: ' + removedPath
+  });
   toast('項目を削除しました。', 'success');
 }
 
@@ -1555,6 +1688,7 @@ function upsertTemplate(actionType) {
   }
 
   let targetTemplate = null;
+  let isNewTemplate = false;
   if (distributionState.editTemplateId) {
     targetTemplate = distributionState.templates.find(function(item) {
       return item.id === distributionState.editTemplateId;
@@ -1566,6 +1700,7 @@ function upsertTemplate(actionType) {
       id: generateTemplateId()
     };
     distributionState.templates.unshift(targetTemplate);
+    isNewTemplate = true;
   }
 
   const latestHistory = findLatestHistoryByTemplateId(targetTemplate.id);
@@ -1585,11 +1720,19 @@ function upsertTemplate(actionType) {
 
   if (actionType === '下書き') {
     targetTemplate.status = '下書き';
+    recordDistributionAudit(isNewTemplate ? '作成' : '編集', 'distribution_template', targetTemplate.id, {
+      detail: 'テンプレートを下書き保存: ' + targetTemplate.name
+    });
     toast('テンプレートを下書き保存しました。', 'success');
   } else {
     targetTemplate.status = '公開';
     const historyStatus = resolveHistoryStatus(payload.classSchedules);
+    const latestHistory = findLatestHistoryByTemplateId(targetTemplate.id);
+    const isRedistribution = !!latestHistory;
     upsertHistory(payload, historyStatus, targetTemplate.id);
+    recordDistributionAudit(isRedistribution ? '再配信' : '配信', 'distribution_template', targetTemplate.id, {
+      detail: '対象: ' + joinTargets(payload.schools, payload.classes) + ' / 状態: ' + historyStatus
+    });
     if (historyStatus === DISTRIBUTION_STATUS_DISTRIBUTED) {
       toast('配信しました。配信済みは取り消しできません。', 'success');
     } else {
@@ -1598,6 +1741,7 @@ function upsertTemplate(actionType) {
   }
 
   distributionState.editTemplateId = null;
+  refreshDistributionHistoryFilterOptions();
   renderHistoryTable();
   updateStats();
   resetForm();
@@ -1622,23 +1766,32 @@ function renderHistoryTable() {
     return;
   }
 
-  body.innerHTML = distributionState.history.map(function(item, index) {
+  const entries = getSortedDistributionHistoryEntries();
+
+  body.innerHTML = entries.map(function(entry) {
+    const item = entry.item;
+    const historyIndex = entry.index;
     const editable = isHistoryEditable(item);
     const buttonClass = editable ? 'btn-outline-primary' : 'btn-outline-secondary';
     const buttonDisabled = editable ? '' : ' disabled';
     const buttonLabel = '編集';
+    const canStop = item.status === DISTRIBUTION_STATUS_SCHEDULED;
+    const stopButtonDisabled = canStop ? '' : ' disabled';
     return '<tr>'
       + '<td>' + escapeHtml(item.distributedAt) + '</td>'
-      + '<td>' + escapeHtml(item.target) + '</td>'
       + '<td>' + escapeHtml(item.template) + '</td>'
-      + '<td>' + escapeHtml(item.operator) + '</td>'
-      + '<td>' + escapeHtml(item.status) + '</td>'
+      + '<td>' + escapeHtml(getDistributionHistorySchoolText(item)) + '</td>'
+      + '<td>' + escapeHtml(getDistributionHistoryClassText(item)) + '</td>'
+      + '<td>' + buildDistributionStatusBadgeHtml(item.status) + '</td>'
+      + '<td><code class="history-creator-id">' + escapeHtml(item.operator) + '</code></td>'
       + '<td>'
       +   '<div class="row-actions">'
-      +     '<button type="button" class="btn btn-sm ' + buttonClass + ' history-edit" data-history-index="' + String(index) + '"' + buttonDisabled + '>' + buttonLabel + '</button>'
-      +     '<button type="button" class="btn btn-sm btn-outline-secondary history-duplicate" data-history-index="' + String(index) + '">複製</button>'
+        +     '<button type="button" class="btn btn-sm ' + buttonClass + ' history-edit" data-history-index="' + String(historyIndex) + '"' + buttonDisabled + '>' + buttonLabel + '</button>'
+        +     '<button type="button" class="btn btn-sm btn-outline-secondary history-duplicate" data-history-index="' + String(historyIndex) + '">複製</button>'
+        +     '<button type="button" class="btn btn-sm btn-outline-danger history-stop" data-history-index="' + String(historyIndex) + '"' + stopButtonDisabled + '>停止</button>'
       +   '</div>'
       + '</td>'
+        + '<td><button type="button" class="btn btn-sm btn-outline-primary history-detail" data-history-index="' + String(historyIndex) + '">表示</button></td>'
       + '</tr>';
   }).join('');
 
@@ -1655,6 +1808,276 @@ function renderHistoryTable() {
       startDuplicateFromHistory(historyIndex);
     });
   });
+
+  body.querySelectorAll('.history-detail').forEach(function(button) {
+    button.addEventListener('click', function() {
+      const historyIndex = Number(button.getAttribute('data-history-index'));
+      openDistributionAuditDetail(historyIndex);
+    });
+  });
+
+  body.querySelectorAll('.history-stop').forEach(function(button) {
+    button.addEventListener('click', async function() {
+      const historyIndex = Number(button.getAttribute('data-history-index'));
+      await stopScheduledDistribution(historyIndex);
+    });
+  });
+
+  updateDistributionHistoryHeaderSortIndicator(distributionHistorySortBy);
+}
+
+function buildDistributionStatusBadgeHtml(status) {
+  if (status === DISTRIBUTION_STATUS_DISTRIBUTED) {
+    return '<span class="badge text-bg-success">' + escapeHtml(status) + '</span>';
+  }
+
+  if (status === DISTRIBUTION_STATUS_DRAFT) {
+    return '<span class="badge text-bg-secondary">' + escapeHtml(status) + '</span>';
+  }
+
+  if (status === DISTRIBUTION_STATUS_SCHEDULED) {
+    return '<span class="badge text-bg-warning">' + escapeHtml(status) + '</span>';
+  }
+
+  if (status === DISTRIBUTION_STATUS_STOPPED) {
+    return '<span class="badge text-bg-secondary">' + escapeHtml(status) + '</span>';
+  }
+
+  return '<span class="badge text-bg-light">' + escapeHtml(status || '-') + '</span>';
+}
+
+function getDistributionHistorySchoolText(item) {
+  if (item && item.school) {
+    return String(item.school);
+  }
+
+  const target = String(item && item.target ? item.target : '');
+  const separatorIndex = target.indexOf(' / ');
+  if (separatorIndex < 0) {
+    return target;
+  }
+  return target.slice(0, separatorIndex);
+}
+
+function getDistributionHistoryClassText(item) {
+  if (item && item.className) {
+    return String(item.className);
+  }
+
+  const target = String(item && item.target ? item.target : '');
+  const separatorIndex = target.indexOf(' / ');
+  if (separatorIndex < 0) {
+    return '';
+  }
+  return target.slice(separatorIndex + 3);
+}
+
+function getDistributionHistoryFilterValues() {
+  const searchQuery = String(document.getElementById('distributionHistorySearch')?.value || '').trim().toLowerCase();
+  const school = document.getElementById('distributionHistoryFilterSchool')?.value || 'すべて';
+  const className = document.getElementById('distributionHistoryFilterClass')?.value || 'すべて';
+  const status = document.getElementById('distributionHistoryFilterStatus')?.value || 'すべて';
+  const operator = document.getElementById('distributionHistoryFilterOperator')?.value || 'すべて';
+  return {
+    searchQuery: searchQuery,
+    school: school,
+    className: className,
+    status: status,
+    operator: operator
+  };
+}
+
+function matchesDistributionHistoryFilter(item, filterValues) {
+  const values = filterValues || getDistributionHistoryFilterValues();
+  const schoolText = getDistributionHistorySchoolText(item);
+  const classText = getDistributionHistoryClassText(item);
+
+  if (values.status !== 'すべて' && item.status !== values.status) {
+    return false;
+  }
+
+  if (values.school !== 'すべて' && schoolText !== values.school) {
+    return false;
+  }
+
+  if (values.className !== 'すべて' && classText !== values.className) {
+    return false;
+  }
+
+  if (values.operator !== 'すべて' && item.operator !== values.operator) {
+    return false;
+  }
+
+  if (!values.searchQuery) {
+    return true;
+  }
+
+  const searchable = [item.distributedAt, schoolText, classText, item.template, item.operator, item.status]
+    .join(' ')
+    .toLowerCase();
+  return searchable.includes(values.searchQuery);
+}
+
+function refreshDistributionHistoryFilterOptions() {
+  const schoolSelect = document.getElementById('distributionHistoryFilterSchool');
+  const classSelect = document.getElementById('distributionHistoryFilterClass');
+  const operatorSelect = document.getElementById('distributionHistoryFilterOperator');
+  if (!schoolSelect || !classSelect || !operatorSelect) {
+    return;
+  }
+
+  const selectedSchool = schoolSelect.value || 'すべて';
+  const selectedClass = classSelect.value || 'すべて';
+  const selectedOperator = operatorSelect.value || 'すべて';
+
+  const schools = Array.from(new Set(distributionState.history.map(function(item) {
+    return getDistributionHistorySchoolText(item);
+  }).filter(Boolean))).sort(function(a, b) {
+    return String(a).localeCompare(String(b), 'ja');
+  });
+
+  const classes = Array.from(new Set(distributionState.history.map(function(item) {
+    return getDistributionHistoryClassText(item);
+  }).filter(Boolean))).sort(function(a, b) {
+    return String(a).localeCompare(String(b), 'ja');
+  });
+
+  const operators = Array.from(new Set(distributionState.history.map(function(item) {
+    return item.operator;
+  }).filter(Boolean))).sort(function(a, b) {
+    return String(a).localeCompare(String(b), 'ja');
+  });
+
+  schoolSelect.innerHTML = '<option value="すべて">すべて</option>'
+    + schools.map(function(school) {
+      return '<option value="' + escapeHtml(school) + '">' + escapeHtml(school) + '</option>';
+    }).join('');
+
+  classSelect.innerHTML = '<option value="すべて">すべて</option>'
+    + classes.map(function(className) {
+      return '<option value="' + escapeHtml(className) + '">' + escapeHtml(className) + '</option>';
+    }).join('');
+
+  operatorSelect.innerHTML = '<option value="すべて">すべて</option>'
+    + operators.map(function(operator) {
+      return '<option value="' + escapeHtml(operator) + '">' + escapeHtml(operator) + '</option>';
+    }).join('');
+
+  schoolSelect.value = schools.includes(selectedSchool) ? selectedSchool : 'すべて';
+  classSelect.value = classes.includes(selectedClass) ? selectedClass : 'すべて';
+  operatorSelect.value = operators.includes(selectedOperator) ? selectedOperator : 'すべて';
+}
+
+function parseDistributionHistoryDateTime(text) {
+  const raw = String(text || '').trim();
+  if (!raw) {
+    return 0;
+  }
+  const timestamp = new Date(raw.replace(' ', 'T')).getTime();
+  return Number.isNaN(timestamp) ? 0 : timestamp;
+}
+
+function getDistributionStatusOrder(status) {
+  if (status === DISTRIBUTION_STATUS_DRAFT) {
+    return 1;
+  }
+  if (status === DISTRIBUTION_STATUS_SCHEDULED) {
+    return 2;
+  }
+  if (status === DISTRIBUTION_STATUS_DISTRIBUTED) {
+    return 3;
+  }
+  if (status === DISTRIBUTION_STATUS_STOPPED) {
+    return 4;
+  }
+  return 99;
+}
+
+function getSortedDistributionHistoryEntries() {
+  const filterValues = getDistributionHistoryFilterValues();
+  const sortKey = getDistributionHistorySortKey(distributionHistorySortBy);
+  const sortDirection = getDistributionHistorySortDirection(distributionHistorySortBy);
+  const multiplier = sortDirection === 'desc' ? -1 : 1;
+  const entries = distributionState.history.map(function(item, index) {
+    return { item: item, index: index };
+  }).filter(function(entry) {
+    return matchesDistributionHistoryFilter(entry.item, filterValues);
+  });
+
+  entries.sort(function(a, b) {
+    if (sortKey === 'datetime') {
+      const left = parseDistributionHistoryDateTime(a.item.distributedAt);
+      const right = parseDistributionHistoryDateTime(b.item.distributedAt);
+      return (left - right) * multiplier;
+    }
+
+    if (sortKey === 'status') {
+      const statusDiff = getDistributionStatusOrder(a.item.status) - getDistributionStatusOrder(b.item.status);
+      if (statusDiff !== 0) {
+        return statusDiff * multiplier;
+      }
+      return String(a.item.template || '').localeCompare(String(b.item.template || ''), 'ja') * multiplier;
+    }
+
+    if (sortKey === 'template') {
+      return String(a.item.template || '').localeCompare(String(b.item.template || ''), 'ja') * multiplier;
+    }
+
+    if (sortKey === 'operator') {
+      return String(a.item.operator || '').localeCompare(String(b.item.operator || ''), 'ja') * multiplier;
+    }
+
+    if (sortKey === 'school') {
+      return getDistributionHistorySchoolText(a.item).localeCompare(getDistributionHistorySchoolText(b.item), 'ja') * multiplier;
+    }
+
+    if (sortKey === 'class') {
+      return getDistributionHistoryClassText(a.item).localeCompare(getDistributionHistoryClassText(b.item), 'ja') * multiplier;
+    }
+
+    return (parseDistributionHistoryDateTime(a.item.distributedAt) - parseDistributionHistoryDateTime(b.item.distributedAt)) * multiplier;
+  });
+
+  return entries;
+}
+
+async function stopScheduledDistribution(historyIndex) {
+  if (!Number.isFinite(historyIndex) || historyIndex < 0 || historyIndex >= distributionState.history.length) {
+    toast('停止対象の履歴が見つかりません。', 'warning');
+    return;
+  }
+
+  const item = distributionState.history[historyIndex];
+  if (!item || item.status !== DISTRIBUTION_STATUS_SCHEDULED) {
+    toast('配信前の履歴のみ停止できます。', 'warning');
+    return;
+  }
+
+  let confirmed = false;
+  if (pageFeedback && typeof pageFeedback.danger === 'function') {
+    confirmed = await pageFeedback.danger({
+      title: '配信を停止しますか？',
+      message: '次の配信予約を停止します。',
+      detailTitle: '',
+      details: [item.template + ' / ' + item.target],
+      confirmLabel: '停止する',
+      cancelLabel: '戻る'
+    });
+  } else {
+    confirmed = window.confirm('配信予約を停止しますか？');
+  }
+
+  if (!confirmed) {
+    return;
+  }
+
+  item.status = DISTRIBUTION_STATUS_STOPPED;
+  recordDistributionAudit('停止', 'distribution_template', item.templateId || '', {
+    detail: '配信予約を停止: ' + item.template + ' / ' + item.target
+  });
+  renderHistoryTable();
+  updateStats();
+  toast('配信予約を停止しました。', 'success');
 }
 
 function upsertHistory(payload, status, templateId) {
@@ -1663,12 +2086,16 @@ function upsertHistory(payload, status, templateId) {
   });
 
   const targetText = joinTargets(payload.schools, payload.classes);
+  const schoolText = (payload.schools || []).join(', ');
+  const classText = (payload.classes || []).join(', ');
   const newItem = {
     distributedAt: formatDateTime(new Date()),
+    school: schoolText,
+    className: classText,
     target: targetText,
     templateId: templateId || '',
     template: payload.name,
-    operator: 't001',
+    operator: getAuditActorId(),
     status: status
   };
 
@@ -1676,6 +2103,80 @@ function upsertHistory(payload, status, templateId) {
     distributionState.history[existingIndex] = newItem;
   } else {
     distributionState.history.unshift(newItem);
+  }
+}
+
+function getAuditActorId() {
+  if (teacherAudit && typeof teacherAudit.getCurrentTeacherId === 'function') {
+    return teacherAudit.getCurrentTeacherId();
+  }
+  return 't001';
+}
+
+function recordDistributionAudit(action, targetType, targetId, options) {
+  if (!teacherAudit || typeof teacherAudit.record !== 'function') {
+    return;
+  }
+
+  const config = options && typeof options === 'object' ? options : {};
+  teacherAudit.record({
+    feature: 'distribution',
+    action: action,
+    targetType: targetType,
+    targetId: targetId || '',
+    result: config.result || 'SUCCESS',
+    detail: config.detail || ''
+  });
+}
+
+function queryDistributionAuditByTemplateId(templateId) {
+  if (!teacherAudit || typeof teacherAudit.query !== 'function') {
+    return [];
+  }
+  if (!templateId) {
+    return [];
+  }
+  return teacherAudit.query({
+    feature: 'distribution',
+    targetType: 'distribution_template',
+    targetId: templateId
+  });
+}
+
+function openDistributionAuditDetail(historyIndex) {
+  if (!Number.isFinite(historyIndex) || historyIndex < 0 || historyIndex >= distributionState.history.length) {
+    toast('履歴詳細の表示に失敗しました。', 'warning');
+    return;
+  }
+
+  const historyItem = distributionState.history[historyIndex];
+  const targetLabel = document.getElementById('distributionAuditDetailTarget');
+  const body = document.getElementById('distributionAuditDetailBody');
+  if (!body) {
+    return;
+  }
+
+  if (targetLabel) {
+    targetLabel.textContent = '対象: ' + (historyItem.template || '-') + '（' + (historyItem.templateId || 'ID未設定') + '）';
+  }
+
+  const events = queryDistributionAuditByTemplateId(historyItem.templateId || '');
+  if (!events.length) {
+    body.innerHTML = '<tr><td colspan="5" class="text-muted">このテンプレートに紐づく操作履歴はまだありません。</td></tr>';
+  } else {
+    body.innerHTML = events.map(function(event) {
+      return '<tr>'
+        + '<td>' + escapeHtml(event.occurredAt || '-') + '</td>'
+        + '<td>' + escapeHtml(event.actorTeacherId || '-') + '</td>'
+        + '<td>' + escapeHtml(event.action || '-') + '</td>'
+        + '<td>' + escapeHtml(event.result || '-') + '</td>'
+        + '<td>' + escapeHtml(event.detail || '-') + '</td>'
+        + '</tr>';
+    }).join('');
+  }
+
+  if (distributionAuditDetailModal) {
+    distributionAuditDetailModal.show();
   }
 }
 

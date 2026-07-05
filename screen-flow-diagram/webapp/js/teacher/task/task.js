@@ -47,11 +47,21 @@ const reusableHintLibrary = [
   }
 ];
 
+const teacherAudit = window.PPETeacherAudit || null;
+let taskAuditDetailModal = null;
+
 document.addEventListener('DOMContentLoaded', function() {
   initializeTaskPage();
 });
 
 function initializeTaskPage() {
+  if (typeof bootstrap !== 'undefined') {
+    const taskAuditModalElement = document.getElementById('taskAuditDetailModal');
+    if (taskAuditModalElement) {
+      taskAuditDetailModal = bootstrap.Modal.getOrCreateInstance(taskAuditModalElement);
+    }
+  }
+
   const addTestCaseButton = document.getElementById('addTestCaseButton');
   if (addTestCaseButton) {
     addTestCaseButton.addEventListener('click', addTestCaseRow);
@@ -120,7 +130,9 @@ function initializeTaskPage() {
         saveCreateFormEditResult('下書き');
         return;
       }
-      saveNewTaskRow('下書き');
+      createTaskRowFromForm('下書き');
+      pageFeedback.toast({ message: '下書きを保存しました。', variant: 'success', delay: 2200 });
+      increaseDraftCount();
     });
   }
 
@@ -132,7 +144,9 @@ function initializeTaskPage() {
         saveCreateFormEditResult('公開');
         return;
       }
-      saveNewTaskRow('公開');
+      createTaskRowFromForm('公開');
+      pageFeedback.toast({ message: '課題を保存・公開しました。', variant: 'success', delay: 2200 });
+      increasePublishedCount();
     });
   }
 
@@ -228,18 +242,34 @@ function getElementValue(element) {
 }
 
 function bindRowActionButtons() {
-  document.querySelectorAll('.edit-button').forEach(function(button) {
-    button.addEventListener('click', function() {
-      const row = button.closest('tr');
-      if (!row) return;
+  document.querySelectorAll('#taskTable tbody tr').forEach(function(row) {
+    bindTaskRowActionButtons(row);
+  });
+}
+
+function bindTaskRowActionButtons(row) {
+  if (!row || row.dataset.historyBound === '1') {
+    return;
+  }
+
+  const editButton = row.querySelector('.edit-button');
+  if (editButton) {
+    editButton.addEventListener('click', function() {
       startCreateFormEditMode(row);
     });
-  });
+  }
 
-  document.querySelectorAll('.delete-button').forEach(function(button) {
-    button.addEventListener('click', async function() {
-      const row = button.closest('tr');
-      if (!row) return;
+  const duplicateButton = row.querySelector('.duplicate-button');
+  if (duplicateButton) {
+    duplicateButton.addEventListener('click', function() {
+      duplicateTaskRow(row);
+    });
+  }
+
+  const deleteButton = row.querySelector('.delete-button');
+  if (deleteButton) {
+    deleteButton.addEventListener('click', async function() {
+      const taskId = row.dataset.taskId || 'TASK-UNKNOWN';
 
       const taskName = row.dataset.name || '選択課題';
       const ok = await pageFeedback.confirm({
@@ -253,11 +283,22 @@ function bindRowActionButtons() {
       });
       if (!ok) return;
 
+      recordTaskAudit('削除', taskId, '課題を論理削除: ' + taskName);
+
       row.remove();
       pageFeedback.toast({ message: '課題を論理削除しました。', variant: 'success', delay: 2200 });
       applyStatusFilter();
     });
-  });
+  }
+
+  const historyButton = row.querySelector('.history-button');
+  if (historyButton) {
+    historyButton.addEventListener('click', function() {
+      openTaskAuditDetail(row);
+    });
+  }
+
+  row.dataset.historyBound = '1';
 }
 
 function bindPreviewEvents() {
@@ -897,6 +938,8 @@ function applyCreateFormEditModeUi() {
 function saveCreateFormEditResult(status) {
   if (!editTargetRow) return;
 
+  const taskId = editTargetRow.dataset.taskId || 'TASK-UNKNOWN';
+
   const schoolNames = Array.from(document.querySelectorAll('input[name="schoolTargets"]:checked'))
     .map(function(el) { return el.value; });
   const classNames = Array.from(document.querySelectorAll('input[name="classTargets"]:checked'))
@@ -976,10 +1019,195 @@ function saveCreateFormEditResult(status) {
     updatedAt.textContent = updated;
   }
 
+  recordTaskAudit('編集', taskId, '課題を更新: ' + (name || '課題名未設定') + ' / 状態: ' + status);
+
   pageFeedback.toast({ message: '課題を更新しました。', variant: 'success', delay: 2200 });
   applyStatusFilter();
   resetCreateForm();
   finishCreateFormEditMode();
+}
+
+function createTaskRowFromForm(status) {
+  const name = getValue('taskNameInput');
+  if (!name) {
+    pageFeedback.toast({ message: '課題名を入力してください。', variant: 'warning', delay: 2200 });
+    return;
+  }
+
+  const schoolNames = Array.from(document.querySelectorAll('input[name="schoolTargets"]:checked'))
+    .map(function(el) { return el.value; });
+  const classNames = Array.from(document.querySelectorAll('input[name="classTargets"]:checked'))
+    .map(function(el) { return el.value; });
+  const level = normalizeLevelSelection(getValue('levelSelect'));
+  const taskId = buildNextTaskId();
+  const updated = buildNowString();
+  const creator = getCurrentTaskCreatorId();
+  const target = (schoolNames.length > 0 ? schoolNames.join(', ') : '学校未選択')
+    + ' / ' + (classNames.length > 0 ? classNames.join(', ') : 'クラス未選択');
+
+  const row = document.createElement('tr');
+  row.dataset.taskId = taskId;
+  row.dataset.name = name;
+  row.dataset.level = level;
+  row.dataset.target = target;
+  row.dataset.status = status;
+  row.dataset.promptStatus = '未設定';
+  row.dataset.description = getValue('taskDescriptionInput');
+  row.dataset.constraint = getValue('taskConstraintInput');
+  row.dataset.updated = updated;
+  row.dataset.creator = creator;
+  row.dataset.theme = getValue('themeInput');
+  row.dataset.features = getValue('featureInput');
+  row.dataset.initialCode = getValue('initialCodeInput');
+  row.dataset.classSchedules = JSON.stringify(collectClassSchedules());
+  row.dataset.lateSubmissionPolicy = getValue('lateSubmissionPolicy');
+  row.dataset.testCases = JSON.stringify([]);
+  row.dataset.hints = JSON.stringify([]);
+
+  row.innerHTML = ''
+    + '<td>' + escapeHtml(name) + '</td>'
+    + '<td>' + buildLevelBadgeHtml(level) + '</td>'
+    + '<td>' + escapeHtml(target) + '</td>'
+    + '<td>' + (status === '公開'
+      ? '<span class="badge text-bg-success">公開</span>'
+      : '<span class="badge text-bg-secondary">下書き</span>') + '</td>'
+    + '<td><a class="prompt-status-link is-unset" href="../prompt/prompt.html?taskId=' + escapeHtml(taskId) + '">未設定</a></td>'
+    + '<td class="updated-at">' + escapeHtml(updated) + '</td>'
+    + '<td class="task-creator">' + escapeHtml(creator) + '</td>'
+    + '<td>'
+    +   '<div class="d-flex gap-2">'
+    +     '<button class="btn btn-sm btn-outline-primary edit-button" type="button">編集</button>'
+    +     '<button class="btn btn-sm btn-outline-secondary duplicate-button" type="button">複製</button>'
+    +     '<button class="btn btn-sm btn-outline-danger delete-button" type="button">削除</button>'
+    +   '</div>'
+    + '</td>'
+    + '<td><button class="btn btn-sm btn-outline-primary history-button" type="button">表示</button></td>';
+
+  const tableBody = document.querySelector('#taskTable tbody');
+  if (!tableBody) {
+    return;
+  }
+
+  tableBody.prepend(row);
+  bindTaskRowActionButtons(row);
+  recordTaskAudit('作成', taskId, '課題を作成: ' + name + ' / 状態: ' + status);
+  applyStatusFilter();
+  resetCreateForm();
+}
+
+function getCurrentTaskCreatorId() {
+  if (teacherAudit && typeof teacherAudit.getCurrentTeacherId === 'function') {
+    return teacherAudit.getCurrentTeacherId();
+  }
+  return 't001';
+}
+
+function duplicateTaskRow(sourceRow) {
+  if (!sourceRow) {
+    return;
+  }
+
+  const tableBody = document.querySelector('#taskTable tbody');
+  if (!tableBody) {
+    return;
+  }
+
+  const newTaskId = buildNextTaskId();
+  const duplicatedName = (sourceRow.dataset.name || '課題') + '（複製）';
+  const updated = buildNowString();
+
+  const newRow = sourceRow.cloneNode(true);
+  newRow.dataset.historyBound = '0';
+  newRow.dataset.taskId = newTaskId;
+  newRow.dataset.name = duplicatedName;
+  newRow.dataset.status = '下書き';
+  newRow.dataset.promptStatus = '未設定';
+  newRow.dataset.updated = updated;
+
+  if (newRow.cells[0]) {
+    newRow.cells[0].textContent = duplicatedName;
+  }
+  if (newRow.cells[3]) {
+    newRow.cells[3].innerHTML = '<span class="badge text-bg-secondary">下書き</span>';
+  }
+  if (newRow.cells[4]) {
+    newRow.cells[4].innerHTML = '<a class="prompt-status-link is-unset" href="../prompt/prompt.html?taskId=' + escapeHtml(newTaskId) + '">未設定</a>';
+  }
+
+  const updatedCell = newRow.querySelector('.updated-at');
+  if (updatedCell) {
+    updatedCell.textContent = updated;
+  }
+
+  tableBody.prepend(newRow);
+  bindTaskRowActionButtons(newRow);
+  recordTaskAudit('複製', newTaskId, '課題を複製: ' + duplicatedName);
+  pageFeedback.toast({ message: '課題を複製しました。', variant: 'success', delay: 2200 });
+  applyStatusFilter();
+}
+
+function buildNextTaskId() {
+  const ids = Array.from(document.querySelectorAll('#taskTable tbody tr')).map(function(row) {
+    const match = String(row.dataset.taskId || '').match(/\d+/);
+    return match ? Number(match[0]) : 0;
+  });
+  const next = (ids.length ? Math.max.apply(null, ids) : 0) + 1;
+  return 'TASK-' + String(next).padStart(3, '0');
+}
+
+function recordTaskAudit(action, taskId, detail) {
+  if (!teacherAudit || typeof teacherAudit.record !== 'function') {
+    return;
+  }
+  teacherAudit.record({
+    feature: 'task',
+    action: action,
+    targetType: 'task',
+    targetId: taskId || '',
+    result: 'SUCCESS',
+    detail: detail || ''
+  });
+}
+
+function openTaskAuditDetail(row) {
+  if (!row) {
+    return;
+  }
+
+  const taskId = row.dataset.taskId || '';
+  const taskName = row.dataset.name || taskId || '課題';
+  const targetLabel = document.getElementById('taskAuditDetailTarget');
+  const detailBody = document.getElementById('taskAuditDetailBody');
+  if (!detailBody) {
+    return;
+  }
+
+  if (targetLabel) {
+    targetLabel.textContent = '対象: ' + taskName + '（' + (taskId || 'ID未設定') + '）';
+  }
+
+  let events = [];
+  if (teacherAudit && typeof teacherAudit.query === 'function') {
+    events = teacherAudit.query({ feature: 'task', targetType: 'task', targetId: taskId });
+  }
+
+  if (!events.length) {
+    detailBody.innerHTML = '<tr><td colspan="5" class="text-muted">この課題の変更履歴はまだありません。</td></tr>';
+  } else {
+    detailBody.innerHTML = events.map(function(event) {
+      return '<tr>'
+        + '<td>' + escapeHtml(event.occurredAt || '-') + '</td>'
+        + '<td>' + escapeHtml(event.actorTeacherId || '-') + '</td>'
+        + '<td>' + escapeHtml(event.action || '-') + '</td>'
+        + '<td>' + escapeHtml(event.result || '-') + '</td>'
+        + '<td>' + escapeHtml(event.detail || '-') + '</td>'
+        + '</tr>';
+    }).join('');
+  }
+
+  if (taskAuditDetailModal) {
+    taskAuditDetailModal.show();
+  }
 }
 
 function buildLevelBadgeHtml(level) {

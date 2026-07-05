@@ -3,6 +3,213 @@
  * サイドメニュー、ヘッダーを動的に生成
  */
 
+const TEACHER_SESSION_STORAGE_KEY = 'ppeTeacherSession';
+const TEACHER_AUDIT_STORAGE_KEY = 'ppeTeacherAuditLog';
+const DATETIME_TWO_LINE_PATTERN = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}(?::\d{2})?(?:Z|[+-]\d{2}:\d{2})?)$/;
+let datetimeFormattingObserver = null;
+let datetimeFormattingTimer = null;
+
+function loadTeacherSession() {
+  try {
+    const raw = window.localStorage.getItem(TEACHER_SESSION_STORAGE_KEY);
+    if (!raw) {
+      return null;
+    }
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') {
+      return null;
+    }
+    return parsed;
+  } catch (error) {
+    return null;
+  }
+}
+
+function saveTeacherSession(session) {
+  if (!session || typeof session !== 'object') {
+    return;
+  }
+  window.localStorage.setItem(TEACHER_SESSION_STORAGE_KEY, JSON.stringify(session));
+}
+
+function ensureTeacherSession() {
+  const existing = loadTeacherSession();
+  if (existing && existing.teacherId) {
+    return existing;
+  }
+
+  const fallback = {
+    teacherId: 't001',
+    school: 'all'
+  };
+  saveTeacherSession(fallback);
+  return fallback;
+}
+
+function getCurrentTeacherSession() {
+  return ensureTeacherSession();
+}
+
+function getCurrentTeacherId() {
+  const session = getCurrentTeacherSession();
+  return session.teacherId || 't001';
+}
+
+function getCurrentTeacherSchool() {
+  const session = getCurrentTeacherSession();
+  return session.school || 'all';
+}
+
+function buildAuditTimestamp() {
+  const now = new Date();
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  const dd = String(now.getDate()).padStart(2, '0');
+  const hh = String(now.getHours()).padStart(2, '0');
+  const mi = String(now.getMinutes()).padStart(2, '0');
+  const ss = String(now.getSeconds()).padStart(2, '0');
+  return yyyy + '-' + mm + '-' + dd + ' ' + hh + ':' + mi + ':' + ss;
+}
+
+function loadTeacherAuditEvents() {
+  try {
+    const raw = window.localStorage.getItem(TEACHER_AUDIT_STORAGE_KEY);
+    if (!raw) {
+      return [];
+    }
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    return [];
+  }
+}
+
+function saveTeacherAuditEvents(events) {
+  const list = Array.isArray(events) ? events : [];
+  window.localStorage.setItem(TEACHER_AUDIT_STORAGE_KEY, JSON.stringify(list));
+}
+
+function recordTeacherAuditEvent(payload) {
+  const event = payload && typeof payload === 'object' ? payload : {};
+  const teacherId = getCurrentTeacherId();
+  const nextEvent = {
+    eventId: 'AUD-' + String(Date.now()) + '-' + String(Math.floor(Math.random() * 100000)),
+    occurredAt: buildAuditTimestamp(),
+    actorTeacherId: teacherId,
+    feature: event.feature || 'unknown',
+    action: event.action || '操作',
+    targetType: event.targetType || '',
+    targetId: event.targetId || '',
+    result: event.result || 'SUCCESS',
+    detail: event.detail || ''
+  };
+
+  const current = loadTeacherAuditEvents();
+  current.unshift(nextEvent);
+  saveTeacherAuditEvents(current);
+  return nextEvent;
+}
+
+function queryTeacherAuditEvents(filter) {
+  const criteria = filter && typeof filter === 'object' ? filter : {};
+  return loadTeacherAuditEvents().filter(function(event) {
+    if (criteria.feature && event.feature !== criteria.feature) {
+      return false;
+    }
+    if (criteria.targetType && event.targetType !== criteria.targetType) {
+      return false;
+    }
+    if (criteria.targetId && event.targetId !== criteria.targetId) {
+      return false;
+    }
+    if (criteria.action && event.action !== criteria.action) {
+      return false;
+    }
+    return true;
+  });
+}
+
+function escapeTeacherComponentText(text) {
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function extractDateTimeParts(text) {
+  const raw = String(text || '').trim();
+  const matched = raw.match(DATETIME_TWO_LINE_PATTERN);
+  if (!matched) {
+    return null;
+  }
+  return {
+    date: matched[1],
+    time: matched[2]
+  };
+}
+
+function applyDateTimeTwoLineFormatting(root) {
+  const scope = root && typeof root.querySelectorAll === 'function' ? root : document;
+  const targets = scope.querySelectorAll('td, .updated-at, .cell-created, .cell-last-login, .cell-updated, .cell-submitted');
+
+  targets.forEach(function(element) {
+    if (!element || element.querySelector('.ppe-datetime-two-line')) {
+      return;
+    }
+    if (element.childElementCount > 0) {
+      return;
+    }
+
+    const parts = extractDateTimeParts(element.textContent || '');
+    if (!parts) {
+      return;
+    }
+
+    element.innerHTML = '<span class="ppe-datetime-two-line"><span class="ppe-datetime-date">'
+      + escapeTeacherComponentText(parts.date)
+      + '</span><span class="ppe-datetime-time">'
+      + escapeTeacherComponentText(parts.time)
+      + '</span></span>';
+  });
+}
+
+function scheduleDateTimeTwoLineFormatting() {
+  if (datetimeFormattingTimer) {
+    window.clearTimeout(datetimeFormattingTimer);
+  }
+  datetimeFormattingTimer = window.setTimeout(function() {
+    datetimeFormattingTimer = null;
+    applyDateTimeTwoLineFormatting(document);
+  }, 30);
+}
+
+function startDateTimeTwoLineFormattingObserver() {
+  if (typeof MutationObserver === 'undefined' || datetimeFormattingObserver) {
+    return;
+  }
+
+  datetimeFormattingObserver = new MutationObserver(function() {
+    scheduleDateTimeTwoLineFormatting();
+  });
+
+  datetimeFormattingObserver.observe(document.body, {
+    childList: true,
+    subtree: true,
+    characterData: true
+  });
+}
+
+window.PPETeacherAudit = {
+  getCurrentTeacherSession: getCurrentTeacherSession,
+  getCurrentTeacherId: getCurrentTeacherId,
+  getCurrentTeacherSchool: getCurrentTeacherSchool,
+  record: recordTeacherAuditEvent,
+  query: queryTeacherAuditEvents,
+  buildTimestamp: buildAuditTimestamp
+};
+
 /**
  * ログアウト
  */
@@ -21,6 +228,7 @@ async function logout() {
     : window.confirm('ログアウトの確認\nログアウトしてログイン画面へ移動します。');
 
   if (confirmed) {
+    window.localStorage.removeItem(TEACHER_SESSION_STORAGE_KEY);
     window.location.href = '../account/login.html';
   }
 }
@@ -29,6 +237,8 @@ async function logout() {
  * 教師共有コンポーネント（サイドメニュー、ヘッダー）を生成・挿入
  */
 function loadTeacherComponents() {
+  const teacherDisplayIdText = 'ID: toida';
+  const teacherDisplaySchoolText = '学校: 国際中等, 附属高校';
   const sidebarHTML = `
     <nav class="teacher-sidebar bg-light border-end">
       <div class="sidebar-header">
@@ -130,13 +340,11 @@ function loadTeacherComponents() {
               <svg class="teacher-info-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
               </svg>
-              <span class="teacher-info-text">ID: t001</span>
-            </div>
-            <div class="teacher-info-item">
-              <svg class="teacher-info-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+              <span class="teacher-info-text">${teacherDisplayIdText}</span>
+              <svg class="teacher-info-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                 <path d="M5 3v18h14V3H5zm6 2h2v2h-2V5zM7 9h2v2H7V9zm4 0h2v2h-2V9zm4 0h2v2h-2V9zM7 13h2v2H7v-2zm4 0h2v2h-2v-2zm4 0h2v2h-2v-2zM10 17h4v4h-4v-4z"/>
               </svg>
-              <span class="teacher-info-text">学校: all</span>
+              <span class="teacher-info-text">${teacherDisplaySchoolText}</span>
             </div>
           </div>
           <button class="btn btn-sm btn-outline-secondary" onclick="logout()">ログアウト</button>
@@ -305,6 +513,8 @@ function loadTeacherComponents() {
   }
 
   setActiveSidebarMenu();
+  applyDateTimeTwoLineFormatting(document);
+  startDateTimeTwoLineFormattingObserver();
 }
 
 function setActiveSidebarMenu() {

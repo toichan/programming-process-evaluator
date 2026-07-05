@@ -75,6 +75,11 @@
   gap: 0.5rem;
 }
 
+.action-buttons .btn,
+.account-action-cell .btn {
+  white-space: nowrap;
+}
+
 .filter-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(150px, 1fr));
@@ -107,6 +112,10 @@
 
 #accountTable {
   min-width: 1280px;
+}
+
+#accountTable tbody td {
+  white-space: nowrap;
 }
 
 .table-light thead th {
@@ -350,6 +359,20 @@ code {
   color: #1e293b;
 }
 
+
+.student-reset-copy-block {
+  margin: 0;
+  padding: 0.85rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.6rem;
+  background: #f8fafc;
+  color: #1e293b;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: 'Courier New', monospace;
+}
 .detail-section-description {
   font-size: 0.82rem;
   color: #64748b;

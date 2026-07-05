@@ -134,6 +134,19 @@ main.flex-grow-1 {
   white-space: nowrap;
 }
 
+.ppe-datetime-two-line {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.2;
+}
+
+.ppe-datetime-date,
+.ppe-datetime-time {
+  display: block;
+  white-space: nowrap;
+}
+
 .teacher-rubric-fab {
   position: fixed;
   left: 1rem;

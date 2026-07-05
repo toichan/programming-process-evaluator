@@ -1,4 +1,5 @@
 window.addEventListener('DOMContentLoaded', () => {
+  const TEACHER_SESSION_STORAGE_KEY = 'ppeTeacherSession';
   const teacherLoginForm = document.querySelector('#teacher-login');
   const teacherIdInput = document.querySelector('#teacherId');
   const teacherPasswordInput = document.querySelector('#teacherPassword');
@@ -27,7 +28,18 @@ window.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // ログイン成功時に教師アカウント管理画面へ遷移
+    const session = {
+      teacherId: teacherIdInput.value.trim(),
+      school: 'all'
+    };
+    window.localStorage.setItem(TEACHER_SESSION_STORAGE_KEY, JSON.stringify(session));
+
+    if (session.teacherId.toLowerCase() === 'admin') {
+      window.location.href = '../../admin/account-management.html';
+      return;
+    }
+
+    // ログイン成功時に生徒アカウント管理画面へ遷移
     window.location.href = './account.html';
   });
 });
