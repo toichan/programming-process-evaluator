@@ -152,6 +152,14 @@
   gap: 0.75rem;
 }
 
+.alert-inline-warning {
+  background: #fff1f2;
+  border-color: #fda4af;
+  border-left: 4px solid #e11d48;
+  color: #9f1239;
+  box-shadow: 0 4px 10px rgba(225, 29, 72, 0.08);
+}
+
 .stacked-demo {
   align-content: start;
 }

@@ -681,12 +681,16 @@ async function openPasswordModal(teacherId, password, mode) {
 }
 
 function buildAccountGuideText(teacherId, password, mode) {
+  const headline = mode === 'reset'
+    ? '【Programming Process Evaluatorパスワード再設定】'
+    : '【Programming Process Evaluatorアカウント作成】';
   const firstLine = mode === 'reset'
     ? 'パスワードを再設定しました。次のアカウントでログインしてください。'
     : '教師用アカウントを作成しました。次のアカウントでログインしてください。';
 
-  return firstLine + '\n\n'
-    + '教師用ID: ' + String(teacherId || '-') + '\n\n'
+  return headline + '\n\n'
+    + firstLine + '\n\n'
+    + '教師用ID: ' + String(teacherId || '-') + '\n'
     + 'パスワード: ' + String(password || '-') + '\n\n'
     + TEACHER_LOGIN_URL;
 }

@@ -742,7 +742,8 @@ async function openStudentResetPasswordModal(studentId, password) {
 }
 
 function buildStudentResetGuideText(studentId, password) {
-  return 'パスワードを再設定しました。次のアカウントでログインしてください。\n\n'
+  return '【Programming Process Evaluatorパスワード再設定】\n\n'
+    + 'パスワードを再設定しました。次のアカウントでログインしてください。\n\n'
     + '生徒用ID: ' + String(studentId || '-') + '\n'
     + 'パスワード: ' + String(password || '-') + '\n\n'
     + STUDENT_LOGIN_URL;

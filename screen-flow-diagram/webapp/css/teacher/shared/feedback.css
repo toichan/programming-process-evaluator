@@ -23,6 +23,13 @@
   box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
 }
 
+.ppe-inline-alert.alert-warning {
+  background: #fff1f2;
+  border: 1px solid #fda4af;
+  border-left: 4px solid #e11d48;
+  color: #9f1239;
+}
+
 .ppe-feedback-modal .modal-content {
   border-radius: 1.1rem;
   border: 1px solid rgba(203, 213, 225, 0.9);
