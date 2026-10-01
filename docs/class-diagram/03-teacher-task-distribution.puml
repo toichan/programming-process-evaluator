@@ -1,6 +1,6 @@
 @startuml
 title Slice 3: 教師向け課題・配信・プロンプト管理クラス図
-caption 教師が課題を設計し、配信先を決め、評価に使うプロンプトと版管理を扱う設計
+caption 教師/管理者が設定する学校権限、課題内容、プロンプト版、クラス別配信内容を保存するモデル
 
 skinparam classAttributeIconSize 0
 skinparam shadowing false
@@ -8,103 +8,234 @@ skinparam roundcorner 15
 skinparam linetype ortho
 skinparam packageStyle rectangle
 
-class Teacher {
-  + teacherId: String
+class User {
+  + userId: Long <<PK>>
+  + userType: UserType
+  + loginId: String <<UK>>
+  + accountStatus: AccountStatus
+}
+
+class School {
+  + schoolId: Long <<PK>>
   + name: String
-  + createTask(taskDraft: Task)
-  + publishTask(task: Task)
-  + configureDistribution(distribution: Distribution)
-  + designPrompt(promptDraft: Prompt)
+  + schoolStatus: SchoolStatus
+}
+
+class Classroom {
+  + classroomId: Long <<PK>>
+  + schoolId: Long <<FK>>
+  + name: String
+  + gradeName: String
+  + classroomStatus: ClassroomStatus
+}
+
+class TeacherSchoolPermission {
+  + teacherSchoolPermissionId: Long <<PK>>
+  + teacherUserId: Long <<FK>>
+  + schoolId: Long <<FK>>
+  + accessStatus: PermissionStatus
+  + updatedByUserId: Long <<FK>>
+  + updatedAt: DateTime
+}
+
+class TeacherFeaturePermission {
+  + teacherFeaturePermissionId: Long <<PK>>
+  + teacherUserId: Long <<FK>>
+  + featureCode: TeacherFeatureCode
+  + isEnabled: Boolean
+  + updatedByUserId: Long <<FK>>
+  + updatedAt: DateTime
 }
 
 class Task {
-  + taskId: String
+  + taskId: Long <<PK>>
+  + taskCode: String <<UK>>
+  + createdByUserId: Long <<FK>>
+  + updatedByUserId: Long <<FK>>
   + title: String
-  + status: TaskStatus
-  + content: String
-  + promptVersion: String
+  + theme: String
+  + difficulty: Difficulty
+  + language: String
+  + rubricId: Long <<FK>>
   + rubricVersion: String
-  + createdAt: DateTime
+  + description: Text
+  + inputConstraints: Text
+  + creationRules: Text
+  + initialCode: LongText
+  + saveStatus: SaveStatus
   + publicationStatus: PublicationStatus
-  + updateContent()
-  + publish()
-  + archive()
+  + createdAt: DateTime
+  + updatedAt: DateTime
+  + publishedAt: DateTime
+  + deletedAt: DateTime
+  + deletedByUserId: Long
 }
 
-class Prompt {
-  + promptId: String
-  + version: String
+class TaskClassAssignment {
+  + taskClassAssignmentId: Long <<PK>>
+  + taskId: Long <<FK>>
+  + classroomId: Long <<FK>>
+  + assignmentStatus: TaskAssignmentStatus
+  + publishAt: DateTime
+  + dueAt: DateTime
+  + lateSubmissionPolicy: LateSubmissionPolicy
+  + createdAt: DateTime
+  + updatedAt: DateTime
+}
+
+class TaskTestCase {
+  + testCaseId: Long <<PK>>
+  + taskId: Long <<FK>>
   + title: String
-  + body: String
-  + status: PromptStatus
-  + isApplied: Boolean
-  + saveDraft()
-  + approveVersion()
-  + markNeedsReview()
+  + testCaseInput: Text
+  + testCaseOutput: Text
+  + testCaseOrder: Integer
+  + recordStatus: RecordStatus
+}
+
+class TaskFeature {
+  + featureId: Long <<PK>>
+  + taskId: Long <<FK>>
+  + featureText: Text
+  + sortOrder: Integer
+  + recordStatus: RecordStatus
+}
+
+class TaskHint {
+  + hintId: Long <<PK>>
+  + taskId: Long <<FK>>
+  + hintTitle: String
+  + hintContent: Text
+  + usageSyntax: Text
+  + hintCode: LongText
+  + hintOrder: Integer
+  + recordStatus: RecordStatus
+}
+
+class PromptVersion {
+  + promptVersionId: Long <<PK>>
+  + taskId: Long <<FK>>
+  + version: String
+  + aiModel: String
+  + commonPrompt: LongText
+  + additionalEvaluationInstruction: Text
+  + promptStatus: PromptStatus
+  + fluctuationGenerationStatus: GenerationStatus
+  + evaluationExamplesStatus: GenerationStatus
+  + createdByUserId: Long <<FK>>
+  + createdAt: DateTime
 }
 
 class Rubric {
-  + rubricId: String
+  + rubricId: Long <<PK>>
+  + title: String
   + version: String
-  + criterionSet: List<Criterion>
-  + updateVersion()
+  + rubricStatus: RubricStatus
+}
+
+class PromptFluctuationItem {
+  + fluctuationItemId: Long <<PK>>
+  + promptVersionId: Long <<FK>>
+  + itemText: Text
+  + teacherResolution: Text
+  + resolutionStatus: ResolutionStatus
+  + sortOrder: Integer
+}
+
+class EvaluationExample {
+  + evaluationExampleId: Long <<PK>>
+  + promptVersionId: Long <<FK>>
+  + exampleInput: JSON
+  + exampleOutput: JSON
+  + exampleStatus: RecordStatus
+  + createdAt: DateTime
+}
+
+class DistributionTemplate {
+  + distributionTemplateId: Long <<PK>>
+  + createdByUserId: Long <<FK>>
+  + updatedByUserId: Long <<FK>>
+  + templateName: String
+  + rootPath: String
+  + saveStatus: SaveStatus
+  + templateStatus: TemplateStatus
+  + overwritePolicy: OverwritePolicy
+  + createdAt: DateTime
+  + updatedAt: DateTime
+}
+
+class DistributionTemplateFile {
+  + templateFileId: Long <<PK>>
+  + distributionTemplateId: Long <<FK>>
+  + path: String
+  + entryType: TemplateEntryType
+  + initialContent: LongText
+  + entryStatus: RecordStatus
 }
 
 class Distribution {
-  + distributionId: String
-  + targetClasses: List<ClassRoom>
-  + schedule: DateTime
-  + status: DistributionStatus
-  + start()
-  + stop()
-  + complete()
+  + distributionId: Long <<PK>>
+  + distributionTemplateId: Long <<FK>>
+  + executedByUserId: Long <<FK>>
+  + distributionStatus: DistributionStatus
+  + createdAt: DateTime
+  + completedAt: DateTime
 }
 
-class ClassRoom {
-  + classId: String
-  + name: String
-  + studentCount: Integer
-  + students: List<Student>
+class DistributionTarget {
+  + distributionTargetId: Long <<PK>>
+  + distributionId: Long <<FK>>
+  + classroomId: Long <<FK>>
+  + targetStatus: ClassDistributionStatus
+  + scheduledAt: DateTime
+  + distributedAt: DateTime
+  + executionResult: Text
 }
 
-class Student {
-  + studentId: String
-  + name: String
-  + assignedTask: Task
-  + viewTask()
-  + submitSolution()
+class DistributionHistory {
+  + distributionHistoryId: Long <<PK>>
+  + distributionId: Long <<FK>>
+  + actorUserId: Long <<FK>>
+  + actionType: AuditActionType
+  + changeDetail: JSON
+  + executionStatus: OperationResult
+  + occurredAt: DateTime
 }
 
-class Evaluation {
-  + evaluationId: String
-  + taskId: String
-  + distributionId: String
-  + status: EvaluationStatus
-  + review()
-}
+User "1" -- "0..*" TeacherSchoolPermission
+School "1" -- "0..*" TeacherSchoolPermission
+User "1" -- "0..*" TeacherFeaturePermission
+School "1" -- "0..*" Classroom
+User "1" -- "0..*" Task : 作成/更新
+Task "1" -- "0..*" TaskClassAssignment
+Classroom "1" -- "0..*" TaskClassAssignment
+Task "1" -- "0..*" TaskTestCase
+Task "1" -- "0..*" TaskFeature
+Task "1" -- "0..*" TaskHint
+Task "1" -- "0..*" PromptVersion
+Rubric "1" -- "0..*" Task
+PromptVersion "1" -- "0..*" PromptFluctuationItem
+PromptVersion "1" -- "0..*" EvaluationExample
+DistributionTemplate "1" -- "1..*" DistributionTemplateFile
+DistributionTemplate "1" -- "0..*" Distribution
+Distribution "1" -- "1..*" DistributionTarget
+Classroom "1" -- "0..*" DistributionTarget
+Distribution "1" -- "0..*" DistributionHistory
 
-Teacher "1" --> "0..*" Task : 課題を作成・管理
-Teacher "1" --> "0..*" Prompt : プロンプトを設計
-Teacher "1" --> "0..*" Distribution : 配信を設定
-
-Task "1" --> "1" Prompt : 評価時に利用
-Task "1" --> "1" Rubric : 評価基準を利用
-Task "1" --> "0..*" Distribution : 配信対象の一部
-
-Distribution "1" --> "0..*" ClassRoom : 配信先クラス
-ClassRoom "1" --> "0..*" Student : 生徒を持つ
-
-Student "0..*" --> "0..*" Task : 課題にアクセス
-Student "0..*" --> "0..*" Evaluation : 評価結果を見る
-
-Prompt "0..*" --> "0..*" Evaluation : 評価入力に利用
-
-note right of Task
-  「下書き」・「公開中」・「要更新」・「論理削除」を状態として扱う
+note right of TaskClassAssignment
+  課題は複数の学校/クラスに割り当てられる。
+  公開日時・提出期限・期限後提出可否は
+  クラス単位で保存する。
 end note
 
-note bottom of Distribution
-  配信期間とクラス別の配信状態を分離して管理する
+note bottom of TeacherFeaturePermission
+  機能利用可否は教師×機能コードごとに1行で保持し、
+  JSONの権限配列や画面チェック状態だけにしない。
+end note
+
+note bottom of DistributionTarget
+  全体配信状態とクラス別状態を別々に保持する。
+  各クラスの予約日時・実配信日時も個別に保存する。
 end note
 
 @enduml

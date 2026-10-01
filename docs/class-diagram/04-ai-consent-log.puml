@@ -1,6 +1,6 @@
 @startuml
 title Slice 4: AI連携・同意・ログ管理クラス図
-caption 学生の作業ログと同意状態を収集し、AI評価の入力として整形する設計
+caption 同意、認証、監査、AI評価のリクエスト/応答状態を履歴として保存するモデル
 
 skinparam classAttributeIconSize 0
 skinparam shadowing false
@@ -8,119 +8,208 @@ skinparam roundcorner 15
 skinparam linetype ortho
 skinparam packageStyle rectangle
 
-class Student {
-  + studentId: String
-  + consentStatus: ConsentStatus
-  + reviewConsent()
-  + grantConsent()
-  + withdrawConsent()
+class User {
+  + userId: Long <<PK>>
+  + userType: UserType
+  + accountStatus: AccountStatus
 }
 
 class ConsentRecord {
-  + consentId: String
-  + studentId: String
-  + taskId: String
-  + status: ConsentStatus
+  + consentId: Long <<PK>>
+  + userId: Long <<FK>>
+  + consentStatus: ConsentStatus
+  + consentDocumentVersionId: Long <<FK>>
   + consentedAt: DateTime
-  + version: String
+  + withdrawnAt: DateTime
+  + updatedAt: DateTime
 }
 
-class CodeLog {
-  + logId: String
-  + studentId: String
-  + taskId: String
-  + capturedAt: DateTime
-  + eventType: LogEventType
-  + snapshotText: String
-  + runOutput: String
-  + saveMetadata: String
+class ConsentDocumentVersion {
+  + consentDocumentVersionId: Long <<PK>>
+  + versionCode: String
+  + title: String
+  + body: LongText
+  + documentStatus: DocumentStatus
+  + effectiveAt: DateTime
+  + createdByUserId: Long <<FK>>
+  + createdAt: DateTime
+}
+
+class LoginHistory {
+  + loginHistoryId: Long <<PK>>
+  + userId: Long <<FK>>
+  + attemptedLoginId: String
+  + operationType: LoginOperationType
+  + resultStatus: OperationResult
+  + errorCode: String
+  + errorMessage: Text
+  + ipAddress: String
+  + userAgent: String
+  + sessionId: String
+  + errorDetail: Text
+  + occurredAt: DateTime
+}
+
+class CredentialHistory {
+  + credentialHistoryId: Long <<PK>>
+  + targetUserId: Long <<FK>>
+  + actorUserId: Long <<FK>>
+  + passwordResetRecordId: Long <<FK>>
+  + actionType: CredentialActionType
+  + resultStatus: OperationResult
+  + errorCode: String
+  + errorMessage: Text
+  + occurredAt: DateTime
+}
+
+class PasswordResetRecord {
+  + passwordResetRecordId: Long <<PK>>
+  + targetUserId: Long <<FK>>
+  + requestedByUserId: Long <<FK>>
+  + resetStatus: PasswordResetStatus
+  + mustChangeAtNextLogin: Boolean
+  + expiresAt: DateTime
+  + requestedAt: DateTime
+  + completedAt: DateTime
 }
 
 class AuditLog {
-  + auditId: String
-  + actorId: String
-  + actorRole: String
-  + action: String
+  + auditLogId: Long <<PK>>
+  + actorUserId: Long <<FK>>
+  + actorRole: UserType
+  + featureCode: String
+  + targetType: String
+  + targetId: Long
+  + actionType: AuditActionType
+  + resultStatus: OperationResult
+  + errorCode: String
+  + errorMessage: Text
+  + detail: Text
+  + beforeData: JSON
+  + afterData: JSON
+  + requestId: String
   + occurredAt: DateTime
-  + summary: String
 }
 
-class EvaluationInputBuilder {
-  + buildRequest(task: Task, rubric: Rubric, prompt: Prompt, logs: List<CodeLog>, submission: Submission, consent: ConsentRecord): EvaluationRequest
+class ApplicationErrorLog {
+  + applicationErrorLogId: Long <<PK>>
+  + userId: Long <<FK>>
+  + requestId: String
+  + featureCode: String
+  + operationName: String
+  + errorCategory: ErrorCategory
+  + errorCode: String
+  + userMessage: Text
+  + diagnosticDetail: Text
+  + occurredAt: DateTime
 }
 
 class EvaluationRequest {
-  + requestId: String
-  + taskId: String
+  + evaluationRequestId: Long <<PK>>
+  + evaluationId: Long <<FK>>
+  + modelId: String
   + promptVersion: String
   + rubricVersion: String
-  + actorRole: String
-  + consentStatus: String
-  + meta: Map<String, String>
-  + generatedJson: String
+  + actorRole: UserType
+  + consentStatusAtRequest: ConsentStatus
+  + locale: String
+  + requestPayload: JSON
+  + requestStatus: RequestStatus
+  + retryCount: Integer
+  + requestedAt: DateTime
+  + completedAt: DateTime
+  + errorDetail: Text
 }
 
-class GeminiAdapter {
-  + sendRequest(request: EvaluationRequest): GeminiResponse
-  + validateResponse(response: GeminiResponse): Boolean
+class EvaluationResponse {
+  + evaluationResponseId: Long <<PK>>
+  + evaluationRequestId: Long <<FK>>
+  + rawResponse: JSON
+  + responseStatus: ResponseStatus
+  + confidence: Decimal
+  + warnings: JSON
+  + receivedAt: DateTime
 }
 
-class GeminiResponse {
-  + responseId: String
-  + scores: Map<String, Integer>
-  + reasons: String
-  + confidence: Float
-  + warnings: List<String>
+class EvaluationInputSnapshot {
+  + inputSnapshotId: Long <<PK>>
+  + evaluationRequestId: Long <<FK>>
+  + anonymizedSubjectId: String
+  + taskSnapshot: JSON
+  + submissionSnapshot: JSON
+  + logRangeStart: DateTime
+  + logRangeEnd: DateTime
+  + createdAt: DateTime
+}
+
+class EvaluationInputBuilder {
+  + buildRequest(task: Task, rubric: Rubric, promptVersion: PromptVersion, logs: List<CodeLog>, submission: Submission, consent: ConsentRecord): EvaluationRequest
+}
+
+class CodeLog {
+  + codeLogId: Long <<PK>>
+  + participationId: Long <<FK>>
+  + eventType: LogEventType
+  + eventData: JSON
+  + observedAt: DateTime
+}
+
+class Evaluation {
+  + evaluationId: Long <<PK>>
+  + submissionId: Long <<FK>>
+  + evaluationStatus: EvaluationStatus
 }
 
 class Task {
-  + taskId: String
-  + title: String
-  + promptVersion: String
-  + rubricVersion: String
+  + taskId: Long <<PK>>
+  + publicationStatus: PublicationStatus
 }
 
-class Prompt {
-  + promptId: String
+class PromptVersion {
+  + promptVersionId: Long <<PK>>
   + version: String
-  + content: String
+  + promptStatus: PromptStatus
 }
 
 class Rubric {
-  + rubricId: String
+  + rubricId: Long <<PK>>
   + version: String
-  + criteria: List<String>
+  + rubricStatus: RubricStatus
 }
 
 class Submission {
-  + submissionId: String
-  + studentId: String
-  + taskId: String
-  + submittedCode: String
-  + submittedAt: DateTime
+  + submissionId: Long <<PK>>
+  + submissionStatus: SubmissionStatus
 }
 
-Student "1" --> "0..*" ConsentRecord : 同意状態を保持
-Student "1" --> "0..*" CodeLog : 30秒ログを残す
-Student "1" --> "0..*" Submission : 提出物を作成
-
-CodeLog "0..*" --> "1" EvaluationInputBuilder : AI入力の元データ
-Submission "1" --> "1" EvaluationInputBuilder : 提出情報を渡す
-ConsentRecord "1" --> "1" EvaluationInputBuilder : 同意状態を含める
-Task "1" --> "1" EvaluationInputBuilder : 課題情報を渡す
-Prompt "1" --> "1" EvaluationInputBuilder : プロンプトを渡す
-Rubric "1" --> "1" EvaluationInputBuilder : ルーブリックを渡す
-
-EvaluationInputBuilder "1" --> "1" EvaluationRequest : JSONを生成
-EvaluationRequest "1" --> "1" GeminiAdapter : APIへ送信
-GeminiAdapter "1" --> "1" GeminiResponse : 結果を受信
-
-AuditLog "0..*" --> "1" Student : 操作履歴として記録
-AuditLog "0..*" --> "1" Teacher : 監査対象として残す
+User "1" -- "0..*" ConsentRecord
+User "0..1" -- "0..*" LoginHistory
+ConsentDocumentVersion "1" -- "0..*" ConsentRecord
+User "0..1" -- "0..*" CredentialHistory : 対象ユーザー
+User "0..1" -- "0..*" CredentialHistory : 実行者
+PasswordResetRecord "0..1" -- "0..*" CredentialHistory
+User "1" -- "0..*" AuditLog : 操作者
+User "0..1" -- "0..*" ApplicationErrorLog
+Evaluation "1" -- "0..*" EvaluationRequest
+EvaluationRequest "1" -- "0..*" EvaluationResponse
+EvaluationRequest "1" -- "1" EvaluationInputSnapshot
+User "1" -- "0..*" PasswordResetRecord : 対象アカウント
+User "1" -- "0..*" PasswordResetRecord : 実行者
+EvaluationInputBuilder ..> Task
+EvaluationInputBuilder ..> PromptVersion
+EvaluationInputBuilder ..> Rubric
+EvaluationInputBuilder ..> Submission
+EvaluationInputBuilder ..> CodeLog
+EvaluationInputBuilder ..> ConsentRecord
 
 note right of ConsentRecord
-  同意状態は評価入力に含めるが、
-  主要な評価対象は作業ログと提出物である
+  同意状態と同意文書版はユーザー単位で記録し、
+  AI送信時点の同意状態も要求履歴に固定する。
+end note
+
+note bottom of AuditLog
+  教師/管理者の作成・更新・削除・公開・配信・
+  再評価・CSV出力について実行者、対象、結果、差分を保持。
 end note
 
 @enduml
