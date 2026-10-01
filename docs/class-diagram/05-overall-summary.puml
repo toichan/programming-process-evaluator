@@ -1,0 +1,153 @@
+@startuml
+title Slice 5: 全体統合クラス図
+caption 学習・評価・教師管理・AI連携を一つのシステムとしてまとめた全体像
+
+skinparam classAttributeIconSize 0
+skinparam shadowing false
+skinparam roundcorner 15
+skinparam linetype ortho
+skinparam packageStyle rectangle
+
+class Student {
+  + studentId: String
+  + name: String
+  + consentStatus: ConsentStatus
+  + openTask(task: Task)
+  + submit(task: Task)
+  + reviewResult()
+}
+
+class Teacher {
+  + teacherId: String
+  + name: String
+  + createTask(task: Task)
+  + publishTask(task: Task)
+  + configurePrompt(prompt: Prompt)
+  + configureDistribution(distribution: Distribution)
+}
+
+class Task {
+  + taskId: String
+  + title: String
+  + status: TaskStatus
+  + promptVersion: String
+  + rubricVersion: String
+}
+
+class Prompt {
+  + promptId: String
+  + version: String
+  + body: String
+  + status: PromptStatus
+}
+
+class Rubric {
+  + rubricId: String
+  + version: String
+  + criteria: List<String>
+}
+
+class ClassRoom {
+  + classId: String
+  + name: String
+}
+
+class Distribution {
+  + distributionId: String
+  + status: DistributionStatus
+  + schedule: DateTime
+}
+
+class Submission {
+  + submissionId: String
+  + studentId: String
+  + taskId: String
+  + submittedCode: String
+  + status: SubmissionStatus
+}
+
+class CodeLog {
+  + logId: String
+  + studentId: String
+  + taskId: String
+  + eventType: LogEventType
+  + snapshotText: String
+  + timestamp: DateTime
+}
+
+class ConsentRecord {
+  + consentId: String
+  + studentId: String
+  + taskId: String
+  + status: ConsentStatus
+  + consentedAt: DateTime
+}
+
+class Evaluation {
+  + evaluationId: String
+  + submissionId: String
+  + taskId: String
+  + status: EvaluationStatus
+  + overallScore: Integer
+  + feedback: String
+}
+
+class EvaluationRequest {
+  + requestId: String
+  + taskId: String
+  + promptVersion: String
+  + rubricVersion: String
+  + consentStatus: String
+  + generatedJson: String
+}
+
+class GeminiAdapter {
+  + sendRequest(request: EvaluationRequest): GeminiResponse
+}
+
+class GeminiResponse {
+  + responseId: String
+  + scores: Map<String, Integer>
+  + reasons: String
+  + confidence: Float
+}
+
+Student "1" --> "0..*" Task : 課題を選ぶ
+Student "1" --> "0..*" Submission : 提出物を作成
+Student "1" --> "0..*" CodeLog : 操作ログを残す
+Student "1" --> "0..*" ConsentRecord : 同意状態を保持
+
+Teacher "1" --> "0..*" Task : 課題を作成・公開
+Teacher "1" --> "0..*" Prompt : プロンプト設計
+Teacher "1" --> "0..*" Distribution : 配信を設定
+
+Task "1" --> "1" Prompt : 評価の入力基準
+Task "1" --> "1" Rubric : 評価基準
+Task "1" --> "0..*" Submission : 提出対象
+Task "1" --> "0..*" CodeLog : 実施ログを持つ
+
+Distribution "1" --> "0..*" ClassRoom : 対象クラスを持つ
+ClassRoom "1" --> "0..*" Student : 学生が所属
+
+Submission "1" --> "0..1" Evaluation : 評価結果
+Submission "1" --> "0..*" CodeLog : 参照対象ログ
+
+ConsentRecord "1" --> "1" EvaluationRequest : 同意状態を含む
+CodeLog "0..*" --> "1" EvaluationRequest : 評価入力を構築
+Submission "1" --> "1" EvaluationRequest : 提出内容を含む
+Prompt "1" --> "1" EvaluationRequest : 版付きプロンプト
+Rubric "1" --> "1" EvaluationRequest : 版付き評定基準
+
+EvaluationRequest "1" --> "1" GeminiAdapter : API入力
+GeminiAdapter "1" --> "1" GeminiResponse : 評価結果
+GeminiResponse "1" --> "1" Evaluation : 結果を保存
+
+note right of Student
+  学生は「学習の進行」と「提出状態」を分離して扱う
+end note
+
+note bottom of Teacher
+  教師は課題設計・配信・評価設計を別責務で管理する
+end note
+
+@enduml

@@ -1,0 +1,61 @@
+@startuml
+title Programming Process Evaluator システム全体図
+caption 生徒の学習ログを基にGeminiが評価し、結果を生徒/教師に提示する
+
+left to right direction
+skinparam shadowing false
+skinparam roundcorner 20
+skinparam linetype ortho
+skinparam packageStyle rectangle
+skinparam defaultFontName "Noto Sans CJK JP"
+skinparam defaultFontSize 13
+skinparam ArrowThickness 2
+skinparam rectangle {
+  BackgroundColor #F7FAFC
+  BorderColor #345B8C
+}
+skinparam database {
+  BackgroundColor #FFF7EA
+  BorderColor #D9822B
+}
+skinparam package {
+  BackgroundColor #F9FBFF
+  BorderColor #7DA0C4
+}
+
+actor "生徒\n（課題実施者）" as STUDENT
+actor "教師\n（評価管理者）" as TEACHER
+
+package "Programming Process Evaluator" as PPE {
+  rectangle "Web UI\n\n・生徒: エディター / 実行 / 提出\n・教師: プロンプト / 評価確認" as WEB_UI
+  rectangle "バックエンド\n\n・ログ収集\n・入力組立\n・AI連携\n・結果管理" as BACKEND
+}
+
+database "MySQL\n（課題・ログ・評価結果）" as MYSQL
+component "Gemini API\n（生成AI）" as GEMINI
+
+STUDENT --> WEB_UI : 1. 課題を実施
+WEB_UI --> BACKEND : 操作・コード・提出
+TEACHER --> WEB_UI : 2. プロンプト/ルーブリック設定
+BACKEND --> MYSQL : 学習ログと評価結果を保存
+BACKEND --> GEMINI : 3. 評価依頼
+GEMINI --> BACKEND : 4. 評価JSONを返却
+BACKEND --> WEB_UI : 5. 結果を返す
+WEB_UI --> STUDENT : 6. 学習フィードバック提示
+WEB_UI --> TEACHER : 7. 評価一覧/詳細提示
+
+note right of BACKEND
+評価ロジックの実行主体はGeminiであり、
+バックエンドは収集・組立・保存・可視化を担当する
+end note
+
+legend bottom
+|= 線の種類 |= 意味 |
+|<#1E66B3>━━</#>| 生徒・教師の操作 |
+|<#3B7D3A>━━</#>| 教師の設定操作 |
+|<#7652A3>━━</#>| AI送信 |
+|<#7652A3>┄┄</#>| AI応答 |
+|<#D9822B>━━</#>| DB保存・取得 |
+endlegend
+
+@enduml
