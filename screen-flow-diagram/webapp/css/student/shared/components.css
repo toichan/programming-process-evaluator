@@ -157,8 +157,8 @@
 }
 
 .task-shortcut-level.is-beginner {
-  background: #dbeafe;
-  color: #1d4ed8;
+  background: linear-gradient(135deg, #dcfce7, #bbf7d0);
+  color: #166534;
 }
 
 .task-shortcut-level.is-intermediate {

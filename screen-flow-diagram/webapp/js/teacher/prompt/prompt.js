@@ -1,6 +1,6 @@
 // Teacher prompt page interactions
 
-const pageFeedback = window.PPEFeedback.createPageFeedback({ title: 'プロンプト修正' });
+const pageFeedback = window.PPEFeedback.createPageFeedback({ title: 'プロンプト設計' });
 const teacherAudit = window.PPETeacherAudit || null;
 let promptAuditDetailModal = null;
 
@@ -54,6 +54,12 @@ const STEP2_VERSION_STORAGE_KEY = 'teacherPromptStep2VersionStore';
 const EVALUATION_EXAMPLES_STORAGE_KEY = 'teacherEvaluationExamplesStore';
 const STEP3_VERSION_STORAGE_KEY = 'teacherPromptStep3VersionStore';
 let commonPromptEditor = null;
+
+const PROMPT_TASK_META = {
+  'TASK-001': { name: 'じゃんけん判定', difficulty: '初級', target: '国際中等 / 1年A組' },
+  'TASK-002': { name: '在庫管理', difficulty: '中級', target: '国際中等 / 1年B組' },
+  'TASK-003': { name: '経路探索', difficulty: '上級', target: '附属高校 / 4年2組' }
+};
 
 const COMMON_PROMPT_TEMPLATE = `# Persona
 
@@ -109,6 +115,7 @@ function initializePromptPage() {
   const taskSelect = document.getElementById('taskSelect');
   const versionSelect = document.getElementById('versionSelect');
   const versionSelectStep2 = document.getElementById('versionSelectStep2');
+  const versionSelectStep3 = document.getElementById('versionSelectStep3');
 
   if (taskSelect) {
     taskSelect.addEventListener('change', onTaskChanged);
@@ -122,6 +129,10 @@ function initializePromptPage() {
     versionSelectStep2.addEventListener('change', onStep2VersionChanged);
   }
 
+  if (versionSelectStep3) {
+    versionSelectStep3.addEventListener('change', onStep3VersionChanged);
+  }
+
   if (form) {
     form.addEventListener('submit', function(event) {
       event.preventDefault();
@@ -132,20 +143,25 @@ function initializePromptPage() {
       }
 
       const saved = saveNewVersion(taskId);
-      pageFeedback.toast({ message: '共通プロンプトを保存しました。', variant: 'success', delay: 1800 });
+      const toastMessage = saved.reused
+        ? '変更がないため、' + formatStep1VersionLabel(saved.version) + ' をそのまま利用します。'
+        : '共通プロンプトを保存しました。';
+      pageFeedback.toast({ message: toastMessage, variant: 'success', delay: 1800 });
       updateLastUpdated();
-      appendHistoryRow({
-        taskId: taskId,
-        step1Version: saved.version,
-        step2Version: '-',
-        step3Version: '-',
-        reevaluation: '未実施'
-      });
+      if (!saved.reused) {
+        appendHistoryRow({
+          taskId: taskId,
+          step1Version: saved.version,
+          step2Version: '-',
+          step3Version: '-',
+          status: '下書き'
+        });
+      }
     });
   }
 
   if (generateButton) {
-    generateButton.addEventListener('click', generateFluctuationItems);
+    generateButton.addEventListener('click', requestFluctuationItemsFromAi);
   }
 
   if (savePromptButton) {
@@ -155,7 +171,20 @@ function initializePromptPage() {
         return;
       }
 
-      runReevaluation();
+      const taskId = getTaskId();
+      if (!taskId) {
+        pageFeedback.toast({ message: '課題を選択してください。', variant: 'warning', delay: 1800 });
+        return;
+      }
+
+      const saved = saveStep2Version(taskId);
+      const toastMessage = saved.reused
+        ? '変更がないため、STEP2は ' + formatStep2VersionLabel(saved.step1Version, saved.version) + ' を利用して評価例を生成します。'
+        : 'STEP2を' + formatStep2VersionLabel(saved.step1Version, saved.version) + 'として保存し、評価例を生成します。';
+      pageFeedback.toast({ message: toastMessage, variant: 'success', delay: 1800 });
+      updateLastUpdated();
+
+      runReevaluation('generate');
     });
   }
 
@@ -173,15 +202,22 @@ function initializePromptPage() {
       }
 
       const saved = saveStep2Version(taskId);
-      pageFeedback.toast({ message: '課題プロンプトを保存しました。', variant: 'success', delay: 1800 });
+      const toastMessage = saved.reused
+        ? '変更がないため、' + formatStep2VersionLabel(saved.step1Version, saved.version) + ' をそのまま利用します。'
+        : '課題プロンプトを保存しました。';
+      pageFeedback.toast({ message: toastMessage, variant: 'success', delay: 1800 });
       updateLastUpdated();
-      appendHistoryRow({
-        taskId: taskId,
-        step1Version: getLatestVersionNumber(taskId),
-        step2Version: saved.version,
-        step3Version: '-',
-        reevaluation: '未実施'
-      });
+      if (!saved.reused) {
+        appendHistoryRow({
+          taskId: taskId,
+          step1Version: getLatestVersionNumber(taskId),
+          step2Version: saved.version,
+          step3Version: '-',
+          status: '下書き'
+        });
+      }
+      renderStep3VersionOptions(taskId);
+      syncStep3Selection(taskId);
     });
   }
 
@@ -206,7 +242,7 @@ function initializePromptPage() {
         const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
         modal.hide();
       }
-      runReevaluation();
+      runReevaluation('reevaluate');
     });
   }
 
@@ -228,8 +264,11 @@ function initializePromptPage() {
   applyInitialTaskSelection();
   renderVersionOptions(getTaskId());
   renderStep2VersionOptions(getTaskId());
-  renderEvaluationExamples(getTaskId());
+  renderStep3VersionOptions(getTaskId());
+  syncStep2AndStep3Selection(getTaskId());
   bindPromptHistoryDetailButtons();
+  bindPromptHistoryDuplicateButtons();
+  bindPromptHistoryEditButtons();
 }
 
 function onTaskChanged() {
@@ -239,6 +278,7 @@ function onTaskChanged() {
 
   if (!taskId) {
     setValue('evaluationPromptInput', COMMON_PROMPT_TEMPLATE);
+    renderStep3VersionOptions('');
     renderEvaluationExamples('');
     return;
   }
@@ -254,7 +294,8 @@ function onTaskChanged() {
     }
   }
 
-  renderEvaluationExamples(taskId);
+  renderStep3VersionOptions(taskId);
+  syncStep2AndStep3Selection(taskId);
 }
 
 function applyInitialTaskSelection() {
@@ -297,8 +338,9 @@ function onVersionChanged() {
   if (!record) return;
 
   applyVersionRecord(record);
-  pageFeedback.toast({ message: 'ver.' + versionNumber + ' のプロンプトを読み込みました。', variant: 'success', delay: 1800 });
+  pageFeedback.toast({ message: formatStep1VersionLabel(versionNumber) + ' のプロンプトを読み込みました。', variant: 'success', delay: 1800 });
   renderStep2VersionOptions(taskId);
+  syncStep2AndStep3Selection(taskId);
 }
 
 function onStep2VersionChanged() {
@@ -307,20 +349,96 @@ function onStep2VersionChanged() {
   if (!taskId || !versionSelect || !versionSelect.value) return;
 
   const versionNumber = Number(versionSelect.value);
-  const record = getStep2VersionRecord(taskId, versionNumber);
+  const record = getStep2VersionRecord(taskId, versionNumber, getCurrentStep1VersionNumber(taskId));
   if (!record) return;
 
   applyStep2VersionRecord(record);
-  pageFeedback.toast({ message: 'ver.' + versionNumber + ' のSTEP2設定を読み込みました。', variant: 'success', delay: 1800 });
+  pageFeedback.toast({ message: formatStep2VersionLabel(record.step1Version, record.version) + ' のSTEP2設定を読み込みました。', variant: 'success', delay: 1800 });
+  renderStep3VersionOptions(taskId);
+  syncStep3Selection(taskId);
+}
+
+function onStep3VersionChanged() {
+  const taskId = getTaskId();
+  const versionSelect = document.getElementById('versionSelectStep3');
+  if (!taskId || !versionSelect || !versionSelect.value) return;
+
+  const versionNumber = Number(versionSelect.value);
+  const record = getStep3VersionRecord(taskId, versionNumber, getCurrentStep1VersionNumber(taskId), getCurrentStep2VersionNumber(taskId));
+  if (!record) return;
+
+  applyStep3VersionRecord(taskId, record);
+  pageFeedback.toast({ message: formatStep3VersionLabel(record.step1Version, record.step2Version, record.version) + ' の評価例を読み込みました。', variant: 'success', delay: 1800 });
+}
+
+function syncStep2AndStep3Selection(taskId) {
+  if (!taskId) {
+    clearStep2Inputs();
+    renderStep3VersionOptions('');
+    renderEvaluationExamples('');
+    return;
+  }
+
+  const step2Record = getCurrentStep2VersionRecord(taskId);
+  if (step2Record) {
+    applyStep2VersionRecord(step2Record);
+  } else {
+    clearStep2Inputs();
+  }
+
+  renderStep3VersionOptions(taskId);
+  syncStep3Selection(taskId);
+}
+
+function syncStep3Selection(taskId) {
+  if (!taskId) {
+    renderEvaluationExamples('');
+    return;
+  }
+
+  const step3Record = getCurrentStep3VersionRecord(taskId);
+  if (step3Record) {
+    applyStep3VersionRecord(taskId, step3Record);
+    return;
+  }
+
+  saveEvaluationExamples(taskId, []);
+  renderEvaluationExamples(taskId);
 }
 
 function generateFluctuationItems() {
   const taskId = getTaskId();
   if (!taskId) {
     pageFeedback.toast({ message: '課題を選択してください。', variant: 'warning', delay: 1800 });
+  if (!taskId) {
+    renderEvaluationExamples('');
     return;
   }
 
+    return;
+  }
+
+  const saved = saveNewVersion(taskId);
+  updateLastUpdated();
+  if (!saved.reused) {
+    appendHistoryRow({
+      taskId: taskId,
+      step1Version: saved.version,
+      step2Version: '-',
+      step3Version: '-',
+      status: '下書き'
+    });
+  }
+
+  renderFluctuationItems(taskId);
+
+  const toastMessage = saved.reused
+    ? '揺らぎ項目を生成しました。STEP1は変更がないため ' + formatStep1VersionLabel(saved.version) + ' を利用します。'
+    : '揺らぎ項目を生成し、STEP1を' + formatStep1VersionLabel(saved.version) + 'として保存しました。';
+  pageFeedback.toast({ message: toastMessage, variant: 'success', delay: 1800 });
+}
+
+function renderFluctuationItems(taskId) {
   const list = fluctuationTemplateByTask[taskId] || [];
   const fluctuationList = document.getElementById('fluctuationList');
   const fluctuationEmpty = document.getElementById('fluctuationEmpty');
@@ -351,62 +469,53 @@ function generateFluctuationItems() {
   fluctuationEmpty.classList.add('d-none');
   fluctuationList.classList.remove('d-none');
   fluctuationStatus.textContent = '生成済み';
-  fluctuationStatus.className = 'badge text-bg-success';
+  fluctuationStatus.className = 'badge text-bg-primary';
 
   if (savePromptButton) savePromptButton.disabled = false;
   if (runReevaluationButton) runReevaluationButton.disabled = false;
   if (resetStep2Button) resetStep2Button.disabled = false;
-
-  pageFeedback.toast({ message: '揺らぎ項目を生成しました。', variant: 'success', delay: 1800 });
 }
 
-function runReevaluation() {
+function requestFluctuationItemsFromAi() {
+  const taskId = getTaskId();
+  if (!taskId) {
+    pageFeedback.toast({ message: '課題を選択してください。', variant: 'warning', delay: 1800 });
+    return;
+  }
+
+  setStep2AiLoading(true);
+  window.setTimeout(function() {
+    try {
+      generateFluctuationItems();
+    } finally {
+      setStep2AiLoading(false);
+    }
+  }, 900);
+}
+
+function runReevaluation(mode) {
   if (!hasGeneratedFluctuations()) {
     pageFeedback.toast({ message: '先に揺らぎ項目を生成してください。', variant: 'warning', delay: 1800 });
     return;
   }
 
-  const wrap = document.getElementById('reevaluationProgressWrap');
-  const bar = document.getElementById('reevaluationProgressBar');
   const runButton = document.getElementById('runReevaluationButton');
   const pendingCountEl = document.getElementById('pendingCount');
 
-  if (!wrap || !bar) return;
-
-  wrap.classList.remove('d-none');
+  setStep3AiLoading(true);
   if (runButton) runButton.disabled = true;
 
-  let progress = 0;
-  bar.style.width = '0%';
-  bar.textContent = '0%';
+  window.setTimeout(function() {
+    if (runButton) runButton.disabled = false;
 
-  const timer = window.setInterval(function() {
-    progress += 10;
-    bar.style.width = progress + '%';
-    bar.textContent = progress + '%';
+    if (pendingCountEl) {
+      const current = Number(pendingCountEl.textContent || '0');
+      pendingCountEl.textContent = String(Math.max(0, current - 1));
+    }
 
-    if (progress >= 100) {
-      window.clearInterval(timer);
-      if (runButton) runButton.disabled = false;
-
-      if (pendingCountEl) {
-        const current = Number(pendingCountEl.textContent || '0');
-        pendingCountEl.textContent = String(Math.max(0, current - 1));
-      }
-
-      appendHistoryRow({
-        taskId: getTaskId(),
-        step1Version: getLatestVersionNumber(getTaskId()),
-        step2Version: getLatestStep2VersionNumber(getTaskId()),
-        step3Version: incrementStep3Version(getTaskId()),
-        reevaluation: '実施済み'
-      });
-      recordPromptAudit('再評価', getTaskId(), '全体再評価を実行');
-      updateLastUpdated();
-
-      const taskId = getTaskId();
-      if (taskId) {
-        const sampleExamples = [
+    const taskId = getTaskId();
+    if (taskId) {
+      const sampleExamples = [
           {
             id: 1,
             scores: { '思判表': 4, '態度': 3 },
@@ -455,14 +564,73 @@ function runReevaluation() {
               }
             ]
           }
-        ];
-        saveEvaluationExamples(taskId, sampleExamples);
-        renderEvaluationExamples(taskId);
-      }
-
-      pageFeedback.toast({ message: '評価例の生成が完了しました。', variant: 'success', delay: 1800 });
+      ];
+      const savedStep3 = saveStep3Version(taskId, sampleExamples);
+      saveEvaluationExamples(taskId, sampleExamples);
+      appendHistoryRow({
+        taskId: taskId,
+        step1Version: getLatestVersionNumber(taskId),
+        step2Version: getLatestStep2VersionNumber(taskId),
+        step3Version: savedStep3.version,
+        status: mode === 'reevaluate' ? '再評価済み' : '設定済み'
+      });
+      const step3ActionLabel = savedStep3.reused ? 'を再利用して' : 'を生成して';
+      recordPromptAudit('再評価', taskId, 'STEP3 ' + formatStep3VersionLabel(savedStep3.step1Version, savedStep3.step2Version, savedStep3.version) + ' ' + step3ActionLabel + '全体再評価を実行');
+      updateLastUpdated();
+      renderEvaluationExamples(taskId);
     }
-  }, 180);
+
+    setStep3AiLoading(false);
+    pageFeedback.toast({ message: '評価例の更新が完了しました。', variant: 'success', delay: 1800 });
+  }, 1800);
+}
+
+function setStep2AiLoading(isLoading) {
+  const skeleton = document.getElementById('step2AiSkeleton');
+  const fluctuationList = document.getElementById('fluctuationList');
+  const fluctuationEmpty = document.getElementById('fluctuationEmpty');
+  const status = document.getElementById('fluctuationStatus');
+  const generateButton = document.getElementById('generateFluctuationButton');
+
+  if (generateButton) {
+    generateButton.disabled = Boolean(isLoading);
+  }
+  if (!skeleton || !fluctuationList || !fluctuationEmpty || !status) {
+    return;
+  }
+
+  if (isLoading) {
+    skeleton.classList.remove('d-none');
+    fluctuationList.classList.add('d-none');
+    fluctuationEmpty.classList.add('d-none');
+    status.textContent = '生成中...';
+    status.className = 'badge text-bg-primary';
+    return;
+  }
+
+  skeleton.classList.add('d-none');
+}
+
+function setStep3AiLoading(isLoading) {
+  const skeleton = document.getElementById('step3AiSkeleton');
+  const list = document.getElementById('evaluationExamplesList');
+  const empty = document.getElementById('evaluationExamplesEmpty');
+  const status = document.getElementById('evaluationExamplesStatus');
+  if (!skeleton || !list || !empty || !status) {
+    return;
+  }
+
+  if (isLoading) {
+    skeleton.classList.remove('d-none');
+    list.classList.add('d-none');
+    empty.classList.add('d-none');
+    status.textContent = '生成中...';
+    status.className = 'badge text-bg-primary';
+    setStep3ActionButtonsEnabled(false);
+    return;
+  }
+
+  skeleton.classList.add('d-none');
 }
 
 async function resetPromptForm() {
@@ -488,7 +656,6 @@ async function resetPromptForm() {
   const runReevaluationButton = document.getElementById('runReevaluationButton');
   const resetStep2Button = document.getElementById('resetStep2Button');
   const fluctuationStatus = document.getElementById('fluctuationStatus');
-  const wrap = document.getElementById('reevaluationProgressWrap');
 
   if (form) form.reset();
   setValue('evaluationPromptInput', COMMON_PROMPT_TEMPLATE);
@@ -512,7 +679,8 @@ async function resetPromptForm() {
     fluctuationStatus.className = 'badge text-bg-light border';
   }
 
-  if (wrap) wrap.classList.add('d-none');
+  setStep2AiLoading(false);
+  setStep3AiLoading(false);
 
   pageFeedback.toast({ message: '入力内容をリセットしました。', variant: 'success', delay: 1800 });
 }
@@ -588,16 +756,24 @@ function saveNewVersion(taskId) {
     savedAt: nowAsDisplayDate()
   };
 
+  const latest = list.length === 0 ? null : list[list.length - 1];
+  if (latest && isSameStep1Payload(latest, record)) {
+    renderVersionOptions(taskId);
+    const versionSelect = document.getElementById('versionSelect');
+    if (versionSelect) versionSelect.value = String(latest.version);
+    return Object.assign({}, latest, { reused: true });
+  }
+
   list.push(record);
   store[taskId] = list;
   saveVersionStore(store);
-  recordPromptAudit('編集', taskId, 'STEP1 共通プロンプトを保存: ver.' + String(nextVersion));
+  recordPromptAudit('編集', taskId, 'STEP1 共通プロンプトを保存: ' + formatStep1VersionLabel(nextVersion));
 
   renderVersionOptions(taskId);
   const versionSelect = document.getElementById('versionSelect');
   if (versionSelect) versionSelect.value = String(nextVersion);
 
-  return record;
+  return Object.assign({}, record, { reused: false });
 }
 
 function applyVersionRecord(record) {
@@ -642,7 +818,8 @@ function renderStep2VersionOptions(taskId) {
     return;
   }
 
-  const versions = getStep2VersionList(taskId);
+  const step1Version = getCurrentStep1VersionNumber(taskId);
+  const versions = getStep2VersionList(taskId, step1Version);
   if (versions.length === 0) {
     versionSelect.innerHTML = '<option value="">未保存</option>';
     versionSelect.disabled = true;
@@ -650,7 +827,35 @@ function renderStep2VersionOptions(taskId) {
   }
 
   versionSelect.innerHTML = versions.map(function(record) {
-    return '<option value="' + record.version + '">ver.' + record.version + '</option>';
+    return '<option value="' + record.version + '">' + formatStep2VersionLabel(record.step1Version, record.version) + '</option>';
+  }).join('');
+
+  const latest = versions[versions.length - 1];
+  versionSelect.value = String(latest.version);
+  versionSelect.disabled = false;
+}
+
+function renderStep3VersionOptions(taskId) {
+  const versionSelect = document.getElementById('versionSelectStep3');
+  if (!versionSelect) return;
+
+  if (!taskId) {
+    versionSelect.innerHTML = '<option value="">課題を選択してください</option>';
+    versionSelect.disabled = true;
+    return;
+  }
+
+  const step1Version = getCurrentStep1VersionNumber(taskId);
+  const step2Version = getCurrentStep2VersionNumber(taskId);
+  const versions = getStep3VersionList(taskId, step1Version, step2Version);
+  if (versions.length === 0) {
+    versionSelect.innerHTML = '<option value="">未保存</option>';
+    versionSelect.disabled = true;
+    return;
+  }
+
+  versionSelect.innerHTML = versions.map(function(record) {
+    return '<option value="' + record.version + '">' + formatStep3VersionLabel(record.step1Version, record.step2Version, record.version) + '</option>';
   }).join('');
 
   const latest = versions[versions.length - 1];
@@ -661,7 +866,11 @@ function renderStep2VersionOptions(taskId) {
 function saveStep2Version(taskId) {
   const store = loadStep2VersionStore();
   const list = store[taskId] || [];
-  const nextVersion = list.length === 0 ? 1 : list[list.length - 1].version + 1;
+  const step1Version = getCurrentStep1VersionNumber(taskId);
+  const siblingVersions = list.filter(function(record) {
+    return Number(record.step1Version || step1Version) === Number(step1Version);
+  });
+  const nextVersion = siblingVersions.length === 0 ? 1 : siblingVersions[siblingVersions.length - 1].version + 1;
 
   const responses = Array.from(document.querySelectorAll('.fluctuation-response')).map(function(el) {
     return el.value || '';
@@ -669,34 +878,44 @@ function saveStep2Version(taskId) {
 
   const record = {
     version: nextVersion,
+    step1Version: step1Version,
     additionalInstruction: getValue('additionalInstructionInput'),
     responses: responses,
     savedAt: nowAsDisplayDate()
   };
 
+  const latest = siblingVersions.length === 0 ? null : siblingVersions[siblingVersions.length - 1];
+  if (latest && isSameStep2Payload(latest, record)) {
+    renderStep2VersionOptions(taskId);
+    const versionSelect = document.getElementById('versionSelectStep2');
+    if (versionSelect) versionSelect.value = String(latest.version);
+    return Object.assign({}, latest, { reused: true });
+  }
+
   list.push(record);
   store[taskId] = list;
   saveStep2VersionStore(store);
-  recordPromptAudit('編集', taskId, 'STEP2 課題プロンプトを保存: ver.' + String(nextVersion));
+  recordPromptAudit('編集', taskId, 'STEP2 課題プロンプトを保存: ' + formatStep2VersionLabel(step1Version, nextVersion));
 
   renderStep2VersionOptions(taskId);
   const versionSelect = document.getElementById('versionSelectStep2');
   if (versionSelect) versionSelect.value = String(nextVersion);
 
-  return record;
+  return Object.assign({}, record, { reused: false });
 }
 
 function applyStep2VersionRecord(record) {
   setValue('additionalInstructionInput', record.additionalInstruction || '');
 
   if (!Array.isArray(record.responses) || record.responses.length === 0) {
+    renderFluctuationItems(getTaskId());
     return;
   }
 
   const taskId = getTaskId();
   if (!taskId) return;
 
-  generateFluctuationItems();
+  renderFluctuationItems(taskId);
   const fields = Array.from(document.querySelectorAll('.fluctuation-response'));
   fields.forEach(function(field, idx) {
     field.value = record.responses[idx] || '';
@@ -704,22 +923,28 @@ function applyStep2VersionRecord(record) {
 }
 
 function hasAnyStep2Version(taskId) {
-  return getStep2VersionList(taskId).length > 0;
+  return getStep2VersionList(taskId, getCurrentStep1VersionNumber(taskId)).length > 0;
 }
 
-function getStep2VersionList(taskId) {
+function getStep2VersionList(taskId, step1Version) {
   const store = loadStep2VersionStore();
   const list = store[taskId] || [];
-  return list.slice().sort(function(a, b) { return a.version - b.version; });
+  if (step1Version === undefined || step1Version === null || step1Version === '-' || step1Version === '') {
+    return list.slice().sort(function(a, b) { return a.version - b.version; });
+  }
+  const filtered = list.filter(function(record) {
+    return Number(record.step1Version || step1Version) === Number(step1Version);
+  });
+  return filtered.slice().sort(function(a, b) { return a.version - b.version; });
 }
 
-function getLatestStep2VersionRecord(taskId) {
-  const versions = getStep2VersionList(taskId);
+function getLatestStep2VersionRecord(taskId, step1Version) {
+  const versions = getStep2VersionList(taskId, step1Version);
   return versions.length ? versions[versions.length - 1] : null;
 }
 
-function getStep2VersionRecord(taskId, versionNumber) {
-  const versions = getStep2VersionList(taskId);
+function getStep2VersionRecord(taskId, versionNumber, step1Version) {
+  const versions = getStep2VersionList(taskId, step1Version);
   return versions.find(function(record) { return record.version === versionNumber; }) || null;
 }
 
@@ -753,6 +978,74 @@ function saveStep3VersionStore(store) {
   window.localStorage.setItem(STEP3_VERSION_STORAGE_KEY, JSON.stringify(store));
 }
 
+function saveStep3Version(taskId, examples) {
+  const store = loadStep3VersionStore();
+  const currentValue = store[taskId];
+  const list = Array.isArray(currentValue) ? currentValue : [];
+  const step1Version = getCurrentStep1VersionNumber(taskId);
+  const step2Version = getCurrentStep2VersionNumber(taskId);
+  const siblingVersions = list.filter(function(record) {
+    return Number(record.step1Version || step1Version) === Number(step1Version)
+      && Number(record.step2Version || step2Version) === Number(step2Version);
+  });
+  const nextVersion = siblingVersions.length === 0 ? 1 : siblingVersions[siblingVersions.length - 1].version + 1;
+
+  const record = {
+    version: nextVersion,
+    step1Version: step1Version,
+    step2Version: step2Version,
+    examples: Array.isArray(examples) ? JSON.parse(JSON.stringify(examples)) : [],
+    savedAt: nowAsDisplayDate()
+  };
+
+  const latest = siblingVersions.length === 0 ? null : siblingVersions[siblingVersions.length - 1];
+  if (latest && isSameStep3Payload(latest, record)) {
+    renderStep3VersionOptions(taskId);
+    const versionSelect = document.getElementById('versionSelectStep3');
+    if (versionSelect) versionSelect.value = String(latest.version);
+    return Object.assign({}, latest, { reused: true });
+  }
+
+  list.push(record);
+  store[taskId] = list;
+  saveStep3VersionStore(store);
+  renderStep3VersionOptions(taskId);
+
+  const versionSelect = document.getElementById('versionSelectStep3');
+  if (versionSelect) versionSelect.value = String(nextVersion);
+
+  return Object.assign({}, record, { reused: false });
+}
+
+function applyStep3VersionRecord(taskId, record) {
+  saveEvaluationExamples(taskId, Array.isArray(record.examples) ? record.examples : []);
+  renderEvaluationExamples(taskId);
+}
+
+function getStep3VersionList(taskId, step1Version, step2Version) {
+  const store = loadStep3VersionStore();
+  const value = store[taskId];
+  const list = Array.isArray(value) ? value : [];
+  if (step1Version === undefined || step2Version === undefined || step1Version === '-' || step2Version === '-') {
+    return list.slice().sort(function(a, b) { return a.version - b.version; });
+  }
+  const filtered = list.filter(function(record) {
+    return Number(record.step1Version || step1Version) === Number(step1Version)
+      && Number(record.step2Version || step2Version) === Number(step2Version);
+  });
+  return filtered.slice().sort(function(a, b) { return a.version - b.version; });
+}
+
+function getLatestStep3VersionRecord(taskId, step1Version, step2Version) {
+  const versions = getStep3VersionList(taskId, step1Version, step2Version);
+  return versions.length ? versions[versions.length - 1] : null;
+}
+
+function getStep3VersionRecord(taskId, versionNumber, step1Version, step2Version) {
+  const versions = getStep3VersionList(taskId, step1Version, step2Version);
+  return versions.find(function(record) { return record.version === versionNumber; }) || null;
+}
+
 function loadVersionStore() {
   try {
     const raw = window.localStorage.getItem(PROMPT_VERSION_STORAGE_KEY);
@@ -766,6 +1059,106 @@ function loadVersionStore() {
 
 function saveVersionStore(store) {
   window.localStorage.setItem(PROMPT_VERSION_STORAGE_KEY, JSON.stringify(store));
+}
+
+function normalizeTextForCompare(value) {
+  return String(value || '').replace(/\r\n/g, '\n').trim();
+}
+
+function normalizeStringArrayForCompare(values) {
+  if (!Array.isArray(values)) return [];
+  return values.map(function(value) {
+    return normalizeTextForCompare(value);
+  });
+}
+
+function isSameStep1Payload(baseRecord, nextRecord) {
+  return normalizeTextForCompare(baseRecord.model) === normalizeTextForCompare(nextRecord.model)
+    && normalizeTextForCompare(baseRecord.prompt) === normalizeTextForCompare(nextRecord.prompt)
+    && normalizeTextForCompare(baseRecord.additionalInstruction) === normalizeTextForCompare(nextRecord.additionalInstruction);
+}
+
+function isSameStep2Payload(baseRecord, nextRecord) {
+  if (Number(baseRecord.step1Version || '-') !== Number(nextRecord.step1Version || '-')) {
+    return false;
+  }
+  const baseResponses = normalizeStringArrayForCompare(baseRecord.responses);
+  const nextResponses = normalizeStringArrayForCompare(nextRecord.responses);
+  if (baseResponses.length !== nextResponses.length) {
+    return false;
+  }
+  const sameResponses = baseResponses.every(function(value, index) {
+    return value === nextResponses[index];
+  });
+  return sameResponses
+    && normalizeTextForCompare(baseRecord.additionalInstruction) === normalizeTextForCompare(nextRecord.additionalInstruction);
+}
+
+function isSameStep3Payload(baseRecord, nextRecord) {
+  if (Number(baseRecord.step1Version || '-') !== Number(nextRecord.step1Version || '-')) {
+    return false;
+  }
+  if (Number(baseRecord.step2Version || '-') !== Number(nextRecord.step2Version || '-')) {
+    return false;
+  }
+  return JSON.stringify(baseRecord.examples || []) === JSON.stringify(nextRecord.examples || []);
+}
+
+function formatStep1VersionLabel(step1Version) {
+  if (step1Version === '-' || step1Version === '' || step1Version === null || step1Version === undefined) return '-';
+  return 'ver.' + String(step1Version);
+}
+
+function formatStep2VersionLabel(step1Version, step2Version) {
+  if (step2Version === '-' || step2Version === '' || step2Version === null || step2Version === undefined) return '-';
+  return 'ver.' + String(step1Version) + '.' + String(step2Version);
+}
+
+function formatStep3VersionLabel(step1Version, step2Version, step3Version) {
+  if (step3Version === '-' || step3Version === '' || step3Version === null || step3Version === undefined) return '-';
+  return 'ver.' + String(step1Version) + '.' + String(step2Version) + '.' + String(step3Version);
+}
+
+function formatHistoryVersionLabel(step1Version, step2Version, step3Version) {
+  const step3Label = formatStep3VersionLabel(step1Version, step2Version, step3Version);
+  if (step3Label !== '-') return step3Label;
+
+  const step2Label = formatStep2VersionLabel(step1Version, step2Version);
+  if (step2Label !== '-') return step2Label;
+
+  return formatStep1VersionLabel(step1Version);
+}
+
+function getCurrentStep1VersionNumber(taskId) {
+  const versionSelect = document.getElementById('versionSelect');
+  if (versionSelect && versionSelect.value) {
+    return Number(versionSelect.value);
+  }
+  return getLatestVersionNumber(taskId);
+}
+
+function getCurrentStep2VersionRecord(taskId) {
+  const step1Version = getCurrentStep1VersionNumber(taskId);
+  const versionSelect = document.getElementById('versionSelectStep2');
+  if (versionSelect && versionSelect.value) {
+    return getStep2VersionRecord(taskId, Number(versionSelect.value), step1Version);
+  }
+  return getLatestStep2VersionRecord(taskId, step1Version);
+}
+
+function getCurrentStep2VersionNumber(taskId) {
+  const record = getCurrentStep2VersionRecord(taskId);
+  return record ? record.version : '-';
+}
+
+function getCurrentStep3VersionRecord(taskId) {
+  const step1Version = getCurrentStep1VersionNumber(taskId);
+  const step2Version = getCurrentStep2VersionNumber(taskId);
+  const versionSelect = document.getElementById('versionSelectStep3');
+  if (versionSelect && versionSelect.value) {
+    return getStep3VersionRecord(taskId, Number(versionSelect.value), step1Version, step2Version);
+  }
+  return getLatestStep3VersionRecord(taskId, step1Version, step2Version);
 }
 
 function initializeCommonPromptEditor() {
@@ -812,25 +1205,77 @@ function appendHistoryRow(entry) {
   const table = document.querySelector('#historyTable tbody');
   if (!table) return;
 
-  const date = nowAsDisplayDate();
-  const reevaluationBadge = entry.reevaluation === '実施済み'
-    ? '<span class="badge text-bg-success">実施済み</span>'
-    : '<span class="badge text-bg-secondary">未実施</span>';
+  const createdAt = nowAsDisplayDate();
+  const statusText = entry.status || entry.reevaluation || '下書き';
+  const statusBadge = buildPromptHistoryStatusBadgeHtml(statusText);
 
   const row = document.createElement('tr');
   const taskId = String(entry.taskId || '');
+  const taskMeta = getPromptTaskMeta(taskId);
+  const actor = String(entry.actor || 't001');
+  const isDraft = statusText === '下書き';
+  const editButtonClass = isDraft ? 'btn-outline-primary' : 'btn-outline-secondary';
+  const editDisabled = isDraft ? '' : ' disabled';
+
+  row.dataset.taskId = taskId;
+  row.dataset.step1Version = String(entry.step1Version || '-');
+  row.dataset.step2Version = String(entry.step2Version || '-');
+  row.dataset.step3Version = String(entry.step3Version || '-');
+  row.dataset.status = statusText;
+  row.dataset.actor = actor;
+
   row.innerHTML = '' +
-    '<td>' + escapeHtml(date) + '</td>' +
-    '<td>' + escapeHtml(String(toTaskIdNumber(entry.taskId))) + '</td>' +
-    '<td>t001</td>' +
-    '<td>' + escapeHtml(String(entry.step1Version || '-')) + '</td>' +
-    '<td>' + escapeHtml(String(entry.step2Version || '-')) + '</td>' +
-    '<td>' + escapeHtml(String(entry.step3Version || '-')) + '</td>' +
-    '<td>' + reevaluationBadge + '</td>' +
+    '<td>' + escapeHtml(taskMeta.name) + '</td>' +
+    '<td>' + buildDifficultyBadgeHtml(taskMeta.difficulty) + '</td>' +
+    '<td>' + escapeHtml(taskMeta.target) + '</td>' +
+    '<td>' + escapeHtml(formatHistoryVersionLabel(entry.step1Version || '-', entry.step2Version || '-', entry.step3Version || '-')) + '</td>' +
+    '<td>' + statusBadge + '</td>' +
+    '<td>' + escapeHtml(createdAt) + '</td>' +
+    '<td><code class="history-creator-id">' + escapeHtml(actor) + '</code></td>' +
+    '<td><div class="d-flex gap-2"><button class="btn btn-sm ' + editButtonClass + ' prompt-history-edit" type="button" data-task-id="' + escapeHtml(taskId) + '"' + editDisabled + '>編集</button><button class="btn btn-sm btn-outline-secondary prompt-history-duplicate" type="button" data-task-id="' + escapeHtml(taskId) + '">複製</button></div></td>' +
     '<td><button class="btn btn-sm btn-outline-primary prompt-history-detail" type="button" data-task-id="' + escapeHtml(taskId) + '">表示</button></td>';
 
   table.prepend(row);
   bindPromptHistoryDetailButtons();
+  bindPromptHistoryDuplicateButtons();
+  bindPromptHistoryEditButtons();
+}
+
+function buildDifficultyBadgeHtml(difficulty) {
+  const text = String(difficulty || '-');
+  if (text === '初級') {
+    return '<span class="badge difficulty-beginner">' + escapeHtml(text) + '</span>';
+  }
+  if (text === '中級') {
+    return '<span class="badge difficulty-intermediate">' + escapeHtml(text) + '</span>';
+  }
+  if (text === '上級') {
+    return '<span class="badge difficulty-advanced">' + escapeHtml(text) + '</span>';
+  }
+  return escapeHtml(text);
+}
+
+function buildPromptHistoryStatusBadgeHtml(statusText) {
+  const text = String(statusText || '下書き');
+  if (text === '再評価済み') {
+    return '<span class="badge text-bg-success">' + escapeHtml(text) + '</span>';
+  }
+  if (text === '設定済み') {
+    return '<span class="badge text-bg-primary">' + escapeHtml(text) + '</span>';
+  }
+  return '<span class="badge text-bg-secondary">' + escapeHtml(text) + '</span>';
+}
+
+function getPromptTaskMeta(taskId) {
+  const meta = PROMPT_TASK_META[String(taskId || '')];
+  if (meta) {
+    return meta;
+  }
+  return {
+    name: '課題未設定',
+    difficulty: '-',
+    target: '-'
+  };
 }
 
 function bindPromptHistoryDetailButtons() {
@@ -841,6 +1286,83 @@ function bindPromptHistoryDetailButtons() {
     button.addEventListener('click', function() {
       const taskId = button.getAttribute('data-task-id') || '';
       openPromptAuditDetail(taskId);
+    });
+    button.dataset.bound = '1';
+  });
+}
+
+function bindPromptHistoryDuplicateButtons() {
+  document.querySelectorAll('.prompt-history-duplicate').forEach(function(button) {
+    if (button.dataset.bound === '1') {
+      return;
+    }
+    button.addEventListener('click', function() {
+      const row = button.closest('tr');
+      const taskId = button.getAttribute('data-task-id') || row?.dataset.taskId || '';
+      const step1Version = row?.dataset.step1Version || row?.children?.[3]?.textContent?.trim() || '-';
+      const step2Version = row?.dataset.step2Version || '-';
+      const step3Version = row?.dataset.step3Version || '-';
+      const statusText = row?.dataset.status || row?.children?.[4]?.textContent?.trim() || '下書き';
+      const actor = row?.dataset.actor || row?.children?.[6]?.textContent?.trim() || 't001';
+
+      appendHistoryRow({
+        taskId: taskId,
+        step1Version: step1Version,
+        step2Version: step2Version,
+        step3Version: step3Version,
+        status: statusText,
+        actor: actor
+      });
+
+      pageFeedback.toast({ message: '履歴を複製しました。', variant: 'success', delay: 1800 });
+    });
+    button.dataset.bound = '1';
+  });
+}
+
+function bindPromptHistoryEditButtons() {
+  document.querySelectorAll('.prompt-history-edit').forEach(function(button) {
+    if (button.dataset.bound === '1') {
+      return;
+    }
+    button.addEventListener('click', function() {
+      const row = button.closest('tr');
+      if (!row || button.disabled) {
+        return;
+      }
+
+      const taskId = row.dataset.taskId || button.getAttribute('data-task-id') || '';
+      const step1Version = row.dataset.step1Version || '';
+      const step2Version = row.dataset.step2Version || '';
+      const step3Version = row.dataset.step3Version || '';
+      const taskSelect = document.getElementById('taskSelect');
+      const versionSelect = document.getElementById('versionSelect');
+      const versionSelectStep2 = document.getElementById('versionSelectStep2');
+      const versionSelectStep3 = document.getElementById('versionSelectStep3');
+
+      if (!taskId || !taskSelect) {
+        return;
+      }
+
+      taskSelect.value = taskId;
+      onTaskChanged();
+
+      if (versionSelect && step1Version && step1Version !== '-') {
+        versionSelect.value = String(step1Version);
+        onVersionChanged();
+      }
+
+      if (versionSelectStep2 && step2Version && step2Version !== '-') {
+        versionSelectStep2.value = String(step2Version);
+        onStep2VersionChanged();
+      }
+
+      if (versionSelectStep3 && step3Version && step3Version !== '-') {
+        versionSelectStep3.value = String(step3Version);
+        onStep3VersionChanged();
+      }
+
+      pageFeedback.toast({ message: '下書きを編集画面に読み込みました。', variant: 'success', delay: 1800 });
     });
     button.dataset.bound = '1';
   });
@@ -868,7 +1390,8 @@ function openPromptAuditDetail(taskId) {
   }
 
   if (targetLabel) {
-    targetLabel.textContent = '対象: ' + (taskId || '課題未指定');
+    const meta = getPromptTaskMeta(taskId);
+    targetLabel.textContent = meta.name + ' / ' + meta.target;
   }
 
   let events = [];
@@ -923,18 +1446,19 @@ function getLatestVersionNumber(taskId) {
 }
 
 function getLatestStep2VersionNumber(taskId) {
-  const latest = getLatestStep2VersionRecord(taskId);
+  const latest = getLatestStep2VersionRecord(taskId, getCurrentStep1VersionNumber(taskId));
   return latest ? latest.version : '-';
 }
 
-function incrementStep3Version(taskId) {
+function getLatestStep3VersionNumber(taskId) {
   if (!taskId) return '-';
+  const latest = getLatestStep3VersionRecord(taskId, getCurrentStep1VersionNumber(taskId), getCurrentStep2VersionNumber(taskId));
+  if (latest) {
+    return latest.version;
+  }
   const store = loadStep3VersionStore();
-  const current = Number(store[taskId] || 0);
-  const next = current + 1;
-  store[taskId] = next;
-  saveStep3VersionStore(store);
-  return next;
+  const fallback = Number(store[taskId] || 0);
+  return fallback > 0 ? fallback : '-';
 }
 
 function nowAsDisplayDate() {
@@ -952,8 +1476,10 @@ function renderEvaluationExamples(taskId) {
   const list = document.getElementById('evaluationExamplesList');
   const empty = document.getElementById('evaluationExamplesEmpty');
   const status = document.getElementById('evaluationExamplesStatus');
+  const skeleton = document.getElementById('step3AiSkeleton');
 
   if (!list || !empty || !status) return;
+  if (skeleton) skeleton.classList.add('d-none');
 
   if (!taskId) {
     list.innerHTML = '';
@@ -997,7 +1523,7 @@ function renderEvaluationExamples(taskId) {
   empty.classList.add('d-none');
   list.classList.remove('d-none');
   status.textContent = '生成済み';
-  status.className = 'badge text-bg-success';
+  status.className = 'badge text-bg-primary';
   setStep3ActionButtonsEnabled(true);
 
   // ボタンにクリックイベントを追加
@@ -1055,13 +1581,14 @@ function saveStep3Examples() {
     return;
   }
 
+  const saved = saveStep3Version(taskId, examples);
   saveEvaluationExamples(taskId, examples);
   appendHistoryRow({
     taskId: taskId,
     step1Version: getLatestVersionNumber(taskId),
     step2Version: getLatestStep2VersionNumber(taskId),
-    step3Version: incrementStep3Version(taskId),
-    reevaluation: '未実施'
+    step3Version: saved.version,
+    status: '設定済み'
   });
   updateLastUpdated();
   pageFeedback.toast({ message: '評価例を保存しました。', variant: 'success', delay: 1800 });
@@ -1075,13 +1602,26 @@ function openReevaluationPreviewModal() {
   }
 
   const modalEl = document.getElementById('reevaluationPreviewModal');
-  const taskLabel = document.getElementById('reevaluationPreviewTaskLabel');
+  const taskMeta = document.getElementById('reevaluationPreviewTaskMeta');
+  const step1Version = document.getElementById('reevaluationPreviewStep1Version');
+  const step2Version = document.getElementById('reevaluationPreviewStep2Version');
+  const step3Version = document.getElementById('reevaluationPreviewStep3Version');
   const tbody = document.getElementById('reevaluationPreviewTableBody');
   if (!modalEl || !tbody) return;
 
   const rows = buildReevaluationPreviewRows(taskId);
-  if (taskLabel) {
-    taskLabel.textContent = '(課題ID: ' + toTaskIdNumber(taskId) + ')';
+  const meta = getPromptTaskMeta(taskId);
+  if (taskMeta) {
+    taskMeta.textContent = '課題名: ' + meta.name + ' / 難易度: ' + meta.difficulty;
+  }
+  if (step1Version) {
+    step1Version.textContent = 'STEP1 ' + formatStep1VersionLabel(getCurrentStep1VersionNumber(taskId));
+  }
+  if (step2Version) {
+    step2Version.textContent = 'STEP2 ' + formatStep2VersionLabel(getCurrentStep1VersionNumber(taskId), getCurrentStep2VersionNumber(taskId));
+  }
+  if (step3Version) {
+    step3Version.textContent = 'STEP3 ' + formatStep3VersionLabel(getCurrentStep1VersionNumber(taskId), getCurrentStep2VersionNumber(taskId), getLatestStep3VersionNumber(taskId));
   }
 
   if (rows.length === 0) {
@@ -1095,7 +1635,7 @@ function openReevaluationPreviewModal() {
       const diffLabel = row.diff > 0 ? '+' + row.diff : String(row.diff);
       return '' +
         '<tr>' +
-          '<td>' + escapeHtml(row.studentId) + '</td>' +
+          '<td><code class="reevaluation-student-id">' + escapeHtml(formatReevaluationStudentId(row.studentId)) + '</code></td>' +
           '<td>' + escapeHtml(String(row.newScore)) + '</td>' +
           '<td class="' + diffClass + '">' + escapeHtml(diffLabel) + '</td>' +
           '<td>' + statusBadge + '</td>' +
@@ -1125,6 +1665,23 @@ function buildReevaluationPreviewRows(taskId) {
       status: student.status
     };
   });
+}
+
+function formatReevaluationStudentId(studentId) {
+  const raw = String(studentId || '').trim();
+  if (!raw) return '-';
+
+  const prefixed = raw.match(/^s(\d+)$/i);
+  if (prefixed) {
+    return 's' + String(Number(prefixed[1])).padStart(3, '0');
+  }
+
+  if (/^\d+$/.test(raw)) {
+    const tail = raw.length > 3 ? raw.slice(-3) : raw;
+    return 's' + String(Number(tail)).padStart(3, '0');
+  }
+
+  return raw;
 }
 
 function getBaseNewScore(examples) {

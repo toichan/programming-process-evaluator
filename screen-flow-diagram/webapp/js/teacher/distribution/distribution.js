@@ -3,6 +3,9 @@ const pageFeedback = feedback.createPageFeedback ? feedback.createPageFeedback({
 const teacherAudit = window.PPETeacherAudit || null;
 const DISTRIBUTION_STATUS_SCHEDULED = '配信予約';
 const DISTRIBUTION_STATUS_DISTRIBUTED = '配信済み';
+const DISTRIBUTION_STATUS_CONFIGURED = '配信設定済み';
+const DISTRIBUTION_STATUS_IN_PROGRESS = '配信中';
+const DISTRIBUTION_STATUS_COMPLETED = '配信完了';
 const DISTRIBUTION_STATUS_STOPPED = '停止';
 const DISTRIBUTION_STATUS_DRAFT = '下書き';
 const DISTRIBUTION_TREE_ROOT_ID = 'distribution-tree-root';
@@ -75,7 +78,11 @@ const distributionState = {
       templateId: 'TPL-001',
       template: '条件分岐セット',
       operator: 't001',
-      status: DISTRIBUTION_STATUS_DISTRIBUTED
+      status: DISTRIBUTION_STATUS_IN_PROGRESS,
+      classStatuses: [
+        { className: '1年A組', status: DISTRIBUTION_STATUS_SCHEDULED },
+        { className: '1年B組', status: DISTRIBUTION_STATUS_DISTRIBUTED }
+      ]
     },
     {
       distributedAt: '2026-07-03 14:30',
@@ -85,10 +92,26 @@ const distributionState = {
       templateId: 'TPL-002',
       template: 'グラフ探索セット',
       operator: 't001',
-      status: DISTRIBUTION_STATUS_SCHEDULED
+      status: DISTRIBUTION_STATUS_CONFIGURED,
+      classStatuses: [
+        { className: '4年2組', status: DISTRIBUTION_STATUS_SCHEDULED }
+      ]
+    },
+    {
+      distributedAt: '2026-07-03 09:20',
+      school: '附属高校',
+      className: '4年2組',
+      target: '附属高校 / 4年2組',
+      templateId: 'TPL-002',
+      template: 'グラフ探索セット',
+      operator: 't001',
+      status: DISTRIBUTION_STATUS_DRAFT,
+      classStatuses: []
     }
   ],
-  editTemplateId: null
+  editTemplateId: null,
+  editLockedSchools: [],
+  editLockedClassSchedules: []
 };
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -1671,18 +1694,21 @@ function buildDistributionTreeFromFileLines(files) {
 function upsertTemplate(actionType) {
   applyDistributionFileEditorSilently();
   const payload = collectFormValues();
+  const effectivePayload = actionType === '下書き'
+    ? mergeDistributionPayloadWithLockedTargets(payload)
+    : mergeDistributionPayloadWithLockedTargets(payload);
 
   if (!payload.name) {
     toast('テンプレート名を入力してください。', 'danger');
     return;
   }
 
-  if (actionType !== '下書き' && payload.classes.length === 0) {
+  if (actionType !== '下書き' && effectivePayload.classes.length === 0) {
     toast('配信対象のクラスを選択してください。', 'danger');
     return;
   }
 
-  if (actionType !== '下書き' && hasEmptyClassSchedule(payload.classSchedules)) {
+  if (actionType !== '下書き' && hasEmptyClassSchedule(effectivePayload.classSchedules)) {
     toast('クラスごとの配信日時を設定してください。', 'danger');
     return;
   }
@@ -1705,17 +1731,17 @@ function upsertTemplate(actionType) {
 
   const latestHistory = findLatestHistoryByTemplateId(targetTemplate.id);
   if (actionType !== '下書き' && latestHistory && !isHistoryEditable(latestHistory)) {
-    toast('配信済みの履歴は修正できません。新規テンプレートで配信してください。', 'warning');
+    toast('配信完了または停止済みの履歴は修正できません。新規テンプレートで配信してください。', 'warning');
     return;
   }
 
-  targetTemplate.name = payload.name;
-  targetTemplate.root = normalizeDistributionRootName(payload.root);
-  targetTemplate.files = payload.files;
+  targetTemplate.name = effectivePayload.name;
+  targetTemplate.root = normalizeDistributionRootName(effectivePayload.root);
+  targetTemplate.files = effectivePayload.files;
   targetTemplate.structure = cloneDistributionStructureRoot();
-  targetTemplate.schools = payload.schools;
-  targetTemplate.classes = payload.classes;
-  targetTemplate.classSchedules = payload.classSchedules;
+  targetTemplate.schools = effectivePayload.schools;
+  targetTemplate.classes = effectivePayload.classes;
+  targetTemplate.classSchedules = effectivePayload.classSchedules;
   targetTemplate.updatedAt = formatDateTime(new Date());
 
   if (actionType === '下書き') {
@@ -1725,22 +1751,26 @@ function upsertTemplate(actionType) {
     });
     toast('テンプレートを下書き保存しました。', 'success');
   } else {
-    targetTemplate.status = '公開';
-    const historyStatus = resolveHistoryStatus(payload.classSchedules);
+    const historyStatus = resolveHistoryStatus(effectivePayload.classSchedules);
+    targetTemplate.status = historyStatus;
     const latestHistory = findLatestHistoryByTemplateId(targetTemplate.id);
     const isRedistribution = !!latestHistory;
-    upsertHistory(payload, historyStatus, targetTemplate.id);
+    upsertHistory(effectivePayload, historyStatus, targetTemplate.id);
     recordDistributionAudit(isRedistribution ? '再配信' : '配信', 'distribution_template', targetTemplate.id, {
-      detail: '対象: ' + joinTargets(payload.schools, payload.classes) + ' / 状態: ' + historyStatus
+      detail: '対象: ' + joinTargets(effectivePayload.schools, effectivePayload.classes) + ' / 状態: ' + historyStatus
     });
-    if (historyStatus === DISTRIBUTION_STATUS_DISTRIBUTED) {
-      toast('配信しました。配信済みは取り消しできません。', 'success');
+    if (historyStatus === DISTRIBUTION_STATUS_COMPLETED) {
+      toast('配信しました。すべての対象クラスへの配信が完了しています。', 'success');
+    } else if (historyStatus === DISTRIBUTION_STATUS_IN_PROGRESS) {
+      toast('配信設定を更新しました。未配信クラスへの設定のみ更新されます。', 'success');
     } else {
-      toast('配信予約を保存しました。配信前は編集できます。', 'success');
+      toast('配信設定を保存しました。配信前は編集できます。', 'success');
     }
   }
 
   distributionState.editTemplateId = null;
+  distributionState.editLockedSchools = [];
+  distributionState.editLockedClassSchedules = [];
   refreshDistributionHistoryFilterOptions();
   renderHistoryTable();
   updateStats();
@@ -1771,11 +1801,11 @@ function renderHistoryTable() {
   body.innerHTML = entries.map(function(entry) {
     const item = entry.item;
     const historyIndex = entry.index;
-    const editable = isHistoryEditable(item);
+    const editable = isHistoryDraftEditable(item);
     const buttonClass = editable ? 'btn-outline-primary' : 'btn-outline-secondary';
     const buttonDisabled = editable ? '' : ' disabled';
     const buttonLabel = '編集';
-    const canStop = item.status === DISTRIBUTION_STATUS_SCHEDULED;
+    const canStop = hasPendingDistributionClasses(item) && item.status !== DISTRIBUTION_STATUS_DRAFT && item.status !== DISTRIBUTION_STATUS_STOPPED;
     const stopButtonDisabled = canStop ? '' : ' disabled';
     return '<tr>'
       + '<td>' + escapeHtml(item.distributedAt) + '</td>'
@@ -1827,7 +1857,7 @@ function renderHistoryTable() {
 }
 
 function buildDistributionStatusBadgeHtml(status) {
-  if (status === DISTRIBUTION_STATUS_DISTRIBUTED) {
+  if (status === DISTRIBUTION_STATUS_COMPLETED) {
     return '<span class="badge text-bg-success">' + escapeHtml(status) + '</span>';
   }
 
@@ -1835,7 +1865,11 @@ function buildDistributionStatusBadgeHtml(status) {
     return '<span class="badge text-bg-secondary">' + escapeHtml(status) + '</span>';
   }
 
-  if (status === DISTRIBUTION_STATUS_SCHEDULED) {
+  if (status === DISTRIBUTION_STATUS_CONFIGURED) {
+    return '<span class="badge text-bg-primary">' + escapeHtml(status) + '</span>';
+  }
+
+  if (status === DISTRIBUTION_STATUS_IN_PROGRESS) {
     return '<span class="badge text-bg-warning">' + escapeHtml(status) + '</span>';
   }
 
@@ -1981,14 +2015,17 @@ function getDistributionStatusOrder(status) {
   if (status === DISTRIBUTION_STATUS_DRAFT) {
     return 1;
   }
-  if (status === DISTRIBUTION_STATUS_SCHEDULED) {
+  if (status === DISTRIBUTION_STATUS_CONFIGURED) {
     return 2;
   }
-  if (status === DISTRIBUTION_STATUS_DISTRIBUTED) {
+  if (status === DISTRIBUTION_STATUS_IN_PROGRESS) {
     return 3;
   }
-  if (status === DISTRIBUTION_STATUS_STOPPED) {
+  if (status === DISTRIBUTION_STATUS_COMPLETED) {
     return 4;
+  }
+  if (status === DISTRIBUTION_STATUS_STOPPED) {
+    return 5;
   }
   return 99;
 }
@@ -2048,8 +2085,8 @@ async function stopScheduledDistribution(historyIndex) {
   }
 
   const item = distributionState.history[historyIndex];
-  if (!item || item.status !== DISTRIBUTION_STATUS_SCHEDULED) {
-    toast('配信前の履歴のみ停止できます。', 'warning');
+  if (!item || !hasPendingDistributionClasses(item)) {
+    toast('未配信クラスを含む履歴のみ停止できます。', 'warning');
     return;
   }
 
@@ -2057,27 +2094,33 @@ async function stopScheduledDistribution(historyIndex) {
   if (pageFeedback && typeof pageFeedback.danger === 'function') {
     confirmed = await pageFeedback.danger({
       title: '配信を停止しますか？',
-      message: '次の配信予約を停止します。',
+      message: '次の未配信クラスへの設定を停止します。',
       detailTitle: '',
       details: [item.template + ' / ' + item.target],
       confirmLabel: '停止する',
       cancelLabel: '戻る'
     });
   } else {
-    confirmed = window.confirm('配信予約を停止しますか？');
+    confirmed = window.confirm('未配信クラスへの設定を停止しますか？');
   }
 
   if (!confirmed) {
     return;
   }
 
+  item.classStatuses = getDistributionHistoryClassStatuses(item).map(function(classStatus) {
+    if (classStatus.status === DISTRIBUTION_STATUS_SCHEDULED) {
+      return { className: classStatus.className, status: DISTRIBUTION_STATUS_STOPPED };
+    }
+    return classStatus;
+  });
   item.status = DISTRIBUTION_STATUS_STOPPED;
   recordDistributionAudit('停止', 'distribution_template', item.templateId || '', {
-    detail: '配信予約を停止: ' + item.template + ' / ' + item.target
+    detail: '未配信クラスの配信を停止: ' + item.template + ' / ' + item.target
   });
   renderHistoryTable();
   updateStats();
-  toast('配信予約を停止しました。', 'success');
+  toast('未配信クラスの配信を停止しました。', 'success');
 }
 
 function upsertHistory(payload, status, templateId) {
@@ -2088,6 +2131,7 @@ function upsertHistory(payload, status, templateId) {
   const targetText = joinTargets(payload.schools, payload.classes);
   const schoolText = (payload.schools || []).join(', ');
   const classText = (payload.classes || []).join(', ');
+  const classStatuses = buildDistributionClassStatuses(payload.classSchedules);
   const newItem = {
     distributedAt: formatDateTime(new Date()),
     school: schoolText,
@@ -2096,7 +2140,8 @@ function upsertHistory(payload, status, templateId) {
     templateId: templateId || '',
     template: payload.name,
     operator: getAuditActorId(),
-    status: status
+    status: status,
+    classStatuses: classStatuses
   };
 
   if (existingIndex >= 0) {
@@ -2157,7 +2202,9 @@ function openDistributionAuditDetail(historyIndex) {
   }
 
   if (targetLabel) {
-    targetLabel.textContent = '対象: ' + (historyItem.template || '-') + '（' + (historyItem.templateId || 'ID未設定') + '）';
+    const schoolText = getDistributionHistorySchoolText(historyItem) || '-';
+    const classText = getDistributionHistoryClassText(historyItem) || '-';
+    targetLabel.textContent = (historyItem.template || '-') + ' / ' + schoolText + ' / ' + classText;
   }
 
   const events = queryDistributionAuditByTemplateId(historyItem.templateId || '');
@@ -2181,6 +2228,7 @@ function openDistributionAuditDetail(historyIndex) {
 }
 
 function startEditTemplate(id) {
+  let editOptions = arguments.length > 1 ? arguments[1] : null;
   const template = distributionState.templates.find(function(item) {
     return item.id === id;
   });
@@ -2190,10 +2238,23 @@ function startEditTemplate(id) {
   }
 
   distributionState.editTemplateId = id;
+  distributionState.editLockedSchools = Array.isArray(editOptions && editOptions.lockedSchools) ? editOptions.lockedSchools.slice() : [];
+  distributionState.editLockedClassSchedules = Array.isArray(editOptions && editOptions.lockedClassSchedules)
+    ? editOptions.lockedClassSchedules.map(function(item) {
+      return { className: item.className, immediate: !!item.immediate, scheduleAt: item.scheduleAt || '' };
+    })
+    : [];
+
+  const editableClassSchedules = Array.isArray(editOptions && editOptions.editableClassSchedules)
+    ? editOptions.editableClassSchedules
+    : template.classSchedules;
+  const editableClasses = editableClassSchedules.map(function(item) {
+    return item.className;
+  });
 
   setCheckedValues('distributionSchoolTargets', template.schools);
-  setCheckedValues('distributionClassTargets', template.classes);
-  refreshClassScheduleRows(template.classSchedules);
+  setCheckedValues('distributionClassTargets', editableClasses);
+  refreshClassScheduleRows(editableClassSchedules);
   setValue('templateName', template.name || '');
   setValue('templateRoot', template.root || '');
   distributionTreeState.root = buildDistributionTreeFromTemplate(template);
@@ -2207,7 +2268,11 @@ function startEditTemplate(id) {
   updateSchoolDropdownLabel();
   updateClassDropdownLabel();
   syncPreview();
-  toast('テンプレートを編集モードで読み込みました。', 'success');
+  if (distributionState.editLockedClassSchedules.length > 0) {
+    toast('配信済みクラスを除いた未配信クラスのみ編集モードで読み込みました。', 'success');
+  } else {
+    toast('テンプレートを編集モードで読み込みました。', 'success');
+  }
 }
 
 function startEditFromHistory(historyIndex) {
@@ -2217,8 +2282,8 @@ function startEditFromHistory(historyIndex) {
   }
 
   const historyItem = distributionState.history[historyIndex];
-  if (!isHistoryEditable(historyItem)) {
-    toast('配信済みの履歴は編集できません。', 'warning');
+  if (!isHistoryDraftEditable(historyItem)) {
+    toast('配信前のクラスを含む履歴のみ編集できます。', 'warning');
     return;
   }
 
@@ -2240,6 +2305,19 @@ function startEditFromHistory(historyIndex) {
 
   if (!targetTemplate) {
     toast('編集対象のテンプレートが見つかりません。', 'warning');
+    return;
+  }
+
+  if (historyItem.status === DISTRIBUTION_STATUS_IN_PROGRESS) {
+    startEditTemplate(targetTemplate.id, {
+      lockedSchools: targetTemplate.schools,
+      lockedClassSchedules: getLockedDeliveredClassSchedules(targetTemplate, historyItem),
+      editableClassSchedules: targetTemplate.classSchedules.filter(function(item) {
+        return getEditableClassStatuses(historyItem).some(function(statusItem) {
+          return statusItem.className === item.className;
+        });
+      })
+    });
     return;
   }
 
@@ -2422,6 +2500,8 @@ function hasEmptyClassSchedule(classSchedules) {
 
 function resetForm() {
   distributionState.editTemplateId = null;
+  distributionState.editLockedSchools = [];
+  distributionState.editLockedClassSchedules = [];
   setValue('templateName', '');
   setValue('templateRoot', '');
   distributionTreeState.root = createDistributionFolderNode('(root)', DISTRIBUTION_TREE_ROOT_ID);
@@ -2491,7 +2571,7 @@ function updateStats() {
   setText('templateCount', String(distributionState.templates.length));
 
   const scheduled = distributionState.history.filter(function(item) {
-    return item.status === DISTRIBUTION_STATUS_SCHEDULED;
+    return item.status === DISTRIBUTION_STATUS_CONFIGURED || item.status === DISTRIBUTION_STATUS_IN_PROGRESS;
   }).length;
   setText('scheduledCount', String(scheduled));
 
@@ -2606,15 +2686,127 @@ function toast(message, variant) {
 }
 
 function resolveHistoryStatus(classSchedules) {
-  const hasImmediate = (Array.isArray(classSchedules) ? classSchedules : []).some(function(item) {
-    return !!item.immediate;
-  });
-  return hasImmediate ? DISTRIBUTION_STATUS_DISTRIBUTED : DISTRIBUTION_STATUS_SCHEDULED;
+  const classStatuses = buildDistributionClassStatuses(classSchedules);
+  const distributedCount = classStatuses.filter(function(item) {
+    return item.status === DISTRIBUTION_STATUS_DISTRIBUTED;
+  }).length;
+  const scheduledCount = classStatuses.filter(function(item) {
+    return item.status === DISTRIBUTION_STATUS_SCHEDULED;
+  }).length;
+
+  if (distributedCount > 0 && scheduledCount > 0) {
+    return DISTRIBUTION_STATUS_IN_PROGRESS;
+  }
+  if (distributedCount > 0) {
+    return DISTRIBUTION_STATUS_COMPLETED;
+  }
+  if (scheduledCount > 0) {
+    return DISTRIBUTION_STATUS_CONFIGURED;
+  }
+  return DISTRIBUTION_STATUS_STOPPED;
 }
 
 function isHistoryEditable(historyItem) {
   const status = historyItem && historyItem.status ? historyItem.status : '';
-  return status !== DISTRIBUTION_STATUS_DISTRIBUTED && status !== '完了';
+  return status !== DISTRIBUTION_STATUS_COMPLETED && status !== DISTRIBUTION_STATUS_STOPPED && status !== '完了';
+}
+
+function isHistoryDraftEditable(historyItem) {
+  const status = historyItem && historyItem.status ? historyItem.status : '';
+  return status === DISTRIBUTION_STATUS_DRAFT || status === DISTRIBUTION_STATUS_CONFIGURED || status === DISTRIBUTION_STATUS_IN_PROGRESS;
+}
+
+function buildDistributionClassStatuses(classSchedules) {
+  return (Array.isArray(classSchedules) ? classSchedules : []).map(function(item) {
+    return {
+      className: item.className || '',
+      status: item.immediate ? DISTRIBUTION_STATUS_DISTRIBUTED : DISTRIBUTION_STATUS_SCHEDULED
+    };
+  }).filter(function(item) {
+    return !!item.className;
+  });
+}
+
+function hasPendingDistributionClasses(historyItem) {
+  return getDistributionHistoryClassStatuses(historyItem).some(function(item) {
+    return item.status === DISTRIBUTION_STATUS_SCHEDULED;
+  });
+}
+
+function hasDeliveredDistributionClasses(historyItem) {
+  return getDistributionHistoryClassStatuses(historyItem).some(function(item) {
+    return item.status === DISTRIBUTION_STATUS_DISTRIBUTED;
+  });
+}
+
+function getDistributionHistoryClassStatuses(historyItem) {
+  if (historyItem && Array.isArray(historyItem.classStatuses)) {
+    return historyItem.classStatuses.slice();
+  }
+
+  if (!historyItem) {
+    return [];
+  }
+
+  const classNames = String(historyItem.className || '').split(',').map(function(name) {
+    return name.trim();
+  }).filter(Boolean);
+  return classNames.map(function(className) {
+    return {
+      className: className,
+      status: historyItem.status === DISTRIBUTION_STATUS_COMPLETED ? DISTRIBUTION_STATUS_DISTRIBUTED : DISTRIBUTION_STATUS_SCHEDULED
+    };
+  });
+}
+
+function getEditableClassStatuses(historyItem) {
+  return getDistributionHistoryClassStatuses(historyItem).filter(function(item) {
+    return item.status === DISTRIBUTION_STATUS_SCHEDULED;
+  });
+}
+
+function getLockedDeliveredClassSchedules(template, historyItem) {
+  const scheduleMap = toClassScheduleMap(template && template.classSchedules ? template.classSchedules : []);
+  return getDistributionHistoryClassStatuses(historyItem).filter(function(item) {
+    return item.status === DISTRIBUTION_STATUS_DISTRIBUTED;
+  }).map(function(item) {
+    const source = scheduleMap[item.className] || { immediate: true, scheduleAt: '' };
+    return {
+      className: item.className,
+      immediate: true,
+      scheduleAt: source.scheduleAt || ''
+    };
+  });
+}
+
+function mergeDistributionPayloadWithLockedTargets(payload) {
+  const lockedSchools = Array.isArray(distributionState.editLockedSchools) ? distributionState.editLockedSchools : [];
+  const lockedClassSchedules = Array.isArray(distributionState.editLockedClassSchedules) ? distributionState.editLockedClassSchedules : [];
+  const mergedSchedulesMap = toClassScheduleMap(lockedClassSchedules);
+
+  (Array.isArray(payload.classSchedules) ? payload.classSchedules : []).forEach(function(item) {
+    if (!item || !item.className) {
+      return;
+    }
+    mergedSchedulesMap[item.className] = {
+      immediate: !!item.immediate,
+      scheduleAt: item.scheduleAt || ''
+    };
+  });
+
+  const mergedClassSchedules = Object.keys(mergedSchedulesMap).map(function(className) {
+    return {
+      className: className,
+      immediate: !!mergedSchedulesMap[className].immediate,
+      scheduleAt: mergedSchedulesMap[className].scheduleAt || ''
+    };
+  });
+
+  return Object.assign({}, payload, {
+    schools: Array.from(new Set(lockedSchools.concat(payload.schools || []))),
+    classes: Array.from(new Set(lockedClassSchedules.map(function(item) { return item.className; }).concat(payload.classes || []))),
+    classSchedules: mergedClassSchedules
+  });
 }
 
 function findLatestHistoryByTemplateId(templateId) {

@@ -31,7 +31,10 @@
           </li>
         </ol>
         <div class="learning-flow-task-title">
-          <span class="learning-flow-task-name">初級：じゃんけん判定プログラム</span>
+          <span class="learning-flow-task-name">
+            <span class="learning-flow-level-badge is-beginner">初級</span>
+            <span>じゃんけん判定プログラム</span>
+          </span>
         </div>
       </nav>
 
@@ -40,8 +43,8 @@
           <span class="hero-kicker">Evaluation Results</span>
           <h1 class="section-title mb-3">評価結果</h1>
           <p class="hero-description mb-0">
-              コードログと実行履歴をもとに、AIが2つの観点から評価を行いました。この評価はあくまで研究用であり、<strong>実際の学校の成績評価には一切使用しません。</strong><br>
-              ただし、<strong>最終的なコードと入出力チェック</strong>については担当の先生に渡して、<strong>通常通り成績評価の対象となります。</strong>
+              この評価は学習の振り返りのための参考情報です。<strong>成績評価には使われず</strong>、最終的な成績は先生が確認します。<br>
+              なお、<strong>最終的なコードと入出力チェック</strong>については担当の先生に渡して、<strong>通常どおり成績評価の対象となります。</strong>
           </p>
           <div class="hero-action-row mt-4">
             <a class="btn btn-warning btn-lg hero-log-button" href="./log.html">ログを見る</a>
@@ -50,12 +53,20 @@
         </div>
 
         <div class="hero-meta-card">
-          <div class="meta-label">対象課題</div>
-          <div class="meta-value">じゃんけん判定プログラム</div>
-          <div class="meta-subtext">初級 / 最終評価 2026/04/16 10:42</div>
-          <div class="hero-score-row">
-            <div class="hero-score-pill thinking">思考力・判断力・表現力 3.0</div>
-            <div class="hero-score-pill attitude">主体的に学習に取り組む態度 4.0</div>
+          <div id="taskMetaSkeleton" class="ai-wait-skeleton" role="status" aria-live="polite">
+            <div class="ai-wait-title mb-3">対象課題を読み込み中です</div>
+            <div class="skeleton-line w-50"></div>
+            <div class="skeleton-line w-100"></div>
+            <div class="skeleton-line w-75"></div>
+          </div>
+          <div id="taskMetaContent" class="d-none">
+            <div class="meta-label">対象課題</div>
+            <div class="meta-value">じゃんけん判定プログラム</div>
+            <div class="meta-subtext">初級 / 最終評価 2026/04/16 10:42</div>
+            <div class="hero-score-row">
+              <div class="hero-score-pill thinking">思考力・判断力・表現力 3.0</div>
+              <div class="hero-score-pill attitude">主体的に学習に取り組む態度 4.0</div>
+            </div>
           </div>
         </div>
       </section>
@@ -69,7 +80,14 @@
           <span class="score-caption">5段階評価</span>
         </div>
 
-        <div class="row g-4 mt-1">
+        <div id="overviewSkeleton" class="ai-wait-skeleton mt-3" role="status" aria-live="polite">
+          <div class="ai-wait-title mb-3">総合評価を生成中です</div>
+          <div class="skeleton-line w-100"></div>
+          <div class="skeleton-line w-100"></div>
+          <div class="skeleton-line w-75"></div>
+        </div>
+
+        <div id="overviewContent" class="row g-4 mt-1 d-none">
           <div class="col-lg-6">
             <article class="score-panel thinking-panel">
               <div class="panel-kicker">思考力・判断力・表現力</div>
@@ -121,7 +139,15 @@
               </div>
             </div>
 
-            <div class="breakdown-grid">
+            <div id="breakdownSkeleton" class="ai-wait-skeleton" role="status" aria-live="polite">
+              <div class="ai-wait-title mb-3">観点別スコアを整理しています</div>
+              <div class="skeleton-line w-100"></div>
+              <div class="skeleton-line w-100"></div>
+              <div class="skeleton-line w-100"></div>
+              <div class="skeleton-line w-75"></div>
+            </div>
+
+            <div id="breakdownContent" class="breakdown-grid d-none">
               <article class="metric-card">
                 <div class="metric-header">
                   <span class="metric-group">思考・判断・表現</span>
@@ -179,14 +205,21 @@
                 <h2 class="card-title mb-2">評価の理由</h2>
                 <p class="text-muted mb-0">各項目の点数に至った具体的な根拠です。</p>
               </div>
-              <div class="reason-filter-group" role="tablist" aria-label="reason category filter">
+              <div id="reasonFilterGroup" class="reason-filter-group d-none" role="tablist" aria-label="reason category filter">
                 <button class="reason-filter is-active" type="button" data-filter="all">すべて</button>
                 <button class="reason-filter" type="button" data-filter="thinking">思考・判断・表現</button>
                 <button class="reason-filter" type="button" data-filter="attitude">態度</button>
               </div>
             </div>
 
-            <div class="reason-list">
+            <div id="reasonsSkeleton" class="ai-wait-skeleton" role="status" aria-live="polite">
+              <div class="ai-wait-title mb-3">評価の理由を生成中です</div>
+              <div class="skeleton-line w-100"></div>
+              <div class="skeleton-line w-100"></div>
+              <div class="skeleton-line w-75"></div>
+            </div>
+
+            <div id="reasonsContent" class="reason-list d-none">
               <article class="reason-card" data-category="thinking">
                 <div class="reason-title-row">
                   <h3>文法デバッグ能力: 3</h3>

@@ -36,7 +36,7 @@
               <div class="stat-value" id="draftCount">1</div>
             </div>
             <div class="stat-card">
-              <div class="stat-label">更新待ち</div>
+              <div class="stat-label">要更新</div>
               <div class="stat-value" id="pendingCount">2</div>
             </div>
           </div>
@@ -156,6 +156,11 @@
                     <textarea id="taskConstraintInput" class="form-control" rows="2" placeholder="入力制限、禁止事項などを入力"></textarea>
                   </div>
                   <div class="col-12">
+                    <label for="taskCreationRulesInput" class="form-label">作成時のルール</label>
+                    <textarea id="taskCreationRulesInput" class="form-control" rows="3" placeholder="例: 途中の計算式も出力すること&#10;1桁の場合は先頭に0を付けること"></textarea>
+                    <div class="form-text">任意です。ルールがない課題では空欄のままにしてください。</div>
+                  </div>
+                  <div class="col-12">
                     <label for="initialCodeInput" class="form-label">初期コード</label>
                     <textarea id="initialCodeInput" class="form-control code-editor-input" rows="7" placeholder="初期表示するPythonコードを入力"></textarea>
                   </div>
@@ -226,6 +231,10 @@
                         <div class="info-label">入力制限</div>
                         <p id="previewEditorConstraint" class="mb-0">未設定</p>
                       </div>
+                      <div class="info-block" id="previewEditorRulesBlock" hidden>
+                        <div class="info-label">作成時のルール</div>
+                        <ul id="previewEditorRules" class="mb-0"></ul>
+                      </div>
                       <div class="info-block io-block">
                         <div class="info-label">想定入出力</div>
                         <div id="previewEditorCases"><p class="mb-0 text-muted">未設定</p></div>
@@ -286,7 +295,7 @@
                   <td><a class="prompt-status-link" href="../prompt/prompt.html?taskId=TASK-001">設定済み</a></td>
                   <td class="creator-id">toida</td>
                   <td class="updated-at">2026-05-18 09:10:00</td>
-                  <td class="task-creator">t001</td>
+                  <td><code class="history-creator-id task-creator">t001</code></td>
                   <td>
                     <div class="d-flex gap-2">
                       <button class="btn btn-sm btn-outline-primary edit-button" type="button">編集</button>
@@ -304,7 +313,7 @@
                   <td><a class="prompt-status-link" href="../prompt/prompt.html?taskId=TASK-002">未設定</a></td>
                   <td class="creator-id">toida</td>
                   <td class="updated-at">2026-05-17 15:42:00</td>
-                  <td class="task-creator">t001</td>
+                  <td><code class="history-creator-id task-creator">t001</code></td>
                   <td>
                     <div class="d-flex gap-2">
                       <button class="btn btn-sm btn-outline-primary edit-button" type="button">編集</button>
@@ -322,7 +331,7 @@
                   <td><a class="prompt-status-link" href="../prompt/prompt.html?taskId=TASK-003">設定済み</a></td>
                   <td class="creator-id">yamada</td>
                   <td class="updated-at">2026-05-15 11:20:00</td>
-                  <td class="task-creator">t001</td>
+                  <td><code class="history-creator-id task-creator">t001</code></td>
                   <td>
                     <div class="d-flex gap-2">
                       <button class="btn btn-sm btn-outline-primary edit-button" type="button">編集</button>
@@ -416,7 +425,7 @@
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
         </div>
         <div class="modal-body">
-          <div class="mb-3 text-dark fw-semibold" id="taskAuditDetailTarget">対象: -</div>
+          <div class="mb-3 text-dark fw-semibold" id="taskAuditDetailTarget">- / - / -</div>
           <div class="table-responsive">
             <table class="table table-sm align-middle mb-0">
               <thead class="table-light">

@@ -1,3 +1,85 @@
+const taskData = {
+  title: 'じゃんけん判定プログラム',
+  description: 'ユーザーの入力に応じて、勝敗または入力エラーを表示するプログラムを作成します。',
+  features: [
+    '入力値を受け取る',
+    '条件分岐で勝敗を判定する',
+    '不正な入力時に案内を表示する'
+  ],
+  constraints: '入力は「グー」「チョキ」「パー」のいずれかを想定します。',
+  creationRules: [],
+  examples: [
+    { input: 'パー', output: 'あなたの勝ち' },
+    { input: 'ぐー', output: 'グー・チョキ・パーを入力してください' }
+  ]
+};
+
+function normalizeCreationRules(source) {
+  if (Array.isArray(source)) {
+    return source
+      .map((item) => String(item || '').trim())
+      .filter(Boolean);
+  }
+
+  if (typeof source !== 'string') {
+    return [];
+  }
+
+  return source
+    .split(/\r?\n|;/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function renderTaskPanel() {
+  const container = document.querySelector('#taskPanelContent');
+  if (!container) {
+    return;
+  }
+
+  const features = Array.isArray(taskData.features) ? taskData.features : [];
+  const rules = normalizeCreationRules(taskData.creationRules);
+  const examples = Array.isArray(taskData.examples) ? taskData.examples : [];
+
+  const ruleMarkup = rules.length > 0
+    ? `<div class="info-block"><div class="info-label">作成時のルール</div><ul class="mb-0">${rules.map((rule) => `<li>${escapeHtml(rule)}</li>`).join('')}</ul></div>`
+    : '';
+
+  const examplesMarkup = examples.length > 0
+    ? `<div class="info-block io-block"><div class="info-label">想定入出力</div>${examples.map((example) => `
+        <div class="case-card io-case-card">
+          <div class="io-case-label">入力</div>
+          <textarea class="io-case-source" spellcheck="false">${escapeHtml(example.input || '')}</textarea>
+          <div class="io-case-label mt-3">出力</div>
+          <textarea class="io-case-source" spellcheck="false">${escapeHtml(example.output || '')}</textarea>
+        </div>`).join('')}</div>`
+    : '';
+
+  container.innerHTML = `
+    <h3>${escapeHtml(taskData.title || '課題名未設定')}</h3>
+    <p>${escapeHtml(taskData.description || '説明未設定')}</p>
+    <div class="info-block">
+      <div class="info-label">実装する機能</div>
+      <ul class="mb-0">${features.length > 0 ? features.map((feature) => `<li>${escapeHtml(feature)}</li>`).join('') : '<li>未設定</li>'}</ul>
+    </div>
+    <div class="info-block">
+      <div class="info-label">入力制限</div>
+      <p class="mb-0">${escapeHtml(taskData.constraints || '未設定')}</p>
+    </div>
+    ${ruleMarkup}
+    ${examplesMarkup}
+  `;
+}
+
 window.addEventListener('DOMContentLoaded', () => {
   const { header, footer } = window.PPEComponents || {};
   const feedback = window.PPEFeedback || {};
@@ -314,6 +396,8 @@ window.addEventListener('DOMContentLoaded', () => {
       runResultModal.show();
     }
   }
+
+  renderTaskPanel();
 
   if (runResultModalElement) {
     runResultModalElement.addEventListener('shown.bs.modal', () => {
