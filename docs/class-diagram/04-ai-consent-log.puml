@@ -1,0 +1,126 @@
+@startuml
+title Slice 4: AI連携・同意・ログ管理クラス図
+caption 学生の作業ログと同意状態を収集し、AI評価の入力として整形する設計
+
+skinparam classAttributeIconSize 0
+skinparam shadowing false
+skinparam roundcorner 15
+skinparam linetype ortho
+skinparam packageStyle rectangle
+
+class Student {
+  + studentId: String
+  + consentStatus: ConsentStatus
+  + reviewConsent()
+  + grantConsent()
+  + withdrawConsent()
+}
+
+class ConsentRecord {
+  + consentId: String
+  + studentId: String
+  + taskId: String
+  + status: ConsentStatus
+  + consentedAt: DateTime
+  + version: String
+}
+
+class CodeLog {
+  + logId: String
+  + studentId: String
+  + taskId: String
+  + capturedAt: DateTime
+  + eventType: LogEventType
+  + snapshotText: String
+  + runOutput: String
+  + saveMetadata: String
+}
+
+class AuditLog {
+  + auditId: String
+  + actorId: String
+  + actorRole: String
+  + action: String
+  + occurredAt: DateTime
+  + summary: String
+}
+
+class EvaluationInputBuilder {
+  + buildRequest(task: Task, rubric: Rubric, prompt: Prompt, logs: List<CodeLog>, submission: Submission, consent: ConsentRecord): EvaluationRequest
+}
+
+class EvaluationRequest {
+  + requestId: String
+  + taskId: String
+  + promptVersion: String
+  + rubricVersion: String
+  + actorRole: String
+  + consentStatus: String
+  + meta: Map<String, String>
+  + generatedJson: String
+}
+
+class GeminiAdapter {
+  + sendRequest(request: EvaluationRequest): GeminiResponse
+  + validateResponse(response: GeminiResponse): Boolean
+}
+
+class GeminiResponse {
+  + responseId: String
+  + scores: Map<String, Integer>
+  + reasons: String
+  + confidence: Float
+  + warnings: List<String>
+}
+
+class Task {
+  + taskId: String
+  + title: String
+  + promptVersion: String
+  + rubricVersion: String
+}
+
+class Prompt {
+  + promptId: String
+  + version: String
+  + content: String
+}
+
+class Rubric {
+  + rubricId: String
+  + version: String
+  + criteria: List<String>
+}
+
+class Submission {
+  + submissionId: String
+  + studentId: String
+  + taskId: String
+  + submittedCode: String
+  + submittedAt: DateTime
+}
+
+Student "1" --> "0..*" ConsentRecord : 同意状態を保持
+Student "1" --> "0..*" CodeLog : 30秒ログを残す
+Student "1" --> "0..*" Submission : 提出物を作成
+
+CodeLog "0..*" --> "1" EvaluationInputBuilder : AI入力の元データ
+Submission "1" --> "1" EvaluationInputBuilder : 提出情報を渡す
+ConsentRecord "1" --> "1" EvaluationInputBuilder : 同意状態を含める
+Task "1" --> "1" EvaluationInputBuilder : 課題情報を渡す
+Prompt "1" --> "1" EvaluationInputBuilder : プロンプトを渡す
+Rubric "1" --> "1" EvaluationInputBuilder : ルーブリックを渡す
+
+EvaluationInputBuilder "1" --> "1" EvaluationRequest : JSONを生成
+EvaluationRequest "1" --> "1" GeminiAdapter : APIへ送信
+GeminiAdapter "1" --> "1" GeminiResponse : 結果を受信
+
+AuditLog "0..*" --> "1" Student : 操作履歴として記録
+AuditLog "0..*" --> "1" Teacher : 監査対象として残す
+
+note right of ConsentRecord
+  同意状態は評価入力に含めるが、
+  主要な評価対象は作業ログと提出物である
+end note
+
+@enduml

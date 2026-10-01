@@ -6,6 +6,10 @@
 
 ## 目次
 
+### 公式定義
+
+- [state-naming-standard.md](state-naming-standard.md): 状態名の正規命名規約と役割ごとの使い分け
+
 ### 学生向け
 
 - [student/state-rules-overview.md](student/state-rules-overview.md): 学生向けの共通状態定義と画面ごとの表示差分
@@ -28,8 +32,9 @@
 
 ## 運用ルール
 
-- 状態は「保存状態」と「学習/公開状態」を分離して扱う。
+- 状態は「保存状態」「学習状態」「公開/配信状態」を分離して扱う。
 - 画面ごとの表示ラベルと状態名は揃える。
+- `status` という汎用名ではなく、`saveStatus` / `learningStatus` / `publicationStatus` / `distributionStatus` のように役割ごとに命名する。
 - 操作可否は状態に紐づけて定義する。
 - 実装前に、状態を変える条件と遷移先を明文化する。
 

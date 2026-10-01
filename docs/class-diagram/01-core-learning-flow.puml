@@ -1,0 +1,108 @@
+@startuml
+title Slice 1: 学習フローの中核クラス図
+caption 生徒が課題に取り組み、コードログと提出を蓄積し、評価へ結びつく中核モデル
+
+skinparam classAttributeIconSize 0
+skinparam shadowing false
+skinparam roundcorner 15
+skinparam linetype ortho
+skinparam packageStyle rectangle
+
+class Student {
+  + studentId: String
+  + name: String
+  + consentStatus: ConsentStatus
+  + openTask(task: Task)
+  + editCode(task: Task, content: String)
+  + saveDraft(task: Task)
+  + submit(task: Task)
+  + viewEvaluation(task: Task)
+}
+
+class Task {
+  + taskId: String
+  + title: String
+  + status: TaskStatus
+  + promptVersion: String
+  + rubricVersion: String
+  + publish()
+  + updateContent()
+  + getSubmissionTarget()
+}
+
+class Prompt {
+  + promptId: String
+  + version: String
+  + content: String
+  + applyTo(task: Task)
+}
+
+class Rubric {
+  + rubricId: String
+  + version: String
+  + criteria: List<String>
+  + evaluate(submission: Submission)
+}
+
+class Submission {
+  + submissionId: String
+  + studentId: String
+  + taskId: String
+  + submittedAt: DateTime
+  + submittedCode: String
+  + finalStatus: SubmissionStatus
+  + setSubmittedCode(code: String)
+  + lockForReview()
+  + allowResubmission()
+}
+
+class CodeLog {
+  + logId: String
+  + studentId: String
+  + taskId: String
+  + timestamp: DateTime
+  + eventType: LogEventType
+  + snapshotText: String
+  + runResult: RunResult
+  + recordSnapshot()
+  + recordRun()
+  + recordSave()
+}
+
+class Evaluation {
+  + evaluationId: String
+  + submissionId: String
+  + taskId: String
+  + status: EvaluationStatus
+  + overallScore: Integer
+  + feedback: String
+  + processAnalysis: String
+  + beginEvaluation()
+  + completeEvaluation()
+  + requestRevision()
+}
+
+Student "1" --> "0..*" Task : 課題を開く / 進める
+Student "1" --> "0..*" Submission : 提出する
+Student "1" --> "0..*" CodeLog : 操作ログを残す
+
+Task "1" --> "0..*" Submission : 提出対象
+Task "1" --> "0..*" CodeLog : 実施ログを保持
+Task "1" --> "1" Prompt : 課題設定を利用
+Task "1" --> "1" Rubric : 評価基準を利用
+
+Submission "1" --> "0..*" CodeLog : 作業履歴を参照
+Submission "0..1" --> "1" Evaluation : 評価結果を持つ
+Evaluation "*" --> "1" Task : 課題に紐付く
+Evaluation "*" --> "1" Rubric : 基準で判定する
+
+note right of Submission
+  保存状態と学習状態は分離する
+  - 未保存 / 下書き / 提出済み / 再提出可能
+end note
+
+note bottom of CodeLog
+  30秒スナップショット、実行ログ、保存イベントを記録する
+end note
+
+@enduml

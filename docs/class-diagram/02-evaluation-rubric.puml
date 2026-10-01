@@ -1,0 +1,122 @@
+@startuml
+title Slice 2: 評価・ルーブリックの中核クラス図
+caption 生成AIが提出物とログを基に評価を行い、スコアとフィードバックを返す設計
+
+skinparam classAttributeIconSize 0
+skinparam shadowing false
+skinparam roundcorner 15
+skinparam linetype ortho
+skinparam packageStyle rectangle
+
+class Student {
+  + studentId: String
+  + name: String
+  + viewEvaluation()
+  + requestRevision()
+}
+
+class Submission {
+  + submissionId: String
+  + studentId: String
+  + taskId: String
+  + submittedCode: String
+  + status: SubmissionStatus
+  + evaluationTarget: Boolean
+}
+
+class Evaluation {
+  + evaluationId: String
+  + submissionId: String
+  + taskId: String
+  + status: EvaluationStatus
+  + overallScore: Integer
+  + processAnalysis: String
+  + feedback: String
+  + createdAt: DateTime
+  + beginEvaluation()
+  + completeEvaluation()
+  + requestRevision()
+}
+
+class Rubric {
+  + rubricId: String
+  + version: String
+  + title: String
+  + criteriaList: List<Criterion>
+  + evaluate(submission: Submission, logs: List<CodeLog>): Evaluation
+}
+
+class Criterion {
+  + criterionId: String
+  + name: String
+  + weight: Integer
+  + description: String
+  + score: Integer
+  + rationale: String
+}
+
+class ScoreResult {
+  + scoreId: String
+  + evaluationId: String
+  + criterionId: String
+  + value: Integer
+  + reasoning: String
+}
+
+class EvidenceRef {
+  + evidenceId: String
+  + evaluationId: String
+  + codeSection: String
+  + logTimestamp: DateTime
+  + summary: String
+}
+
+class Feedback {
+  + feedbackId: String
+  + evaluationId: String
+  + level: FeedbackLevel
+  + message: String
+  + priority: String
+}
+
+class CodeLog {
+  + logId: String
+  + submissionId: String
+  + timestamp: DateTime
+  + eventType: LogEventType
+  + snapshotText: String
+}
+
+class Teacher {
+  + teacherId: String
+  + reviewEvaluation()
+  + confirmResult()
+  + requestReevaluation()
+}
+
+Student "1" --> "0..*" Submission : 提出
+Student "1" --> "0..*" Evaluation : 結果を参照
+
+Submission "1" --> "0..*" CodeLog : 操作ログを持つ
+Submission "1" --> "0..1" Evaluation : 評価対象
+
+Rubric "1" --> "0..*" Criterion : 各観点を持つ
+Rubric "1" --> "0..*" Evaluation : 評価の基準になる
+
+Evaluation "1" --> "0..*" ScoreResult : 得点を持つ
+Evaluation "1" --> "0..*" EvidenceRef : 根拠を持つ
+Evaluation "1" --> "0..*" Feedback : フィードバックを持つ
+
+Teacher "1" --> "0..*" Evaluation : 結果を確認
+
+note right of Rubric
+  prompt版管理とrubric版管理を前提とし
+  評価対象ごとに版を固定する
+end note
+
+note bottom of Evaluation
+  processAnalysis はコード編集ログと
+  提出内容からの分析を含む
+end note
+
+@enduml
