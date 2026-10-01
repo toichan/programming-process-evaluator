@@ -13,7 +13,7 @@ const ALL_FEATURES = [
   '評価確認',
   'アンケート結果確認',
   '課題編集',
-  'プロンプト修正'
+  'プロンプト設計'
 ];
 const feedback = window.PPEFeedback || {};
 const pageFeedback = feedback.createPageFeedback
@@ -133,7 +133,7 @@ function seedAdminData() {
       {
         teacherId: 't001',
         schools: ['国際中等'],
-        enabledFeatures: ['生徒アカウント管理', '課題進捗確認', '授業演習コード確認', '提出課題確認', 'コード配信', '評価確認', 'アンケート結果確認', '課題編集', 'プロンプト修正'],
+        enabledFeatures: ['生徒アカウント管理', '課題進捗確認', '授業演習コード確認', '提出課題確認', 'コード配信', '評価確認', 'アンケート結果確認', '課題編集', 'プロンプト設計'],
         createdAt: '2026-07-01 09:10:00',
         createdBy: 'admin'
       },

@@ -1,0 +1,229 @@
+@startuml
+title Programming Process Evaluator システム全体図
+caption 生徒の編集ログを根拠にGeminiが評価を生成し、生徒・教師へ提示する流れ
+
+left to right direction
+skinparam shadowing false
+skinparam roundcorner 15
+skinparam linetype ortho
+skinparam defaultFontName "Noto Sans CJK JP"
+skinparam defaultFontSize 13
+skinparam ArrowThickness 2
+
+skinparam rectangle {
+  BackgroundColor White
+  BorderColor #345B8C
+}
+
+skinparam database {
+  BackgroundColor #FFF7EA
+  BorderColor #D9822B
+}
+
+skinparam component {
+  BackgroundColor White
+  BorderColor #345B8C
+}
+
+' =========================================================
+' 凡例用の色
+' =========================================================
+!define STUDENT_COLOR #1E66B3
+!define TEACHER_COLOR #3B7D3A
+!define SYSTEM_COLOR #365F91
+!define BACKEND_COLOR #4F7F3F
+!define AI_COLOR #7652A3
+!define DB_COLOR #D9822B
+
+' =========================================================
+' 利用者
+' =========================================================
+
+rectangle "生徒\n（課題の実施者）" as STUDENT #EAF3FF {
+  rectangle "生徒の主な操作\n\n・課題の選択・確認\n・Pythonコードの編集\n・コードの実行\n・課題の提出" as STUDENT_ACTIONS
+
+  rectangle "送信する主なデータ\n\n・task_id\n・source_code（編集中内容）\n・run_input\n・stdout, stderr\n・submitted_code\n・testcase_check_result" as STUDENT_DATA
+}
+
+rectangle "教師\n（評価管理者）" as TEACHER #EEF8EA {
+  rectangle "教師の主な操作\n\n・プロンプト・ルーブリック設定\n・評価プロセスの再確認（必要時）\n・評価一覧・詳細の確認" as TEACHER_ACTIONS
+
+  rectangle "送信する主なデータ\n\n・task_id\n・prompt_version\n・rubric_version\n・common_prompt\n・ambiguity_item_instructions\n・evaluation_examples" as TEACHER_DATA
+}
+
+' =========================================================
+' Programming Process Evaluator
+' =========================================================
+
+package "Programming Process Evaluator\n（システム内部）" as PPE #F7FAFC {
+
+  rectangle "フロントエンド（Web UI）\n\n"
+  + "・生徒画面：エディター、実行、提出、評価確認\n"
+  + "・教師画面：プロンプト設定、評価一覧、詳細確認" as WEB_UI #EDF4FF
+
+  package "バックエンド（Servlet / Java）" as BACKEND #F1F8EE {
+
+    rectangle "プロンプト・ルーブリック管理\n\n"
+    + "・課題ごとの共通プロンプト管理\n"
+    + "・揺らぎ項目対応指示の保存\n"
+    + "・評価例の管理\n"
+    + "・版管理（prompt_version/rubric_version）" as PROMPT_SERVICE
+
+    rectangle "編集ログ収集サービス\n\n"
+    + "・30秒ごとのスナップショット収集\n"
+    + "・実行イベントの記録\n"
+    + "・保存イベントの記録\n"
+    + "・提出イベントの記録" as LOG_SERVICE
+
+    rectangle "評価入力組立サービス\n\n"
+    + "・task/rubric/log/submissionを統合\n"
+    + "・匿名化済みIDの適用\n"
+    + "・AI送信用JSONを構築" as INPUT_BUILDER
+
+    rectangle "AI連携オーケストレーション\n\n"
+    + "・リクエスト生成（meta付与）\n"
+    + "・Gemini API呼び出し\n"
+    + "・レスポンス検証（JSONスキーマ）\n"
+    + "・再試行制御" as AI_GATEWAY
+
+    rectangle "評価結果管理・配信サービス\n\n"
+    + "・AI評価結果の受信・検証\n"
+    + "・結果の保存・履歴管理\n"
+    + "・再評価時の差分管理\n"
+    + "・生徒/教師画面への提示" as RESULT_SERVICE
+  }
+}
+
+' =========================================================
+' Gemini API
+' =========================================================
+
+rectangle "Gemini API\n（生成AI）\n\n"
++ "役割\n"
++ "プロンプト・ルーブリック・\n"
++ "コード編集ログ等をもとに\n"
++ "評価・分析を生成（JSON応答）\n"
++ "※評価ロジック実行主体" as GEMINI #F5F0FC
+
+rectangle "3. システムが\nGeminiへ送信\n\n"
++ "主データ\n"
++ "・メタ情報\n"
++ "  request_id, model_id,\n"
++ "  prompt_version,\n"
++ "  rubric_version, actor_role,\n"
++ "  consent_status, locale 等\n"
++ "・task, rubric\n"
++ "・timeline_logs\n"
++ "・submission\n"
++ "・prompt_evaluation_settings" as AI_REQUEST #FAF7FF
+
+rectangle "3-応答. 生成評価\nJSONを返却\n\n"
++ "主データ\n"
++ "・scores\n"
++ "・reasons\n"
++ "・process_analysis\n"
++ "・confidence\n"
++ "・evidence_refs\n"
++ "・warnings" as AI_RESPONSE #FAF7FF
+
+' =========================================================
+' MySQL
+' =========================================================
+
+database "MySQL\n（データベース）" as MYSQL #FFF6E8
+
+rectangle "保存する主なデータ\n\n"
++ "・ユーザー情報（生徒 / 教師）\n"
++ "・課題・ルーブリック・プロンプト設定\n"
++ "・コードログ\n"
++ "  snapshots, run_events,\n"
++ "  save_events\n"
++ "・提出情報・テストケース結果\n"
++ "・評価結果・プロセス分析\n"
++ "・操作履歴（audit_log）\n"
++ "・同意状態・メタデータ" as MYSQL_DATA #FFF9F0
+
+rectangle "2-補足. 編集ログや\n評価結果を保存\n\n"
++ "主データ\n"
++ "・snapshots\n"
++ "・run_events\n"
++ "・save_events\n"
++ "・submission\n"
++ "・evaluation_results\n"
++ "・audit_log 等" as DB_IO #FFF9F0
+
+' =========================================================
+' システム内部の処理関係
+' =========================================================
+
+WEB_UI -down-> PROMPT_SERVICE : 教師設定
+WEB_UI -down-> LOG_SERVICE : 生徒操作・提出
+
+PROMPT_SERVICE -down-> INPUT_BUILDER
+LOG_SERVICE -down-> INPUT_BUILDER
+INPUT_BUILDER -right-> AI_GATEWAY
+AI_GATEWAY -right-> RESULT_SERVICE
+
+' =========================================================
+' ユーザーからシステムへの流れ
+' =========================================================
+
+TEACHER -right-> WEB_UI #TEACHER_COLOR : 1. 教師が評価用\nプロンプトを設定\n\nHTTPS
+
+STUDENT -right-> WEB_UI #STUDENT_COLOR : 2. 生徒が課題を実施\nコード編集・実行・提出\n\nHTTPS
+
+WEB_UI -left[dashed]-> STUDENT #STUDENT_COLOR : 4. 生成評価を\n生徒へ提示\n\nHTTPS
+
+WEB_UI -left[dashed]-> TEACHER #TEACHER_COLOR : 5. 評価一覧を\n教師へ提示\n\nHTTPS
+
+' =========================================================
+' AI APIとの通信
+' =========================================================
+
+AI_GATEWAY -right-> AI_REQUEST #AI_COLOR
+AI_REQUEST -right-> GEMINI #AI_COLOR : API（HTTPS）
+
+GEMINI -left[dashed]-> AI_RESPONSE #AI_COLOR : API（HTTPS）
+AI_RESPONSE -left[dashed]-> AI_GATEWAY #AI_COLOR
+
+' =========================================================
+' DBとの通信
+' =========================================================
+
+LOG_SERVICE -right-> DB_IO #DB_COLOR
+PROMPT_SERVICE -right-> DB_IO #DB_COLOR
+RESULT_SERVICE -right-> DB_IO #DB_COLOR
+
+DB_IO -right-> MYSQL #DB_COLOR : JDBC（接続）
+MYSQL -right-> MYSQL_DATA #DB_COLOR
+
+' =========================================================
+' 非表示リンクによるレイアウト調整
+' =========================================================
+
+STUDENT -[hidden]down-> TEACHER
+AI_REQUEST -[hidden]down-> AI_RESPONSE
+MYSQL -[hidden]down-> MYSQL_DATA
+
+note bottom of BACKEND
+バックエンドは評価ロジックを実行せず、
+収集・組立・連携・保存・提示を担当する。
+評価/分析の生成はGeminiが担当する。
+end note
+
+' =========================================================
+' 凡例
+' =========================================================
+
+legend bottom
+|= 線の種類 |= 意味 |
+|<#1E66B3>━━</#>| 生徒からの操作・データ送信 |
+|<#1E66B3>┄┄</#>| システムから生徒への結果提示 |
+|<#3B7D3A>━━</#>| 教師からの操作・データ送信 |
+|<#3B7D3A>┄┄</#>| システムから教師への結果提示 |
+|<#7652A3>━━</#>| AIへのリクエスト送信 |
+|<#7652A3>┄┄</#>| AIからの応答受信 |
+|<#D9822B>━━</#>| データベースとのデータ保存・取得 |
+endlegend
+
+@enduml

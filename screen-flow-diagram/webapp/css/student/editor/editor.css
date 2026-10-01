@@ -181,8 +181,8 @@ body {
 }
 
 .task-badge {
-  background: rgba(217, 107, 107, 0.14);
-  color: var(--editor-accent-dark);
+  background: rgba(187, 79, 112, 0.14);
+  color: var(--editor-accent-alt);
 }
 
 .editor-toolbar .btn-primary {
@@ -200,10 +200,27 @@ body {
   color: var(--bs-gray-700);
 }
 
+.editor-file-tab-row {
+  margin-top: 1.25rem;
+}
+
+.editor-file-tab {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.55rem 0.9rem;
+  border-radius: 0.9rem 0.9rem 0 0;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(203, 213, 225, 0.9);
+  border-bottom: 0;
+  font-weight: 700;
+  color: var(--bs-gray-800);
+  font-size: 0.85rem;
+}
+
 .editor-shell {
-  margin-top: 1.5rem;
+  margin-top: 0;
   border: 1px solid #dbe4f0;
-  border-radius: 1rem;
+  border-radius: 0 1rem 1rem 1rem;
   overflow: hidden;
   background: #0f172a;
 }

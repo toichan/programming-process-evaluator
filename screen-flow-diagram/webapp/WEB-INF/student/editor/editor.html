@@ -34,7 +34,10 @@
           </li>
         </ol>
         <div class="learning-flow-task-title">
-          <span class="learning-flow-task-name">初級：じゃんけん判定プログラム</span>
+          <span class="learning-flow-task-name">
+            <span class="learning-flow-level-badge is-beginner">初級</span>
+            <span>じゃんけん判定プログラム</span>
+          </span>
         </div>
       </nav>
 
@@ -47,7 +50,7 @@
           </p>
         </div>
         <div class="hero-status-card">
-          <div class="status-label">現在の状況</div>
+          <div class="status-label">課題状況</div>
           <div class="status-value">編集中</div>
           <div class="status-meta">保存・実行・コードログの確認を行いながら、課題を編集中です。</div>
         </div>
@@ -58,7 +61,7 @@
           <section class="sample-section editor-workspace-section">
             <div class="editor-toolbar">
               <div class="toolbar-left">
-                <span class="task-badge">課題: じゃんけん判定プログラム</span>
+                <span class="task-badge">初級：じゃんけん判定プログラム</span>
               </div>
               <div class="button-group">
                 <button id="downloadButton" class="btn btn-outline-secondary" type="button">ダウンロード</button>
@@ -66,6 +69,10 @@
                 <button id="runButton" class="btn btn-primary" type="button">実行</button>
                 <button id="submitButton" class="btn btn-warning" type="button">提出する</button>
               </div>
+            </div>
+
+            <div class="editor-file-tab-row">
+              <span class="editor-file-tab is-active">じゃんけん判定プログラム.py</span>
             </div>
 
             <div class="editor-shell">
@@ -175,35 +182,7 @@ else:
 
             <div class="info-panels mt-4">
               <div id="taskPanel" class="info-panel is-active">
-                <h3>じゃんけん判定プログラム</h3>
-                <p>ユーザーの入力に応じて、勝敗または入力エラーを表示するプログラムを作成します。</p>
-                <div class="info-block">
-                  <div class="info-label">実装する機能</div>
-                  <ul>
-                    <li>入力値を受け取る</li>
-                    <li>条件分岐で勝敗を判定する</li>
-                    <li>不正な入力時に案内を表示する</li>
-                  </ul>
-                </div>
-                <div class="info-block">
-                  <div class="info-label">入力制限</div>
-                  <p class="mb-0">入力は「グー」「チョキ」「パー」のいずれかを想定します。</p>
-                </div>
-                <div class="info-block io-block">
-                  <div class="info-label">想定入出力</div>
-                  <div class="case-card io-case-card">
-                    <div class="io-case-label">入力</div>
-                    <textarea class="io-case-source" spellcheck="false">パー</textarea>
-                    <div class="io-case-label mt-3">出力</div>
-                    <textarea class="io-case-source" spellcheck="false">あなたの勝ち</textarea>
-                  </div>
-                  <div class="case-card io-case-card">
-                    <div class="io-case-label">入力</div>
-                    <textarea class="io-case-source" spellcheck="false">ぐー</textarea>
-                    <div class="io-case-label mt-3">出力</div>
-                    <textarea class="io-case-source" spellcheck="false">グー・チョキ・パーを入力してください</textarea>
-                  </div>
-                </div>
+                <div id="taskPanelContent"></div>
               </div>
 
               <div id="hintPanel" class="info-panel">

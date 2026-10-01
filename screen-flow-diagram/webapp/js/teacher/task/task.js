@@ -241,6 +241,20 @@ function getElementValue(element) {
   return typeof element.value === 'string' ? element.value.trim() : '';
 }
 
+function parseCreationRules(value) {
+  const raw = Array.isArray(value) ? value : (typeof value === 'string' ? value : '');
+
+  const items = Array.isArray(raw)
+    ? raw
+    : raw.split(/\r?\n|;/);
+
+  return items
+    .map(function(item) {
+      return String(item || '').trim();
+    })
+    .filter(Boolean);
+}
+
 function bindRowActionButtons() {
   document.querySelectorAll('#taskTable tbody tr').forEach(function(row) {
     bindTaskRowActionButtons(row);
@@ -308,7 +322,8 @@ function bindPreviewEvents() {
     'themeInput',
     'taskDescriptionInput',
     'featureInput',
-    'taskConstraintInput'
+    'taskConstraintInput',
+    'taskCreationRulesInput'
   ];
 
   ids.forEach(function(id) {
@@ -518,6 +533,7 @@ function updatePreview() {
   const description = getValue('taskDescriptionInput');
   const features = getValue('featureInput');
   const constraint = getValue('taskConstraintInput');
+  const creationRules = parseCreationRules(getValue('taskCreationRulesInput'));
 
   setText('previewName', name || '課題名未設定');
   const previewLevel = document.getElementById('previewLevel');
@@ -558,6 +574,20 @@ function updatePreview() {
   const constraintEl = document.getElementById('previewEditorConstraint');
   if (constraintEl) {
     constraintEl.textContent = constraint || '未設定';
+  }
+
+  const rulesBlock = document.getElementById('previewEditorRulesBlock');
+  const rulesList = document.getElementById('previewEditorRules');
+  if (rulesBlock && rulesList) {
+    if (creationRules.length > 0) {
+      rulesList.innerHTML = creationRules.map(function(rule) {
+        return '<li>' + escapeHtml(rule) + '</li>';
+      }).join('');
+      rulesBlock.hidden = false;
+    } else {
+      rulesList.innerHTML = '';
+      rulesBlock.hidden = true;
+    }
   }
 
   const casesEl = document.getElementById('previewEditorCases');
@@ -854,6 +884,7 @@ function startCreateFormEditMode(row) {
   setValue('taskDescriptionInput', row.dataset.description || '');
   setValue('featureInput', row.dataset.features || '');
   setValue('taskConstraintInput', row.dataset.constraint || '');
+  setValue('taskCreationRulesInput', Array.isArray(parseJsonArray(row.dataset.creationRules)) ? parseJsonArray(row.dataset.creationRules).join('\n') : (row.dataset.creationRules || ''));
   setValue('initialCodeInput', row.dataset.initialCode || '');
   setValue('lateSubmissionPolicy', row.dataset.lateSubmissionPolicy || '');
 
@@ -951,6 +982,7 @@ function saveCreateFormEditResult(status) {
   const description = getValue('taskDescriptionInput');
   const features = getValue('featureInput');
   const constraint = getValue('taskConstraintInput');
+  const creationRules = parseCreationRules(getValue('taskCreationRulesInput'));
   const initialCode = getValue('initialCodeInput');
   const classSchedules = collectClassSchedules();
   const lateSubmissionPolicy = getValue('lateSubmissionPolicy');
@@ -987,6 +1019,7 @@ function saveCreateFormEditResult(status) {
   editTargetRow.dataset.status = status;
   editTargetRow.dataset.description = description;
   editTargetRow.dataset.constraint = constraint;
+  editTargetRow.dataset.creationRules = JSON.stringify(creationRules);
   editTargetRow.dataset.updated = updated;
   editTargetRow.dataset.theme = theme;
   editTargetRow.dataset.features = features;
@@ -1054,6 +1087,7 @@ function createTaskRowFromForm(status) {
   row.dataset.promptStatus = '未設定';
   row.dataset.description = getValue('taskDescriptionInput');
   row.dataset.constraint = getValue('taskConstraintInput');
+  row.dataset.creationRules = JSON.stringify(parseCreationRules(getValue('taskCreationRulesInput')));
   row.dataset.updated = updated;
   row.dataset.creator = creator;
   row.dataset.theme = getValue('themeInput');
@@ -1073,7 +1107,7 @@ function createTaskRowFromForm(status) {
       : '<span class="badge text-bg-secondary">下書き</span>') + '</td>'
     + '<td><a class="prompt-status-link is-unset" href="../prompt/prompt.html?taskId=' + escapeHtml(taskId) + '">未設定</a></td>'
     + '<td class="updated-at">' + escapeHtml(updated) + '</td>'
-    + '<td class="task-creator">' + escapeHtml(creator) + '</td>'
+    + '<td><code class="history-creator-id task-creator">' + escapeHtml(creator) + '</code></td>'
     + '<td>'
     +   '<div class="d-flex gap-2">'
     +     '<button class="btn btn-sm btn-outline-primary edit-button" type="button">編集</button>'
@@ -1176,6 +1210,7 @@ function openTaskAuditDetail(row) {
 
   const taskId = row.dataset.taskId || '';
   const taskName = row.dataset.name || taskId || '課題';
+  const target = row.dataset.target || '- / -';
   const targetLabel = document.getElementById('taskAuditDetailTarget');
   const detailBody = document.getElementById('taskAuditDetailBody');
   if (!detailBody) {
@@ -1183,7 +1218,7 @@ function openTaskAuditDetail(row) {
   }
 
   if (targetLabel) {
-    targetLabel.textContent = '対象: ' + taskName + '（' + (taskId || 'ID未設定') + '）';
+    targetLabel.textContent = taskName + ' / ' + target;
   }
 
   let events = [];

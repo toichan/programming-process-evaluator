@@ -22,7 +22,7 @@
           <div>
             <span class="hero-kicker">Code Distribution</span>
             <h1 class="section-title mb-2">コード配信</h1>
-            <p class="hero-description mb-0">学校・クラスを指定して、授業演習用のフォルダ・ファイルテンプレートを作成・配信します。</p>
+            <p class="hero-description mb-0">学校・クラスを指定して、テンプレートの作成・下書き保存・配信・履歴管理を行います。</p>
           </div>
           <div class="hero-stats">
             <div class="stat-card">
@@ -30,7 +30,7 @@
               <div class="stat-value" id="templateCount">0</div>
             </div>
             <div class="stat-card">
-              <div class="stat-label">予約配信</div>
+              <div class="stat-label">配信中</div>
               <div class="stat-value" id="scheduledCount">0</div>
             </div>
             <div class="stat-card">
@@ -185,7 +185,7 @@
             <div>
               <span class="hero-kicker mb-1 d-inline-block">Distribution History</span>
               <h2 class="subheading mb-0">配信履歴</h2>
-              <div class="form-text">配信予約は編集可能、配信済みは編集不可です。</div>
+              <div class="form-text">下書き・配信設定済み・配信中は編集できます。配信中は未配信クラスのみ編集対象です。</div>
             </div>
             <div class="distribution-history-actions">
               <button class="btn btn-outline-secondary btn-sm" type="button" id="distributionHistoryRefreshButton">更新</button>
@@ -214,8 +214,9 @@
               <select class="form-select form-select-sm" id="distributionHistoryFilterStatus">
                 <option value="すべて" selected>すべて</option>
                 <option value="下書き">下書き</option>
-                <option value="配信予約">配信予約</option>
-                <option value="配信済み">配信済み</option>
+                <option value="配信設定済み">配信設定済み</option>
+                <option value="配信中">配信中</option>
+                <option value="配信完了">配信完了</option>
                 <option value="停止">停止</option>
               </select>
             </div>
@@ -344,7 +345,7 @@
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
         </div>
         <div class="modal-body">
-          <div class="mb-3 text-dark fw-semibold" id="distributionAuditDetailTarget">対象: -</div>
+          <div class="mb-3 text-dark fw-semibold" id="distributionAuditDetailTarget">- / - / -</div>
           <div class="table-responsive">
             <table class="table table-sm align-middle mb-0">
               <thead class="table-light">

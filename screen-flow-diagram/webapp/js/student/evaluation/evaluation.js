@@ -6,6 +6,13 @@ window.addEventListener('DOMContentLoaded', () => {
   const reasonCards = document.querySelectorAll('.reason-card');
   const rubricTabs = document.querySelectorAll('[data-rubric-target]');
   const rubricPanels = document.querySelectorAll('.rubric-panel');
+  const loadingPairs = [
+    ['taskMetaSkeleton', 'taskMetaContent'],
+    ['overviewSkeleton', 'overviewContent'],
+    ['breakdownSkeleton', 'breakdownContent'],
+    ['reasonsSkeleton', 'reasonsContent']
+  ];
+  const reasonFilterGroup = document.getElementById('reasonFilterGroup');
 
   if (headerPlaceholder && header) {
     headerPlaceholder.innerHTML = header;
@@ -41,4 +48,20 @@ window.addEventListener('DOMContentLoaded', () => {
       document.getElementById(targetId)?.classList.add('is-active');
     });
   });
+
+  window.setTimeout(() => {
+    loadingPairs.forEach(([skeletonId, contentId]) => {
+      const skeleton = document.getElementById(skeletonId);
+      const content = document.getElementById(contentId);
+      if (!skeleton || !content) {
+        return;
+      }
+      skeleton.classList.add('d-none');
+      content.classList.remove('d-none');
+    });
+
+    if (reasonFilterGroup) {
+      reasonFilterGroup.classList.remove('d-none');
+    }
+  }, 1400);
 });
