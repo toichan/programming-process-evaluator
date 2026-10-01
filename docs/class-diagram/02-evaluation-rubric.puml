@@ -1,6 +1,6 @@
 @startuml
 title Slice 2: 評価・ルーブリックの中核クラス図
-caption 生成AIが提出物とログを基に評価を行い、スコアとフィードバックを返す設計
+caption ルーブリックの各段階、評価結果、根拠、再評価履歴を保存するモデル
 
 skinparam classAttributeIconSize 0
 skinparam shadowing false
@@ -8,115 +8,187 @@ skinparam roundcorner 15
 skinparam linetype ortho
 skinparam packageStyle rectangle
 
-class Student {
-  + studentId: String
-  + name: String
-  + viewEvaluation()
-  + requestRevision()
+class Rubric {
+  + rubricId: Long <<PK>>
+  + createdByUserId: Long <<FK>>
+  + title: String
+  + version: String
+  + rubricStatus: RubricStatus
+  + createdAt: DateTime
+  + updatedAt: DateTime
 }
 
-class Submission {
-  + submissionId: String
-  + studentId: String
-  + taskId: String
-  + submittedCode: String
-  + status: SubmissionStatus
-  + evaluationTarget: Boolean
+class RubricCriterion {
+  + criterionId: Long <<PK>>
+  + rubricId: Long <<FK>>
+  + dimensionId: Long <<FK>>
+  + criterionCode: String
+  + name: String
+  + description: Text
+  + weight: Decimal
+  + sortOrder: Integer
+}
+
+class CriterionLevel {
+  + criterionLevelId: Long <<PK>>
+  + criterionId: Long <<FK>>
+  + levelValue: Integer
+  + levelLabel: String
+  + levelDescription: Text
 }
 
 class Evaluation {
-  + evaluationId: String
-  + submissionId: String
-  + taskId: String
-  + status: EvaluationStatus
-  + overallScore: Integer
-  + processAnalysis: String
-  + feedback: String
+  + evaluationId: Long <<PK>>
+  + evaluationCode: String <<UK>>
+  + submissionId: Long <<FK>>
+  + rubricId: Long <<FK>>
+  + promptVersionId: Long <<FK>>
+  + evaluationStatus: EvaluationStatus
+  + overallScore: Decimal
+  + processAnalysis: LongText
+  + feedbackSummary: Text
+  + evaluationKind: EvaluationKind
+  + formatVersion: String
+  + locale: String
+  + generatedAt: DateTime
+  + finalEvaluatedAt: DateTime
+  + autoSaveCount: Integer
+  + executionCount: Integer
   + createdAt: DateTime
-  + beginEvaluation()
-  + completeEvaluation()
-  + requestRevision()
+  + completedAt: DateTime
 }
 
-class Rubric {
-  + rubricId: String
-  + version: String
+class RubricDimension {
+  + dimensionId: Long <<PK>>
+  + rubricId: Long <<FK>>
+  + dimensionCode: String
+  + label: String
+  + scaleMinimum: Integer
+  + scaleMaximum: Integer
+  + scaleLabel: String
+  + sortOrder: Integer
+}
+
+class EvaluationDimensionResult {
+  + evaluationDimensionResultId: Long <<PK>>
+  + evaluationId: Long <<FK>>
+  + dimensionId: Long <<FK>>
+  + scoreValue: Decimal
+  + scoreText: String
+  + summaryTitle: String
+  + summaryDescription: Text
+}
+
+class EvaluationScore {
+  + evaluationScoreId: Long <<PK>>
+  + evaluationId: Long <<FK>>
+  + criterionId: Long <<FK>>
+  + criterionLevelId: Long <<FK>>
+  + metricKey: String
+  + dimensionId: Long <<FK>>
+  + metricTitle: String
+  + scoreValue: Integer
+  + metricDescription: Text
+}
+
+class EvaluationReason {
+  + evaluationReasonId: Long <<PK>>
+  + evaluationId: Long <<FK>>
+  + reasonCode: String
+  + dimensionId: Long <<FK>>
+  + categoryLabel: String
   + title: String
-  + criteriaList: List<Criterion>
-  + evaluate(submission: Submission, logs: List<CodeLog>): Evaluation
+  + scoreValue: Integer
+  + body: LongText
 }
 
-class Criterion {
-  + criterionId: String
-  + name: String
-  + weight: Integer
-  + description: String
-  + score: Integer
-  + rationale: String
+class EvaluationReasonDetail {
+  + reasonDetailId: Long <<PK>>
+  + evaluationReasonId: Long <<FK>>
+  + detailCode: String
+  + detailText: Text
+  + sortOrder: Integer
 }
 
-class ScoreResult {
-  + scoreId: String
-  + evaluationId: String
-  + criterionId: String
-  + value: Integer
-  + reasoning: String
+class EvaluationEvidence {
+  + evidenceId: Long <<PK>>
+  + reasonDetailId: Long <<FK>>
+  + codeLogId: Long <<FK>>
+  + codeExecutionId: Long <<FK>>
+  + evidenceType: String
+  + evidenceLabel: String
+  + sourceRecordType: String
+  + sourceRecordId: String
+  + evidenceValue: Text
+  + evidenceUnit: String
+  + codeRange: String
+  + evidenceSummary: Text
 }
 
-class EvidenceRef {
-  + evidenceId: String
-  + evaluationId: String
-  + codeSection: String
-  + logTimestamp: DateTime
-  + summary: String
+class EvaluationFeedback {
+  + feedbackId: Long <<PK>>
+  + evaluationId: Long <<FK>>
+  + feedbackType: FeedbackType
+  + priority: FeedbackPriority
+  + message: Text
+  + createdAt: DateTime
 }
 
-class Feedback {
-  + feedbackId: String
-  + evaluationId: String
-  + level: FeedbackLevel
-  + message: String
-  + priority: String
+class ReevaluationJob {
+  + reevaluationJobId: Long <<PK>>
+  + taskId: Long <<FK>>
+  + promptVersionId: Long <<FK>>
+  + requestedByUserId: Long <<FK>>
+  + reevaluationStatus: ReevaluationStatus
+  + targetCount: Integer
+  + completedCount: Integer
+  + progressPercent: Decimal
+  + resultSummary: JSON
+  + startedAt: DateTime
+  + completedAt: DateTime
+}
+
+class Submission {
+  + submissionId: Long <<PK>>
+  + participationId: Long <<FK>>
+  + revisionNumber: Integer
+  + submittedAt: DateTime
 }
 
 class CodeLog {
-  + logId: String
-  + submissionId: String
-  + timestamp: DateTime
-  + eventType: LogEventType
-  + snapshotText: String
+  + codeLogId: Long <<PK>>
+  + participationId: Long <<FK>>
+  + observedAt: DateTime
 }
 
-class Teacher {
-  + teacherId: String
-  + reviewEvaluation()
-  + confirmResult()
-  + requestReevaluation()
-}
+Rubric "1" -- "1..*" RubricCriterion
+Rubric "1" -- "1..*" RubricDimension
+RubricDimension "1" -- "1..*" RubricCriterion
+RubricCriterion "1" -- "1..*" CriterionLevel
+Rubric "1" -- "0..*" Evaluation : 評価時に版を固定
+Submission "1" -- "0..*" Evaluation : 再評価履歴を保持
+Evaluation "1" -- "1..*" EvaluationDimensionResult
+RubricDimension "1" -- "0..*" EvaluationDimensionResult
+Evaluation "1" -- "1..*" EvaluationScore
+RubricCriterion "1" -- "0..*" EvaluationScore
+CriterionLevel "1" -- "0..*" EvaluationScore
+EvaluationScore "1" -- "0..*" EvaluationEvidence
+Evaluation "1" -- "1..*" EvaluationReason
+EvaluationReason "1" -- "1..*" EvaluationReasonDetail
+EvaluationReasonDetail "1" -- "0..*" EvaluationEvidence
+CodeLog "1" -- "0..*" EvaluationEvidence
+Evaluation "1" -- "0..*" EvaluationFeedback
+ReevaluationJob "1" -- "0..*" Evaluation : 対象結果
 
-Student "1" --> "0..*" Submission : 提出
-Student "1" --> "0..*" Evaluation : 結果を参照
-
-Submission "1" --> "0..*" CodeLog : 操作ログを持つ
-Submission "1" --> "0..1" Evaluation : 評価対象
-
-Rubric "1" --> "0..*" Criterion : 各観点を持つ
-Rubric "1" --> "0..*" Evaluation : 評価の基準になる
-
-Evaluation "1" --> "0..*" ScoreResult : 得点を持つ
-Evaluation "1" --> "0..*" EvidenceRef : 根拠を持つ
-Evaluation "1" --> "0..*" Feedback : フィードバックを持つ
-
-Teacher "1" --> "0..*" Evaluation : 結果を確認
-
-note right of Rubric
-  prompt版管理とrubric版管理を前提とし
-  評価対象ごとに版を固定する
+note right of Evaluation
+  評価状態は not_started / in_progress /
+  completed / failed / needs_revision を保持。
+  旧結果を上書きせず再評価ごとに追加する。
 end note
 
-note bottom of Evaluation
-  processAnalysis はコード編集ログと
-  提出内容からの分析を含む
+note bottom of RubricCriterion
+  5段階などの評価段階と説明文も行として保存し、
+  レベル定義を JSON や画面表示だけに閉じ込めない。
 end note
 
 @enduml

@@ -1,6 +1,6 @@
 @startuml
 title Slice 5: 全体統合クラス図
-caption 学習・評価・教師管理・AI連携を一つのシステムとしてまとめた全体像
+caption 学校所属、管理者設定、課題/配信設定、学生の学習状態、評価、AI連携の永続データ全体
 
 skinparam classAttributeIconSize 0
 skinparam shadowing false
@@ -8,146 +8,505 @@ skinparam roundcorner 15
 skinparam linetype ortho
 skinparam packageStyle rectangle
 
-class Student {
-  + studentId: String
-  + name: String
-  + consentStatus: ConsentStatus
-  + openTask(task: Task)
-  + submit(task: Task)
-  + reviewResult()
+class User {
+  + userId: Long <<PK>>
+  + userType: UserType
+  + loginId: String <<UK>>
+  + passwordHash: String
+  + accountStatus: AccountStatus
+  + createdAt: DateTime
+  + updatedAt: DateTime
+  + deletedAt: DateTime
 }
 
-class Teacher {
-  + teacherId: String
+class StudentProfile {
+  + userId: Long <<PK, FK>>
+  + studentCode: String <<UK>>
+  + securityLevel: Integer
+  + firstLoginStatus: FirstLoginStatus
+  + mustChangePassword: Boolean
+}
+
+class School {
+  + schoolId: Long <<PK>>
   + name: String
-  + createTask(task: Task)
-  + publishTask(task: Task)
-  + configurePrompt(prompt: Prompt)
-  + configureDistribution(distribution: Distribution)
+  + schoolStatus: SchoolStatus
+}
+
+class Classroom {
+  + classroomId: Long <<PK>>
+  + schoolId: Long <<FK>>
+  + name: String
+  + gradeName: String
+  + classroomStatus: ClassroomStatus
+}
+
+class StudentClassMembership {
+  + membershipId: Long <<PK>>
+  + studentUserId: Long <<FK>>
+  + classroomId: Long <<FK>>
+  + membershipStatus: MembershipStatus
+  + joinedAt: DateTime
+  + leftAt: DateTime
+}
+
+class TeacherSchoolPermission {
+  + permissionId: Long <<PK>>
+  + teacherUserId: Long <<FK>>
+  + schoolId: Long <<FK>>
+  + accessStatus: PermissionStatus
+}
+
+class TeacherFeaturePermission {
+  + permissionId: Long <<PK>>
+  + teacherUserId: Long <<FK>>
+  + featureCode: TeacherFeatureCode
+  + isEnabled: Boolean
 }
 
 class Task {
-  + taskId: String
+  + taskId: Long <<PK>>
+  + taskCode: String <<UK>>
   + title: String
-  + status: TaskStatus
-  + promptVersion: String
+  + theme: String
+  + difficulty: Difficulty
+  + language: String
+  + description: Text
+  + inputConstraints: Text
+  + creationRules: Text
+  + initialCode: LongText
+  + saveStatus: SaveStatus
+  + publicationStatus: PublicationStatus
+  + createdByUserId: Long <<FK>>
+  + updatedByUserId: Long <<FK>>
+  + deletedAt: DateTime
+  + deletedByUserId: Long
+  + rubricId: Long <<FK>>
   + rubricVersion: String
 }
 
-class Prompt {
-  + promptId: String
-  + version: String
-  + body: String
-  + status: PromptStatus
+class TaskClassAssignment {
+  + taskClassAssignmentId: Long <<PK>>
+  + taskId: Long <<FK>>
+  + classroomId: Long <<FK>>
+  + assignmentStatus: TaskAssignmentStatus
+  + publishAt: DateTime
+  + dueAt: DateTime
+  + lateSubmissionPolicy: LateSubmissionPolicy
 }
 
-class Rubric {
-  + rubricId: String
-  + version: String
-  + criteria: List<String>
+class TaskParticipation {
+  + participationId: Long <<PK>>
+  + studentUserId: Long <<FK>>
+  + taskClassAssignmentId: Long <<FK>>
+  + learningStatus: LearningStatus
+  + progressStatus: ProgressStatus
+  + saveStatus: SaveStatus
+  + evaluationStatus: EvaluationStatus
+  + resubmissionStatus: ResubmissionStatus
+  + activeDurationSeconds: Long
+  + lastActivityAt: DateTime
+  + completedAt: DateTime
 }
 
-class ClassRoom {
-  + classId: String
-  + name: String
+class TaskActivitySession {
+  + activitySessionId: Long <<PK>>
+  + participationId: Long <<FK>>
+  + startedAt: DateTime
+  + lastActiveAt: DateTime
+  + endedAt: DateTime
+  + activeDurationSeconds: Long
+  + sessionStatus: ActivitySessionStatus
 }
 
-class Distribution {
-  + distributionId: String
-  + status: DistributionStatus
-  + schedule: DateTime
+class TaskFeature {
+  + featureId: Long <<PK>>
+  + taskId: Long <<FK>>
+  + featureText: Text
+  + sortOrder: Integer
+  + recordStatus: RecordStatus
+}
+
+class TaskTestCase {
+  + testCaseId: Long <<PK>>
+  + taskId: Long <<FK>>
+  + testCaseInput: Text
+  + testCaseOutput: Text
+  + testCaseOrder: Integer
+  + recordStatus: RecordStatus
+}
+
+class TaskHint {
+  + hintId: Long <<PK>>
+  + taskId: Long <<FK>>
+  + hintTitle: String
+  + hintContent: Text
+  + usageSyntax: Text
+  + hintCode: LongText
+  + hintOrder: Integer
+  + recordStatus: RecordStatus
 }
 
 class Submission {
-  + submissionId: String
-  + studentId: String
-  + taskId: String
-  + submittedCode: String
-  + status: SubmissionStatus
+  + submissionId: Long <<PK>>
+  + participationId: Long <<FK>>
+  + revisionNumber: Integer
+  + submittedCode: LongText
+  + submissionStatus: SubmissionStatus
+  + submittedAt: DateTime
 }
 
 class CodeLog {
-  + logId: String
-  + studentId: String
-  + taskId: String
+  + codeLogId: Long <<PK>>
+  + participationId: Long <<FK>>
+  + submissionId: Long <<FK>>
+  + codeExecutionId: Long <<FK>>
   + eventType: LogEventType
-  + snapshotText: String
-  + timestamp: DateTime
+  + snapshotText: LongText
+  + executionStatusAtCapture: ExecutionStatus
+  + observedAt: DateTime
 }
 
-class ConsentRecord {
-  + consentId: String
-  + studentId: String
-  + taskId: String
-  + status: ConsentStatus
-  + consentedAt: DateTime
+class CodeExecution {
+  + executionId: Long <<PK>>
+  + participationId: Long <<FK>>
+  + submissionId: Long <<FK>>
+  + actorUserId: Long <<FK>>
+  + executionContext: ExecutionContext
+  + sourceCode: LongText
+  + standardInput: LongText
+  + executionStatus: ExecutionStatus
+  + exitCode: Integer
+  + standardOutput: LongText
+  + standardOutputTruncated: Boolean
+  + standardError: LongText
+  + standardErrorTruncated: Boolean
+  + errorCode: String
+  + errorMessage: Text
+  + durationMilliseconds: Integer
+  + executedAt: DateTime
+}
+
+class CodeExecutionTestResult {
+  + executionTestResultId: Long <<PK>>
+  + executionId: Long <<FK>>
+  + testCaseId: Long <<FK>>
+  + caseOrder: Integer
+  + inputSnapshot: Text
+  + expectedOutputSnapshot: Text
+  + actualOutput: Text
+  + actualOutputTruncated: Boolean
+  + resultStatus: TestResultStatus
+  + errorCode: String
+  + errorMessage: Text
 }
 
 class Evaluation {
-  + evaluationId: String
-  + submissionId: String
-  + taskId: String
-  + status: EvaluationStatus
-  + overallScore: Integer
-  + feedback: String
+  + evaluationId: Long <<PK>>
+  + submissionId: Long <<FK>>
+  + evaluationStatus: EvaluationStatus
+  + evaluationKind: EvaluationKind
+  + overallScore: Decimal
+  + promptVersionId: Long <<FK>>
+  + rubricId: Long <<FK>>
+  + completedAt: DateTime
 }
 
-class EvaluationRequest {
+class PromptVersion {
+  + promptVersionId: Long <<PK>>
+  + taskId: Long <<FK>>
+  + version: String
+  + aiModel: String
+  + commonPrompt: LongText
+  + additionalEvaluationInstruction: Text
+  + promptStatus: PromptStatus
+  + fluctuationGenerationStatus: GenerationStatus
+  + evaluationExamplesStatus: GenerationStatus
+}
+
+class Rubric {
+  + rubricId: Long <<PK>>
+  + version: String
+  + rubricStatus: RubricStatus
+}
+
+class RubricCriterion {
+  + criterionId: Long <<PK>>
+  + rubricId: Long <<FK>>
+  + name: String
+  + weight: Decimal
+  + description: Text
+}
+
+class CriterionLevel {
+  + criterionLevelId: Long <<PK>>
+  + criterionId: Long <<FK>>
+  + levelValue: Integer
+  + levelDescription: Text
+}
+
+class DistributionTemplate {
+  + distributionTemplateId: Long <<PK>>
+  + templateName: String
+  + rootPath: String
+  + saveStatus: SaveStatus
+  + templateStatus: TemplateStatus
+  + overwritePolicy: OverwritePolicy
+}
+
+class DistributionTemplateFile {
+  + templateFileId: Long <<PK>>
+  + distributionTemplateId: Long <<FK>>
+  + path: String
+  + entryType: TemplateEntryType
+  + initialContent: LongText
+  + entryStatus: RecordStatus
+}
+
+class Distribution {
+  + distributionId: Long <<PK>>
+  + distributionTemplateId: Long <<FK>>
+  + distributionStatus: DistributionStatus
+}
+
+class DistributionTarget {
+  + distributionTargetId: Long <<PK>>
+  + distributionId: Long <<FK>>
+  + classroomId: Long <<FK>>
+  + targetStatus: ClassDistributionStatus
+  + scheduledAt: DateTime
+  + distributedAt: DateTime
+}
+
+class StudentExerciseEntry {
+  + exerciseEntryId: Long <<PK>>
+  + studentExerciseId: Long <<FK>>
+  + parentEntryId: Long <<FK>>
+  + entryType: TemplateEntryType
+  + name: String
+  + path: String
+  + language: String
+  + description: Text
+  + currentContent: LongText
+  + entryStatus: ExerciseEntryStatus
+  + createdAt: DateTime
+  + trashedAt: DateTime
+  + updatedAt: DateTime
+  + deletedAt: DateTime
+}
+
+class StudentExercise {
+  + studentExerciseId: Long <<PK>>
+  + studentUserId: Long <<FK>>
+  + distributionTargetId: Long <<FK>>
+  + exerciseOrigin: ExerciseOrigin
+  + scopeName: String
+  + exerciseStatus: ExerciseStatus
+  + saveStatus: SaveStatus
+  + startedAt: DateTime
+  + completedAt: DateTime
+  + expiresAt: DateTime
+  + createdAt: DateTime
+  + updatedAt: DateTime
+}
+
+class ConsentRecord {
+  + consentId: Long <<PK>>
+  + userId: Long <<FK>>
+  + consentStatus: ConsentStatus
+  + consentDocumentVersionId: Long <<FK>>
+  + consentedAt: DateTime
+}
+
+class ConsentDocumentVersion {
+  + consentDocumentVersionId: Long <<PK>>
+  + versionCode: String
+  + title: String
+  + body: LongText
+  + documentStatus: DocumentStatus
+  + effectiveAt: DateTime
+}
+
+class SurveyResponse {
+  + surveyResponseId: Long <<PK>>
+  + responseCode: String
+  + recordCode: String
+  + studentUserId: Long <<FK>>
+  + surveyId: Long <<FK>>
+  + taskId: Long <<FK>>
+  + evaluationId: Long <<FK>>
+  + consentStatusAtSubmission: ConsentStatus
+  + responseStatus: SurveyResponseStatus
+  + startedAt: DateTime
+  + submittedAt: DateTime
+}
+
+class SurveyDefinition {
+  + surveyId: Long <<PK>>
+  + title: String
+  + surveyStatus: SurveyStatus
+  + createdAt: DateTime
+  + updatedAt: DateTime
+}
+
+class SurveyQuestion {
+  + questionId: Long <<PK>>
+  + surveyId: Long <<FK>>
+  + questionCode: String
+  + questionType: QuestionType
+  + promptText: Text
+  + required: Boolean
+  + sortOrder: Integer
+  + questionStatus: RecordStatus
+}
+
+class SurveyQuestionOption {
+  + optionId: Long <<PK>>
+  + questionId: Long <<FK>>
+  + optionCode: String
+  + label: String
+  + value: String
+  + sortOrder: Integer
+  + optionStatus: RecordStatus
+}
+
+class SurveyAnswer {
+  + surveyAnswerId: Long <<PK>>
+  + surveyResponseId: Long <<FK>>
+  + questionId: Long <<FK>>
+  + answerValue: Text
+  + answerReason: Text
+}
+
+class PasswordResetRecord {
+  + passwordResetRecordId: Long <<PK>>
+  + targetUserId: Long <<FK>>
+  + requestedByUserId: Long <<FK>>
+  + resetStatus: PasswordResetStatus
+  + mustChangeAtNextLogin: Boolean
+  + expiresAt: DateTime
+  + requestedAt: DateTime
+  + completedAt: DateTime
+}
+
+class CredentialHistory {
+  + credentialHistoryId: Long <<PK>>
+  + targetUserId: Long <<FK>>
+  + actorUserId: Long <<FK>>
+  + passwordResetRecordId: Long <<FK>>
+  + actionType: CredentialActionType
+  + resultStatus: OperationResult
+  + occurredAt: DateTime
+}
+
+class LoginHistory {
+  + loginHistoryId: Long <<PK>>
+  + userId: Long <<FK>>
+  + attemptedLoginId: String
+  + operationType: LoginOperationType
+  + resultStatus: OperationResult
+  + errorCode: String
+  + errorMessage: Text
+  + ipAddress: String
+  + userAgent: String
+  + sessionId: String
+  + occurredAt: DateTime
+}
+
+class ApplicationErrorLog {
+  + applicationErrorLogId: Long <<PK>>
+  + userId: Long <<FK>>
   + requestId: String
-  + taskId: String
-  + promptVersion: String
-  + rubricVersion: String
-  + consentStatus: String
-  + generatedJson: String
+  + featureCode: String
+  + operationName: String
+  + errorCategory: ErrorCategory
+  + errorCode: String
+  + userMessage: Text
+  + diagnosticDetail: Text
+  + occurredAt: DateTime
 }
 
-class GeminiAdapter {
-  + sendRequest(request: EvaluationRequest): GeminiResponse
+class AuditLog {
+  + auditLogId: Long <<PK>>
+  + actorUserId: Long <<FK>>
+  + featureCode: String
+  + targetType: String
+  + targetId: Long
+  + actionType: AuditActionType
+  + resultStatus: OperationResult
+  + errorCode: String
+  + errorMessage: Text
+  + detail: Text
+  + beforeData: JSON
+  + afterData: JSON
+  + requestId: String
+  + occurredAt: DateTime
 }
 
-class GeminiResponse {
-  + responseId: String
-  + scores: Map<String, Integer>
-  + reasons: String
-  + confidence: Float
-}
+User "1" -- "0..1" StudentProfile
+School "1" -- "0..*" Classroom
+StudentProfile "1" -- "0..*" StudentClassMembership
+Classroom "1" -- "0..*" StudentClassMembership
+User "1" -- "0..*" TeacherSchoolPermission
+School "1" -- "0..*" TeacherSchoolPermission
+User "1" -- "0..*" TeacherFeaturePermission
+Task "1" -- "0..*" TaskClassAssignment
+Classroom "1" -- "0..*" TaskClassAssignment
+StudentProfile "1" -- "0..*" TaskParticipation
+TaskClassAssignment "1" -- "0..*" TaskParticipation
+TaskParticipation "1" -- "0..*" TaskActivitySession
+Task "1" -- "0..*" TaskFeature
+Task "1" -- "0..*" TaskTestCase
+Task "1" -- "0..*" TaskHint
+TaskParticipation "1" -- "0..*" Submission
+TaskParticipation "1" -- "0..*" CodeLog
+TaskParticipation "0..1" -- "0..*" CodeExecution
+Submission "1" -- "0..*" Evaluation
+Submission "0..1" -- "0..*" CodeExecution
+User "0..1" -- "0..*" CodeExecution : 実行者
+CodeLog "0..*" -- "0..1" CodeExecution : 関連実行
+CodeExecution "1" -- "0..*" CodeExecutionTestResult
+TaskTestCase "0..1" -- "0..*" CodeExecutionTestResult
+Task "1" -- "0..*" PromptVersion
+Task "0..*" -- "1" Rubric
+Rubric "1" -- "1..*" RubricCriterion
+RubricCriterion "1" -- "1..*" CriterionLevel
+DistributionTemplate "1" -- "1..*" DistributionTemplateFile
+DistributionTemplate "1" -- "0..*" Distribution
+Distribution "1" -- "1..*" DistributionTarget
+Classroom "1" -- "0..*" DistributionTarget
+DistributionTarget "1" -- "0..*" StudentExercise
+StudentExercise "1" -- "0..*" StudentExerciseEntry
+StudentExerciseEntry "0..1" -- "0..*" StudentExerciseEntry : 親子階層
+StudentProfile "1" -- "0..*" StudentExercise
+User "1" -- "0..*" ConsentRecord
+ConsentDocumentVersion "1" -- "0..*" ConsentRecord
+StudentProfile "1" -- "0..*" SurveyResponse
+SurveyResponse "1" -- "1..*" SurveyAnswer
+SurveyDefinition "1" -- "0..*" SurveyResponse
+SurveyDefinition "1" -- "1..*" SurveyQuestion
+SurveyQuestion "1" -- "0..*" SurveyQuestionOption
+SurveyQuestion "1" -- "0..*" SurveyAnswer
+User "1" -- "0..*" LoginHistory
+User "1" -- "0..*" AuditLog
+User "1" -- "0..*" PasswordResetRecord : 対象/実行者
+User "1" -- "0..*" CredentialHistory : 対象/実行者
+PasswordResetRecord "0..1" -- "0..*" CredentialHistory
+User "0..1" -- "0..*" ApplicationErrorLog
 
-Student "1" --> "0..*" Task : 課題を選ぶ
-Student "1" --> "0..*" Submission : 提出物を作成
-Student "1" --> "0..*" CodeLog : 操作ログを残す
-Student "1" --> "0..*" ConsentRecord : 同意状態を保持
-
-Teacher "1" --> "0..*" Task : 課題を作成・公開
-Teacher "1" --> "0..*" Prompt : プロンプト設計
-Teacher "1" --> "0..*" Distribution : 配信を設定
-
-Task "1" --> "1" Prompt : 評価の入力基準
-Task "1" --> "1" Rubric : 評価基準
-Task "1" --> "0..*" Submission : 提出対象
-Task "1" --> "0..*" CodeLog : 実施ログを持つ
-
-Distribution "1" --> "0..*" ClassRoom : 対象クラスを持つ
-ClassRoom "1" --> "0..*" Student : 学生が所属
-
-Submission "1" --> "0..1" Evaluation : 評価結果
-Submission "1" --> "0..*" CodeLog : 参照対象ログ
-
-ConsentRecord "1" --> "1" EvaluationRequest : 同意状態を含む
-CodeLog "0..*" --> "1" EvaluationRequest : 評価入力を構築
-Submission "1" --> "1" EvaluationRequest : 提出内容を含む
-Prompt "1" --> "1" EvaluationRequest : 版付きプロンプト
-Rubric "1" --> "1" EvaluationRequest : 版付き評定基準
-
-EvaluationRequest "1" --> "1" GeminiAdapter : API入力
-GeminiAdapter "1" --> "1" GeminiResponse : 評価結果
-GeminiResponse "1" --> "1" Evaluation : 結果を保存
-
-note right of Student
-  学生は「学習の進行」と「提出状態」を分離して扱う
+note right of User
+  学校とクラスをアカウント属性の自由記述にせず、
+  School / Classroom への外部キーで所属を表す。
 end note
 
-note bottom of Teacher
-  教師は課題設計・配信・評価設計を別責務で管理する
+note bottom of TaskParticipation
+  ホーム/進捗/評価の状態はこの行と提出・評価から取得。
+  一覧用の表示状態は保存状態から導出可能にする。
+end note
+
+note bottom of AuditLog
+  管理者/教師の設定変更は、状態値だけでなく
+  実行者・操作種別・対象・結果・変更前後を記録する。
 end note
 
 @enduml

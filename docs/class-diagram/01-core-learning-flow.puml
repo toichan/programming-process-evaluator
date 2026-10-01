@@ -1,6 +1,6 @@
 @startuml
 title Slice 1: 学習フローの中核クラス図
-caption 生徒が課題に取り組み、コードログと提出を蓄積し、評価へ結びつく中核モデル
+caption 学校・クラス所属を起点に、課題配信、学習状態、ログ、提出、評価を永続データとして結ぶ
 
 skinparam classAttributeIconSize 0
 skinparam shadowing false
@@ -8,101 +8,242 @@ skinparam roundcorner 15
 skinparam linetype ortho
 skinparam packageStyle rectangle
 
-class Student {
-  + studentId: String
+class User {
+  + userId: Long <<PK>>
+  + userType: UserType
+  + loginId: String <<UK>>
+  + passwordHash: String
+  + displayName: String
+  + accountStatus: AccountStatus
+  + createdAt: DateTime
+  + updatedAt: DateTime
+  + deletedAt: DateTime
+}
+
+class StudentProfile {
+  + userId: Long <<PK, FK>>
+  + studentCode: String <<UK>>
+  + securityLevel: Integer
+  + firstLoginStatus: FirstLoginStatus
+  + mustChangePassword: Boolean
+}
+
+class School {
+  + schoolId: Long <<PK>>
+  + schoolCode: String <<UK>>
   + name: String
-  + consentStatus: ConsentStatus
-  + openTask(task: Task)
-  + editCode(task: Task, content: String)
-  + saveDraft(task: Task)
-  + submit(task: Task)
-  + viewEvaluation(task: Task)
+  + schoolStatus: SchoolStatus
+}
+
+class Classroom {
+  + classroomId: Long <<PK>>
+  + schoolId: Long <<FK>>
+  + name: String
+  + gradeName: String
+  + classroomStatus: ClassroomStatus
+}
+
+class StudentClassMembership {
+  + membershipId: Long <<PK>>
+  + studentUserId: Long <<FK>>
+  + classroomId: Long <<FK>>
+  + membershipStatus: MembershipStatus
+  + joinedAt: DateTime
+  + leftAt: DateTime
 }
 
 class Task {
-  + taskId: String
+  + taskId: Long <<PK>>
+  + taskCode: String <<UK>>
+  + createdByUserId: Long <<FK>>
+  + updatedByUserId: Long <<FK>>
   + title: String
-  + status: TaskStatus
-  + promptVersion: String
-  + rubricVersion: String
-  + publish()
-  + updateContent()
-  + getSubmissionTarget()
+  + theme: String
+  + difficulty: Difficulty
+  + language: String
+  + description: Text
+  + inputConstraints: Text
+  + creationRules: Text
+  + initialCode: LongText
+  + saveStatus: SaveStatus
+  + publicationStatus: PublicationStatus
+  + createdAt: DateTime
+  + updatedAt: DateTime
+  + deletedAt: DateTime
+  + deletedByUserId: Long
 }
 
-class Prompt {
-  + promptId: String
-  + version: String
-  + content: String
-  + applyTo(task: Task)
+class TaskClassAssignment {
+  + taskClassAssignmentId: Long <<PK>>
+  + taskId: Long <<FK>>
+  + classroomId: Long <<FK>>
+  + assignmentStatus: TaskAssignmentStatus
+  + publishAt: DateTime
+  + dueAt: DateTime
+  + lateSubmissionPolicy: LateSubmissionPolicy
+  + createdAt: DateTime
+  + updatedAt: DateTime
 }
 
-class Rubric {
-  + rubricId: String
-  + version: String
-  + criteria: List<String>
-  + evaluate(submission: Submission)
+class TaskParticipation {
+  + participationId: Long <<PK>>
+  + studentUserId: Long <<FK>>
+  + taskClassAssignmentId: Long <<FK>>
+  + learningStatus: LearningStatus
+  + progressStatus: ProgressStatus
+  + saveStatus: SaveStatus
+  + evaluationStatus: EvaluationStatus
+  + resubmissionStatus: ResubmissionStatus
+  + activeDurationSeconds: Long
+  + lastActivityAt: DateTime
+  + completedAt: DateTime
+}
+
+class TaskActivitySession {
+  + activitySessionId: Long <<PK>>
+  + participationId: Long <<FK>>
+  + startedAt: DateTime
+  + lastActiveAt: DateTime
+  + endedAt: DateTime
+  + activeDurationSeconds: Long
+  + sessionStatus: ActivitySessionStatus
+}
+
+class TaskTestCase {
+  + testCaseId: Long <<PK>>
+  + taskId: Long <<FK>>
+  + title: String
+  + testCaseInput: Text
+  + testCaseOutput: Text
+  + testCaseOrder: Integer
+  + recordStatus: RecordStatus
+}
+
+class TaskFeature {
+  + featureId: Long <<PK>>
+  + taskId: Long <<FK>>
+  + featureText: Text
+  + sortOrder: Integer
+  + recordStatus: RecordStatus
+}
+
+class TaskHint {
+  + hintId: Long <<PK>>
+  + taskId: Long <<FK>>
+  + hintTitle: String
+  + hintContent: Text
+  + usageSyntax: Text
+  + hintCode: LongText
+  + hintOrder: Integer
+  + recordStatus: RecordStatus
 }
 
 class Submission {
-  + submissionId: String
-  + studentId: String
-  + taskId: String
+  + submissionId: Long <<PK>>
+  + participationId: Long <<FK>>
+  + revisionNumber: Integer
+  + submittedCode: LongText
+  + submissionStatus: SubmissionStatus
   + submittedAt: DateTime
-  + submittedCode: String
-  + finalStatus: SubmissionStatus
-  + setSubmittedCode(code: String)
-  + lockForReview()
-  + allowResubmission()
+  + reviewLockedAt: DateTime
 }
 
 class CodeLog {
-  + logId: String
-  + studentId: String
-  + taskId: String
-  + timestamp: DateTime
+  + codeLogId: Long <<PK>>
+  + participationId: Long <<FK>>
+  + submissionId: Long <<FK>>
+  + codeExecutionId: Long <<FK>>
   + eventType: LogEventType
-  + snapshotText: String
-  + runResult: RunResult
-  + recordSnapshot()
-  + recordRun()
-  + recordSave()
+  + snapshotText: LongText
+  + executionStatusAtCapture: ExecutionStatus
+  + observedAt: DateTime
+  + createdAt: DateTime
+}
+
+class CodeExecution {
+  + executionId: Long <<PK>>
+  + participationId: Long <<FK>>
+  + submissionId: Long <<FK>>
+  + actorUserId: Long <<FK>>
+  + executionContext: ExecutionContext
+  + sourceCode: LongText
+  + standardInput: LongText
+  + executionStatus: ExecutionStatus
+  + exitCode: Integer
+  + standardOutput: LongText
+  + standardOutputTruncated: Boolean
+  + standardError: LongText
+  + standardErrorTruncated: Boolean
+  + errorCode: String
+  + errorMessage: Text
+  + durationMilliseconds: Integer
+  + executedAt: DateTime
+}
+
+class CodeExecutionTestResult {
+  + executionTestResultId: Long <<PK>>
+  + executionId: Long <<FK>>
+  + testCaseId: Long <<FK>>
+  + caseOrder: Integer
+  + inputSnapshot: Text
+  + expectedOutputSnapshot: Text
+  + actualOutput: Text
+  + actualOutputTruncated: Boolean
+  + resultStatus: TestResultStatus
+  + errorCode: String
+  + errorMessage: Text
 }
 
 class Evaluation {
-  + evaluationId: String
-  + submissionId: String
-  + taskId: String
-  + status: EvaluationStatus
+  + evaluationId: Long <<PK>>
+  + submissionId: Long <<FK>>
+  + rubricId: Long <<FK>>
+  + promptVersionId: Long <<FK>>
+  + evaluationStatus: EvaluationStatus
   + overallScore: Integer
-  + feedback: String
-  + processAnalysis: String
-  + beginEvaluation()
-  + completeEvaluation()
-  + requestRevision()
+  + feedbackSummary: Text
+  + processAnalysis: Text
+  + createdAt: DateTime
+  + completedAt: DateTime
 }
 
-Student "1" --> "0..*" Task : 課題を開く / 進める
-Student "1" --> "0..*" Submission : 提出する
-Student "1" --> "0..*" CodeLog : 操作ログを残す
+User "1" -- "0..1" StudentProfile
+School "1" -- "0..*" Classroom
+StudentProfile "1" -- "0..*" StudentClassMembership
+Classroom "1" -- "0..*" StudentClassMembership
+Task "1" -- "0..*" TaskClassAssignment
+Classroom "1" -- "0..*" TaskClassAssignment
+StudentProfile "1" -- "0..*" TaskParticipation
+TaskClassAssignment "1" -- "0..*" TaskParticipation
+Task "1" -- "0..*" TaskTestCase
+Task "1" -- "0..*" TaskFeature
+Task "1" -- "0..*" TaskHint
+TaskParticipation "1" -- "0..*" Submission
+TaskParticipation "1" -- "0..*" CodeLog
+TaskParticipation "1" -- "0..*" TaskActivitySession
+TaskParticipation "0..1" -- "0..*" CodeExecution
+Submission "1" -- "0..*" CodeLog
+Submission "1" -- "0..*" Evaluation
+Submission "0..1" -- "0..*" CodeExecution
+User "0..1" -- "0..*" CodeExecution : 実行者
+CodeLog "0..*" -- "0..1" CodeExecution : 関連実行
+CodeExecution "1" -- "0..*" CodeExecutionTestResult
+TaskTestCase "0..1" -- "0..*" CodeExecutionTestResult
+User "0..1" -- "0..*" CodeExecution : 実行者
 
-Task "1" --> "0..*" Submission : 提出対象
-Task "1" --> "0..*" CodeLog : 実施ログを保持
-Task "1" --> "1" Prompt : 課題設定を利用
-Task "1" --> "1" Rubric : 評価基準を利用
+note right of TaskParticipation
+  生徒×クラス配信課題ごとの状態を永続化する。
+  進捗画面の状態はこの行と提出・評価履歴から集計する。
+end note
 
-Submission "1" --> "0..*" CodeLog : 作業履歴を参照
-Submission "0..1" --> "1" Evaluation : 評価結果を持つ
-Evaluation "*" --> "1" Task : 課題に紐付く
-Evaluation "*" --> "1" Rubric : 基準で判定する
-
-note right of Submission
-  保存状態と学習状態は分離する
-  - 未保存 / 下書き / 提出済み / 再提出可能
+note bottom of Task
+  公開期間・提出期限・期限後提出可否は
+  Task ではなくクラス別割当で保持する。
 end note
 
 note bottom of CodeLog
-  30秒スナップショット、実行ログ、保存イベントを記録する
+  30秒スナップショット、保存、提出等を記録。
+  実行出力は CodeExecution に構造化して保存する。
 end note
 
 @enduml
