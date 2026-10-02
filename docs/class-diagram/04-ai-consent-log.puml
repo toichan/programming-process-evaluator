@@ -8,6 +8,8 @@ skinparam roundcorner 15
 skinparam linetype ortho
 skinparam packageStyle rectangle
 
+note "削除方針\n- 同意、認証、監査、AI依頼・応答・入力スナップショットは追跡用の履歴として通常削除しない\n- 状態訂正や再試行は既存行の物理削除ではなく、新しい履歴または状態遷移で表す\n- 保存期間・個人情報対応による匿名化や物理削除は通常操作と分離して監査する" as RetentionPolicy
+
 class User {
   + userId: Long <<PK>>
   + userType: UserType
@@ -33,6 +35,14 @@ class ConsentDocumentVersion {
   + effectiveAt: DateTime
   + createdByUserId: Long <<FK>>
   + createdAt: DateTime
+}
+
+class ResearchSubjectIdentifier {
+  + researchSubjectIdentifierId: Long <<PK>>
+  + studentUserId: Long <<FK, UK>>
+  + researchSubjectCode: String <<UK>>
+  + generatedAt: DateTime
+  + generatedByUserId: Long <<FK>>
 }
 
 class LoginHistory {
@@ -162,6 +172,9 @@ class Evaluation {
 
 class Task {
   + taskId: Long <<PK>>
+  + taskCode: String
+  + taskRevisionCode: String <<UK>>
+  + revisionNumber: Integer
   + publicationStatus: PublicationStatus
 }
 
@@ -185,6 +198,8 @@ class Submission {
 User "1" -- "0..*" ConsentRecord
 User "0..1" -- "0..*" LoginHistory
 ConsentDocumentVersion "1" -- "0..*" ConsentRecord
+User "0..1" -- "0..1" ResearchSubjectIdentifier : 生徒本人
+User "0..1" -- "0..*" ResearchSubjectIdentifier : 生成実行者
 User "0..1" -- "0..*" CredentialHistory : 対象ユーザー
 User "0..1" -- "0..*" CredentialHistory : 実行者
 PasswordResetRecord "0..1" -- "0..*" CredentialHistory
@@ -201,10 +216,22 @@ EvaluationInputBuilder ..> Rubric
 EvaluationInputBuilder ..> Submission
 EvaluationInputBuilder ..> CodeLog
 EvaluationInputBuilder ..> ConsentRecord
+EvaluationInputBuilder ..> ResearchSubjectIdentifier
 
 note right of ConsentRecord
   同意状態と同意文書版はユーザー単位で記録し、
   AI送信時点の同意状態も要求履歴に固定する。
+  同意状態に関わらず通常学習・AI評価・コードログ収集は継続し、
+  研究エクスポート・集計のみ同意済みレコードに限定する。
+end note
+
+note right of ResearchSubjectIdentifier
+  「匿名性」はログイン用IDが氏名・出席番号と非連結であることを指し、
+  教師が生徒を特定できないという意味ではない。
+  ログイン用IDは教師の閲覧範囲内で可視のまま維持し、
+  Gemini送信・研究データ外部提供時のみ本識別子を使用する。
+  anonymizedSubjectId（EvaluationInputSnapshot）はリクエスト単位の値で、
+  研究用データセット全体を追跡する安定IDとは別物とする。
 end note
 
 note bottom of AuditLog

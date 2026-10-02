@@ -2,6 +2,8 @@
 
 let editTargetRow = null;
 let isEditingInCreateForm = false;
+let isOperationalEditMode = false;
+let operationalOriginalSchedules = [];
 let previewIoEditors = [];
 let initialCodeEditor = null;
 const feedback = window.PPEFeedback || {};
@@ -141,10 +143,10 @@ function initializeTaskPage() {
     taskCreateForm.addEventListener('submit', function(event) {
       event.preventDefault();
       if (isEditingInCreateForm) {
-        saveCreateFormEditResult('公開');
+        saveCreateFormEditResult('公開中');
         return;
       }
-      createTaskRowFromForm('公開');
+      createTaskRowFromForm('公開中');
       pageFeedback.toast({ message: '課題を保存・公開しました。', variant: 'success', delay: 2200 });
       increasePublishedCount();
     });
@@ -166,7 +168,7 @@ function initializeTaskPage() {
   updateSchoolDropdownLabel();
   updateClassDropdownLabel();
   refreshClassScheduleRows();
-  syncPromptStatusHighlight();
+  applyStatusFilter();
 
   initializeInitialCodeEditor();
 
@@ -268,8 +270,29 @@ function bindTaskRowActionButtons(row) {
 
   const editButton = row.querySelector('.edit-button');
   if (editButton) {
-    editButton.addEventListener('click', function() {
-      startCreateFormEditMode(row);
+    editButton.addEventListener('click', async function() {
+      if (row.dataset.status !== '公開中') {
+        startCreateFormEditMode(row);
+        return;
+      }
+
+      const learningStarted = row.dataset.learningStarted === 'true';
+      const ok = await pageFeedback.confirm({
+        title: learningStarted ? '新しい課題として編集しますか？' : '新しい改訂を作成しますか？',
+        message: learningStarted
+          ? '学習開始済みのため、公開中の課題は直接変更できません。'
+          : '公開中の内容を保持したまま、新しい改訂を作成します。',
+        details: learningStarted
+          ? ['既存の提出・評価・コードログを保持します。', '新しい課題コードの下書きを作成します。', '期限延長・対象クラス追加だけなら「運用変更」を使用してください。']
+          : ['現在の公開内容は再公開まで維持します。', '同じ課題コードの要更新改訂を作成します。'],
+        confirmLabel: learningStarted ? '新しい課題を作成' : '新しい改訂を作成',
+        cancelLabel: '戻る',
+        variant: 'warning'
+      });
+      if (!ok) return;
+
+      const editableRow = learningStarted ? duplicateTaskRow(row, { silent: true }) : createTaskRevisionRow(row);
+      if (editableRow) startCreateFormEditMode(editableRow);
     });
   }
 
@@ -281,6 +304,28 @@ function bindTaskRowActionButtons(row) {
   }
 
   const deleteButton = row.querySelector('.delete-button');
+  let operationButton = row.querySelector('.operation-change-button');
+  if (!operationButton && deleteButton) {
+    operationButton = document.createElement('button');
+    operationButton.type = 'button';
+    operationButton.className = 'btn btn-sm btn-outline-warning operation-change-button';
+    operationButton.textContent = '運用変更';
+    deleteButton.parentElement.insertBefore(operationButton, deleteButton);
+  }
+  if (operationButton) {
+    operationButton.addEventListener('click', async function() {
+      const ok = await pageFeedback.confirm({
+        title: '期限延長・対象クラス追加を行いますか？',
+        message: '学習開始後に許可された運用変更だけを行います。',
+        details: ['許可: 提出期限の延長、対象クラスの追加', '不可: 期限短縮、既存クラスの除外、公開日時の後退', '課題内容・評価条件は変更しません。'],
+        confirmLabel: '運用変更を開始', cancelLabel: '戻る', variant: 'warning'
+      });
+      if (!ok) return;
+      recordTaskAudit('運用変更開始', row.dataset.taskId, '期限延長・対象クラス追加の編集を開始: ' + row.dataset.name);
+      startCreateFormEditMode(row, { operational: true });
+    });
+  }
+
   if (deleteButton) {
     deleteButton.addEventListener('click', async function() {
       const taskId = row.dataset.taskId || 'TASK-UNKNOWN';
@@ -290,7 +335,7 @@ function bindTaskRowActionButtons(row) {
         title: '課題を削除しますか？',
         message: '次のデータを削除します。',
         detailTitle: '',
-        details: ['課題名: ' + taskName, '課題一覧への表示状態'],
+        details: ['課題名: ' + taskName, '通常の一覧から非表示にします。内容と履歴は保持します。', '削除済み一覧から下書きへ復元できます。'],
         confirmLabel: '削除する',
         cancelLabel: '戻る',
         variant: 'danger'
@@ -299,7 +344,13 @@ function bindTaskRowActionButtons(row) {
 
       recordTaskAudit('削除', taskId, '課題を論理削除: ' + taskName);
 
-      row.remove();
+      row.dataset.status = '論理削除';
+      row.dataset.deletedAt = buildNowString();
+      row.dataset.deletedBy = getCurrentTaskCreatorId();
+      if (editTargetRow === row) {
+        resetCreateForm();
+        finishCreateFormEditMode();
+      }
       pageFeedback.toast({ message: '課題を論理削除しました。', variant: 'success', delay: 2200 });
       applyStatusFilter();
     });
@@ -309,6 +360,38 @@ function bindTaskRowActionButtons(row) {
   if (historyButton) {
     historyButton.addEventListener('click', function() {
       openTaskAuditDetail(row);
+    });
+  }
+
+  let restoreButton = row.querySelector('.restore-button');
+  if (!restoreButton && deleteButton) {
+    restoreButton = document.createElement('button');
+    restoreButton.type = 'button';
+    restoreButton.className = 'btn btn-sm btn-outline-primary restore-button';
+    restoreButton.textContent = '下書きへ復元';
+    restoreButton.hidden = true;
+    deleteButton.parentElement.appendChild(restoreButton);
+  }
+  if (restoreButton) {
+    restoreButton.addEventListener('click', async function() {
+      if (row.dataset.status !== '論理削除') return;
+      const ok = await pageFeedback.confirm({
+        title: '課題を下書きへ復元しますか？',
+        message: '削除した課題を下書きへ復元します。',
+        details: ['課題名: ' + (row.dataset.name || '選択課題'), '内容と履歴を保持し、復元操作を履歴に記録します。', '公開・予約公開は再開しません。確認後に「保存・公開」を実行してください。'],
+        confirmLabel: '下書きへ復元', cancelLabel: '戻る', variant: 'warning'
+      });
+      if (!ok || row.dataset.status !== '論理削除') return;
+      row.dataset.status = '下書き';
+      delete row.dataset.deletedAt;
+      delete row.dataset.deletedBy;
+      row.dataset.updated = buildNowString();
+      const updatedAt = row.querySelector('.updated-at');
+      if (updatedAt) updatedAt.textContent = row.dataset.updated;
+      recordTaskAudit('復元', row.dataset.taskId, '課題を下書きへ復元（公開は再開しない）: ' + row.dataset.name);
+      setValue('filterStatus', '下書き');
+      applyStatusFilter();
+      pageFeedback.toast({ message: '下書きへ復元しました。', variant: 'success', delay: 2200 });
     });
   }
 
@@ -338,6 +421,7 @@ function bindPreviewEvents() {
     el.addEventListener('change', function() {
       updateClassDropdownLabel();
       refreshClassScheduleRows();
+      applyOperationalEditRestrictions();
       updatePreview();
     });
   });
@@ -864,9 +948,13 @@ function resetCreateForm() {
   updatePreview();
 }
 
-function startCreateFormEditMode(row) {
+function startCreateFormEditMode(row, options) {
+  if (!row || row.dataset.status === '論理削除') return;
+  const settings = options || {};
   editTargetRow = row;
   isEditingInCreateForm = true;
+  isOperationalEditMode = settings.operational === true;
+  operationalOriginalSchedules = isOperationalEditMode ? parseJsonArray(row.dataset.classSchedules) : [];
 
   const target = (row.dataset.target || '').split('/').map(function(item) {
     return item.trim();
@@ -926,6 +1014,7 @@ function startCreateFormEditMode(row) {
   }
 
   applyCreateFormEditModeUi();
+  applyOperationalEditRestrictions();
   updateSchoolDropdownLabel();
   updateClassDropdownLabel();
   updatePreview();
@@ -939,25 +1028,29 @@ function startCreateFormEditMode(row) {
 }
 
 function finishCreateFormEditMode() {
+  clearOperationalEditRestrictions();
   editTargetRow = null;
   isEditingInCreateForm = false;
+  isOperationalEditMode = false;
+  operationalOriginalSchedules = [];
   applyCreateFormEditModeUi();
 }
 
 function applyCreateFormEditModeUi() {
   const heading = document.getElementById('createSectionHeading');
   if (heading) {
-    heading.textContent = isEditingInCreateForm ? '既存課題の編集' : '新規課題の作成';
+    heading.textContent = isOperationalEditMode ? '期限延長・対象クラス追加' : (isEditingInCreateForm ? '既存課題の編集' : '新規課題の作成');
   }
 
   const publishTaskButton = document.getElementById('publishTaskButton');
   if (publishTaskButton) {
-    publishTaskButton.textContent = isEditingInCreateForm ? '編集内容を保存（公開）' : '保存・公開';
+    publishTaskButton.textContent = isOperationalEditMode ? '運用変更を保存' : (isEditingInCreateForm ? '編集内容を保存（公開）' : '保存・公開');
   }
 
   const saveDraftButton = document.getElementById('saveDraftButton');
   if (saveDraftButton) {
     saveDraftButton.textContent = isEditingInCreateForm ? '編集内容を保存（下書き）' : '下書き保存';
+    saveDraftButton.classList.toggle('d-none', isOperationalEditMode);
   }
 
   const cancelEditButton = document.getElementById('cancelEditButton');
@@ -966,8 +1059,156 @@ function applyCreateFormEditModeUi() {
   }
 }
 
-function saveCreateFormEditResult(status) {
+function applyOperationalEditRestrictions() {
+  if (!isOperationalEditMode) return;
+
+  [
+    'levelSelect',
+    'lateSubmissionPolicy',
+    'taskNameInput',
+    'themeInput',
+    'taskDescriptionInput',
+    'featureInput',
+    'taskConstraintInput',
+    'taskCreationRulesInput',
+    'initialCodeInput',
+    'addTestCaseButton',
+    'addHintButton',
+    'openHintLibraryButton'
+  ].forEach(function(id) {
+    const element = document.getElementById(id);
+    if (element) element.disabled = true;
+  });
+
+  document.querySelectorAll('input[name="schoolTargets"]').forEach(function(element) {
+    element.disabled = true;
+  });
+
+  const originalClassNames = Object.keys(toClassScheduleMap(operationalOriginalSchedules));
+  document.querySelectorAll('input[name="classTargets"]').forEach(function(element) {
+    element.disabled = originalClassNames.includes(element.value);
+  });
+
+  document.querySelectorAll('#testCaseList input, #testCaseList textarea, #testCaseList button, #hintList input, #hintList textarea, #hintList button')
+    .forEach(function(element) {
+      element.disabled = true;
+      if (element._cmEditor) element._cmEditor.setOption('readOnly', true);
+    });
+
+  if (initialCodeEditor) initialCodeEditor.setOption('readOnly', true);
+
+  const originalMap = toClassScheduleMap(operationalOriginalSchedules);
+  document.querySelectorAll('#classScheduleList .class-schedule-row').forEach(function(row) {
+    const original = originalMap[row.getAttribute('data-class-name') || ''];
+    if (!original) return;
+
+    const publishImmediate = row.querySelector('.class-schedule-publish-immediate');
+    const publishAt = row.querySelector('.class-schedule-publish');
+    const dueNone = row.querySelector('.class-schedule-deadline-none');
+    const dueAt = row.querySelector('.class-schedule-deadline');
+
+    if (publishImmediate) publishImmediate.disabled = true;
+    if (publishAt) publishAt.disabled = true;
+
+    if (original.dueNone) {
+      if (dueNone) dueNone.disabled = true;
+      if (dueAt) dueAt.disabled = true;
+    } else if (dueAt) {
+      dueAt.min = original.dueAt;
+    }
+  });
+}
+
+function clearOperationalEditRestrictions() {
+  [
+    'levelSelect',
+    'lateSubmissionPolicy',
+    'taskNameInput',
+    'themeInput',
+    'taskDescriptionInput',
+    'featureInput',
+    'taskConstraintInput',
+    'taskCreationRulesInput',
+    'initialCodeInput',
+    'addTestCaseButton',
+    'addHintButton',
+    'openHintLibraryButton'
+  ].forEach(function(id) {
+    const element = document.getElementById(id);
+    if (element) element.disabled = false;
+  });
+
+  document.querySelectorAll('input[name="schoolTargets"], input[name="classTargets"], #testCaseList input, #testCaseList textarea, #testCaseList button, #hintList input, #hintList textarea, #hintList button')
+    .forEach(function(element) {
+      element.disabled = false;
+      if (element._cmEditor) element._cmEditor.setOption('readOnly', false);
+    });
+
+  document.querySelectorAll('#classScheduleList input').forEach(function(element) {
+    element.disabled = false;
+    if (element.classList.contains('class-schedule-deadline')) element.removeAttribute('min');
+  });
+
+  if (initialCodeEditor) initialCodeEditor.setOption('readOnly', false);
+}
+
+function saveOperationalEditResult() {
   if (!editTargetRow) return;
+
+  const originalMap = toClassScheduleMap(operationalOriginalSchedules);
+  const updatedSchedules = collectClassSchedules();
+  const updatedMap = toClassScheduleMap(updatedSchedules);
+  const invalidClassName = Object.keys(originalMap).find(function(className) {
+    const original = originalMap[className];
+    const updatedSchedule = updatedMap[className];
+    if (!updatedSchedule) return true;
+    if (updatedSchedule.publishImmediate !== original.publishImmediate || updatedSchedule.publishAt !== original.publishAt) return true;
+    if (original.dueNone) return !updatedSchedule.dueNone;
+    if (updatedSchedule.dueNone) return false;
+    return !updatedSchedule.dueAt || updatedSchedule.dueAt < original.dueAt;
+  });
+
+  if (invalidClassName) {
+    pageFeedback.toast({
+      message: invalidClassName + ' は公開日時を変更せず、提出期限を元の日時以降にしてください。',
+      variant: 'warning',
+      delay: 3200
+    });
+    return;
+  }
+
+  const schoolNames = Array.from(document.querySelectorAll('input[name="schoolTargets"]:checked')).map(function(element) {
+    return element.value;
+  });
+  const classNames = Array.from(document.querySelectorAll('input[name="classTargets"]:checked')).map(function(element) {
+    return element.value;
+  });
+  const target = (schoolNames.length > 0 ? schoolNames.join(', ') : '学校未選択') +
+    ' / ' + (classNames.length > 0 ? classNames.join(', ') : 'クラス未選択');
+  const updatedAt = buildNowString();
+  const taskId = editTargetRow.dataset.taskId || 'TASK-UNKNOWN';
+
+  editTargetRow.dataset.target = target;
+  editTargetRow.dataset.classSchedules = JSON.stringify(updatedSchedules);
+  editTargetRow.dataset.updated = updatedAt;
+  if (editTargetRow.cells[2]) editTargetRow.cells[2].textContent = target;
+  const updatedAtCell = editTargetRow.querySelector('.updated-at');
+  if (updatedAtCell) updatedAtCell.textContent = updatedAt;
+
+  recordTaskAudit('運用変更', taskId, '提出期限を延長または対象クラスを追加');
+  pageFeedback.toast({ message: '期限延長・対象クラス追加を保存しました。', variant: 'success', delay: 2200 });
+  applyStatusFilter();
+  resetCreateForm();
+  finishCreateFormEditMode();
+}
+
+function saveCreateFormEditResult(status) {
+  if (!editTargetRow || editTargetRow.dataset.status === '論理削除') return;
+
+  if (isOperationalEditMode) {
+    saveOperationalEditResult();
+    return;
+  }
 
   const taskId = editTargetRow.dataset.taskId || 'TASK-UNKNOWN';
 
@@ -1029,6 +1270,14 @@ function saveCreateFormEditResult(status) {
   editTargetRow.dataset.testCases = JSON.stringify(testCases);
   editTargetRow.dataset.hints = JSON.stringify(hints);
 
+  if (status === '公開中' && editTargetRow.dataset.supersedesTaskId) {
+    const previousRow = Array.from(document.querySelectorAll('#taskTable tbody tr')).find(function(row) {
+      return row.dataset.taskId === editTargetRow.dataset.supersedesTaskId;
+    });
+    if (previousRow) previousRow.dataset.assignmentActive = 'false';
+    editTargetRow.dataset.assignmentActive = 'true';
+  }
+
   if (editTargetRow.cells[0]) {
     editTargetRow.cells[0].textContent = name || '課題名未設定';
   }
@@ -1042,8 +1291,8 @@ function saveCreateFormEditResult(status) {
   }
 
   if (editTargetRow.cells[3]) {
-    editTargetRow.cells[3].innerHTML = status === '公開'
-      ? '<span class="badge text-bg-success">公開</span>'
+    editTargetRow.cells[3].innerHTML = status === '公開中'
+      ? '<span class="badge text-bg-success">公開中</span>'
       : '<span class="badge text-bg-secondary">下書き</span>';
   }
 
@@ -1072,7 +1321,8 @@ function createTaskRowFromForm(status) {
   const classNames = Array.from(document.querySelectorAll('input[name="classTargets"]:checked'))
     .map(function(el) { return el.value; });
   const level = normalizeLevelSelection(getValue('levelSelect'));
-  const taskId = buildNextTaskId();
+  const taskCode = buildNextTaskId();
+  const taskId = taskCode + '-v1';
   const updated = buildNowString();
   const creator = getCurrentTaskCreatorId();
   const target = (schoolNames.length > 0 ? schoolNames.join(', ') : '学校未選択')
@@ -1080,6 +1330,9 @@ function createTaskRowFromForm(status) {
 
   const row = document.createElement('tr');
   row.dataset.taskId = taskId;
+  row.dataset.taskCode = taskCode;
+  row.dataset.revision = '1';
+  row.dataset.learningStarted = 'false';
   row.dataset.name = name;
   row.dataset.level = level;
   row.dataset.target = target;
@@ -1102,10 +1355,11 @@ function createTaskRowFromForm(status) {
     + '<td>' + escapeHtml(name) + '</td>'
     + '<td>' + buildLevelBadgeHtml(level) + '</td>'
     + '<td>' + escapeHtml(target) + '</td>'
-    + '<td>' + (status === '公開'
-      ? '<span class="badge text-bg-success">公開</span>'
+    + '<td>' + (status === '公開中'
+      ? '<span class="badge text-bg-success">公開中</span>'
       : '<span class="badge text-bg-secondary">下書き</span>') + '</td>'
     + '<td><a class="prompt-status-link is-unset" href="../prompt/prompt.html?taskId=' + escapeHtml(taskId) + '">未設定</a></td>'
+    + '<td class="creator-id">' + escapeHtml(creator) + '</td>'
     + '<td class="updated-at">' + escapeHtml(updated) + '</td>'
     + '<td><code class="history-creator-id task-creator">' + escapeHtml(creator) + '</code></td>'
     + '<td>'
@@ -1136,27 +1390,36 @@ function getCurrentTaskCreatorId() {
   return 't001';
 }
 
-function duplicateTaskRow(sourceRow) {
+function duplicateTaskRow(sourceRow, options) {
   if (!sourceRow) {
-    return;
+    return null;
   }
 
   const tableBody = document.querySelector('#taskTable tbody');
   if (!tableBody) {
-    return;
+    return null;
   }
 
-  const newTaskId = buildNextTaskId();
+  const settings = options || {};
+  const newTaskCode = buildNextTaskId();
+  const newTaskId = newTaskCode + '-v1';
   const duplicatedName = (sourceRow.dataset.name || '課題') + '（複製）';
   const updated = buildNowString();
 
   const newRow = sourceRow.cloneNode(true);
   newRow.dataset.historyBound = '0';
   newRow.dataset.taskId = newTaskId;
+  newRow.dataset.taskCode = newTaskCode;
+  newRow.dataset.revision = '1';
+  newRow.dataset.learningStarted = 'false';
+  newRow.dataset.derivedFromTaskId = sourceRow.dataset.taskId || '';
   newRow.dataset.name = duplicatedName;
   newRow.dataset.status = '下書き';
   newRow.dataset.promptStatus = '未設定';
   newRow.dataset.updated = updated;
+  delete newRow.dataset.supersedesTaskId;
+  delete newRow.dataset.deletedAt;
+  delete newRow.dataset.deletedBy;
 
   if (newRow.cells[0]) {
     newRow.cells[0].textContent = duplicatedName;
@@ -1176,8 +1439,45 @@ function duplicateTaskRow(sourceRow) {
   tableBody.prepend(newRow);
   bindTaskRowActionButtons(newRow);
   recordTaskAudit('複製', newTaskId, '課題を複製: ' + duplicatedName);
-  pageFeedback.toast({ message: '課題を複製しました。', variant: 'success', delay: 2200 });
+  if (!settings.silent) {
+    pageFeedback.toast({ message: '課題を複製しました。', variant: 'success', delay: 2200 });
+  }
   applyStatusFilter();
+  return newRow;
+}
+
+function createTaskRevisionRow(sourceRow) {
+  if (!sourceRow) return null;
+  const tableBody = document.querySelector('#taskTable tbody');
+  if (!tableBody) return null;
+
+  const taskCode = sourceRow.dataset.taskCode || sourceRow.dataset.taskId || buildNextTaskId();
+  const revisions = Array.from(document.querySelectorAll('#taskTable tbody tr'))
+    .filter(function(row) { return (row.dataset.taskCode || '') === taskCode; })
+    .map(function(row) { return Number(row.dataset.revision) || 1; });
+  const revision = (revisions.length ? Math.max.apply(null, revisions) : 1) + 1;
+  const taskId = taskCode + '-v' + String(revision);
+  const newRow = sourceRow.cloneNode(true);
+
+  newRow.dataset.historyBound = '0';
+  newRow.dataset.taskId = taskId;
+  newRow.dataset.taskCode = taskCode;
+  newRow.dataset.revision = String(revision);
+  newRow.dataset.supersedesTaskId = sourceRow.dataset.taskId || '';
+  newRow.dataset.status = '要更新';
+  newRow.dataset.learningStarted = 'false';
+  newRow.dataset.updated = buildNowString();
+  delete newRow.dataset.deletedAt;
+  delete newRow.dataset.deletedBy;
+
+  const updatedCell = newRow.querySelector('.updated-at');
+  if (updatedCell) updatedCell.textContent = newRow.dataset.updated;
+  tableBody.prepend(newRow);
+  bindTaskRowActionButtons(newRow);
+  recordTaskAudit('改訂作成', taskId, '公開中課題から要更新の改訂を作成: ' + taskCode + ' v' + revision);
+  setValue('filterStatus', '要更新');
+  applyStatusFilter();
+  return newRow;
 }
 
 function buildNextTaskId() {
@@ -1274,13 +1574,54 @@ function parseJsonArray(text) {
 
 function applyStatusFilter() {
   const status = getValue('filterStatus') || '';
-
+  let visibleCount = 0;
   document.querySelectorAll('#taskTable tbody tr').forEach(function(row) {
     const rowStatus = row.dataset.status || '';
-    row.style.display = (!status || status === rowStatus) ? '' : 'none';
+    const archived = rowStatus === '論理削除';
+    const visible = status ? status === rowStatus : !archived;
+    row.style.display = visible ? '' : 'none';
+    if (visible) visibleCount += 1;
+    row.querySelectorAll('.edit-button, .duplicate-button, .delete-button, .operation-change-button, .prompt-status-link').forEach(function(button) {
+      button.hidden = archived;
+    });
+    const editButton = row.querySelector('.edit-button');
+    const learningStarted = row.dataset.learningStarted === 'true';
+    if (editButton) {
+      editButton.textContent = rowStatus === '公開中'
+        ? (learningStarted ? '新課題として編集' : '新改訂を編集')
+        : '編集';
+    }
+    const operationButton = row.querySelector('.operation-change-button');
+    if (operationButton) {
+      operationButton.hidden = archived || rowStatus !== '公開中' || !learningStarted;
+    }
+    const restore = row.querySelector('.restore-button');
+    if (restore) restore.hidden = !archived;
+    if (row.cells[3]) {
+      const badge = document.createElement('span');
+      const isPublishedHistory = rowStatus === '公開中' && row.dataset.assignmentActive === 'false';
+      badge.className = 'badge ' + (rowStatus === '公開中' && !isPublishedHistory ? 'text-bg-success' : rowStatus === '要更新' ? 'text-bg-warning' : 'text-bg-secondary');
+      badge.textContent = isPublishedHistory ? '公開履歴' : rowStatus;
+      const meta = document.createElement('div');
+      meta.className = 'task-row-meta';
+      meta.textContent = 'v' + (row.dataset.revision || '1') + ' / ' + (learningStarted ? '学習開始済み' : '未着手');
+      row.cells[3].replaceChildren(badge, meta);
+    }
   });
-
+  const empty = document.getElementById('taskListEmpty');
+  if (empty) empty.hidden = visibleCount > 0;
+  syncTaskCounts();
   syncPromptStatusHighlight();
+}
+
+function syncTaskCounts() {
+  const counts = { '公開中': 0, '下書き': 0, '要更新': 0 };
+  document.querySelectorAll('#taskTable tbody tr').forEach(function(row) {
+    if (Object.prototype.hasOwnProperty.call(counts, row.dataset.status)) counts[row.dataset.status] += 1;
+  });
+  setText('publishedCount', String(counts['公開中']));
+  setText('draftCount', String(counts['下書き']));
+  setText('pendingCount', String(counts['要更新']));
 }
 
 function syncPromptStatusHighlight() {
@@ -1314,19 +1655,11 @@ function refreshUpdatedAt() {
 
 
 function increasePublishedCount() {
-  const el = document.getElementById('publishedCount');
-  if (!el) return;
-
-  const current = Number(el.textContent) || 0;
-  el.textContent = String(current + 1);
+  syncTaskCounts();
 }
 
 function increaseDraftCount() {
-  const el = document.getElementById('draftCount');
-  if (!el) return;
-
-  const current = Number(el.textContent) || 0;
-  el.textContent = String(current + 1);
+  syncTaskCounts();
 }
 
 function buildNowString() {
@@ -1436,8 +1769,8 @@ function saveNewTaskRow(status) {
   tr.setAttribute('data-test-cases', JSON.stringify(testCases));
   tr.setAttribute('data-hints', JSON.stringify(hints));
 
-  const statusBadge = status === '公開'
-    ? '<span class="badge text-bg-success">公開</span>'
+  const statusBadge = status === '公開中'
+    ? '<span class="badge text-bg-success">公開中</span>'
     : '<span class="badge text-bg-secondary">下書き</span>';
 
   tr.innerHTML =
@@ -1462,7 +1795,7 @@ function saveNewTaskRow(status) {
   syncPromptStatusHighlight();
   applyStatusFilter();
 
-  if (status === '公開') {
+  if (status === '公開中') {
     increasePublishedCount();
     pageFeedback.toast({ message: '課題を保存・公開しました。', variant: 'success', delay: 2200 });
   } else {

@@ -26,6 +26,10 @@
 - [teacher/evaluation-state-rules.md](teacher/evaluation-state-rules.md): 評価の進行と再評価ルール
 - [teacher/progress-state-rules.md](teacher/progress-state-rules.md): 学習進捗の集計と要対応状態
 
+### 管理者向け
+
+- [admin/account-state-rules.md](admin/account-state-rules.md): アカウント状態・セキュリティレベル・ログイン可否ルール
+
 ### 実装用
 
 - [implementation-state-table.md](implementation-state-table.md): 実装に直結する状態、遷移、ボタン制御の一覧

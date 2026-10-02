@@ -8,6 +8,8 @@ skinparam roundcorner 15
 skinparam linetype ortho
 skinparam packageStyle rectangle
 
+note "削除方針\n- User / Task など利用者が削除するルートデータは状態と削除日時で論理削除する\n- TaskFeature / TaskTestCase / TaskHint は recordStatus で無効化する\n- Submission / CodeLog / CodeExecution / Evaluation は追記型で通常削除しない\n- 親の論理削除で学習・提出・評価履歴を物理削除しない" as SoftDeletePolicy
+
 class User {
   + userId: Long <<PK>>
   + userType: UserType
@@ -54,7 +56,10 @@ class StudentClassMembership {
 
 class Task {
   + taskId: Long <<PK>>
-  + taskCode: String <<UK>>
+  + taskCode: String
+  + taskRevisionCode: String <<UK>>
+  + revisionNumber: Integer
+  + supersedesTaskId: Long <<FK>>
   + createdByUserId: Long <<FK>>
   + updatedByUserId: Long <<FK>>
   + title: String
@@ -67,6 +72,7 @@ class Task {
   + initialCode: LongText
   + saveStatus: SaveStatus
   + publicationStatus: PublicationStatus
+  + activePromptVersionId: Long <<FK>>
   + createdAt: DateTime
   + updatedAt: DateTime
   + deletedAt: DateTime
@@ -81,6 +87,7 @@ class TaskClassAssignment {
   + publishAt: DateTime
   + dueAt: DateTime
   + lateSubmissionPolicy: LateSubmissionPolicy
+  + resubmissionPolicy: ResubmissionPolicy
   + createdAt: DateTime
   + updatedAt: DateTime
 }
@@ -92,8 +99,10 @@ class TaskParticipation {
   + learningStatus: LearningStatus
   + progressStatus: ProgressStatus
   + saveStatus: SaveStatus
+  + currentDraftCode: Text
+  + draftBaseSubmissionId: Long <<FK>>
+  + draftUpdatedAt: DateTime
   + evaluationStatus: EvaluationStatus
-  + resubmissionStatus: ResubmissionStatus
   + activeDurationSeconds: Long
   + lastActivityAt: DateTime
   + completedAt: DateTime
@@ -212,6 +221,7 @@ School "1" -- "0..*" Classroom
 StudentProfile "1" -- "0..*" StudentClassMembership
 Classroom "1" -- "0..*" StudentClassMembership
 Task "1" -- "0..*" TaskClassAssignment
+Task "0..1" <-- "0..*" Task : supersedes
 Classroom "1" -- "0..*" TaskClassAssignment
 StudentProfile "1" -- "0..*" TaskParticipation
 TaskClassAssignment "1" -- "0..*" TaskParticipation
@@ -239,6 +249,10 @@ end note
 note bottom of Task
   公開期間・提出期限・期限後提出可否は
   Task ではなくクラス別割当で保持する。
+  公開中の編集は同じ taskCode の新しい revisionNumber とし、
+  直前改訂を supersedesTaskId で参照する。
+  activePromptVersionId は課題が現在使用するプロンプト版を
+  1件のみ参照し、評価開始時点で Evaluation.promptVersionId へ固定する。
 end note
 
 note bottom of CodeLog

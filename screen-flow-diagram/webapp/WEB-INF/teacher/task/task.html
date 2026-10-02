@@ -24,7 +24,7 @@
           <div>
             <span class="hero-kicker">Task Management</span>
             <h1 class="section-title mb-2">課題編集</h1>
-            <p class="hero-description mb-0">課題の新規作成、既存課題の編集、論理削除を行います。</p>
+            <p class="hero-description mb-0">課題の新規作成、既存課題の編集、論理削除、下書きへの復元を行います。</p>
           </div>
           <div class="hero-stats">
             <div class="stat-card">
@@ -257,21 +257,33 @@
         <section class="panel-card">
           <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
             <div>
-              <span class="hero-kicker mb-1 d-inline-block">Edit / Delete</span>
-              <h2 class="subheading mb-0">既存課題の編集・削除</h2>
+              <span class="hero-kicker mb-1 d-inline-block">Edit / Delete / Restore</span>
+              <h2 class="subheading mb-0">既存課題の編集・削除・復元</h2>
             </div>
             <div class="d-flex gap-2">
-              <select id="filterStatus" class="form-select form-select-sm">
-                <option value="" selected>すべて</option>
-                <option value="公開">公開</option>
+              <select aria-label="課題の状態で絞り込み" id="filterStatus" class="form-select form-select-sm">
+                <option value="" selected>すべて（削除済みを除く）</option>
+                <option value="公開中">公開中</option>
                 <option value="下書き">下書き</option>
+                <option value="要更新">要更新</option>
+                <option value="論理削除">削除済み</option>
               </select>
               <button class="btn btn-outline-secondary btn-sm text-nowrap flex-shrink-0" type="button" id="refreshTableButton">更新</button>
             </div>
           </div>
 
+          <div class="alert alert-light border task-edit-policy" id="taskListHelp">
+            <strong>公開中課題の編集ルール</strong>
+            <ul class="mb-0 mt-2 small">
+              <li>全生徒が未着手：同じ課題系列の新しい改訂として編集します。</li>
+              <li>学習開始済み：学習条件に影響する変更は、新しい課題として複製します。</li>
+              <li>期限延長と対象クラス追加だけは、既存課題の運用変更として扱えます。</li>
+              <li>削除した課題は下書きへ復元できます。復元だけでは公開されません。</li>
+            </ul>
+          </div>
+          <p class="text-muted" id="taskListEmpty" role="status" hidden>該当する課題はありません。</p>
           <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0" id="taskTable">
+            <table class="table table-hover align-middle mb-0" id="taskTable" aria-describedby="taskListHelp">
               <thead class="table-light">
                 <tr>
                   <th>課題名</th>
@@ -287,11 +299,11 @@
                 </tr>
               </thead>
               <tbody>
-                <tr data-task-id="TASK-001" data-name="じゃんけん判定" data-level="初級" data-target="国際中等 / 1年A組" data-status="公開" data-prompt-status="設定済み" data-description="ユーザー入力に応じて勝敗を判定する。" data-constraint="整数入力のみ" data-updated="2026-05-18 09:10:00" data-creator="t001">
+                <tr data-task-id="TASK-001-v1" data-task-code="TASK-001" data-revision="1" data-learning-started="true" data-name="じゃんけん判定" data-level="初級" data-target="国際中等 / 1年A組" data-status="公開中" data-prompt-status="設定済み" data-description="ユーザー入力に応じて勝敗を判定する。" data-constraint="整数入力のみ" data-class-schedules='[{"className":"1年A組","publishImmediate":true,"publishAt":"","dueNone":false,"dueAt":"2026-06-30T17:00"}]' data-updated="2026-05-18 09:10:00" data-creator="t001">
                   <td>じゃんけん判定</td>
                   <td><span class="badge difficulty-beginner">初級</span></td>
                   <td>国際中等 / 1年A組</td>
-                  <td><span class="badge text-bg-success">公開</span></td>
+                  <td><span class="badge text-bg-success">公開中</span></td>
                   <td><a class="prompt-status-link" href="../prompt/prompt.html?taskId=TASK-001">設定済み</a></td>
                   <td class="creator-id">toida</td>
                   <td class="updated-at">2026-05-18 09:10:00</td>
@@ -305,11 +317,11 @@
                   </td>
                   <td><button class="btn btn-sm btn-outline-primary history-button" type="button">表示</button></td>
                 </tr>
-                <tr data-task-id="TASK-002" data-name="在庫管理" data-level="中級" data-target="国際中等 / 1年B組" data-status="公開" data-prompt-status="未設定" data-description="入出庫処理と在庫数表示を実装する。" data-constraint="数量は0以上" data-updated="2026-05-17 15:42:00" data-creator="t001">
+                <tr data-task-id="TASK-002-v1" data-task-code="TASK-002" data-revision="1" data-learning-started="false" data-name="在庫管理" data-level="中級" data-target="国際中等 / 1年B組" data-status="公開中" data-prompt-status="未設定" data-description="入出庫処理と在庫数表示を実装する。" data-constraint="数量は0以上" data-class-schedules='[{"className":"1年B組","publishImmediate":true,"publishAt":"","dueNone":false,"dueAt":"2026-07-07T17:00"}]' data-updated="2026-05-17 15:42:00" data-creator="t001">
                   <td>在庫管理</td>
                   <td><span class="badge difficulty-intermediate">中級</span></td>
                   <td>国際中等 / 1年B組</td>
-                  <td><span class="badge text-bg-success">公開</span></td>
+                  <td><span class="badge text-bg-success">公開中</span></td>
                   <td><a class="prompt-status-link" href="../prompt/prompt.html?taskId=TASK-002">未設定</a></td>
                   <td class="creator-id">toida</td>
                   <td class="updated-at">2026-05-17 15:42:00</td>
@@ -323,7 +335,7 @@
                   </td>
                   <td><button class="btn btn-sm btn-outline-primary history-button" type="button">表示</button></td>
                 </tr>
-                <tr data-task-id="TASK-003" data-name="経路探索" data-level="上級" data-target="附属高校 / 4年2組" data-status="下書き" data-prompt-status="設定済み" data-description="条件に応じて最短経路を探索する。" data-constraint="再帰使用可" data-updated="2026-05-15 11:20:00" data-creator="t001">
+                <tr data-task-id="TASK-003-v1" data-task-code="TASK-003" data-revision="1" data-learning-started="false" data-name="経路探索" data-level="上級" data-target="附属高校 / 4年2組" data-status="下書き" data-prompt-status="設定済み" data-description="条件に応じて最短経路を探索する。" data-constraint="再帰使用可" data-class-schedules='[{"className":"4年2組","publishImmediate":false,"publishAt":"2026-06-01T09:00","dueNone":false,"dueAt":"2026-07-15T17:00"}]' data-updated="2026-05-15 11:20:00" data-creator="t001">
                   <td>経路探索</td>
                   <td><span class="badge difficulty-advanced">上級</span></td>
                   <td>附属高校 / 4年2組</td>
@@ -372,7 +384,7 @@
           <div>
             <label for="editTaskStatus" class="form-label">状態</label>
             <select id="editTaskStatus" class="form-select">
-              <option>公開</option>
+              <option>公開中</option>
               <option>下書き</option>
             </select>
           </div>

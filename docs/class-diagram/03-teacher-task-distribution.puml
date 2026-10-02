@@ -8,6 +8,8 @@ skinparam roundcorner 15
 skinparam linetype ortho
 skinparam packageStyle rectangle
 
+note "削除方針\n- Task は publicationStatus=archived と deletedAt で論理削除する\n- 課題子項目・テンプレート項目は recordStatus / templateStatus で無効化・アーカイブする\n- 配信済みデータと変更履歴は追記型で通常削除しない\n- 親の論理削除で割当・提出・評価等を連鎖物理削除しない" as SoftDeletePolicy
+
 class User {
   + userId: Long <<PK>>
   + userType: UserType
@@ -49,7 +51,10 @@ class TeacherFeaturePermission {
 
 class Task {
   + taskId: Long <<PK>>
-  + taskCode: String <<UK>>
+  + taskCode: String
+  + taskRevisionCode: String <<UK>>
+  + revisionNumber: Integer
+  + supersedesTaskId: Long <<FK>>
   + createdByUserId: Long <<FK>>
   + updatedByUserId: Long <<FK>>
   + title: String
@@ -64,6 +69,7 @@ class Task {
   + initialCode: LongText
   + saveStatus: SaveStatus
   + publicationStatus: PublicationStatus
+  + activePromptVersionId: Long <<FK>>
   + createdAt: DateTime
   + updatedAt: DateTime
   + publishedAt: DateTime
@@ -79,6 +85,7 @@ class TaskClassAssignment {
   + publishAt: DateTime
   + dueAt: DateTime
   + lateSubmissionPolicy: LateSubmissionPolicy
+  + resubmissionPolicy: ResubmissionPolicy
   + createdAt: DateTime
   + updatedAt: DateTime
 }
@@ -208,11 +215,13 @@ User "1" -- "0..*" TeacherFeaturePermission
 School "1" -- "0..*" Classroom
 User "1" -- "0..*" Task : 作成/更新
 Task "1" -- "0..*" TaskClassAssignment
+Task "0..1" <-- "0..*" Task : supersedes
 Classroom "1" -- "0..*" TaskClassAssignment
 Task "1" -- "0..*" TaskTestCase
 Task "1" -- "0..*" TaskFeature
 Task "1" -- "0..*" TaskHint
 Task "1" -- "0..*" PromptVersion
+Task "0..1" -- "0..1" PromptVersion : 現在適用版(activePromptVersionId)
 Rubric "1" -- "0..*" Task
 PromptVersion "1" -- "0..*" PromptFluctuationItem
 PromptVersion "1" -- "0..*" EvaluationExample
@@ -226,6 +235,15 @@ note right of TaskClassAssignment
   課題は複数の学校/クラスに割り当てられる。
   公開日時・提出期限・期限後提出可否は
   クラス単位で保存する。
+end note
+
+note bottom of Task
+  公開中の編集は既存行を上書きせず、
+  同じ taskCode の新しい改訂として保存する。
+  学習開始後の影響変更は新しい taskCode へ複製する。
+  activePromptVersionId は課題が現在使用するプロンプト版を
+  1件のみ参照する。適用済み版は直接編集せず新版を作成し、
+  全体再評価の実行確定時に現在適用版を切り替える。
 end note
 
 note bottom of TeacherFeaturePermission

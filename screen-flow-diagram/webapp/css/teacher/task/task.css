@@ -556,6 +556,23 @@
   color: #9a3412;
 }
 
+.task-edit-policy {
+  background: #f8fafc;
+  border-color: #cbd5e1 !important;
+  color: #334155;
+}
+
+.task-row-meta {
+  margin-top: 0.3rem;
+  color: #64748b;
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+#taskTable .operation-change-button {
+  white-space: nowrap;
+}
+
 .table tbody tr:hover {
   background-color: #f0fdfa;
 }
