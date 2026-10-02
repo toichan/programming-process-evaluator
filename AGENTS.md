@@ -126,3 +126,16 @@
 ## Link-First Principle
 
 詳細仕様は既存文書を一次情報として参照する。AGENTS.md には実行ルールと観点のみを保持し、仕様本文の重複記載はしない。
+
+## Handoff: 次にやるべきこと（2026-10-02 時点）
+
+- 上流工程（IC-001〜IC-009、配信状態）は全件合意済み。合意内容は `docs/system-configuration/implementation-contract.md` の「合意状況の更新履歴」を参照。
+- **IC-010（保存期間満了時の処理）はユーザー指示により保留中**。再開の指示があるまで着手しない。
+- 合意済み事項のうち、**IC-007・IC-008 は「DBマイグレーション未反映」**。`docs/database-design/table-definitions.md` には反映済みだが、実際の DDL（マイグレーションファイル）はまだ作成していない。
+- `src/main` には `HelloWorldServlet` とテンプレートのみが存在し、業務実装・DB接続・認証等は未着手。クラス図・状態ルール・実装契約の整備が先行した段階。
+- 次の作業は `docs/system-configuration/implementation-roadmap.md` のロードマップ順（0→1→2…）に従う。現時点の到達点は以下のとおり。
+  1. **ロードマップ 0（状態・データ設計の実装契約を確定する）**: 完了。念のため着手前に本当に未決事項がないか `implementation-contract.md` を再確認する。
+  2. **ロードマップ 1（ローカル開発コンテナとビルドを整える）**: 未実施。`.env` 作成、`docker-compose build && docker-compose up`、アプリ起動確認がまだ行われていない。
+  3. **ロードマップ 2（DB とマイグレーションを作る）**: 未着手。`table-definitions.md` 全体（IC-007 の `tasks.active_prompt_version_id`、IC-008 の `research_subject_identifiers` を含む）をもとに DDL／マイグレーションを作成する。
+  4. ロードマップ 3 以降（DAO、Web 共通基盤、認証、各機能実装）は未着手。
+- 次チャットでの推奨開始点: まずロードマップ 1 でローカル環境が起動することを確認し、次にロードマップ 2 で最新の `table-definitions.md` に基づくマイグレーションを作成する。その後、ロードマップの機能別ステップ（5以降）に進む際は、対象機能に関する IC 合意内容と状態ルールを都度参照する。
