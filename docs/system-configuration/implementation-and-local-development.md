@@ -52,11 +52,9 @@
 ### 3.1 必ず照合する状態・データの差分
 
 - [状態命名標準](../state-rules/state-naming-standard.md)は `saveStatus`、`learningStatus`、`publicationStatus`、`distributionStatus`、`evaluationStatus` を意味別に分離します。一方、[実装用状態表](../state-rules/implementation-state-table.md)では「未提出」「未保存」「下書き」「提出済み」等が同じ表に並び、保存状態と学習状態の区分・値の対応が読み取りにくい箇所があります。
-- [テーブル定義](../database-design/table-definitions.md)の `tasks` は `save_status`、`learning_status`、`publication_status` を持ちますが、生徒ごとの提出・学習状態との境界が不明確です。`tasks.publication_status` の例（`private`, `published`, `archived`）も、[課題状態ルール](../state-rules/teacher/task-state-rules.md)の「下書き」「公開中」「要更新」「論理削除」と一致していません。
-- `submissions.submission_status` の例（`draft`, `submitted`, `re_submittable`, `locked`）と、保存・学習状態の命名標準および[エディター状態ルール](../state-rules/student/editor-state-rules.md)の各状態の対応を定義する必要があります。
-- `evaluations.evaluation_status` の値（`pending`, `in_progress`, `completed`, `failed`, `revision_requested`）と、学生向け・教師向けの評価状態ルールは語彙が異なります。評価処理の実状態と画面ラベルの対応、再評価履歴の保存方法を明確にします。
-- 状態ルールは授業演習のファイル管理を定義していますが、現在の[テーブル定義](../database-design/table-definitions.md)には演習ファイル・演習進捗の保存先が見当たりません。また、機能仕様書にあるアンケート回答・教師用結果確認などについても、必要な永続化先を照合します。
-- [プロンプト状態ルール](../state-rules/teacher/prompt-state-rules.md)の版管理・履歴要件と、`prompts` テーブル定義の状態・版履歴の持ち方が一致するか確認します。
+- 現行DB定義と照合した確認事項は[実装契約 IC-001〜009](./implementation-contract.md#資料間の要確認事項)を参照します。旧定義を前提とした保存先不足と、現在も判断が必要な遷移・運用条件を分けて扱います。
+- 課題編集と生徒個人の状態は `tasks` / `task_participations` に分離されています。提出・評価もそれぞれの履歴と関連する状態の更新条件を確認します。
+- 演習、アンケート回答、プロンプト版、生徒のセキュリティ属性には保存先が定義されています。テーブルの存在だけで仕様充足や合意済みと判断せず、状態ルール・制約・参照関係まで照合します。
 - クラス図、DB 定義、匿名化要件を照合し、個人識別情報・学校 / クラス情報・研究同意情報をどのテーブルに保持し、AI 送信前にどう匿名化するかを決めます。
 
 上記は既存設計の不整合候補です。カラムや状態値をコード側だけで補ったり、画面ごとに別解釈を作ったりせず、必要な仕様・DB 定義を更新して合意してから実装します。既に確定済みの設計は変更せず、対応関係だけを記録してください。

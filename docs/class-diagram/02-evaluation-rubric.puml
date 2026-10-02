@@ -8,6 +8,8 @@ skinparam roundcorner 15
 skinparam linetype ortho
 skinparam packageStyle rectangle
 
+note "削除方針\n- Rubric は rubricStatus=archived でアーカイブする\n- Criterion / Level は利用中の版から物理削除せず、必要な変更は新版で表す\n- Evaluation と根拠・得点・フィードバック・再評価履歴は追記型で通常削除しない\n- 保存期間対応は通常操作と分離した匿名化・物理削除手順で行う" as SoftDeletePolicy
+
 class Rubric {
   + rubricId: Long <<PK>>
   + createdByUserId: Long <<FK>>

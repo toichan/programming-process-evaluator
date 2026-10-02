@@ -77,6 +77,22 @@
   - `completed`: 評価済み
   - `needs_revision`: 再評価対象
 
+### 3-6. アカウント状態・セキュリティレベル
+
+- `accountStatus`
+- 値:
+  - `active`: 利用中
+  - `suspended`: 停止中（ログイン不可）
+  - `deleted`: 論理削除済み（ログイン不可、履歴は参照専用で保持）
+- `securityLevel`
+- 値:
+  - `level1`: 教師設定パスワードを継続利用する運用。生徒側でのパスワード変更不可、強制変更フローなし。
+  - `level2`: 初期パスワード・リセット後パスワードでの初回ログイン時に強制変更フローが発生する運用。
+- `firstLoginStatus`（`securityLevel = level2` の場合のみ有効）
+- 値:
+  - `pending`: 初回ログインまたはパスワードリセット後、強制変更が未完了
+  - `completed`: 強制変更が完了済み
+
 ## 4. 正書法のルール
 
 - 変数名は意味が明確な英語を使う
@@ -127,3 +143,4 @@
 - [implementation-state-table.md](implementation-state-table.md): 実装用の状態と遷移表
 - [student/editor-state-rules.md](student/editor-state-rules.md): 学生側の状態定義
 - [teacher/task-state-rules.md](teacher/task-state-rules.md): 教師側の状態定義
+- [admin/account-state-rules.md](admin/account-state-rules.md): アカウント状態・セキュリティレベルの状態定義

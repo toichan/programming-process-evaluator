@@ -8,6 +8,8 @@ skinparam roundcorner 15
 skinparam linetype ortho
 skinparam packageStyle rectangle
 
+note "全体削除・保持方針\n1. 利用者が削除・復元するルートデータは状態と削除日時で論理削除\n2. マスター・子項目は inactive / disabled / archived 等で無効化\n3. 提出・ログ・評価・同意・監査・AI連携履歴は追記型で通常削除不可\n4. 親の論理削除で子や履歴を連鎖物理削除しない\n5. 保存期間対応の物理削除・匿名化は別の管理手順として監査" as DataLifecyclePolicy
+
 class User {
   + userId: Long <<PK>>
   + userType: UserType
@@ -66,7 +68,10 @@ class TeacherFeaturePermission {
 
 class Task {
   + taskId: Long <<PK>>
-  + taskCode: String <<UK>>
+  + taskCode: String
+  + taskRevisionCode: String <<UK>>
+  + revisionNumber: Integer
+  + supersedesTaskId: Long <<FK>>
   + title: String
   + theme: String
   + difficulty: Difficulty
@@ -83,6 +88,7 @@ class Task {
   + deletedByUserId: Long
   + rubricId: Long <<FK>>
   + rubricVersion: String
+  + activePromptVersionId: Long <<FK>>
 }
 
 class TaskClassAssignment {
@@ -93,6 +99,7 @@ class TaskClassAssignment {
   + publishAt: DateTime
   + dueAt: DateTime
   + lateSubmissionPolicy: LateSubmissionPolicy
+  + resubmissionPolicy: ResubmissionPolicy
 }
 
 class TaskParticipation {
@@ -102,8 +109,10 @@ class TaskParticipation {
   + learningStatus: LearningStatus
   + progressStatus: ProgressStatus
   + saveStatus: SaveStatus
+  + currentDraftCode: Text
+  + draftBaseSubmissionId: Long <<FK>>
+  + draftUpdatedAt: DateTime
   + evaluationStatus: EvaluationStatus
-  + resubmissionStatus: ResubmissionStatus
   + activeDurationSeconds: Long
   + lastActivityAt: DateTime
   + completedAt: DateTime
@@ -303,6 +312,8 @@ class StudentExercise {
   + scopeName: String
   + exerciseStatus: ExerciseStatus
   + saveStatus: SaveStatus
+  + deletedAt: DateTime
+  + deletedByUserId: Long <<FK>>
   + startedAt: DateTime
   + completedAt: DateTime
   + expiresAt: DateTime
@@ -325,6 +336,14 @@ class ConsentDocumentVersion {
   + body: LongText
   + documentStatus: DocumentStatus
   + effectiveAt: DateTime
+}
+
+class ResearchSubjectIdentifier {
+  + researchSubjectIdentifierId: Long <<PK>>
+  + studentUserId: Long <<FK, UK>>
+  + researchSubjectCode: String <<UK>>
+  + generatedAt: DateTime
+  + generatedByUserId: Long <<FK>>
 }
 
 class SurveyResponse {
@@ -451,6 +470,7 @@ User "1" -- "0..*" TeacherSchoolPermission
 School "1" -- "0..*" TeacherSchoolPermission
 User "1" -- "0..*" TeacherFeaturePermission
 Task "1" -- "0..*" TaskClassAssignment
+Task "0..1" <-- "0..*" Task : supersedes
 Classroom "1" -- "0..*" TaskClassAssignment
 StudentProfile "1" -- "0..*" TaskParticipation
 TaskClassAssignment "1" -- "0..*" TaskParticipation
@@ -468,6 +488,7 @@ CodeLog "0..*" -- "0..1" CodeExecution : 関連実行
 CodeExecution "1" -- "0..*" CodeExecutionTestResult
 TaskTestCase "0..1" -- "0..*" CodeExecutionTestResult
 Task "1" -- "0..*" PromptVersion
+Task "0..1" -- "0..1" PromptVersion : 現在適用版(activePromptVersionId)
 Task "0..*" -- "1" Rubric
 Rubric "1" -- "1..*" RubricCriterion
 RubricCriterion "1" -- "1..*" CriterionLevel
@@ -481,6 +502,8 @@ StudentExerciseEntry "0..1" -- "0..*" StudentExerciseEntry : 親子階層
 StudentProfile "1" -- "0..*" StudentExercise
 User "1" -- "0..*" ConsentRecord
 ConsentDocumentVersion "1" -- "0..*" ConsentRecord
+StudentProfile "1" -- "0..1" ResearchSubjectIdentifier
+User "0..1" -- "0..*" ResearchSubjectIdentifier : 生成実行者
 StudentProfile "1" -- "0..*" SurveyResponse
 SurveyResponse "1" -- "1..*" SurveyAnswer
 SurveyDefinition "1" -- "0..*" SurveyResponse
@@ -502,6 +525,20 @@ end note
 note bottom of TaskParticipation
   ホーム/進捗/評価の状態はこの行と提出・評価から取得。
   一覧用の表示状態は保存状態から導出可能にする。
+end note
+
+note bottom of Task
+  taskCode は課題系列で共通、taskRevisionCode は改訂ごとに一意。
+  未着手時の公開編集は新しい改訂、学習開始後の影響変更は
+  新しい課題系列として保持し、既存の学習・評価条件を不変にする。
+  activePromptVersionId は課題が現在使用するプロンプト版を
+  1件のみ参照し、評価開始時点で評価履歴へ固定する。
+end note
+
+note right of ResearchSubjectIdentifier
+  ログイン用ID（StudentProfile.studentCode）は教師の閲覧範囲内で
+  可視のまま維持する。研究データ外部提供・Gemini送信時のみ、
+  氏名・出席番号・ログイン用IDから推測できない本識別子を使用する。
 end note
 
 note bottom of AuditLog

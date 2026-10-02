@@ -2,6 +2,32 @@
 
 > 主キーは `BIGINT AUTO_INCREMENT`、日時は原則として `DATETIME` とする。外部キー制約は備考欄に参照先を記載する。
 
+## 削除・保持ポリシー
+
+業務データとマスターデータは原則として物理削除せず、テーブル内に保持する。削除方法はデータの責務に応じて次の3種類に分ける。
+
+|区分|対象|削除・保持方法|復元|
+|:--|:--|:--|:--|
+|復元可能な論理削除|users、tasks、student_exercise_entriesなど、利用者が削除・復元するルートまたは独立データ|`deleted` / `archived` 等の状態と `deleted_at` を正本とする。削除実行者・復元実行者・変更前後は `audit_logs` に記録する。対象自身に `deleted_by_user_id` がある場合は併用する|データ種別ごとの状態ルールに従い、関連データを保持したまま復元する|
+|無効化・アーカイブ|schools、classrooms、所属、権限、課題子項目、ルーブリック、配信テンプレート、アンケート定義など|既存の `inactive` / `disabled` / `archived` / `retired` 状態を論理削除または利用停止として扱う。操作は `audit_logs` に記録する|参照整合性と権限を検証し、許可されたものだけ有効状態へ戻す|
+|追記型・通常削除不可|提出、コードログ、コード実行、評価、同意、アンケート回答、認証・監査・エラー履歴、AI依頼・応答・入力スナップショット|通常の削除操作を提供せず履歴として保持する。訂正は新しい行や状態遷移で表し、過去行を物理削除・上書きしない|復元操作の対象外。保存期間満了や個人情報対応は別の管理手順で物理削除または匿名化する|
+
+### テーブル別分類
+
+|区分|テーブル|
+|:--|:--|
+|復元可能な論理削除|users、tasks、student_exercises、student_exercise_entries|
+|無効化・アーカイブ|schools、classrooms、student_class_memberships、teacher_school_permissions、teacher_feature_permissions、task_features、task_class_assignments、task_test_cases、task_hints、rubrics、rubric_dimensions、rubric_criteria、criterion_levels、distribution_templates、distribution_template_files、consent_document_versions、surveys、survey_questions、survey_question_options|
+|追記型・通常削除不可|password_reset_records、credential_history、task_participations、task_activity_sessions、submissions、code_logs、code_executions、code_execution_test_results、prompt_versions、prompt_fluctuation_items、evaluation_examples、evaluations、evaluation_scores、evaluation_dimension_results、evaluation_reasons、evaluation_reason_details、evaluation_evidence、evaluation_feedback、reevaluation_jobs、distributions、distribution_targets、distribution_histories、consent_records、survey_responses、survey_answers、evaluation_requests、evaluation_responses、evaluation_input_snapshots、login_history、audit_logs、application_error_logs、research_subject_identifiers|
+
+共通ルール:
+
+- 通常の一覧・検索・業務処理では、論理削除・無効・アーカイブ状態を明示的に除外する。削除済み一覧は権限を持つ利用者だけが参照できる。
+- 親レコードの論理削除を理由に子レコードを連鎖物理削除しない。外部キーへ `ON DELETE CASCADE` を設定しない。
+- 論理削除・復元は業務行の状態更新と `audit_logs` の記録を同一トランザクションで行う。
+- 一意制約は論理削除後の識別子再利用方針を個別に決める。ログインID、課題コード、外部IDなど履歴参照に使う識別子は原則再利用しない。
+- 物理削除または匿名化を行う管理手順では、対象範囲、理由、実行者、実行日時、関連データへの影響を監査記録へ残す。
+
 ## users
 
 生徒・教師・管理者の共通アカウント情報
@@ -31,6 +57,20 @@
 |security_level|セキュリティレベル|TINYINT||NO||1または2|
 |first_login_status|初回ログイン状態|ENUM('not_logged_in','password_change_required','completed')||NO|||
 |must_change_password|次回ログイン時変更要否|BOOLEAN||NO||リセット後の変更強制にも利用|
+
+## research_subject_identifiers
+
+研究データ外部提供・Gemini送信時に使用する、ログイン用IDとは別の安定した研究用識別子。ログイン用ID（`student_profiles.student_code`）は教師の閲覧範囲内で可視のまま維持し、本テーブルは研究用CSV・AI連携送信専用の対応表として分離する。
+
+|フィールド名|和名|型|主キー|NULL|その他制約|備考|
+|:--|:--|:--|:--|:--|:--|:--|
+|research_subject_identifier_id|研究用識別子ID|BIGINT|〇|NO|PRIMARY_KEY, AUTO_INCREMENT||
+|student_user_id|生徒ユーザID|BIGINT||NO|FOREIGN_KEY, UNIQUE|student_profiles.user_id。1生徒につき1件|
+|research_subject_code|研究用識別子|VARCHAR(64)||NO|UNIQUE|氏名・出席番号・ログイン用IDから推測できない値。生成後は変更しない|
+|generated_at|生成日時|DATETIME||NO|||
+|generated_by_user_id|生成実行者ユーザID|BIGINT||YES|FOREIGN_KEY|users.user_id。システム自動生成の場合はNULL|
+
+研究用CSVおよびGeminiへの送信データでは、`student_profiles.student_code` や氏名等の個人識別情報を含めず、本テーブルの `research_subject_code` のみを学習者識別子として使用する。`evaluation_input_snapshots.anonymized_subject_id` はリクエスト単位の匿名化カラムであり、研究用データセット全体で同一人物を追跡するための安定IDとしては本テーブルを正本とする。
 
 ## schools
 
@@ -136,11 +176,15 @@
 |フィールド名|和名|型|主キー|NULL|その他制約|備考|
 |:--|:--|:--|:--|:--|:--|:--|
 |task_id|課題ID|BIGINT|〇|NO|PRIMARY_KEY, AUTO_INCREMENT||
-|task_code|課題コード|VARCHAR(64)||NO|UNIQUE|format/exportで使うTASK-xxx形式|
+|task_code|課題系列コード|VARCHAR(64)||NO||format/exportで使うTASK-xxx形式。同じ課題の改訂で共通|
+|task_revision_code|課題改訂コード|VARCHAR(80)||NO|UNIQUE|TASK-xxx-vN形式|
+|revision_number|改訂番号|INT||NO||系列内で1から採番|
+|supersedes_task_id|直前改訂課題ID|BIGINT||YES|FOREIGN_KEY|tasks.task_id。初版はNULL|
 |created_by_user_id|作成者ユーザID|BIGINT||NO|FOREIGN_KEY|users.user_id|
 |updated_by_user_id|更新者ユーザID|BIGINT||YES|FOREIGN_KEY|users.user_id|
 |rubric_id|ルーブリックID|BIGINT||YES|FOREIGN_KEY|rubrics.rubric_id|
 |rubric_version|ルーブリック版|VARCHAR(50)||YES||評価時点の版を evaluations にも固定|
+|active_prompt_version_id|現在適用プロンプト版ID|BIGINT||YES|FOREIGN_KEY|prompt_versions.prompt_version_id。課題が現在使用するプロンプト版を1件のみ参照する。全体再評価の実行確定時に切り替える|
 |title|課題名|VARCHAR(255)||NO|||
 |theme|テーマ|VARCHAR(255)||YES|||
 |difficulty|難易度|ENUM('beginner','intermediate','advanced','none')||YES|||
@@ -156,6 +200,10 @@
 |published_at|公開日時|DATETIME||YES|||
 |deleted_at|削除日時|DATETIME||YES|||
 |deleted_by_user_id|削除実行者ユーザID|BIGINT||YES|FOREIGN_KEY|users.user_id|
+
+一意制約: `(task_code, revision_number)`
+
+公開中課題の編集では既存行を上書きせず、同じ `task_code` の新しい `revision_number` と `task_revision_code` を作成する。再公開まではクラス割当が直前の公開改訂を参照する。再公開時は旧割当を `archived` にし、新しい課題改訂を参照する割当行を作成する。旧割当行の `task_id` は変更しない。学習開始後に学習条件・評価条件を変更する場合は、同じ系列の改訂ではなく、新しい `task_code` の課題として複製する。
 
 ## task_features
 
@@ -182,6 +230,7 @@
 |publish_at|公開予定日時|DATETIME||YES||NULLは即時公開|
 |due_at|提出期限|DATETIME||YES||NULLは期限なし|
 |late_submission_policy|期限後提出方針|ENUM('allow','deny')||NO|||
+|resubmission_policy|再提出方針|ENUM('allow','deny')||NO||対象クラスの全生徒に共通適用。提出期限まで変更可能|
 |created_at|作成日時|DATETIME||NO|||
 |updated_at|更新日時|DATETIME||YES|||
 
@@ -197,8 +246,10 @@
 |learning_status|学習状態|ENUM('not_started','in_progress','completed','needs_revision')||NO|||
 |progress_status|進捗表示状態|ENUM('not_started','in_progress','submitted','awaiting_evaluation','completed','needs_action')||NO||進捗画面の状態。関連データ更新時に同一トランザクションで更新|
 |save_status|コード保存状態|ENUM('unsaved','draft','saved')||NO||画面状態。未保存フラグはエディター更新時に送信して保持|
+|current_draft_code|現在の編集用下書き|LONGTEXT||YES||初回編集または再提出用。提出版とは分離して更新可能|
+|draft_base_submission_id|下書きのコピー元提出ID|BIGINT||YES|FOREIGN_KEY|submissions.submission_id。初回提出用下書きではNULL|
+|draft_updated_at|下書き更新日時|DATETIME||YES||下書き保存時の楽観ロックキー。クライアントが保持する値と不一致の場合は同時更新として拒否する|
 |evaluation_status|評価状態|ENUM('not_started','in_progress','completed','failed','needs_revision')||NO|||
-|resubmission_status|再提出可否|ENUM('allowed','forbidden')||NO||教師/課題設定から判定した現状態|
 |active_duration_seconds|累積取り組み時間(秒)|BIGINT||NO||task_activity_sessionsから集計し、一覧用に更新|
 |last_activity_at|最終活動日時|DATETIME||YES|||
 |completed_at|完了日時|DATETIME||YES|||
@@ -260,10 +311,12 @@
 |participation_id|学習参加ID|BIGINT||NO|FOREIGN_KEY|task_participations.participation_id|
 |revision_number|版番号|INT||NO|UNIQUE(participation_id, revision_number)||
 |submitted_code|提出コード|LONGTEXT||NO|||
-|submission_status|提出状態|ENUM('submitted','accepted','rejected','locked')||NO||未提出は participation.save_status で管理|
+|submission_status|提出状態|ENUM('submitted','accepted','locked')||NO||submitted=受付・チェック処理中、accepted=チェック結果保存済み、locked=評価対象として固定。拒否した操作は行を作成しない|
 |submitted_at|提出日時|DATETIME||NO|||
 |review_locked_at|レビュー固定日時|DATETIME||YES|||
 |created_at|作成日時|DATETIME||NO|||
+
+状態遷移は `submitted → accepted → locked` とする。想定出力との不一致は `accepted` とし、期限・権限・重複送信等の検証で拒否した操作は `submissions` 行を作成せず、監査・エラーログへ記録する。各提出版は作成後に内容を上書きせず、再提出は新しい `revision_number` の行を作成する。
 
 ## code_logs
 
@@ -646,13 +699,15 @@ AIが抽出した揺らぎ項目と教師の対応記述
 |distribution_target_id|配信対象ID|BIGINT||YES|FOREIGN_KEY|distribution_targets.distribution_target_id。生徒作成領域ではNULL|
 |exercise_origin|演習作成元|ENUM('distribution','student_created')||NO|||
 |scope_name|演習名/範囲|VARCHAR(255)||NO||例: 授業演習 / ウォームアップ|
-|exercise_status|演習状態|ENUM('not_started','in_progress','temporarily_saved','completed','expired','needs_review')||NO|||
+|exercise_status|演習状態|ENUM('not_started','in_progress','temporarily_saved','completed','expired','needs_review','archived')||NO||archivedは演習領域の論理削除|
 |save_status|保存状態|ENUM('unsaved','saved')||NO|||
 |started_at|開始日時|DATETIME||YES|||
 |completed_at|完了日時|DATETIME||YES|||
 |expires_at|期限日時|DATETIME||YES|||
 |created_at|作成日時|DATETIME||NO|||
 |updated_at|更新日時|DATETIME||YES|||
+|deleted_at|削除日時|DATETIME||YES||論理削除時に設定|
+|deleted_by_user_id|削除実行者ユーザID|BIGINT||YES|FOREIGN_KEY|users.user_id|
 
 演習領域は主キーで識別し、同名の領域も作成可能とする。
 
@@ -897,18 +952,21 @@ AIへ渡した匿名化済み入力の再現用スナップショット
 |実行出力上限による切り詰め|code_executions.standard_output_truncated, standard_error_truncated; code_execution_test_results.actual_output_truncated|表示上限を超えた結果を完全な内容と誤認しない|
 |テストケース単位の提出判定|code_execution_test_results.input_snapshot, expected_output_snapshot, actual_output, result_status|教師提出画面の詳細と一致件数を再構築|
 |アカウント有効/停止/削除|users.account_status|生徒/教師/管理者共通|
+|研究用識別子（ログイン用IDとは分離）|research_subject_identifiers.research_subject_code|研究データ外部提供・Gemini送信時にのみ使用。ログイン用ID(student_profiles.student_code)とは独立に1生徒1件で保持|
 |生徒初回ログイン/パスワード変更|student_profiles.first_login_status, must_change_password|平文パスワードは保持しない|
 |学校/クラスの有効状態|schools.school_status, classrooms.classroom_status|名称でなく外部キーで所属管理|
 |クラス所属|student_class_memberships.membership_status|在籍期間も保存|
 |教師の学校・機能権限|teacher_school_permissions.access_status, teacher_feature_permissions.is_enabled|権限は教師×学校/機能の行で保存|
 |課題の保存/公開/論理削除|tasks.save_status, publication_status, deleted_at|保存状態と公開状態を分離|
 |クラス別の公開/提出期限|task_class_assignments.assignment_status, publish_at, due_at, late_submission_policy|対象クラスごとに保持|
-|生徒の課題学習/保存/評価/再提出|task_participations.learning_status, progress_status, save_status, evaluation_status, resubmission_status|生徒×クラス割当ごと|
+|生徒の課題学習/保存/評価|task_participations.learning_status, progress_status, save_status, evaluation_status|生徒×クラス割当ごと|
+|クラス別の期限後提出・再提出条件|task_class_assignments.late_submission_policy, resubmission_policy|同じ課題割当の生徒に共通適用|
 |提出状態|submissions.submission_status|提出版ごとに履歴を保持|
 |実行状態|code_executions.execution_status|標準出力/標準エラーも保存|
 |ログイン試行の表示情報|login_history.attempted_login_id, error_message, ip_address, user_agent, session_id|ユーザーID不明の失敗試行も記録|
 |課題テストケース/ヒントの有効状態|task_test_cases.record_status, task_hints.record_status|物理削除せず無効化可能|
 |プロンプト状態/生成ステップ|prompt_versions.prompt_status, fluctuation_generation_status, evaluation_examples_status|プロンプト版ごと|
+|課題が現在使用するプロンプト版|tasks.active_prompt_version_id|課題につき1件のみ参照。評価開始時点でevaluationsへ固定し、以後の切替の影響を受けない|
 |揺らぎ項目の教師対応|prompt_fluctuation_items.resolution_status|項目ごと|
 |ルーブリック状態/段階|rubrics.rubric_status, criterion_levels.level_value|評価段階の説明も行で保存|
 |評価状態/再評価状態|evaluations.evaluation_status, reevaluation_jobs.reevaluation_status|旧評価結果は上書きしない|
@@ -935,7 +993,7 @@ AIへ渡した匿名化済み入力の再現用スナップショット
 
 |形式資料|DBの対応先|保持方法|
 |:--|:--|:--|
-|task-format.csv|tasks, task_features, task_class_assignments|task_id/task_code/title/level/theme/description/constraints/initial_code/languageは課題列、featuresは子行、school_targets/class_targetsは学校配下のクラス割当、publish_at/status/is_deletedは公開状態と日時/論理削除に分解|
+|task-format.csv|tasks, task_features, task_class_assignments|task_id/task_code/task_revision_code/revision_number/title/level/theme/description/constraints/initial_code/languageは課題改訂の列、featuresは子行、school_targets/class_targetsは学校配下のクラス割当、publish_at/status/is_deletedは公開状態と日時/論理削除に分解。外部形式のtask_codeは課題系列コードとして維持する|
 |task-testcase-format.csv|task_test_cases|test_case_id/task_id/order/input/outputを列として保持|
 |hint-format.csv|task_hints|hint_id/task_id/order/title/content/codeを列として保持|
 |survey-format.csv|survey_responses, survey_answers, survey_questions, survey_question_options, evaluations|recordId/responseIdを保持し、設問コードごとに評定/理由/コメントを保存。systemEvaluationはevaluation_idで参照し、提出時の同意状態もスナップショット保存|
