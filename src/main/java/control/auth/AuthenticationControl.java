@@ -194,6 +194,9 @@ public final class AuthenticationControl {
 				}
 
 				authenticationDao.updatePassword(connection, user.userId(), passwordHasher.hash(submittedNewPassword));
+				authenticationDao.insertPasswordChangeHistory(connection, user.userId(),
+						user.studentProfile().orElseThrow().firstLoginStatus()
+								!= entity.UserCredential.FirstLoginStatus.COMPLETED, now);
 				authenticationDao.completeStudentPasswordChange(connection, user.userId());
 				authenticationDao.updateLoginLockout(connection, user.userId(), 0, null);
 				authenticationDao.insertLoginHistory(connection, user.userId(), user.loginId(), "password_change",

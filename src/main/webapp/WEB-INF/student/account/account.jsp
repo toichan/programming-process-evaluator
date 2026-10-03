@@ -11,14 +11,15 @@
 			<span class="account-kicker">Account Information</span>
 			<h1 class="section-title mb-3">アカウント情報</h1>
 			<p class="account-hero-description mb-0">
-				ログインに使う情報と、現在のセキュリティレベルを確認できます。セキュリティレベル2では、初回ログイン後にパスワード変更が必要です。
+				登録されている生徒ID・所属情報と、パスワード変更の可否を確認できます。
 			</p>
 		</div>
 		<div class="account-status-card">
 			<div class="status-label">アカウント状況</div>
-			<div class="status-value">セキュリティレベル<c:out value="${account.securityLevel}"/></div>
+			<div class="status-value">${account.securityLevel == 2 ? 'パスワード変更可' : 'パスワード変更不可'}</div>
 			<div class="status-meta">
 				<c:choose>
+					<c:when test="${account.securityLevel == 1}">パスワード変更が許可されていないアカウントです。</c:when>
 					<c:when test="${account.firstLoginStatus == 'COMPLETED' and not account.mustChangePassword}">初回パスワード変更は完了済みです。</c:when>
 					<c:otherwise>初回パスワード変更が必要です。</c:otherwise>
 				</c:choose>
@@ -31,13 +32,12 @@
 			<article class="sample-card info-card h-100">
 				<div class="info-card-header">
 					<div><h2 class="card-title mb-0">登録情報</h2></div>
-					<span class="security-badge is-level-${account.securityLevel}">Level <c:out value="${account.securityLevel}"/></span>
 				</div>
 
 				<dl class="account-detail-grid mb-0">
 					<div class="detail-item">
 						<dt>生徒ID</dt>
-						<dd><c:out value="${account.studentCode}"/></dd>
+						<dd><c:out value="${account.studentId}"/></dd>
 					</div>
 					<div class="detail-item">
 						<dt>学校</dt>
@@ -76,6 +76,7 @@
 						<dt>初回パスワード変更</dt>
 						<dd>
 							<c:choose>
+								<c:when test="${account.securityLevel == 1}">不要</c:when>
 								<c:when test="${account.firstLoginStatus == 'COMPLETED' and not account.mustChangePassword}">完了</c:when>
 								<c:otherwise>必要</c:otherwise>
 							</c:choose>
@@ -94,8 +95,8 @@
 							<a class="btn btn-primary account-password-button" href="<c:url value='/student/account/change-password'/>">パスワード変更へ</a>
 						</c:when>
 						<c:otherwise>
-							<span class="btn btn-primary account-password-button is-disabled-action" aria-disabled="true"
-								title="セキュリティレベル1では生徒による変更はできません">パスワード変更へ</span>
+							<button class="btn btn-secondary account-password-button" type="button" disabled
+								aria-describedby="passwordChangeUnavailable">パスワード変更へ</button>
 						</c:otherwise>
 					</c:choose>
 				</div>
@@ -104,7 +105,7 @@
 					<div class="password-rule-text">英大文字・英小文字・数字・記号のうち3種類以上を含む、8〜32文字</div>
 				</div>
 				<c:if test="${account.securityLevel == 1}">
-					<p class="small text-secondary mt-3 mb-0">セキュリティレベル1では生徒自身によるパスワード変更はできません。必要な場合は担当者へご相談ください。</p>
+					<p id="passwordChangeUnavailable" class="small text-secondary mt-3 mb-0">あなたのアカウントでは、パスワード変更が許可されていません。必要な場合は担当者へご相談ください。</p>
 				</c:if>
 			</article>
 		</div>

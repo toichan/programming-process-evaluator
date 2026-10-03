@@ -18,6 +18,8 @@ public final class StudentTaskSummary {
 	private final String saveStatus;
 	private final String evaluationStatus;
 	private final String surveyStatus;
+	private final Long activeSurveyId;
+	private final Long latestCompletedEvaluationId;
 	private final Long secondsUntilDue;
 	private final Long latestSubmissionId;
 
@@ -34,6 +36,9 @@ public final class StudentTaskSummary {
 			String saveStatus,
 			String evaluationStatus,
 			String surveyStatus,
+			Long activeSurveyId,
+			Long latestCompletedEvaluationId,
+			ConsentStatus consentStatus,
 			Long secondsUntilDue,
 			Long latestSubmissionId) {
 		this.taskClassAssignmentId = taskClassAssignmentId;
@@ -47,7 +52,9 @@ public final class StudentTaskSummary {
 		this.progressStatus = progressStatus;
 		this.saveStatus = saveStatus;
 		this.evaluationStatus = evaluationStatus;
-		this.surveyStatus = surveyStatus;
+		this.surveyStatus = consentStatus == ConsentStatus.AGREED ? surveyStatus : "not_applicable";
+		this.activeSurveyId = activeSurveyId;
+		this.latestCompletedEvaluationId = latestCompletedEvaluationId;
 		this.secondsUntilDue = secondsUntilDue;
 		this.latestSubmissionId = latestSubmissionId;
 	}
@@ -130,6 +137,14 @@ public final class StudentTaskSummary {
 
 	public String getSurveyStatus() {
 		return surveyStatus;
+	}
+
+	public Long getActiveSurveyId() {
+		return activeSurveyId;
+	}
+
+	public Long getLatestCompletedEvaluationId() {
+		return latestCompletedEvaluationId;
 	}
 
 	public Long getLatestSubmissionId() {

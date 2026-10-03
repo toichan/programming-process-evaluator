@@ -15,6 +15,7 @@ import control.auth.AuthenticatedUser;
 import control.auth.AuthenticationControl;
 import control.auth.AuthenticationControl.PasswordChangeResult;
 import control.auth.RequestMetadata;
+import control.auth.PasswordPolicy;
 import entity.UserCredential.UserType;
 
 @WebServlet("/student/account/change-password")
@@ -35,7 +36,6 @@ public final class StudentPasswordChangeServlet extends HttpServlet {
 		}
 		request.setAttribute("csrfToken", CsrfTokens.getOrCreate(session));
 		request.setAttribute("passwordChangeRequired", user.passwordChangeRequired());
-		request.setAttribute("studentDisplayName", user.displayName());
 		request.getRequestDispatcher("/WEB-INF/student/account/change-password.jsp").forward(request, response);
 	}
 
@@ -51,7 +51,6 @@ public final class StudentPasswordChangeServlet extends HttpServlet {
 			return;
 		}
 		request.setAttribute("passwordChangeRequired", user.passwordChangeRequired());
-		request.setAttribute("studentDisplayName", user.displayName());
 		if (!CsrfTokens.isValid(request)) {
 			response.sendError(HttpServletResponse.SC_FORBIDDEN);
 			return;
@@ -63,7 +62,11 @@ public final class StudentPasswordChangeServlet extends HttpServlet {
 		char[] currentPassword = currentValue == null ? new char[0] : currentValue.toCharArray();
 		char[] newPassword = newValue == null ? new char[0] : newValue.toCharArray();
 		try {
-			if (newPassword.length > 256 || confirmationValue == null || confirmationValue.length() > 256
+			if (newPassword.length > 256) {
+				forwardWithError(request, response, String.join(" ", PasswordPolicy.violations(newPassword)));
+				return;
+			}
+			if (confirmationValue == null || confirmationValue.length() > 256
 					|| !constantTimeEquals(newValue, confirmationValue)) {
 				forwardWithError(request, response, "新しいパスワードが一致しません。");
 				return;
@@ -78,12 +81,15 @@ public final class StudentPasswordChangeServlet extends HttpServlet {
 					AuthenticatedUser updatedUser = user.withPasswordChangeRequired(false);
 					session.setAttribute(USER_ATTRIBUTE, updatedUser);
 					CsrfTokens.rotate(session);
-					response.sendRedirect(request.getContextPath() + "/student/home?passwordChanged=1");
+					session.setAttribute("passwordChangeNotice", Boolean.TRUE);
+					String destination = user.passwordChangeRequired()
+							? "/student/home" : "/student/account/account";
+					response.sendRedirect(request.getContextPath() + destination);
 				}
 				case CURRENT_PASSWORD_INVALID ->
 					forwardWithError(request, response, "現在のパスワードを確認してください。");
 				case PASSWORD_POLICY ->
-					forwardWithError(request, response, "新しいパスワードが要件を満たしていません。");
+					forwardWithError(request, response, String.join(" ", PasswordPolicy.violations(newPassword)));
 				case PASSWORD_REUSED ->
 					forwardWithError(request, response, "現在と異なるパスワードを設定してください。");
 				case NOT_ALLOWED -> response.sendError(HttpServletResponse.SC_FORBIDDEN);

@@ -227,7 +227,17 @@
         detailTitleEl.textContent = detailTitle || '次の内容を確認してください。';
         detailTitleEl.classList.remove('d-none');
       }
-      detailsEl.innerHTML = '<ul class="ppe-feedback-detail-bullets mb-0">' + details.map((detail) => '<li class="ppe-feedback-detail-item">' + escapeHtml(detail) + '</li>').join('') + '</ul>';
+      detailsEl.innerHTML = '<ul class="ppe-feedback-detail-bullets mb-0">' + details.map((detail) => {
+        if (detail && typeof detail === 'object') {
+          const label = detail.label
+            ? '<strong class="ppe-feedback-detail-label">' + escapeHtml(detail.label) + '</strong>'
+            : '';
+          const text = escapeHtml(detail.text || '');
+          return '<li class="ppe-feedback-detail-item ppe-feedback-detail-structured">' + label +
+            (detail.emphasis === true ? '<strong>' + text + '</strong>' : text) + '</li>';
+        }
+        return '<li class="ppe-feedback-detail-item">' + escapeHtml(detail) + '</li>';
+      }).join('') + '</ul>';
       detailBlockEl.classList.remove('d-none');
     } else {
       detailTitleEl.textContent = '';

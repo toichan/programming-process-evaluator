@@ -67,7 +67,6 @@ public final class AuthenticationFilter implements Filter {
 		request.setAttribute("authenticatedUser", user);
 		if (user.userType() == UserType.STUDENT) {
 			request.setAttribute("studentLoginId", user.loginId());
-			request.setAttribute("studentDisplayName", user.displayName());
 		}
 		chain.doFilter(request, response);
 	}

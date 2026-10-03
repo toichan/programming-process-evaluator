@@ -17,7 +17,17 @@
 					<span class="learning-flow-current is-yellow" aria-current="page">評価の確認</span>
 				</li>
 				<li class="learning-flow-step">
-					<span class="learning-flow-link is-green" aria-disabled="true">アンケート</span>
+					<c:choose>
+						<c:when test="${surveyAvailableForEvaluation}">
+							<c:forEach var="task" items="${studentHome.tasks}">
+								<c:if test="${task.taskClassAssignmentId == evaluationPage.assignmentId and task.latestCompletedEvaluationId == evaluationPage.evaluation.evaluationId}">
+									<a class="learning-flow-link is-green"
+										href="<c:url value='/student/survey'><c:param name='assignmentId' value='${task.taskClassAssignmentId}'/><c:param name='evaluationId' value='${evaluationPage.evaluation.evaluationId}'/><c:param name='surveyId' value='${task.activeSurveyId}'/></c:url>">アンケート</a>
+								</c:if>
+							</c:forEach>
+						</c:when>
+						<c:otherwise><span class="learning-flow-link is-green" aria-disabled="true">アンケート</span></c:otherwise>
+					</c:choose>
 				</li>
 			</ol>
 			<div class="learning-flow-task-title">
@@ -39,8 +49,20 @@
 				<div class="hero-action-row mt-4">
 					<a class="btn btn-warning btn-lg hero-log-button"
 						href="<c:url value='/student/evaluation/log'><c:param name='submissionId' value='${evaluationPage.selectedSubmissionId}'/></c:url>">ログを見る</a>
-					<span class="btn btn-success btn-lg is-disabled-action" aria-disabled="true"
-						title="アンケート機能は準備中です">アンケートに答える</span>
+					<c:choose>
+						<c:when test="${surveyAvailableForEvaluation}">
+							<c:forEach var="task" items="${studentHome.tasks}">
+								<c:if test="${task.taskClassAssignmentId == evaluationPage.assignmentId and task.latestCompletedEvaluationId == evaluationPage.evaluation.evaluationId}">
+									<a class="btn btn-success btn-lg"
+										href="<c:url value='/student/survey'><c:param name='assignmentId' value='${task.taskClassAssignmentId}'/><c:param name='evaluationId' value='${evaluationPage.evaluation.evaluationId}'/><c:param name='surveyId' value='${task.activeSurveyId}'/></c:url>">アンケートに答える</a>
+								</c:if>
+							</c:forEach>
+						</c:when>
+						<c:otherwise>
+							<span class="btn btn-success btn-lg is-disabled-action" aria-disabled="true"
+								title="評価完了後、対象アンケートがある場合に回答できます">アンケートに答える</span>
+						</c:otherwise>
+					</c:choose>
 				</div>
 			</div>
 			<div class="hero-meta-card">

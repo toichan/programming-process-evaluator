@@ -22,7 +22,12 @@
 					<c:otherwise>変更できます</c:otherwise>
 				</c:choose>
 			</div>
-			<div class="status-meta">新しいパスワードを設定すると、通常の画面へ進めます。</div>
+			<div class="status-meta">
+				<c:choose>
+					<c:when test="${passwordChangeRequired}">変更が完了すると、ホーム画面へ進みます。</c:when>
+					<c:otherwise>変更が完了すると、アカウント情報画面へ戻ります。</c:otherwise>
+				</c:choose>
+			</div>
 		</div>
 	</section>
 
@@ -52,11 +57,7 @@
 								type="password" autocomplete="current-password" maxlength="256" required>
 							<button class="password-visibility-toggle" type="button" data-password-toggle="currentPassword"
 								aria-label="現在のパスワードを表示">
-								<svg class="password-toggle-icon password-toggle-show" width="20" height="20" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-									<path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3.5 5.5 8 5.5S16 8 16 8z"/>
-									<path d="M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z"/>
-								</svg>
-								<span class="password-toggle-hide" aria-hidden="true">隠す</span>
+								<%@ include file="/WEB-INF/student/account/password-icons.jspf" %>
 							</button>
 						</div>
 					</div>
@@ -67,14 +68,10 @@
 						</div>
 						<div class="password-input-wrap">
 							<input id="newPassword" class="form-control form-control-lg" name="newPassword"
-								type="password" autocomplete="new-password" maxlength="256" required>
+								type="password" autocomplete="new-password" maxlength="256" aria-describedby="passwordRuleSummary" required>
 							<button class="password-visibility-toggle" type="button" data-password-toggle="newPassword"
 								aria-label="新しいパスワードを表示">
-								<svg class="password-toggle-icon password-toggle-show" width="20" height="20" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-									<path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3.5 5.5 8 5.5S16 8 16 8z"/>
-									<path d="M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z"/>
-								</svg>
-								<span class="password-toggle-hide" aria-hidden="true">隠す</span>
+								<%@ include file="/WEB-INF/student/account/password-icons.jspf" %>
 							</button>
 						</div>
 					</div>
@@ -85,32 +82,39 @@
 						</div>
 						<div class="password-input-wrap">
 							<input id="confirmPassword" class="form-control form-control-lg" name="confirmPassword"
-								type="password" autocomplete="new-password" maxlength="256" required>
+								type="password" autocomplete="new-password" maxlength="256" aria-describedby="passwordRuleSummary" required>
 							<button class="password-visibility-toggle" type="button" data-password-toggle="confirmPassword"
 								aria-label="確認用パスワードを表示">
-								<svg class="password-toggle-icon password-toggle-show" width="20" height="20" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-									<path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3.5 5.5 8 5.5S16 8 16 8z"/>
-									<path d="M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z"/>
-								</svg>
-								<span class="password-toggle-hide" aria-hidden="true">隠す</span>
+								<%@ include file="/WEB-INF/student/account/password-icons.jspf" %>
 							</button>
 						</div>
 					</div>
 					<div class="form-actions mt-4">
-						<button class="btn btn-primary btn-lg" type="submit">パスワードを更新</button>
-						<a class="btn btn-outline-secondary" href="<c:url value='/student/account/account'/>">アカウント情報へ戻る</a>
+						<div class="password-return-action">
+							<c:choose>
+								<c:when test="${passwordChangeRequired}">
+									<button class="btn btn-outline-secondary" type="button" disabled aria-describedby="passwordReturnNotice">アカウント情報へ戻る</button>
+									<p id="passwordReturnNotice" class="password-return-notice">パスワード変更が完了するまで戻れません。</p>
+								</c:when>
+								<c:otherwise><a class="btn btn-outline-secondary" href="<c:url value='/student/account/account'/>">アカウント情報へ戻る</a></c:otherwise>
+							</c:choose>
+						</div>
+						<button id="savePasswordButton" class="btn btn-primary" type="submit">パスワードを更新</button>
 					</div>
+					<noscript><p class="text-muted small">入力内容は更新時に確認します。</p></noscript>
 				</form>
 			</section>
 		</div>
 		<div class="col-12 col-xl-5">
 			<aside class="rule-card">
-				<h2 class="rule-title h5 mb-3">パスワード要件</h2>
-				<p class="rule-summary">新しいパスワードは次の条件を満たしてください。</p>
+				<h2 class="rule-title mb-3">パスワード要件</h2>
+				<p id="passwordRuleSummary" class="rule-summary" role="status" aria-live="polite">入力すると条件を確認できます。</p>
 				<ul class="rule-list mb-0">
-					<li>8文字以上32文字以下</li>
-					<li>英大文字・英小文字・数字・記号のうち3種類以上を含む</li>
-					<li>現在のパスワードと異なる</li>
+					<li data-password-rule="length"><span class="rule-indicator" aria-hidden="true">○</span><div>8文字以上32文字以下<small class="rule-status">入力待ち</small></div></li>
+					<li data-password-rule="characters"><span class="rule-indicator" aria-hidden="true">○</span><div>半角英数字・記号のみ<small class="rule-status">空白・全角文字・制御文字は使用できません。</small></div></li>
+					<li data-password-rule="categories"><span class="rule-indicator" aria-hidden="true">○</span><div>英大文字・英小文字・数字・記号のうち3種類以上<small class="rule-status">入力待ち</small></div></li>
+					<li data-password-rule="different"><span class="rule-indicator" aria-hidden="true">○</span><div>現在のパスワードと異なる<small class="rule-status">入力待ち</small></div></li>
+					<li data-password-rule="match"><span class="rule-indicator" aria-hidden="true">○</span><div>確認用パスワードと一致<small class="rule-status">入力待ち</small></div></li>
 				</ul>
 			</aside>
 		</div>
@@ -118,4 +122,5 @@
 </div>
 <script src="${pageContext.request.contextPath}/js/shared/auth-feedback.js" defer></script>
 <script src="${pageContext.request.contextPath}/js/shared/password-visibility.js" defer></script>
+<script src="${pageContext.request.contextPath}/js/student/account/password.js" defer></script>
 <%@ include file="/WEB-INF/template/page-end.jspf" %>

@@ -28,6 +28,7 @@
 - 画面ごとの通知タイトルや inline alert の出し先は createPageFeedback() でまとめる
 - 画面側では shared feedback の再実装をせず、文言と details のみを定義する
 - fallback の alert / confirm は shared feedback 内に閉じ込め、画面側へ広げない
+- 本実装の共通 feedback の `details` は、従来の文字列に加え `{ label, text, emphasis }` を指定できる。`label` は太字の見出し、`emphasis: true` は本文の太字表示に使う。すべてテキストとしてエスケープし、HTMLを直接渡さない。長い確認では情報を項目別にまとめ、重要な影響だけを強調する。
 
 ## 実装例
 

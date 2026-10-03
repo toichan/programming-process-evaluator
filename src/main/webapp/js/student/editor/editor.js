@@ -309,7 +309,7 @@ window.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  async function saveDraft(eventType) {
+  async function saveDraft(eventType, notifySuccess = false) {
     if (saveInProgress || page.dataset.editable !== 'true') {
       return false;
     }
@@ -328,6 +328,13 @@ window.addEventListener('DOMContentLoaded', () => {
       updateEditorStatus(`保存状態: 保存済み（${formatNow()}）。コードログへ記録しました。`);
       clearError();
       addCodeLog(eventType === 'periodic_snapshot' ? '自動保存' : '手動保存', source, '');
+      if (notifySuccess) {
+        feedback.toast({
+          message: 'コードを保存しました。',
+          variant: 'success',
+          delay: 2500
+        });
+      }
       return true;
     } catch (error) {
       showError(error.message);
@@ -619,12 +626,18 @@ window.addEventListener('DOMContentLoaded', () => {
       if (!submissionRequestKey) {
         submissionRequestKey = crypto.randomUUID();
       }
-      await postForm(page.dataset.submitUrl, {
+      const result = await postForm(page.dataset.submitUrl, {
         checkId: activeCheckId,
         requestKey: submissionRequestKey
       });
-      updateEditorStatus('提出を受け付けました。提出状態を読み込み直しています。');
-      window.location.reload();
+      if (!Number.isSafeInteger(result.submissionId) || result.submissionId <= 0) {
+        throw new Error('提出結果のIDを確認できません。ホームから評価の確認を開いてください。');
+      }
+      const evaluationUrl = new URL(page.dataset.evaluationUrl, window.location.href);
+      evaluationUrl.searchParams.set('assignmentId', assignmentId);
+      evaluationUrl.searchParams.set('submissionId', result.submissionId);
+      updateEditorStatus('提出を受け付けました。評価の確認へ移動しています。');
+      window.location.assign(evaluationUrl.href);
     } catch (error) {
       showError(error.message);
       if (error.errorCode === 'submission_check_expired') {
@@ -661,17 +674,32 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  saveButton.addEventListener('click', () => saveDraft('manual_save'));
+  saveButton.addEventListener('click', () => saveDraft('manual_save', true));
   runButton.addEventListener('click', executeCode);
   submitButton.addEventListener('click', prepareSubmission);
   confirmSubmitButton.addEventListener('click', confirmSubmission);
   document.querySelector('#startResubmissionButton')?.addEventListener('click', startResubmission);
 
-  document.querySelector('#toggleLogButton')?.addEventListener('click', (event) => {
-    const button = event.currentTarget;
-    const next = button.getAttribute('aria-expanded') === 'true';
-    button.textContent = next ? '表示する' : '折りたたむ';
-  });
+  const toggleLogButton = document.querySelector('#toggleLogButton');
+  const codeLogContent = document.querySelector('#codeLogContent');
+  function updateLogVisibility() {
+    const expanded = codeLogContent.classList.contains('show');
+    toggleLogButton.setAttribute('aria-expanded', String(expanded));
+    toggleLogButton.textContent = expanded ? '折りたたむ' : '表示する';
+    if (expanded) {
+      codeLogContent.querySelectorAll('.CodeMirror').forEach((element) => {
+        element.CodeMirror.refresh();
+      });
+    }
+  }
+  if (toggleLogButton && codeLogContent) {
+    updateLogVisibility();
+    ['shown.bs.collapse', 'hidden.bs.collapse'].forEach((eventName) => {
+      codeLogContent.addEventListener(eventName, (event) => {
+        if (event.target === codeLogContent) updateLogVisibility();
+      });
+    });
+  }
 
   document.querySelectorAll('.code-log-item').forEach(initializeLogItem);
 

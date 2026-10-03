@@ -20,20 +20,24 @@ public final class UserDao {
 	private static final String FIND_BY_LOGIN_ID = """
 			SELECT u.user_id, u.user_type, u.login_id, u.password_hash, u.display_name, u.account_status,
 			       u.consecutive_login_failures, u.login_locked_until,
-			       sp.user_id AS student_profile_user_id, sp.security_level,
+			       sp.user_id AS student_profile_user_id,
+			       CASE WHEN sp.school_id IS NULL THEN sp.security_level ELSE school.security_level END AS security_level,
 			       sp.first_login_status, sp.must_change_password
 			FROM users u
 			LEFT JOIN student_profiles sp ON sp.user_id = u.user_id
+			LEFT JOIN schools school ON school.school_id = sp.school_id
 			WHERE u.login_id = 
 			""";
 
 	private static final String FIND_BY_USER_ID = """
 			SELECT u.user_id, u.user_type, u.login_id, u.password_hash, u.display_name, u.account_status,
 			       u.consecutive_login_failures, u.login_locked_until,
-			       sp.user_id AS student_profile_user_id, sp.security_level,
+			       sp.user_id AS student_profile_user_id,
+			       CASE WHEN sp.school_id IS NULL THEN sp.security_level ELSE school.security_level END AS security_level,
 			       sp.first_login_status, sp.must_change_password
 			FROM users u
 			LEFT JOIN student_profiles sp ON sp.user_id = u.user_id
+			LEFT JOIN schools school ON school.school_id = sp.school_id
 			WHERE u.user_id = ?
 			""";
 
@@ -91,8 +95,12 @@ public final class UserDao {
 			if (!hasStudentProfile) {
 				throw new SQLException("Student account is missing its student profile.");
 			}
+			int level = resultSet.getInt("security_level");
+			if (resultSet.wasNull() || (level != 1 && level != 2)) {
+				throw new SQLException("Student account has no valid school security policy.");
+			}
 			studentProfile = Optional.of(new StudentAccountProfile(
-					resultSet.getInt("security_level"),
+					level,
 					enumValue(FirstLoginStatus.class, resultSet.getString("first_login_status")),
 					resultSet.getBoolean("must_change_password")));
 		} else {

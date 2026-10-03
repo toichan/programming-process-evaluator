@@ -19,9 +19,9 @@
 			<link href="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/lib/codemirror.css" rel="stylesheet">
 			<link href="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/theme/material-darker.css" rel="stylesheet">
 		</c:if>
-		<c:if test="${not empty screenStylesheet}">
-			<link href="<c:url value='${screenStylesheet}'/>" rel="stylesheet">
-		</c:if>
+	</c:if>
+	<c:if test="${not empty screenStylesheet}">
+		<link href="<c:url value='${screenStylesheet}'/>" rel="stylesheet">
 	</c:if>
 </head>
 <body<c:if test="${screenDesign == 'student'}"> class="student-screen"</c:if>>

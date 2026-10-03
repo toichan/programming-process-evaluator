@@ -36,9 +36,9 @@
 |:--|:--|:--|:--|:--|:--|:--|
 |user_id|ユーザID|BIGINT|〇|NO|PRIMARY_KEY, AUTO_INCREMENT||
 |user_type|ユーザ種別|ENUM('student','teacher','admin')||NO||管理者は1アカウントのみ。DBの一意制約で保証|
-|login_id|ログインID|VARCHAR(64)||NO|UNIQUE||
+|login_id|ログインID（利用者向けIDの正本）|VARCHAR(64)||NO|UNIQUE|生徒ではstudent_id、教師ではteacher_idと呼ぶ。同一値を認証・画面・CSVで使用し、ロール別の重複列は追加しない|
 |password_hash|パスワードハッシュ|VARCHAR(255)||NO||平文パスワードを保存しない|
-|display_name|表示名|VARCHAR(100)||NO|||
+|display_name|表示名（生徒では旧互換値）|VARCHAR(100)||NO||生徒は画面表示に使わず、今後の作成処理ではlogin_idを設定して別名を要求しない。教師の利用者向けIDにも使わない。管理者表示名と既存値は保持し、匿名化の除去対象から外さない|
 |account_status|アカウント状態|ENUM('active','suspended','deleted')||NO|||
 |consecutive_login_failures|連続ログイン失敗回数|TINYINT UNSIGNED||NO||0〜5。成功ログイン・30分ロック満了・教師解除で0に戻す|
 |login_locked_until|ログインロック期限|DATETIME||YES||5回連続失敗後、現在時刻から30分。期限満了後は再試行可能|
@@ -55,8 +55,9 @@
 |フィールド名|和名|型|主キー|NULL|その他制約|備考|
 |:--|:--|:--|:--|:--|:--|:--|
 |user_id|ユーザID|BIGINT|〇|NO|PRIMARY_KEY, FOREIGN_KEY|users.user_id|
-|student_code|生徒ID|VARCHAR(32)||NO|UNIQUE|例: s001|
-|security_level|セキュリティレベル|TINYINT||NO||1または2。DBのCHECK制約で保証|
+|student_code|旧生徒コード（互換用）|VARCHAR(32)||NO|UNIQUE|利用者向けIDの正本ではない。既存データ・関連する匿名化処理の互換性のため保持し、アカウント画面・一覧・CSVには使用しない。将来の登録処理でも独立した生徒IDとして入力させない|
+|school_id|所属学校ID|BIGINT||YES|FOREIGN_KEY|schools.school_id。旧所属なしデータのみNULLを許容。所属学校は固定し、新規業務登録では指定する|
+|security_level|セキュリティレベル互換値|TINYINT||NO||学校設定をDBトリガーで適用し、個別上書き不可。旧所属なしデータのみ従来値を保持|
 |first_login_status|初回ログイン状態|ENUM('not_logged_in','password_change_required','completed')||NO|||
 |must_change_password|次回ログイン時変更要否|BOOLEAN||NO||リセット後の変更強制にも利用|
 
@@ -75,7 +76,7 @@
 
 ## research_subject_identifiers
 
-研究データ外部提供・Gemini送信時に使用する、ログイン用IDとは別の安定した研究用識別子。ログイン用ID（`student_profiles.student_code`）は教師の閲覧範囲内で可視のまま維持し、本テーブルは研究用CSV・AI連携送信専用の対応表として分離する。
+Gemini送信時に使用する、ログイン用IDとは別の安定した研究用識別子。アンケート研究データでは `users.user_id` をそのまま研究用識別子として使う方針のため、本テーブルをアンケート回答の出力ID変換には使用しない。ログイン用ID（`student_profiles.student_code`）は教師の閲覧範囲内で可視のまま維持する。
 
 |フィールド名|和名|型|主キー|NULL|その他制約|備考|
 |:--|:--|:--|:--|:--|:--|:--|
@@ -85,11 +86,13 @@
 |generated_at|生成日時|DATETIME||NO|||
 |generated_by_user_id|生成実行者ユーザID|BIGINT||YES|FOREIGN_KEY|users.user_id。システム自動生成の場合はNULL|
 
-研究用CSVおよびGeminiへの送信データでは、`student_profiles.student_code` や氏名等の個人識別情報を含めず、本テーブルの `research_subject_code` のみを学習者識別子として使用する。`evaluation_input_snapshots.anonymized_subject_id` はリクエスト単位の匿名化カラムであり、研究用データセット全体で同一人物を追跡するための安定IDとしては本テーブルを正本とする。
+Geminiへの送信データでは、`student_profiles.student_code` や氏名等の個人識別情報を含めず、本テーブルの `research_subject_code` を学習者識別子として使用する。`evaluation_input_snapshots.anonymized_subject_id` はリクエスト単位の匿名化カラムであり、Gemini送信で継続識別が必要な場合の安定IDとして本テーブルを正本とする。アンケート研究データの識別子方針は `survey_responses.student_user_id` の備考を参照する。
 
 ## schools
 
 学校マスタ
+
+学校管理追加（2026-10-03）: `security_level`（TINYINT、1/2、旧未設定校のみNULL）、`security_level_locked`（BOOLEAN、既定FALSE、生徒登録時に不可逆ロック）、`version`（BIGINT、既定1、更新競合検出）を追加する。既存所属の全履歴から学校レベルを移行する。生徒未登録の旧学校は管理者が明示設定するまで登録不可。学校登録は学校コードをシステム発行し、名前・レベルを管理者が指定する。更新と監査は同一トランザクション。学校削除・学校間移動は今回対象外。
 
 |フィールド名|和名|型|主キー|NULL|その他制約|備考|
 |:--|:--|:--|:--|:--|:--|:--|
@@ -121,7 +124,7 @@
 |フィールド名|和名|型|主キー|NULL|その他制約|備考|
 |:--|:--|:--|:--|:--|:--|:--|
 |membership_id|所属ID|BIGINT|〇|NO|PRIMARY_KEY, AUTO_INCREMENT||
-|student_user_id|生徒ユーザID|BIGINT||NO|FOREIGN_KEY|student_profiles.user_id|
+|student_user_id|生徒ユーザID|BIGINT||NO|FOREIGN_KEY|student_profiles.user_id。アンケート研究データではこの `users.user_id` を研究用識別子として使用し、別IDへ置換しない。アプリ内でアカウントへ対応づけ可能な仮名識別子としてアクセスを制限する|
 |classroom_id|クラスID|BIGINT||NO|FOREIGN_KEY|classrooms.classroom_id|
 |membership_status|所属状態|ENUM('active','inactive')||NO|||
 |joined_at|所属開始日時|DATETIME||NO|||
@@ -788,7 +791,7 @@ AIが抽出した揺らぎ項目と教師の対応記述
 |フィールド名|和名|型|主キー|NULL|その他制約|備考|
 |:--|:--|:--|:--|:--|:--|:--|
 |survey_id|アンケートID|BIGINT|〇|NO|PRIMARY_KEY, AUTO_INCREMENT||
-|task_id|課題ID|BIGINT||YES|FOREIGN_KEY|tasks.task_id。全体アンケートの場合はNULL|
+|task_id|課題ID|BIGINT||YES|FOREIGN_KEY|tasks.task_id。全体アンケートの場合はNULL。工程8の生徒向け回答導線ではNULLのsurveyは対象外|
 |title|タイトル|VARCHAR(255)||NO|||
 |survey_status|アンケート状態|ENUM('draft','active','closed','archived')||NO|||
 |created_at|作成日時|DATETIME||NO|||
@@ -805,7 +808,9 @@ AIが抽出した揺らぎ項目と教師の対応記述
 |question_code|設問コード|VARCHAR(64)||NO|UNIQUE(survey_id, question_code)||
 |question_type|設問形式|ENUM('rating','text','single_choice','multiple_choice')||NO|||
 |prompt_text|設問文|TEXT||NO|||
+|reason_prompt_text|理由欄ラベル|VARCHAR(255)||NO||理由・補足欄に表示するラベル|
 |required|必須フラグ|BOOLEAN||NO|||
+|reason_required|理由必須フラグ|BOOLEAN||NO||回答値に付随する理由・補足の必須条件|
 |sort_order|表示順|INT||NO|||
 |question_status|設問状態|ENUM('active','inactive')||NO|||
 
@@ -841,6 +846,8 @@ AIが抽出した揺らぎ項目と教師の対応記述
 |started_at|開始日時|DATETIME||YES|||
 |submitted_at|提出日時|DATETIME||YES|||
 
+一意制約: `(student_user_id, survey_id, evaluation_id)`（Flyway V8）。工程8の課題別回答では `evaluation_id` を必須とし、同じ評価への重複回答を防ぐ。`evaluation_id` が異なれば同じ生徒・surveyでも別の回答履歴を保持できる。回答中は既存行から再開し、提出済み行は読み取り専用とする。
+
 ## survey_answers
 
 設問単位の回答値・理由
@@ -852,6 +859,8 @@ AIが抽出した揺らぎ項目と教師の対応記述
 |question_id|設問ID|BIGINT||NO|FOREIGN_KEY|survey_questions.question_id|
 |answer_value|回答値|TEXT||YES||評定値・選択値・記述回答|
 |answer_reason|回答理由|TEXT||YES|||
+
+一意制約: `(survey_response_id, question_id)`（Flyway V8）。下書きの更新は同一設問の回答行を更新し、別回答行を重複作成しない。
 
 ## evaluation_requests
 
@@ -972,7 +981,7 @@ AIへ渡した匿名化済み入力の再現用スナップショット
 |実行出力上限による切り詰め|code_executions.standard_output_truncated, standard_error_truncated; code_execution_test_results.actual_output_truncated|表示上限を超えた結果を完全な内容と誤認しない|
 |テストケース単位の提出判定|code_execution_test_results.input_snapshot, expected_output_snapshot, actual_output, result_status|教師提出画面の詳細と一致件数を再構築|
 |アカウント有効/停止/削除|users.account_status|生徒/教師/管理者共通|
-|研究用識別子（ログイン用IDとは分離）|research_subject_identifiers.research_subject_code|研究データ外部提供・Gemini送信時にのみ使用。ログイン用ID(student_profiles.student_code)とは独立に1生徒1件で保持|
+|研究用識別子（Gemini送信用）|research_subject_identifiers.research_subject_code|Gemini送信時に使用。アンケート研究データはusers.user_idを用いる。ログイン用ID(student_profiles.student_code)とは独立に1生徒1件で保持|
 |生徒初回ログイン/パスワード変更|student_profiles.first_login_status, must_change_password|平文パスワードは保持しない|
 |学校/クラスの有効状態|schools.school_status, classrooms.classroom_status|名称でなく外部キーで所属管理|
 |クラス所属|student_class_memberships.membership_status|在籍期間も保存|

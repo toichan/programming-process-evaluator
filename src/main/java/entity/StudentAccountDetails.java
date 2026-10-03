@@ -5,7 +5,7 @@ import java.util.List;
 import entity.UserCredential.FirstLoginStatus;
 
 public final class StudentAccountDetails {
-	private final String studentCode;
+	private final String studentId;
 	private final int securityLevel;
 	private final FirstLoginStatus firstLoginStatus;
 	private final boolean mustChangePassword;
@@ -13,13 +13,13 @@ public final class StudentAccountDetails {
 	private final List<StudentCredentialHistoryEntry> credentialHistory;
 
 	public StudentAccountDetails(
-			String studentCode,
+			String studentId,
 			int securityLevel,
 			FirstLoginStatus firstLoginStatus,
 			boolean mustChangePassword,
 			List<StudentAffiliation> affiliations,
 			List<StudentCredentialHistoryEntry> credentialHistory) {
-		this.studentCode = studentCode;
+		this.studentId = studentId;
 		this.securityLevel = securityLevel;
 		this.firstLoginStatus = firstLoginStatus;
 		this.mustChangePassword = mustChangePassword;
@@ -27,8 +27,8 @@ public final class StudentAccountDetails {
 		this.credentialHistory = List.copyOf(credentialHistory);
 	}
 
-	public String getStudentCode() {
-		return studentCode;
+	public String getStudentId() {
+		return studentId;
 	}
 
 	public int getSecurityLevel() {

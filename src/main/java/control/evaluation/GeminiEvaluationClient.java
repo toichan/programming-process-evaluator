@@ -91,7 +91,7 @@ public final class GeminiEvaluationClient implements EvaluationProvider {
 						"Gemini request failed with HTTP status " + response.statusCode()
 								+ (providerStatus == null ? "" : " (" + providerStatus + ")")
 								+ (diagnosticMessage == null ? "." : ": " + diagnosticMessage),
-						isRetryableStatus(response.statusCode()));
+						isRetryableStatus(response.statusCode()), response.statusCode());
 			}
 			try {
 				return JsonParser.parseString(response.body()).getAsJsonObject();

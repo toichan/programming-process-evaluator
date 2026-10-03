@@ -132,6 +132,21 @@ public final class AuthenticationDao {
 				ResultSet resultSet = statement.executeQuery()) {
 			return resultSet.next();
 		}
+
+	}
+
+	public void insertPasswordChangeHistory(Connection connection, long userId, boolean firstChange,
+			LocalDateTime occurredAt) throws SQLException {
+		try (PreparedStatement statement = connection.prepareStatement("""
+				INSERT INTO credential_history (target_user_id, actor_user_id, action_type, result_status, occurred_at)
+				VALUES (?, ?, ?, 'success', ?)
+				""")) {
+			statement.setLong(1, userId);
+			statement.setLong(2, userId);
+			statement.setString(3, firstChange ? "first_password_changed" : "password_changed");
+			statement.setTimestamp(4, Timestamp.valueOf(occurredAt));
+			statement.executeUpdate();
+		}
 	}
 
 	public long createAdmin(Connection connection, String loginId, String passwordHash, String displayName,

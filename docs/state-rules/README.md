@@ -32,7 +32,7 @@
 
 ### 実装用
 
-- [implementation-state-table.md](implementation-state-table.md): 実装に直結する状態、遷移、ボタン制御の一覧
+- [implementation-state-table.md](implementation-state-table.md): 分野別状態ルールと実装契約への索引。独立した状態定義ではない
 
 ## 運用ルール
 

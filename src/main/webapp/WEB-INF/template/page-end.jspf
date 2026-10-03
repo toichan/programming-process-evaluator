@@ -19,6 +19,9 @@
 		integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI"
 		crossorigin="anonymous" defer></script>
 	<script src="${pageContext.request.contextPath}/js/shared/feedback.js" defer></script>
+	<c:if test="${passwordChangeNotice}">
+		<script src="${pageContext.request.contextPath}/js/shared/password-change-notice.js" defer></script>
+	</c:if>
 	<c:if test="${not empty screenScript}">
 		<script src="<c:url value='${screenScript}'/>" defer></script>
 	</c:if>

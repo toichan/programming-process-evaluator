@@ -87,10 +87,10 @@ public final class EvaluationWorker implements Runnable {
 	private void process(EvaluationJob job) throws SQLException {
 		try {
 			processClaimedJob(job);
-		} catch (SQLException e) {
+		} catch (SQLException | RuntimeException e) {
 			try {
 				repository.fail(job, "Evaluation storage operation failed.", 0);
-			} catch (SQLException failureError) {
+			} catch (SQLException | RuntimeException failureError) {
 				e.addSuppressed(failureError);
 			}
 			throw e;
@@ -109,17 +109,21 @@ public final class EvaluationWorker implements Runnable {
 
 		for (int attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
 			JsonObject rawResponse = null;
+			JsonObject result;
 			try {
 				JsonObject payload = attempt == MAX_ATTEMPTS - 1
 						? simplify(input.payload()) : input.payload();
 				rawResponse = provider.generate(job.modelId(), payload);
 				String outputText = provider.extractOutputText(rawResponse);
-				JsonObject result = EvaluationResponseValidator.parseAndValidate(
+				result = EvaluationResponseValidator.parseAndValidate(
 						outputText, input.knownLogIds(), input.knownExecutionIds());
-				repository.recordResponse(job.requestId(), rawResponse, result);
-				repository.complete(job, result);
-				return;
 			} catch (EvaluationProviderException | IllegalArgumentException e) {
+				String category = e instanceof EvaluationProviderException providerError
+						? "provider, HTTP " + providerError.getHttpStatusCode()
+						: "invalid evaluation output";
+				LOGGER.warning("Evaluation attempt failed: evaluation=" + job.evaluationId()
+						+ ", model=" + job.modelId() + ", attempt=" + (attempt + 1)
+						+ ", category=" + category);
 				if (rawResponse != null) {
 					repository.recordResponse(job.requestId(), rawResponse, null);
 				}
@@ -140,7 +144,11 @@ public final class EvaluationWorker implements Runnable {
 					repository.fail(job, safeFailureDetail(e), retryCount);
 					return;
 				}
+				continue;
 			}
+			repository.recordResponse(job.requestId(), rawResponse, result);
+			repository.complete(job, result);
+			return;
 		}
 	}
 

@@ -841,6 +841,11 @@ body {
   margin-bottom: 0.6rem;
 }
 
+.creation-rules {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .hint-code-source {
   display: none;
 }

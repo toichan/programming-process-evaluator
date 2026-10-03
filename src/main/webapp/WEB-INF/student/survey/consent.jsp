@@ -3,6 +3,7 @@
 <c:set var="screenDesign" value="student"/>
 <c:set var="screenPageTitle" value="研究協力同意確認"/>
 <c:set var="screenStylesheet" value="/css/student/survey/consent.css"/>
+<c:set var="screenScript" value="/js/student/survey/consent.js"/>
 <%@ include file="/WEB-INF/template/page-start.jspf" %>
 <%@ include file="/WEB-INF/student/shared/navigation.jspf" %>
 <div class="container">
@@ -12,6 +13,7 @@
 			<h1 class="section-title mb-3">研究協力同意確認</h1>
 			<p class="hero-description mb-0">
 				研究協力への参加は任意です。同意しない場合も、通常の課題学習や授業演習に不利益はありません。
+				回答後も、この画面で回答を変更できます。
 			</p>
 		</div>
 		<div class="hero-status-card">
@@ -29,7 +31,7 @@
 					<c:when test="${not empty consentPage.respondedAt}">
 						回答日時: <c:out value="${consentPage.respondedAtDisplay}"/>
 					</c:when>
-					<c:otherwise>回答は任意です。回答しない場合も学習機能を利用できます。</c:otherwise>
+					<c:otherwise>説明を確認し、「同意する」または「同意しない」を選んで回答してください。</c:otherwise>
 				</c:choose>
 			</div>
 		</div>
@@ -81,16 +83,18 @@
 					<h2 class="card-title mb-2">同意の選択</h2>
 					<p class="text-muted mb-0">選択した回答は、確認した同意文書のバージョンとともに記録されます。</p>
 				</div>
-				<c:if test="${consentPage.status == 'UNCONFIRMED'}">
-					<span class="required-badge">必須</span>
-				</c:if>
+				<span class="required-badge">必須</span>
 			</div>
 
-			<c:choose>
-				<c:when test="${consentPage.status == 'UNCONFIRMED'}">
-					<form class="consent-form" method="post" action="<c:url value='/student/survey/consent'/>">
+					<noscript><div class="alert alert-warning">回答変更の確認ダイアログを表示するため、JavaScriptを有効にしてください。</div></noscript>
+					<form id="consentForm" class="consent-form" method="post"
+						data-current-status="${consentPage.status}"
+						action="<c:url value='/student/survey/consent'/>">
 						<input type="hidden" name="csrfToken" value="<c:out value='${csrfToken}'/>">
 						<input type="hidden" name="documentVersionId" value="<c:out value='${consentDocument.id}'/>">
+						<input type="hidden" name="responseId" value="${consentPage.responseId}">
+						<input type="hidden" name="changeConfirmed" value="no">
+						<div id="consentFeedback" aria-live="polite"></div>
 						<div class="confirmation-check">
 							<label class="check-card" for="confirmRead">
 								<input id="confirmRead" type="checkbox" name="confirmRead" value="yes" required>
@@ -99,42 +103,24 @@
 						</div>
 						<div class="consent-choice-grid">
 							<label class="choice-card agree-card" for="consentAgree">
-								<input id="consentAgree" type="radio" name="consentDecision" value="agree" required>
+								<input id="consentAgree" type="radio" name="consentDecision" value="agree" required
+									${consentPage.status == 'AGREED' ? 'checked' : ''}>
 								<span class="choice-title">同意する</span>
 								<span class="choice-text">この同意文書に記載された研究目的で、対象となるデータを利用することに同意します。</span>
 							</label>
 							<label class="choice-card decline-card" for="consentDecline">
-								<input id="consentDecline" type="radio" name="consentDecision" value="decline" required>
+								<input id="consentDecline" type="radio" name="consentDecision" value="decline" required
+									${consentPage.status == 'DECLINED' or consentPage.status == 'WITHDRAWN' ? 'checked' : ''}>
 								<span class="choice-title">同意しない</span>
 								<span class="choice-text">研究目的でのデータ利用に同意しません。回答後も、通常の課題学習を利用できます。</span>
 							</label>
 						</div>
 						<div class="form-actions">
-							<button class="btn btn-primary" type="submit">回答を確定する</button>
+							<button class="btn btn-primary" type="submit">
+								<c:choose><c:when test="${consentPage.status == 'UNCONFIRMED'}">回答を確定する</c:when><c:otherwise>回答を変更する</c:otherwise></c:choose>
+							</button>
 						</div>
 					</form>
-				</c:when>
-				<c:otherwise>
-					<c:choose>
-						<c:when test="${consentPage.status == 'AGREED'}"><c:set var="consentResultClass" value="is-agreed"/></c:when>
-						<c:when test="${consentPage.status == 'DECLINED'}"><c:set var="consentResultClass" value="is-declined"/></c:when>
-						<c:otherwise><c:set var="consentResultClass" value=""/></c:otherwise>
-					</c:choose>
-					<div class="result-card mt-4 ${consentResultClass}" role="status">
-						<div class="result-label">回答済み</div>
-						<div class="result-value">
-							<c:choose>
-								<c:when test="${consentPage.status == 'AGREED'}">同意</c:when>
-								<c:when test="${consentPage.status == 'DECLINED'}">同意しない</c:when>
-								<c:otherwise>撤回済み</c:otherwise>
-							</c:choose>
-						</div>
-						<c:if test="${not empty consentPage.respondedAt}">
-							<div class="result-meta">記録日時: <c:out value="${consentPage.respondedAtDisplay}"/></div>
-						</c:if>
-					</div>
-				</c:otherwise>
-			</c:choose>
 		</section>
 	</c:if>
 

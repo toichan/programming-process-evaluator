@@ -10,8 +10,9 @@ SET @student_user_id = (
   LIMIT 1
 );
 
-INSERT INTO schools (school_code, name, school_status, created_at)
-SELECT 'local-editor-preview', '画面確認用', 'active', CURRENT_TIMESTAMP
+INSERT INTO schools (school_code, name, school_status, security_level, created_at)
+SELECT 'local-editor-preview', '画面確認用', 'active',
+  (SELECT security_level FROM student_profiles WHERE user_id = @student_user_id), CURRENT_TIMESTAMP
 WHERE @student_user_id IS NOT NULL
   AND NOT EXISTS (
     SELECT 1 FROM schools WHERE school_code = 'local-editor-preview'

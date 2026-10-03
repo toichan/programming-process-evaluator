@@ -25,6 +25,7 @@
 	 data-preferences-url="<c:url value='/student/editor/preferences'/>"
 	 data-check-url="<c:url value='/student/editor/submission/check'/>"
 	 data-submit-url="<c:url value='/student/editor/submission/submit'/>"
+	 data-evaluation-url="<c:url value='/student/evaluation'/>"
 	 data-resubmission-url="<c:url value='/student/editor/resubmission'/>">
 	<input id="csrfToken" type="hidden" value="<c:out value='${csrfToken}'/>">
 	<div id="editorFeedback" class="mb-3" aria-live="polite"></div>
@@ -248,7 +249,7 @@
 						<c:if test="${not empty editorPage.creationRules}">
 							<div class="info-block">
 								<div class="info-label">作成時のルール</div>
-								<pre class="mb-0"><c:out value="${editorPage.creationRules}"/></pre>
+								<pre class="creation-rules mb-0"><c:out value="${editorPage.creationRules}"/></pre>
 							</div>
 						</c:if>
 						<div class="info-block io-block">

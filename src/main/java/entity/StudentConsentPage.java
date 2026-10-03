@@ -10,14 +10,21 @@ public final class StudentConsentPage {
 	private final Optional<ConsentDocument> document;
 	private final ConsentStatus status;
 	private final LocalDateTime respondedAt;
+	private final long responseId;
 
 	public StudentConsentPage(
 			Optional<ConsentDocument> document,
 			ConsentStatus status,
-			LocalDateTime respondedAt) {
+			LocalDateTime respondedAt,
+			long responseId) {
 		this.document = document;
 		this.status = status;
 		this.respondedAt = respondedAt;
+		this.responseId = responseId;
+	}
+
+	public long getResponseId() {
+		return responseId;
 	}
 
 	public Optional<ConsentDocument> getDocument() {

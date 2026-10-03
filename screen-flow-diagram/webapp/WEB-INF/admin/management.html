@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Programming Process Evaluator - 教師アカウント管理</title>
+  <title>Programming Process Evaluator - 管理者画面</title>
 
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet"
     integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB"
@@ -12,22 +12,33 @@
   <link href="../../css/template/template.css" rel="stylesheet">
   <link href="../../css/teacher/shared/feedback.css" rel="stylesheet">
   <link href="../../css/admin/account-management.css" rel="stylesheet">
+  <link href="../../css/admin/console.css" rel="stylesheet">
 </head>
 <body>  <main class="py-4">
     <div class="container-fluid px-4">
       <section class="admin-hero mb-4">
         <div>
           <span class="hero-kicker">Admin Console</span>
-          <h1 class="section-title mb-2">教師アカウント管理</h1>
-          <p class="hero-description mb-0">教師アカウントの作成・権限管理・削除履歴確認を行います。</p>
+          <h1 class="section-title mb-2">管理者画面</h1>
+          <p class="hero-description mb-0">教師アカウントと学校情報を管理します。</p>
         </div>
         <div class="hero-actions">
           <span class="admin-id" id="adminSessionLabel">管理者: admin</span>
           <button class="btn btn-outline-secondary btn-sm" type="button" id="adminLogoutButton">ログアウト</button>
         </div>
       </section>
+      <p class="small text-muted">プロトタイプです。教師操作はブラウザー内のサンプルデータ、学校操作はこの画面内だけに反映されます。ローカルアプリ・DBは変更されません。</p>
+      <ul class="nav nav-tabs mb-4" role="tablist" aria-label="管理対象">
+        <li class="nav-item" role="presentation"><button class="nav-link active" id="teachers-tab" data-bs-toggle="tab" data-bs-target="#teachers-panel" type="button" role="tab" aria-controls="teachers-panel" aria-selected="true">教師アカウント管理</button></li>
+        <li class="nav-item" role="presentation"><button class="nav-link" id="schools-tab" data-bs-toggle="tab" data-bs-target="#schools-panel" type="button" role="tab" aria-controls="schools-panel" aria-selected="false">学校管理</button></li>
+      </ul>
+      <div class="tab-content">
+      <div class="tab-pane fade show active" id="teachers-panel" role="tabpanel" aria-labelledby="teachers-tab">
 
-      <section class="panel-card mb-4 create-panel-card">
+      <div class="modal fade" id="teacherCreateModal" tabindex="-1" aria-labelledby="teacherCreateTitle" aria-hidden="true">
+      <div class="modal-dialog modal-xl modal-dialog-scrollable"><div class="modal-content">
+      <div class="modal-header"><h2 class="modal-title h5" id="teacherCreateTitle">教師アカウント作成</h2><button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="閉じる"></button></div>
+      <section class="modal-body create-panel-card">
         <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2 create-panel-header">
           <div>
             <span class="hero-kicker mb-1 d-inline-block">Create Account</span>
@@ -67,6 +78,7 @@
           </div>
         </form>
       </section>
+      </div></div></div>
 
       <section class="panel-card mb-4">
         <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
@@ -75,31 +87,26 @@
             <h2 class="summary-heading mb-0">教師アカウント一覧</h2>
           </div>
           <div class="action-buttons">
+            <button class="btn btn-primary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#teacherCreateModal">新規作成</button>
+            <button class="btn btn-outline-secondary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#teacherAuditModal">操作履歴を確認</button>
             <button class="btn btn-outline-secondary btn-sm" type="button" id="refreshAccountsButton">更新</button>
             <button class="btn btn-primary btn-sm" type="button" id="exportAccountsCsvButton">CSVエクスポート</button>
           </div>
         </div>
+        <label class="form-label" for="teacherSearch">教師IDで検索</label>
+        <input class="form-control mb-3" id="teacherSearch" type="search" placeholder="教師IDを入力">
 
         <div class="table-responsive">
           <table class="table table-hover align-middle mb-0" id="teacherAccountTable">
             <thead class="table-light">
               <tr>
                 <th>教師ID</th>
-                <th class="permission-column-header">国際中等</th>
-                <th class="permission-column-header">附属高校</th>
-                <th class="permission-column-header"><span class="th-two-line">生徒アカウント<br>管理</span></th>
-                <th class="permission-column-header"><span class="th-two-line">課題進捗<br>確認</span></th>
-                <th class="permission-column-header"><span class="th-two-line">授業演習コード<br>確認</span></th>
-                <th class="permission-column-header"><span class="th-two-line">提出課題<br>確認</span></th>
-                <th class="permission-column-header">コード配信</th>
-                <th class="permission-column-header">評価確認</th>
-                <th class="permission-column-header"><span class="th-two-line">アンケート結果<br>確認</span></th>
-                <th class="permission-column-header">課題編集</th>
-                <th class="permission-column-header"><span class="th-two-line">プロンプト<br>設計</span></th>
+                <th>閲覧可能な学校</th>
+                <th>利用可能な機能</th>
                 <th>作成日時</th>
                 <th>作成者</th>
                 <th>操作</th>
-                <th>詳細</th>
+                <th>履歴</th>
               </tr>
             </thead>
             <tbody id="teacherAccountTableBody"></tbody>
@@ -107,7 +114,10 @@
         </div>
       </section>
 
-      <section class="panel-card">
+      <div class="modal fade" id="teacherAuditModal" tabindex="-1" aria-labelledby="teacherAuditTitle" aria-hidden="true">
+      <div class="modal-dialog modal-xl modal-dialog-scrollable"><div class="modal-content">
+      <div class="modal-header"><h2 class="modal-title h5" id="teacherAuditTitle">操作履歴</h2><button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="閉じる"></button></div>
+      <section class="modal-body">
         <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
           <div>
             <span class="hero-kicker mb-1 d-inline-block">Login History / Delete History</span>
@@ -158,8 +168,49 @@
           </div>
         </div>
       </section>
+      </div></div></div>
+      </div>
+      <div class="tab-pane fade" id="schools-panel" role="tabpanel" aria-labelledby="schools-tab">
+        <section class="panel-card">
+          <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+            <div><h2 class="summary-heading mb-1">学校一覧</h2><p class="text-muted mb-0">学校情報と、生徒に適用するセキュリティレベルを管理します。</p></div>
+            <button class="btn btn-primary" id="createSchoolButton" type="button">学校を登録</button>
+          </div>
+          <div id="schoolFeedback" aria-live="polite"></div>
+          <div class="table-responsive"><table class="table align-middle">
+            <thead><tr><th>学校名</th><th>学校コード</th><th>セキュリティレベル</th><th>変更可否</th><th>操作</th></tr></thead>
+            <tbody id="schoolTableBody"></tbody>
+          </table></div>
+        </section>
+      </div>
+      </div>
     </div>
   </main>
+  <div class="modal fade" id="teacherEditModal" tabindex="-1" aria-labelledby="teacherEditTitle" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable"><div class="modal-content">
+      <div class="modal-header"><h2 class="modal-title h5" id="teacherEditTitle">教師アカウント編集</h2><button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="閉じる"></button></div>
+      <div class="modal-body" id="teacherEditBody"></div>
+      <div class="modal-footer"><button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">キャンセル</button><button class="btn btn-primary" id="saveTeacherPermissions" type="button">変更を保存する</button></div>
+    </div></div>
+  </div>
+  <div class="modal fade" id="schoolEditModal" tabindex="-1" aria-labelledby="schoolEditTitle" aria-hidden="true">
+    <div class="modal-dialog modal-lg"><div class="modal-content">
+      <div class="modal-header"><h2 class="modal-title h5" id="schoolEditTitle">学校登録</h2><button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="閉じる"></button></div>
+      <form id="schoolPreviewForm">
+        <div class="modal-body">
+          <p id="selectedSchoolCode" hidden></p>
+          <label class="form-label" for="schoolName">学校名</label><input class="form-control mb-3" id="schoolName" name="name" maxlength="200" required>
+          <label class="form-label" for="schoolLevel">セキュリティレベル</label>
+          <select class="form-select mb-3" id="schoolLevel" name="securityLevel" required>
+            <option value="">選択してください</option><option value="1">レベル1：教師が設定したパスワードを継続利用</option><option value="2">レベル2：初回ログイン時に生徒自身が変更</option>
+          </select>
+          <p id="lockedSchoolLevel" class="fw-bold" hidden></p>
+          <p class="text-secondary">一度でも生徒を登録するとレベルは変更できません。学校名は変更できます。</p>
+        </div>
+        <div class="modal-footer"><button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">キャンセル</button><button class="btn btn-primary" id="schoolSaveButton" type="submit">登録する</button></div>
+      </form>
+    </div></div>
+  </div>
 
   <div class="modal fade" id="passwordModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -245,5 +296,6 @@
     crossorigin="anonymous"></script>
   <script src="../../js/teacher/shared/feedback.js"></script>
   <script src="../../js/admin/account-management.js"></script>
+  <script src="../../js/admin/school-management.js"></script>
 </body>
 </html>

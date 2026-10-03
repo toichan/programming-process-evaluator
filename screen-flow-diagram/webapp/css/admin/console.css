@@ -1,0 +1,48 @@
+.admin-hero {
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.modal-body .create-grid {
+  grid-template-columns: 1fr;
+}
+
+.modal-body .create-field {
+  min-width: 0;
+}
+
+#teacherAccountTable {
+  min-width: 900px;
+}
+
+.permission-editor-group {
+  display: grid;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.permission-editor-group label {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.modal-footer {
+  gap: 0.5rem;
+}
+
+@media (max-width: 575px) {
+  .container-fluid.px-4 {
+    padding-right: 1rem !important;
+    padding-left: 1rem !important;
+  }
+
+  .hero-actions,
+  .action-buttons {
+    flex-wrap: wrap;
+  }
+
+  .modal-body .create-row {
+    flex-wrap: wrap;
+  }
+}

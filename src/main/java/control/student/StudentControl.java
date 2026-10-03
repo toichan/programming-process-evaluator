@@ -32,7 +32,7 @@ public final class StudentControl {
 			return Optional.empty();
 		}
 		ConsentStatus consentStatus = studentDao.findConsentStatus(user.userId());
-		List<StudentTaskSummary> tasks = studentDao.findPublishedTasks(user.userId());
+		List<StudentTaskSummary> tasks = studentDao.findPublishedTasks(user.userId(), consentStatus);
 		return Optional.of(new StudentHomePage(account.get(), consentStatus, tasks));
 	}
 
@@ -59,6 +59,20 @@ public final class StudentControl {
 		}
 		ConsentStatus status = "agree".equals(decision) ? ConsentStatus.AGREED : ConsentStatus.DECLINED;
 		return studentDao.saveInitialConsent(user.userId(), documentId, status);
+	}
+
+	public ConsentSaveResult saveConsent(
+			AuthenticatedUser user,
+			long documentId,
+			String decision,
+			long expectedResponseId,
+			boolean changeConfirmed) throws SQLException {
+		requireStudent(user);
+		if (!"agree".equals(decision) && !"decline".equals(decision)) {
+			return ConsentSaveResult.INVALID_DECISION;
+		}
+		ConsentStatus status = "agree".equals(decision) ? ConsentStatus.AGREED : ConsentStatus.DECLINED;
+		return studentDao.saveConsent(user.userId(), documentId, status, expectedResponseId, changeConfirmed);
 	}
 
 	private static void requireStudent(AuthenticatedUser user) {

@@ -34,7 +34,8 @@ public final class StudentAccountServlet extends HttpServlet {
 				return;
 			}
 			request.setAttribute("account", account);
-			request.setAttribute("studentDisplayName", user.displayName());
+			request.setAttribute("passwordChangeNotice", request.getSession(false).getAttribute("passwordChangeNotice"));
+			request.getSession(false).removeAttribute("passwordChangeNotice");
 			request.setAttribute("csrfToken", CsrfTokens.getOrCreate(request.getSession(false)));
 			request.getRequestDispatcher("/WEB-INF/student/account/account.jsp").forward(request, response);
 		} catch (SQLException e) {
