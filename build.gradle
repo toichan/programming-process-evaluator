@@ -1,23 +1,70 @@
-apply plugin: 'java'
-apply plugin: 'java-library'
-apply plugin: 'war'
+buildscript {
+    repositories {
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'org.flywaydb:flyway-mysql:13.9.0'
+    }
+}
+
+plugins {
+    id 'java'
+    id 'java-library'
+    id 'war'
+    id 'org.flywaydb.flyway' version '13.9.0'
+    id 'org.gretty' version '3.1.9'
+}
 
 repositories {
-    jcenter()
+    mavenCentral()
 }
 
 dependencies {
-    implementation group: 'mysql', name: 'mysql-connector-java', version: '8.0.15' // mysql8系
     implementation group: 'javax.servlet.jsp.jstl', name: 'jstl-api', version: '1.2'
 
+    implementation 'com.google.code.gson:gson:2.13.1'
     runtimeOnly group: 'org.glassfish.web', name: 'jstl-impl', version: '1.2'
-    runtimeOnly "mysql:mysql-connector-java:8.0.15"
+    runtimeOnly 'com.mysql:mysql-connector-j:8.4.0'
+    implementation 'com.zaxxer:HikariCP:6.3.0'
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.11.4'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.11.4'
 
-    providedCompile 'org.apache.tomcat:tomcat-servlet-api:8.5.15'
+    providedCompile 'javax.servlet:javax.servlet-api:3.1.0'
+
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+gretty {
+    servletContainer = 'tomcat9'
+    contextPath = '/'
+}
+
+flyway {
+    url = "jdbc:mysql://${System.getenv('DB_HOST') ?: 'localhost'}:${System.getenv('DB_PORT') ?: '3306'}/${System.getenv('DB_NAME') ?: 'programming_process_evaluator'}"
+    user = System.getenv('DB_USER')
+    password = System.getenv('DB_PASSWORD')
+    locations = ['filesystem:src/main/resources/db/migration']
+    cleanDisabled = true
 }
 
 jar {
     manifest {
         attributes 'Main-Class': ''
     }
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
+
+tasks.register('createInitialAdmin', JavaExec) {
+    group = 'application'
+    description = 'Interactively create the one-time initial administrator account.'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'control.auth.InitialAdminBootstrap'
 }

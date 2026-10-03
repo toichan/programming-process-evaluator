@@ -2,7 +2,7 @@
 
 この文書は、[段階2の実装とローカル開発の詳細手順](./implementation-and-local-development.md)を、実際に作業する順番へ分解したロードマップです。「何を先に準備し、どのファイルを作成・変更し、何を確認したら次へ進むか」を機能スライスごとに示します。
 
-開発の中心は `src/main` の内部実装です。[画面遷移プロトタイプ](../../screen-flow-diagram/webapp/)の画面デザインは活用しますが、プロトタイプを本実装とみなしたり、仮データや擬似動作をそのまま引き継いだりしません。本実装の業務データは MySQL を正本とし、Servlet → Service → DAO → DB の流れで読み書きします。
+開発の中心は `src/main` の内部実装です。[画面遷移プロトタイプ](../../screen-flow-diagram/webapp/)の画面デザインは活用しますが、プロトタイプを本実装とみなしたり、仮データや擬似動作をそのまま引き継いだりしません。本実装の業務データは MySQL を正本とし、Servlet → Control → DAO → DB の流れで読み書きします。
 
 設計間で状態・DB の対応が未合意の場合は、[実装契約](./implementation-contract.md)で差分を確認し、合意してから該当工程へ進みます。機能単位の計画には[機能別実装計画テンプレート](./feature-plan-template.md)を使います。
 
@@ -12,8 +12,30 @@
 - 各機能に着手するとき、その機能に対応する[機能仕様書](../function-specification.md)、[画面遷移図](../screen-flow-diagram.md)、該当する[状態ルール](../state-rules/README.md)、[DB 設計書](../database-design/README.md)・[テーブル定義](../database-design/table-definitions.md)を必ず読み直します。状態ルールは全機能で必須です。
 - クラス図、[AI 連携設計書](../ai-api-integration-design.md)、[画面プロトタイプ](../../screen-flow-diagram/webapp/)は該当する機能の設計・表示確認に使います。
 - 既存設計に不整合がある場合は、コードで勝手に補完しません。影響を示して確認し、合意した変更を仕様・状態・DB 定義に反映してから実装します。
-- 1つの機能を「DB変更 → DAO → Service → Servlet → JSP / JavaScript → 動作確認」まで通してから次に進みます。
+- 1つの機能を「DB変更 → DAO → Control → Servlet → JSP / JavaScript → 動作確認」まで通してから次に進みます。
 - `screen-flow-diagram` は参照用に保ち、本実装の JSP / CSS / JavaScript は `src/main/webapp` に配置します。画面ファイルを移す場合も、プロトタイプのダミーデータやデモ処理を除いて必要な見た目・画面要素だけを移します。
+
+## 現在の実装状況（2026-10-03）
+
+この概要は工程の現在位置を示します。完了判定の根拠・コマンド・未確認事項はリンク先の機能別計画を参照してください。コードや画面が存在するだけで機能完了とは判断しません。
+
+| 工程 | 状況 | 根拠・次に残ること |
+|---|---|---|
+| 0. 状態・データ設計の実装契約 | 一部合意済み | 未決・実装前確認事項は[実装契約](./implementation-contract.md)に残す。対象機能の未合意事項は着手前に解消する |
+| 1. 開発コンテナとビルド | 完了 | 起動手順は[README](../../README.md)、構成整合の記録は[システム構成整合計画](./feature-plans/system-structure-alignment.md)を参照 |
+| 2. DBとマイグレーション | 完了（初期スキーマ） | [初期DBマイグレーション計画](./feature-plans/initial-database-migration.md)。将来の変更もFlywayで管理する |
+| 3. DB接続基盤と利用者DAO | 完了 | [DB接続基盤・利用者DAO計画](./feature-plans/database-connection-and-user-dao.md) |
+| 4. Web共通基盤 | 完了 | [Web共通基盤計画](./feature-plans/web-common-foundation.md) |
+| 5. 初期利用者・認証 | 実装済み、拡張確認中 | [認証・ログイン計画](./feature-plans/authentication-and-login.md)。実管理者アカウント、本番TLS/cookie等は未確認 |
+| 6. 生徒ホーム・同意・アカウント | 実装済み | [生徒ホーム・同意・アカウント計画](./feature-plans/student-home-consent-account.md)。演習・教師画面等の実装完了を意味しない |
+| 7. Python実行・生徒エディター | 主要実装済み、検証継続 | [生徒エディター計画](./feature-plans/student-editor.md)。対話型runnerは実装済み。ブラウザー・競合・再提出等の残件を同計画で確認 |
+| 8. 評価・コードログ・アンケート | 作業中 | [評価・コードログ・アンケート計画](./feature-plans/student-evaluation-survey.md)。評価queue/client/UIの一部は実装済みだが、実API評価の成功からDB保存までの確認は未完了。段階診断では503と200が混在。アンケート回答機能も未完了 |
+| 9. 授業演習 | 未着手 | 工程8の完了後に着手 |
+| 10. 教師の課題・プロンプト・配信 | 未着手 | 合意済み仕様と状態ルールを使って機能スライスを作成 |
+| 11. 教師の進捗・提出・評価・CSV | 未着手 | 工程10のデータ・配信状態を前提に着手 |
+| 12. 機能横断検証 | 未完了 | 全主要機能・権限境界・異常系を通した最終確認が必要 |
+
+ここでいう「実装済み」は対象計画に記録された範囲に限ります。教師ログイン基盤の存在は教師向け業務機能の完成を意味せず、Gemini構造化出力が一部の合成要求で成功したことも本番評価経路の完了を意味しません。
 
 ## ロードマップ一覧
 
@@ -55,7 +77,7 @@
 
 **成果物:** [実装契約](./implementation-contract.md)の機能別対応表を更新し、合意事項を記録。必要に応じて機能仕様・状態ルール・DB 定義も更新。
 
-**確認・完了条件:** 画面のボタン制御、Servlet / Service の遷移条件、DB に保存する状態値が一意に対応し、矛盾・未決定事項が実装ブロッカーとして残っていないこと。
+**確認・完了条件:** 画面のボタン制御、Servlet / Control の遷移条件、DB に保存する状態値が一意に対応し、矛盾・未決定事項が実装ブロッカーとして残っていないこと。
 
 ---
 
@@ -69,24 +91,24 @@
 
 - `docker-compose.yml`
 - `.env.sample` とローカル専用 `.env`
-- `containers/app/Dockerfile`
+- `containers/app/Dockerfile`（WAR 単体実行用。ローカル開発 Compose は Gretty を使用）
 - `containers/db/Dockerfile`
 - `containers/gradle/Dockerfile`
 - `build.gradle`
 
 **作業:**
 
-1. アプリ、DB、ビルドサービスの役割と接続先を整理します。現在の固定 root パスワード、Java 側接続設定との DB 名不一致を解消します。
+1. Gretty アプリと DB の役割・接続先を整理します。固定 root パスワード、Java 側接続設定との DB 名不一致を解消します。
 2. DB のユーザー名・パスワード・DB 名・ポート等をローカル設定から渡し、ソースコードや追跡対象ファイルに秘密値を置かない構成にします。開発用 root 接続とアプリ接続用ユーザーを分離します。
-3. Gradle の Java / WAR ビルドと Tomcat の Servlet/JSP 実行バージョンを整合させます。旧バージョンのベースイメージや `jcenter()` を含め、依存解決できることを確認します。
+3. Java 21 toolchain、Gradle、Gretty（Tomcat 9）の Servlet/JSP 実行環境と WAR ビルドを整合させ、依存解決できることを確認します。
 4. 起動順序だけで DB の準備完了を仮定せず、接続リトライまたは health check を使ってアプリの起動時エラーを扱います。
 5. ローカル開発環境に必要なポートだけを公開し、DB ポートを外部ネットワークに不用意に公開しないようにします。
 
 **確認:**
 
 - ローカル Compose のビルド・起動・停止・再起動が再現できる。
-- Gradle で WAR が生成され、Tomcat の起動ログにデプロイエラーがない。
-- Java アプリから環境設定された MySQL へ接続できる。
+- Gradle で WAR が生成され、Gretty（Tomcat 9）の起動ログにデプロイエラーがない。
+- Java アプリから `dataSource.properties` と環境変数で設定された MySQL へ HikariCP 経由で接続できる。
 - `.env`、パスワード、API キーが Git の追跡対象でない。
 
 **完了条件:** 開発者が同じ手順で環境を再構築でき、アプリと DB の設定差異がないこと。本番向け Compose はこの段階では作らず、ローカル用と分離します。
@@ -144,7 +166,7 @@
 2. `Connection`、`PreparedStatement`、`ResultSet` を try-with-resources 等で必ず閉じます。
 3. DAO は SQL と永続化に責務を限定し、入力検証・権限判定・業務状態遷移を置きません。
 4. まず認証に必要な `UserDao` と DB 接続を作り、取得・認証用データ検索ができることを確認します。その後、課題、提出、ログ、評価など機能ごとに DAO を追加します。
-5. 更新が複数テーブルに及ぶユースケースでは、Service がトランザクション境界を管理できる形にします。
+5. 更新が複数テーブルに及ぶユースケースでは、Control がトランザクション境界を管理できる形にします。
 6. SQL は `PreparedStatement` を使い、入力値を SQL 文字列へ連結しません。
 
 **確認:**
@@ -193,7 +215,7 @@
 
 **作成・変更対象の候補:**
 
-- `UserDao` / `UserService`、認証 Filter / Servlet
+- `UserDao` / `AuthenticationControl`、認証 Filter / Servlet
 - `src/main/webapp/WEB-INF/student/account/login.jsp`
 - `src/main/webapp/WEB-INF/teacher/account/login.jsp`
 - 生徒・教師ログイン画面の CSS / JavaScript
@@ -223,7 +245,7 @@
 
 **作成・変更対象の候補:**
 
-- 同意、課題一覧、アカウントの DAO / Service / Servlet
+- 同意、課題一覧、アカウントの DAO / Control / Servlet
 - `student/survey/consent`、`student/home/home`、`student/account/account` の JSP
 - 対応する CSS / JavaScript
 
@@ -248,7 +270,7 @@
 
 **作成・変更対象の候補:**
 
-- 課題・提出・コードログ DAO / Service / Servlet
+- 課題・提出・コードログ DAO / Control / Servlet
 - Python 実行要求を扱う実行サービスと制限付きコンテナ設定
 - `student/editor/editor.jsp`、CSS / JavaScript
 - `src/main/resources` 等の設定・実行環境資産
@@ -277,7 +299,7 @@
 
 **作成・変更対象の候補:**
 
-- Evaluation / CodeLog / Survey DAO・Service・Servlet
+- Evaluation / CodeLog / Survey DAO・Control・Servlet
 - Gemini 接続アダプター、匿名化・JSON 検証処理
 - `student/evaluation`、`student/evaluation/log`、`student/survey` の JSP / CSS / JavaScript
 
@@ -300,7 +322,7 @@
 
 **主な参照資料:** [機能仕様書](../function-specification.md)の授業演習機能、[演習状態ルール](../state-rules/student/exercise-state-rules.md)、[DB 設計書](../database-design/README.md)、[画面遷移図](../screen-flow-diagram.md)。
 
-**作成・変更対象の候補:** 演習・ファイル DAO / Service / Servlet、`student/exercise` の JSP / CSS / JavaScript、Flyway migration。
+**作成・変更対象の候補:** 演習・ファイル DAO / Control / Servlet、`student/exercise` の JSP / CSS / JavaScript、Flyway migration。
 
 **作業と確認:**
 
@@ -319,7 +341,7 @@
 
 **主な参照資料:** [機能仕様書](../function-specification.md)の教師機能、[教師課題状態](../state-rules/teacher/task-state-rules.md)、[教師配信状態](../state-rules/teacher/distribution-state-rules.md)、[教師プロンプト状態](../state-rules/teacher/prompt-state-rules.md)、[教師クラス図](../class-diagram/03-teacher-task-distribution.puml)、[DB 設計書](../database-design/README.md)、[task / hint / testcase formats](../format/)。
 
-**作成・変更対象の候補:** 課題・プロンプト・ルーブリック・配信 DAO / Service / Servlet、対応する `teacher/task`、`teacher/prompt`、`teacher/distribution` JSP と資産。
+**作成・変更対象の候補:** 課題・プロンプト・ルーブリック・配信 DAO / Control / Servlet、対応する `teacher/task`、`teacher/prompt`、`teacher/distribution` JSP と資産。
 
 **作業:**
 
@@ -327,7 +349,7 @@
 2. プロンプトとルーブリックの版管理を作り、既存の適用版を直接上書きせず履歴を保持する。
 3. 課題へのプロンプト / ルーブリックの適用条件と、公開前の入力検証を作る。
 4. 配信を全体・クラス別に管理し、下書き・予定・配信中・完了・停止・再配信の遷移を実装する。
-5. 操作のたびに教師の担当範囲、現在状態、許可遷移を Service 層で検証し、監査要件に従って履歴を記録する。
+5. 操作のたびに教師の担当範囲、現在状態、許可遷移を Control 層で検証し、監査要件に従って履歴を記録する。
 
 **確認:** 他教師の課題を更新できない、公開中編集で状態ルールどおり要更新となる、配信済みクラスと未配信クラスが混同されない、旧プロンプト版が評価履歴から参照できる。
 
@@ -341,7 +363,7 @@
 
 **主な参照資料:** [機能仕様書](../function-specification.md)の教師向け進捗・提出・評価・アンケート結果、[教師進捗状態ルール](../state-rules/teacher/progress-state-rules.md)、[教師評価状態ルール](../state-rules/teacher/evaluation-state-rules.md)、[アンケート / CSV 形式](../format/survey-format.csv)、[DB 設計書](../database-design/README.md)。
 
-**作成・変更対象の候補:** 進捗・提出・教師評価・アンケート結果 DAO / Service / Servlet、`teacher/progress`、`teacher/submission`、`teacher/evaluation`、`teacher/survey` の JSP と資産。
+**作成・変更対象の候補:** 進捗・提出・教師評価・アンケート結果 DAO / Control / Servlet、`teacher/progress`、`teacher/submission`、`teacher/evaluation`、`teacher/survey` の JSP と資産。
 
 **作業:**
 
@@ -366,7 +388,7 @@
 **確認手順:**
 
 1. 空 DB へ Flyway を適用し、開発 seed で初期化する。
-2. `docker-compose build` でアプリをビルドし、`docker-compose up` でアプリ・DB を起動する。
+2. `docker compose up --build -d` で Gretty アプリ・DB を起動する。
 3. 生徒・教師の主要導線を実ブラウザーで通し、操作後に DB 保存・再読込を確認する。
 4. 状態ルールの全遷移について、許可・拒否、画面ラベル、ボタン状態、DB 値の一致を確認する。
 5. URL 直アクセス、ID 差し替え、別ロール、所属外データ、未同意、二重送信などの認可・境界ケースを確認する。

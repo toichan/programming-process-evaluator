@@ -1,17 +1,64 @@
-version: '3'
-
 services:
   app:
     build:
-      context: ./containers/app
+      context: ./containers/gradle
     working_dir: /${PROJECT_NAME}
+    command: gradle appRun --no-daemon
+    stdin_open: true
+    tty: true
+    environment:
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      PYTHON_RUNNER_URL: http://python-runner:8090
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
     depends_on:
-      - db
-      - gradle
+      db:
+        condition: service_healthy
+      python-runner:
+        condition: service_healthy
     volumes:
-      - ./build/libs/:/usr/local/tomcat/webapps/
+      - ./:/${PROJECT_NAME}
+      - gradle-cache:/home/gradle/.gradle
     ports:
-      - ${APP_PORT}:8080
+      - 127.0.0.1:${APP_PORT}:8080
+    networks:
+      - application
+      - database
+      - outbound
+
+  python-runner:
+    build:
+      context: ./containers/python-runner
+    restart: unless-stopped
+    environment:
+      PYTHON_RUNTIME_IMAGE: python:3.12-alpine
+      RUNNER_PORT: 8090
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    read_only: true
+    tmpfs:
+      - /tmp:size=8m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 64
+    mem_limit: 128m
+    cpus: 0.50
+    healthcheck:
+      test:
+        - CMD
+        - python3
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8090/health', timeout=2)"
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - application
 
   db:
     build:
@@ -19,19 +66,29 @@ services:
     restart: always
     environment:
       MYSQL_DATABASE: ${DB_NAME}
-      MYSQL_ROOT_PASSWORD: root
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
     volumes:
       - mysql:/var/lib/mysql
     ports:
-      - ${DB_PORT}:3306
-
-  gradle:
-    build:
-      context: ./containers/gradle
-    working_dir: /${PROJECT_NAME}
-    volumes:
-      - ./:/${PROJECT_NAME}
-    command: gradle -t build --warning-mode all
+      - 127.0.0.1:${DB_PORT}:3306
+    networks:
+      - database
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p\"$${MYSQL_ROOT_PASSWORD}\" --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
 
 volumes:
   mysql: {}
+  gradle-cache: {}
+
+networks:
+  application:
+    internal: true
+  database:
+    internal: true
+  outbound: {}

@@ -240,7 +240,7 @@ function loadTeacherComponents() {
   const teacherDisplayIdText = 'ID: toida';
   const teacherDisplaySchoolText = '学校: 国際中等, 附属高校';
   const sidebarHTML = `
-    <nav class="teacher-sidebar bg-light border-end">
+    <nav id="teacherSidebar" class="teacher-sidebar bg-light border-end" aria-label="教師メニュー">
       <div class="sidebar-header">
         <h3 class="sidebar-title">メニュー</h3>
       </div>
@@ -326,6 +326,11 @@ function loadTeacherComponents() {
   const headerHTML = `
     <header class="teacher-header bg-white border-bottom">
       <div class="container-fluid h-100 d-flex align-items-center justify-content-between px-4">
+        <button type="button" class="teacher-nav-toggle" aria-controls="teacherSidebar" aria-expanded="false" aria-label="メニューを開く">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+            <path d="M4 6h16M4 12h16M4 18h16"/>
+          </svg>
+        </button>
         <div class="header-logo d-flex align-items-center">
           <svg class="header-logo-icon" width="32" height="32" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
             <path d="M4 4.5C4 3.67 4.67 3 5.5 3h13c.83 0 1.5.67 1.5 1.5v15c0 .83-.67 1.5-1.5 1.5h-13A1.5 1.5 0 0 1 4 19.5v-15zM5.5 4a.5.5 0 0 0-.5.5V8h15V4.5a.5.5 0 0 0-.5-.5h-14zM5 9v10.5c0 .28.22.5.5.5h13a.5.5 0 0 0 .5-.5V9H5z"/>
@@ -513,8 +518,54 @@ function loadTeacherComponents() {
   }
 
   setActiveSidebarMenu();
+  setupTeacherMobileNavigation();
   applyDateTimeTwoLineFormatting(document);
   startDateTimeTwoLineFormattingObserver();
+}
+
+function setupTeacherMobileNavigation() {
+  const sidebar = document.getElementById('teacherSidebar');
+  const toggle = document.querySelector('.teacher-nav-toggle');
+  if (!sidebar || !toggle) {
+    return;
+  }
+
+  const mobileViewport = window.matchMedia('(max-width: 768px)');
+  const setOpen = (open) => {
+    sidebar.classList.toggle('show', open);
+    document.body.classList.toggle('teacher-nav-open', open);
+    toggle.setAttribute('aria-expanded', String(open));
+    toggle.setAttribute('aria-label', open ? 'メニューを閉じる' : 'メニューを開く');
+    sidebar.inert = !open && mobileViewport.matches;
+    if (mobileViewport.matches) {
+      sidebar.setAttribute('aria-hidden', String(!open));
+    } else {
+      sidebar.removeAttribute('aria-hidden');
+    }
+  };
+
+  const syncViewport = () => setOpen(false);
+  toggle.addEventListener('click', () => setOpen(!sidebar.classList.contains('show')));
+  sidebar.addEventListener('click', (event) => {
+    if (event.target instanceof Element && event.target.closest('a')) {
+      setOpen(false);
+    }
+  });
+  document.addEventListener('click', (event) => {
+    if (sidebar.classList.contains('show')
+      && !sidebar.contains(event.target)
+      && !toggle.contains(event.target)) {
+      setOpen(false);
+    }
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && sidebar.classList.contains('show')) {
+      setOpen(false);
+      toggle.focus();
+    }
+  });
+  mobileViewport.addEventListener('change', syncViewport);
+  syncViewport();
 }
 
 function setActiveSidebarMenu() {
@@ -550,4 +601,3 @@ if (document.readyState === 'loading') {
 } else {
   loadTeacherComponents();
 }
-

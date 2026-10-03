@@ -1,4 +1,4 @@
-package controller;
+package servlet;
 
 import java.io.IOException;
 import javax.servlet.RequestDispatcher;
@@ -11,7 +11,7 @@ import javax.servlet.http.HttpServletResponse;
 @WebServlet("/hello")
 public class HelloWorldServlet extends HttpServlet {
 	protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-		RequestDispatcher dispatcher = request.getRequestDispatcher("/WEB-INF/hello/index.jsp");
+		RequestDispatcher dispatcher = request.getRequestDispatcher("/WEB-INF/hello/hello.jsp");
 		dispatcher.forward(request, response);
 	}
 }

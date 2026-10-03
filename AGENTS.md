@@ -11,9 +11,11 @@
 ## First Commands
 
 - 初回セットアップ: `.env.sample` を `.env` にコピーし、`PROJECT_NAME` をワークスペース名に合わせる。
-- 開発起動: `docker-compose build && docker-compose up`
+- 開発起動: `.env.sample` を `.env` にコピーして値を設定後、`docker compose up --build -d`
 - アプリ確認: `http://localhost:${APP_PORT}`（`.env` の `APP_PORT`）
-- 継続ビルド: `docker-compose` の `gradle` サービスで `gradle -t build --warning-mode all`
+- 開発サーバーは Gradle の Gretty `appRun` タスクで起動する。
+- ビルド: `docker compose exec -T app gradle build --warning-mode all`
+- DB マイグレーション: `docker compose exec -T app gradle flywayMigrate`
 
 ## Key Directories
 
@@ -46,8 +48,9 @@
 - 対象機能の実装前に、機能仕様書、画面遷移図、関連する `docs/state-rules`、DB 設計書、該当するクラス図・AI 連携設計・画面プロトタイプを確認する。状態ルールは必ず読む。
 - `docs/system-configuration/implementation-contract.md` の未合意事項を確認する。対象機能に影響する対応が未合意なら、コードや DB の設計を決め打ちせず、差分と選択肢を提示して確認を得る。
 - 作業を始める前に、`docs/system-configuration/feature-plan-template.md` を使って作業単位・対象ファイル・状態 / DB 対応・検証条件を定める。小さな修正では計画を会話内で示せばよく、不要な計画ファイルを追加しない。
-- `screen-flow-diagram/webapp` は画面遷移プロトタイプであり、本実装ではない。見た目・画面項目を参考にし、固定の仮データや JavaScript の擬似認証・保存・更新・評価を `src/main` に持ち込まない。
-- 業務データは MySQL を正本とし、Servlet → Service → DAO → DB を通して読み書きする。画面の操作可否だけでなく、Service 側でもロール・対象データの所有範囲・状態遷移を検証する。
+- `screen-flow-diagram/webapp` は画面遷移プロトタイプであり、本実装ではない。ただし、画面のレイアウト・構成・項目・文言・導線は本実装の基準として扱う。対象画面の HTML、CSS、JavaScript、共通テンプレートを確認し、原則として既存デザインをそのまま `src/main` に反映する。変更は Servlet/JSP 化、共通部品との統合、アクセシビリティ、レスポンシブ対応など本実装に必要な範囲にとどめ、独自の画面へ作り替えたり、設計済みの項目・導線を省略したりしない。
+- プロトタイプにある固定データや JavaScript のみで完結する認証・保存・更新・評価などは見た目だけを移植しない。表示内容と操作は Servlet → Control → DAO → DB に接続し、実データの読込・保存とサーバー側の認可・状態検証を実装する。DB連携が未実装の部分を成功したように見せる擬似動作や固定データで補わず、未実装・利用不可の状態を明示する。
+- 業務データは MySQL を正本とし、Servlet → Control → DAO → DB を通して読み書きする。画面の操作可否だけでなく、Control 側でもロール・対象データの所有範囲・状態遷移を検証する。
 - 実装後は対象の最小ビルド / テストと、DB 保存後の再読込・権限境界・状態遷移を確認し、実行結果と未確認事項を報告する。
 
 ## 仕様整合チェック: 初期チェック項目
@@ -89,7 +92,7 @@
 1. 優先度と導線整合
 
 - 優先度が高い機能ほど主要導線上に配置されているか。
-- 参照: `docs/plan.md`
+- 参照: `docs/system-configuration/implementation-roadmap.md`
 - 参照: `docs/function-specification.md`
 
 1. 非対応機能の明示
@@ -131,11 +134,16 @@
 
 - 上流工程（IC-001〜IC-009、配信状態）は全件合意済み。合意内容は `docs/system-configuration/implementation-contract.md` の「合意状況の更新履歴」を参照。
 - **IC-010（保存期間満了時の処理）はユーザー指示により保留中**。再開の指示があるまで着手しない。
-- 合意済み事項のうち、**IC-007・IC-008 は「DBマイグレーション未反映」**。`docs/database-design/table-definitions.md` には反映済みだが、実際の DDL（マイグレーションファイル）はまだ作成していない。
-- `src/main` には `HelloWorldServlet` とテンプレートのみが存在し、業務実装・DB接続・認証等は未着手。クラス図・状態ルール・実装契約の整備が先行した段階。
-- 次の作業は `docs/system-configuration/implementation-roadmap.md` のロードマップ順（0→1→2…）に従う。現時点の到達点は以下のとおり。
+- ロードマップ1（ローカル開発コンテナとビルド）は Java 21 / Gradle 8.10.2 / Gretty（Tomcat 9）/ HikariCP に整合し、ビルド・起動・DB 接続を再確認済み。
+- ロードマップ2（DB とマイグレーション）は完了。`src/main/resources/db/migration/` に初期スキーマとアカウント制約の Flyway マイグレーションを作成・適用済み。IC-007 の `tasks.active_prompt_version_id` と IC-008 の `research_subject_identifiers` も反映済み。
+- `src/main` には MySQL 接続基盤、User / Authentication / Student DAO、認証・生徒向け Control、ログイン・ログアウト・生徒ホーム/アカウント/同意 Servlet、ロール / 強制変更 Filter、CSRF 保護、レベル2パスワード変更がある。教師ホームは認証確認用仮ページで、後続工程の教師向け業務画面で置き換える。
+- 次の作業は `docs/system-configuration/implementation-roadmap.md` のロードマップ順（0→1→2…）に従う。システム構成ガイドの整合は完了し、認証工程の完了とは区別する。
   1. **ロードマップ 0（状態・データ設計の実装契約を確定する）**: 完了。念のため着手前に本当に未決事項がないか `implementation-contract.md` を再確認する。
-  2. **ロードマップ 1（ローカル開発コンテナとビルドを整える）**: 未実施。`.env` 作成、`docker-compose build && docker-compose up`、アプリ起動確認がまだ行われていない。
-  3. **ロードマップ 2（DB とマイグレーションを作る）**: 未着手。`table-definitions.md` 全体（IC-007 の `tasks.active_prompt_version_id`、IC-008 の `research_subject_identifiers` を含む）をもとに DDL／マイグレーションを作成する。
-  4. ロードマップ 3 以降（DAO、Web 共通基盤、認証、各機能実装）は未着手。
-- 次チャットでの推奨開始点: まずロードマップ 1 でローカル環境が起動することを確認し、次にロードマップ 2 で最新の `table-definitions.md` に基づくマイグレーションを作成する。その後、ロードマップの機能別ステップ（5以降）に進む際は、対象機能に関する IC 合意内容と状態ルールを都度参照する。
+  2. **ロードマップ 1（ローカル開発コンテナとビルドを整える）**: 完了。Java 21 / Gradle 8.10.2、Gretty の `appRun` / Tomcat 9、HikariCP の構成で WAR ビルド、HTTP、DB 接続を確認済み。
+  3. **ロードマップ 2（DB とマイグレーションを作る）**: 完了。56テーブル、105外部キー等を空のローカルDBへ適用し、再実行・制約・Flyway 検証を確認済み。開発用 seed は未作成。
+  4. **ロードマップ 3（DB 接続基盤と DAO）**: 完了。`UserDao.findByLoginId` が利用者・生徒プロフィールを取得し、未登録・SQL障害・プロフィール不整合を区別することをビルドとローカル MySQL で確認済み。自動テストは未整備。
+  5. **ロードマップ 4（Web 共通基盤と画面資産）**: 共通 JSP フラグメント、共通CSS / shared feedback、404 / 500 画面を実装・確認済み。ユーザー指定により個別業務画面は各機能工程で移植する。
+  6. **ロードマップ 5（ユーザー初期データ、認証・ログイン）**: Control / DAO / Filter / Servlet / ログイン・強制変更画面、30分セッション、CSRF、初期管理者作成タスクを実装。認証確認用仮ホームを追加し、ロードマップ6以降で置き換える。パスワード単体テストと一時DB fixture を使ったログイン、session ID更新、HttpOnly、ログアウト、ロール境界、強制変更、ロックアウトを確認済み。追加で停止 / 削除アカウント・未知IDの拒否、期限切れロックのリセット、教師の所属校・機能権限に基づくロック解除と監査、実セッション30分期限切れを検証し、確認用fixtureと認証・監査履歴が残っていないことを確認した。実管理者アカウントは運用者が実値を対話入力する必要があるため未作成。
+  7. **ロードマップ 6（生徒の同意・課題一覧・アカウント）**: 生徒ログイン / ホーム / アカウント / パスワード変更 / 研究同意画面を、`screen-flow-diagram` の既存デザインに沿って本実装へ反映。業務表示はDB連携し、公開中かつ本人の在籍クラス向け課題、進捗・評価・アンケート状態、所属、認証情報履歴、同意文書・回答を取得する。未実装のeditor / exercise / evaluation / survey操作はリンクせず無効表示。公開範囲・状態・同意保存・画面表示を一時DB fixtureで確認し、fixtureを削除済み。正式な承認同意文書は未登録のため、登録されるまでは画面から回答できない。撤回UIは未定義で今回対象外。今回の画面整合は対象となった生徒画面に限り、画面遷移図の全画面完了を意味しない。詳細と検証結果は `docs/system-configuration/feature-plans/student-home-consent-account.md` を参照。
+  8. 次はロードマップ7（Python実行と生徒エディター）。初期管理者は実値を追跡ファイルやコマンド引数へ置かず、DBを使う環境で対話式Gradleタスク `docker compose exec app gradle createInitialAdmin` により一度だけ作成する。
+  9. IC-010 の保存期間満了時の詳細には、再開指示があるまで着手しない。

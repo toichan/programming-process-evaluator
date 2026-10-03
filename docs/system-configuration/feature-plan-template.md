@@ -30,7 +30,7 @@
 ## 実装タスク
 1. [ ] DB migration / 初期データ:
 2. [ ] Entity / DTO / DAO:
-3. [ ] Service とトランザクション:
+3. [ ] Control とトランザクション:
 4. [ ] Servlet / Filter / 入力検証:
 5. [ ] JSP / CSS / JavaScript:
 6. [ ] 認可・監査・エラー処理:

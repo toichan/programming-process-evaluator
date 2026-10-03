@@ -12,7 +12,7 @@
 |---|---|
 | Web アプリケーション | Java Servlet / JSP、Apache Tomcat、Gradle |
 | 画面 | HTML / JSP / JavaScript、Bootstrap、CodeMirror |
-| アプリケーション構成 | Servlet（Controller）+ Service 層 + DAO 層、JDBC |
+| アプリケーション構成 | Servlet（HTTP受付・応答）+ Control（アプリケーション処理）+ DAO（データアクセス）、JDBC |
 | データベース | MySQL、SQL ベースの Flyway マイグレーション |
 | コード実行 | Python 3.x を Docker サンドボックスで実行 |
 | AI 評価 | Gemini API を利用する想定 |
@@ -21,16 +21,11 @@
 
 上記は機能仕様書に記載された方針です。AWS のアカウント、リージョン、ドメイン、具体的な EC2 サイズ、バックアップ保持期間など、デプロイを実施するための設定値は別途決定が必要です。
 
-### リポジトリで確認できたこと
+### リポジトリの現在状態
 
-- ルートの `docker-compose.yml` はアプリ、MySQL、Gradle の開発用サービスを定義しています。
-- Compose は `containers/app/Dockerfile` の Tomcat、`containers/db/Dockerfile` の MySQL、`containers/gradle/Dockerfile` の Gradle を使用しています。
-- 現在の Compose には Nginx、TLS 設定、Python サンドボックス、Flyway の実行手順、本番用の秘密情報管理が含まれていません。
-- `.env.sample` はローカル向けの変数例で、本番設定としてそのまま使える内容ではありません。
-- Compose 内で MySQL の root パスワードが固定値になっているため、外部公開環境へそのまま流用してはいけません。
-- 現在の Gradle 設定には `jcenter()` が指定されています。依存解決や保守性を確認し、公開前に利用可能なリポジトリへ移行する必要があります。
+ローカル開発環境の起動方法は[README](../../README.md)、機能実装の進捗と検証記録は[実装ロードマップ](./implementation-roadmap.md)を参照してください。この文書では状態を重複管理しません。
 
-したがって、現在の構成はローカル開発の出発点であり、**現状のままインターネットへ公開できる本番構成ではありません**。ローカル起動できることと、公開可能なセキュリティ・運用状態であることは分けて判断します。
+ルートのComposeは開発用であり、**現状のままインターネットへ公開できる本番構成ではありません**。ローカルで動作することと、本番公開に必要なセキュリティ・運用条件が満たされていることは分けて判断します。未決の本番条件は[本番運用条件の決定記録](./production-operations-decisions.md)に集約します。
 
 ## 2. 全体の進め方
 
@@ -66,7 +61,7 @@ AWS 環境の構築
 1. [機能仕様書](../function-specification.md)を読み、対象機能・利用者・権限・入力制約・期待結果を確認します。
 2. [画面遷移図](../screen-flow-diagram.md)とプロトタイプを確認し、画面名と導線を仕様に合わせます。
 3. [DB 設計書](../database-design/README.md)とテーブル定義を確認します。未決定のデータ項目、論理削除、匿名化、データ保持期間を明確にします。
-4. [システム構成ガイド](./system-strucure-guide.md)を参照し、機能仕様書に記載された構成との対応を整理します。たとえば、機能仕様書の DAO 層とガイドのデータアクセス層を同じ責務として説明するか決めます。
+4. [システム構成ガイド](./system-strucure-guide.md)を参照し、Servlet・Control・DAO の責務と、ビルド・実行・DB接続構成を揃えます。
 5. 以下の本番運用上の未決事項について、責任者と決定内容を記録します。
    - AWS アカウント、利用リージョン、予算上限、EC2 の構成
    - 利用するドメイン名と DNS の管理者
