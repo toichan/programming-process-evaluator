@@ -183,6 +183,15 @@ body {
   box-shadow: 0 16px 28px rgba(37, 99, 235, 0.22);
 }
 
+.account-password-button:disabled {
+  background: #6c757d;
+  border-color: #6c757d;
+  color: #ffffff;
+  box-shadow: none;
+  transform: none;
+  opacity: 0.65;
+}
+
 .account-history-table-wrap {
   border: 1px solid rgba(226, 232, 240, 0.95);
   border-radius: 0.95rem;

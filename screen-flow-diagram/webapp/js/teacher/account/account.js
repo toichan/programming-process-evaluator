@@ -13,6 +13,14 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function initializeEventListeners() {
+  const schoolSelect = document.getElementById('schoolSelect');
+  const syncSchoolLevel = () => {
+    const school = Array.from(document.querySelectorAll('#schoolOptions option'))
+      .find((option) => option.value === schoolSelect.value);
+    document.getElementById('securityLevelSelect').value = school?.dataset.securityLevel || '';
+  };
+  schoolSelect.addEventListener('input', syncSchoolLevel);
+  document.getElementById('createAccountModal').addEventListener('show.bs.modal', syncSchoolLevel);
   const createAccountForm = document.getElementById('createAccountForm');
   const filterClass = document.getElementById('filterClass');
   const filterSchool = document.getElementById('filterSchool');
@@ -373,7 +381,7 @@ function createAccounts() {
   }
 
   if (!schoolSelect?.value || !classSelect?.value || !accountCount?.value || !securityLevelSelect?.value || !initialPassword?.value) {
-    pageFeedback.inlineAlert('学校、クラス、作成件数、セキュリティレベル、初期パスワードを入力してください。', 'warning');
+    pageFeedback.inlineAlert('設定済みの学校を選択し、クラス、作成件数、初期パスワードを入力してください。', 'warning');
     return;
   }
 
@@ -387,7 +395,12 @@ function createAccounts() {
   const school = schoolSelect.value;
   const classValue = classSelect.value;
   const count = parseInt(accountCount.value);
-  const securityLevel = securityLevelSelect.value;
+  const securityLevel = Array.from(document.querySelectorAll('#schoolOptions option'))
+    .find((option) => option.value === school)?.dataset.securityLevel;
+  if (!securityLevel) {
+    pageFeedback.inlineAlert('学校が未登録またはレベル未設定です。管理者に設定を依頼してください。', 'warning');
+    return;
+  }
 
   // 新規アカウント情報をコンソールに出力（プロトタイプのため）
   console.log(`新規作成: 学校="${school}", クラス="${classValue}", 人数=${count}, セキュリティ=${securityLevel}`);

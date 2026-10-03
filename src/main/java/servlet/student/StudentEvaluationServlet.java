@@ -13,6 +13,7 @@ import control.auth.AuthenticatedUser;
 import control.student.StudentControl;
 import control.student.StudentEvaluationControl;
 import entity.StudentCodeLogPage;
+import entity.StudentHomePage;
 import entity.StudentEvaluationPage;
 import servlet.auth.CsrfTokens;
 
@@ -102,8 +103,18 @@ public final class StudentEvaluationServlet extends HttpServlet {
 			return;
 		}
 		prepareStudentPage(request, user, "評価結果", "/css/student/evaluation/evaluation.css");
+		StudentHomePage home = (StudentHomePage) request.getAttribute("studentHome");
+		boolean surveyAvailable = page.getEvaluation() != null
+				&& "completed".equals(page.getEvaluationStatus())
+				&& home != null
+				&& home.getTasks().stream().anyMatch(task ->
+						task.getTaskClassAssignmentId() == page.getAssignmentId()
+								&& !task.getSurveyStatus().equals("not_applicable")
+								&& task.getLatestCompletedEvaluationId() != null
+								&& task.getLatestCompletedEvaluationId() == page.getEvaluation().getEvaluationId());
 		request.setAttribute("csrfToken", CsrfTokens.getOrCreate(request.getSession(false)));
 		request.setAttribute("evaluationPage", page);
+		request.setAttribute("surveyAvailableForEvaluation", surveyAvailable);
 		request.getRequestDispatcher("/WEB-INF/student/evaluation/evaluation.jsp").forward(request, response);
 	}
 
@@ -130,12 +141,13 @@ public final class StudentEvaluationServlet extends HttpServlet {
 			AuthenticatedUser user,
 			String title,
 			String stylesheet) throws SQLException {
-		request.setAttribute("studentDisplayName", user.displayName());
 		request.setAttribute("studentLoginId", user.loginId());
 		request.setAttribute("screenDesign", "student");
 		request.setAttribute("screenPageTitle", title);
 		request.setAttribute("screenStylesheet", stylesheet);
-		request.setAttribute("taskCount", STUDENTS.loadHome(user).map(home -> home.getTasks().size()).orElse(0));
+		StudentHomePage home = STUDENTS.loadHome(user).orElse(null);
+		request.setAttribute("studentHome", home);
+		request.setAttribute("taskCount", home == null ? 0 : home.getTasks().size());
 	}
 
 	private static Long positiveLong(String value) {

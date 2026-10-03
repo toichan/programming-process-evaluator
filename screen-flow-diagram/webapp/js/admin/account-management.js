@@ -27,6 +27,12 @@ let passwordModal = null;
 let detailModal = null;
 
 document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('.modal').forEach(function(element) {
+    document.body.appendChild(element);
+    element.addEventListener('hide.bs.modal', function() {
+      if (element.contains(document.activeElement)) document.activeElement.blur();
+    });
+  });
   guardAdminSession();
   initializeModal();
   seedAdminData();
@@ -68,6 +74,7 @@ function initializeModal() {
 }
 
 function bindActions() {
+  document.getElementById('teacherSearch').addEventListener('input', renderAccountTable);
   const createForm = document.getElementById('createTeacherForm');
   if (createForm) {
     createForm.addEventListener('submit', function(event) {
@@ -122,8 +129,9 @@ function bindActions() {
 }
 
 function getFilteredAccounts() {
+  const query = document.getElementById('teacherSearch').value.trim().toLowerCase();
   return loadAccounts().filter(function(item) {
-    return true;
+    return item.teacherId.toLowerCase().includes(query);
   });
 }
 
@@ -238,45 +246,26 @@ function renderAccountTable() {
   const rows = getFilteredAccounts();
 
   body.innerHTML = rows.map(function(item) {
-    const schoolColumns = ALL_SCHOOLS.map(function(school) {
-      return '<td class="permission-column-cell">' + renderMatrixCheckbox({
-        teacherId: item.teacherId,
-        scope: 'school',
-        value: school,
-        checked: (item.schools || []).includes(school)
-      }) + '</td>';
-    }).join('');
-
-    const featureColumns = ALL_FEATURES.map(function(feature) {
-      return '<td class="permission-column-cell">' + renderMatrixCheckbox({
-        teacherId: item.teacherId,
-        scope: 'feature',
-        value: feature,
-        checked: (item.enabledFeatures || []).includes(feature)
-      }) + '</td>';
-    }).join('');
-
     return '<tr>'
       + '<td><code class="code-id">' + escapeHtml(item.teacherId) + '</code></td>'
-      + schoolColumns
-      + featureColumns
+      + '<td>' + escapeHtml((item.schools || []).join('、') || 'なし') + '</td>'
+      + '<td>' + (item.enabledFeatures || []).length + '機能</td>'
       + '<td>' + formatDateTimeTwoLineHtml(item.createdAt || '-') + '</td>'
       + '<td><code class="code-id">' + escapeHtml(item.createdBy || '-') + '</code></td>'
       + '<td>'
       + '<div class="account-action-cell">'
-      + '<button class="btn btn-sm btn-primary" type="button" data-action="update" data-id="' + escapeHtml(item.teacherId) + '">更新</button>'
+      + '<button class="btn btn-sm btn-primary" type="button" data-action="update" data-id="' + escapeHtml(item.teacherId) + '">編集</button>'
       + '<button class="btn btn-sm btn-outline-warning" type="button" data-action="reset-password" data-id="' + escapeHtml(item.teacherId) + '">PW再設定</button>'
       + '<button class="btn btn-sm btn-outline-danger" type="button" data-action="delete" data-id="' + escapeHtml(item.teacherId) + '">削除</button>'
       + '</div>'
       + '</td>'
-        + '<td><button class="btn btn-sm btn-outline-primary" type="button" data-action="detail" data-id="' + escapeHtml(item.teacherId) + '">表示</button></td>'
+        + '<td><button class="btn btn-sm btn-outline-primary" type="button" data-action="detail" data-id="' + escapeHtml(item.teacherId) + '">履歴</button></td>'
       + '</tr>';
-  }).join('');
+  }).join('') || '<tr><td colspan="7">該当する教師アカウントはありません。</td></tr>';
 
   body.querySelectorAll('button[data-action="update"]').forEach(function(button) {
     button.addEventListener('click', function() {
-      const row = button.closest('tr');
-      updateTeacherAccountPermissions(button.getAttribute('data-id') || '', row);
+      openTeacherEditModal(button.getAttribute('data-id') || '');
     });
   });
 
@@ -297,6 +286,30 @@ function renderAccountTable() {
       openTeacherDetailModal(button.getAttribute('data-id') || '');
     });
   });
+}
+
+function openTeacherEditModal(teacherId) {
+  const account = loadAccounts().find(item => item.teacherId === teacherId);
+  if (!account) {
+    pageFeedback.toast({ message: '対象の教師アカウントが見つかりません。', variant: 'warning' });
+    return;
+  }
+  const body = document.getElementById('teacherEditBody');
+  const group = (title, values, selected, scope) =>
+    '<h3 class="h6">' + title + '</h3><div class="permission-editor-group">'
+    + values.map(value => '<label><input class="form-check-input" type="checkbox" data-role="permission-checkbox" data-scope="'
+      + scope + '" data-value="' + escapeHtml(value) + '"' + (selected.includes(value) ? ' checked' : '')
+      + '> ' + escapeHtml(value) + '</label>').join('') + '</div>';
+  body.innerHTML = '<p>教師ID: <strong>' + escapeHtml(teacherId) + '</strong></p>'
+    + group('閲覧可能な学校', [...new Set([...ALL_SCHOOLS, ...account.schools])], account.schools, 'school')
+    + group('利用可能な機能', ALL_FEATURES, account.enabledFeatures, 'feature');
+  const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('teacherEditModal'));
+  document.getElementById('saveTeacherPermissions').onclick = () => {
+    updateTeacherAccountPermissions(teacherId, body);
+    renderAll();
+    modal.hide();
+  };
+  modal.show();
 }
 
 function openTeacherDetailModal(teacherId) {
@@ -357,17 +370,6 @@ function formatDateTimeTwoLineHtml(value) {
     return escapeHtml(text || '-');
   }
   return '<span class="datetime-two-line"><span>' + escapeHtml(matched[1]) + '</span><span>' + escapeHtml(matched[2]) + '</span></span>';
-}
-
-function renderMatrixCheckbox(options) {
-  const teacherId = String(options.teacherId || '');
-  const scope = String(options.scope || '');
-  const value = String(options.value || '');
-  const checked = options.checked ? ' checked' : '';
-
-  return '<label class="matrix-check" title="' + escapeHtml(value) + '">'
-    + '<input class="form-check-input" type="checkbox" data-role="permission-checkbox" data-scope="' + escapeHtml(scope) + '" data-id="' + escapeHtml(teacherId) + '" data-value="' + escapeHtml(value) + '"' + checked + '>'
-    + '</label>';
 }
 
 function updateTeacherAccountPermissions(teacherId, row) {
@@ -658,6 +660,13 @@ function toCsvValue(value) {
 }
 
 async function openPasswordModal(teacherId, password, mode) {
+  const createElement = document.getElementById('teacherCreateModal');
+  if (createElement.classList.contains('show')) {
+    await new Promise(resolve => {
+      createElement.addEventListener('hidden.bs.modal', resolve, { once: true });
+      bootstrap.Modal.getOrCreateInstance(createElement).hide();
+    });
+  }
   const copyText = document.getElementById('passwordModalCopyText');
   const status = document.getElementById('passwordModalCopyStatus');
   const message = buildAccountGuideText(teacherId, password, mode);

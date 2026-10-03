@@ -229,9 +229,10 @@ note right of ResearchSubjectIdentifier
   「匿名性」はログイン用IDが氏名・出席番号と非連結であることを指し、
   教師が生徒を特定できないという意味ではない。
   ログイン用IDは教師の閲覧範囲内で可視のまま維持し、
-  Gemini送信・研究データ外部提供時のみ本識別子を使用する。
+  アンケート研究データでは users.user_id を仮名識別子として使用する。
+  Gemini送信では本識別子を使用する。
   anonymizedSubjectId（EvaluationInputSnapshot）はリクエスト単位の値で、
-  研究用データセット全体を追跡する安定IDとは別物とする。
+  Gemini送信で継続識別する安定IDとは別物とする。
 end note
 
 note bottom of AuditLog

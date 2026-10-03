@@ -140,7 +140,7 @@
 ## 8. 参照先
 
 - [README.md](README.md): 状態ルール一覧の入口
-- [implementation-state-table.md](implementation-state-table.md): 実装用の状態と遷移表
+- [implementation-state-table.md](implementation-state-table.md): 実装時に参照する専用状態ルールへの索引
 - [student/editor-state-rules.md](student/editor-state-rules.md): 学生側の状態定義
 - [teacher/task-state-rules.md](teacher/task-state-rules.md): 教師側の状態定義
 - [admin/account-state-rules.md](admin/account-state-rules.md): アカウント状態・セキュリティレベルの状態定義

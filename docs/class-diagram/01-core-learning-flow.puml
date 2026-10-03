@@ -24,7 +24,9 @@ class User {
 
 class StudentProfile {
   + userId: Long <<PK, FK>>
-  + studentCode: String <<UK>>
+  + schoolId: Long <<FK>>
+  + studentId: String <<derived from User.loginId>>
+  + studentCode: String <<legacy compatibility only>>
   + securityLevel: Integer
   + firstLoginStatus: FirstLoginStatus
   + mustChangePassword: Boolean
@@ -35,6 +37,9 @@ class School {
   + schoolCode: String <<UK>>
   + name: String
   + schoolStatus: SchoolStatus
+  + securityLevel: Integer
+  + securityLevelLocked: Boolean
+  + version: Long
 }
 
 class Classroom {
@@ -217,6 +222,7 @@ class Evaluation {
 
 User "1" -- "0..1" StudentProfile
 School "1" -- "0..*" Classroom
+School "0..1" -- "0..*" StudentProfile : 固定学校・セキュリティ方針
 StudentProfile "1" -- "0..*" StudentClassMembership
 Classroom "1" -- "0..*" StudentClassMembership
 Task "1" -- "0..*" TaskClassAssignment

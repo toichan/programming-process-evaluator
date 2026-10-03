@@ -14,17 +14,13 @@
 	</c:if>
 	<c:if test="${studentHome.consentStatus == 'UNCONFIRMED'}">
 		<div class="alert alert-warning d-flex flex-wrap align-items-center justify-content-between gap-2" role="status">
-			<span>研究協力への回答がまだです。回答は任意で、学習や課題提出には影響しません。</span>
-			<a class="btn btn-sm btn-outline-dark" href="<c:url value='/student/survey/consent'/>">説明を確認する</a>
+			<span>研究協力への同意確認が未回答です。課題を行う前に回答してください。</span>
+			<a class="btn btn-sm btn-outline-dark" href="<c:url value='/student/survey/consent'/>">回答する</a>
 		</div>
 	</c:if>
 	<c:if test="${studentHome.consentStatus == 'DECLINED'}">
 		<div class="alert alert-secondary" role="status">研究協力には同意していません。学習機能は通常どおり利用できます。</div>
 	</c:if>
-	<c:if test="${studentHome.consentStatus == 'AGREED'}">
-		<div class="alert alert-success" role="status">研究協力への同意を記録しています。</div>
-	</c:if>
-
 	<section class="sample-section hero-section mb-4">
 		<div class="hero-copy">
 			<span class="hero-kicker">Student Dashboard</span>
@@ -50,7 +46,7 @@
 				<h2 class="card-title mb-2">課題演習一覧</h2>
 				<p class="text-muted mb-0">現在の在籍クラスに公開されている課題を表示しています。</p>
 			</div>
-			<div class="task-summary-pill"><c:out value="${taskCount}"/> Tasks</div>
+			<div class="task-summary-pill"><c:out value="${taskCount}"/> ${taskCount == 1 ? 'Task' : 'Tasks'}</div>
 		</div>
 
 		<c:choose>
@@ -142,7 +138,15 @@
 													<span class="btn btn-warning is-disabled-action" aria-disabled="true" title="提出後に確認できます">評価の確認</span>
 												</c:otherwise>
 											</c:choose>
-											<span class="btn btn-success is-disabled-action" aria-disabled="true" title="アンケートは後続工程で利用可能になります">アンケート</span>
+											<c:choose>
+												<c:when test="${task.surveyStatus != 'not_applicable' and not empty task.latestCompletedEvaluationId and not empty task.activeSurveyId}">
+													<a class="btn btn-success"
+														href="<c:url value='/student/survey'><c:param name='assignmentId' value='${task.taskClassAssignmentId}'/><c:param name='evaluationId' value='${task.latestCompletedEvaluationId}'/><c:param name='surveyId' value='${task.activeSurveyId}'/></c:url>">アンケート</a>
+												</c:when>
+												<c:otherwise>
+													<span class="btn btn-success is-disabled-action" aria-disabled="true" title="評価完了後、対象アンケートがある場合に回答できます">アンケート</span>
+												</c:otherwise>
+											</c:choose>
 										</div>
 									</div>
 									<div class="task-status-column">

@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -21,6 +22,34 @@ import dao.EvaluationWorkerDao.EvaluationInput;
 import dao.EvaluationWorkerDao.EvaluationJob;
 
 class EvaluationWorkerTest {
+	@Test
+	void storageRuntimeFailureIsNotRetriedAsInvalidAiOutput() {
+		FakeRepository repository = new FakeRepository();
+		repository.completionFailure = new IllegalArgumentException("Synthetic storage failure.");
+		List<JsonObject> payloads = new ArrayList<>();
+		EvaluationProvider provider = new EvaluationProvider() {
+			@Override
+			public JsonObject generate(String modelId, JsonObject payload) {
+				payloads.add(payload.deepCopy());
+				return new JsonObject();
+			}
+
+			@Override
+			public String extractOutputText(JsonObject response) {
+				return validOutput();
+			}
+		};
+
+		assertThrows(IllegalArgumentException.class,
+				() -> new EvaluationWorker(repository, provider).processNext());
+		assertEquals(1, payloads.size());
+		assertEquals(1, repository.recordedResponses);
+		assertEquals(1, repository.validatedResponses);
+		assertTrue(repository.retryCounts.isEmpty());
+		assertEquals(1, repository.failures);
+		assertFalse(repository.completed);
+	}
+
 	@Test
 	void retriesTwiceAndSimplifiesOnlyTheFinalPayload() throws SQLException {
 		FakeRepository repository = new FakeRepository();
@@ -144,6 +173,7 @@ class EvaluationWorkerTest {
 		private int failures;
 		private int failureRetryCount = -1;
 		private boolean completed;
+		private RuntimeException completionFailure;
 
 		private FakeRepository() {
 			payload = new JsonObject();
@@ -179,6 +209,9 @@ class EvaluationWorkerTest {
 		@Override
 		public void complete(EvaluationJob ignored, JsonObject result) {
 			assertNotNull(result);
+			if (completionFailure != null) {
+				throw completionFailure;
+			}
 			completed = true;
 		}
 

@@ -24,6 +24,8 @@ public final class AuthHomeServlet extends HttpServlet {
 		}
 
 		request.setAttribute("displayName", user.displayName());
+		request.setAttribute("teacherId", user.loginId());
+		request.setAttribute("isAdmin", user.userType() == entity.UserCredential.UserType.ADMIN);
 		request.setAttribute("csrfToken", CsrfTokens.getOrCreate(request.getSession(false)));
 		request.getRequestDispatcher("/WEB-INF/teacher/home.jsp").forward(request, response);
 	}

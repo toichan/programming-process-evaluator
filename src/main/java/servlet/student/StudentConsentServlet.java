@@ -62,9 +62,11 @@ public final class StudentConsentServlet extends HttpServlet {
 		}
 
 		long documentId;
+		long expectedResponseId;
 		try {
 			documentId = Long.parseLong(request.getParameter("documentVersionId"));
-			if (documentId <= 0) {
+			expectedResponseId = Long.parseLong(request.getParameter("responseId"));
+			if (documentId <= 0 || expectedResponseId < 0) {
 				throw new NumberFormatException("Consent document id must be positive.");
 			}
 		} catch (NumberFormatException e) {
@@ -74,8 +76,9 @@ public final class StudentConsentServlet extends HttpServlet {
 		}
 
 		try {
-			ConsentSaveResult result = STUDENTS.saveInitialConsent(
-					user, documentId, request.getParameter("consentDecision"));
+			ConsentSaveResult result = STUDENTS.saveConsent(
+					user, documentId, request.getParameter("consentDecision"), expectedResponseId,
+					"yes".equals(request.getParameter("changeConfirmed")));
 			switch (result) {
 				case RECORDED -> redirectHome(request, response, "saved");
 				case ALREADY_RECORDED -> redirectHome(request, response, "already");
@@ -84,6 +87,14 @@ public final class StudentConsentServlet extends HttpServlet {
 							"同意文書が更新されました。現在の文書を確認してから操作してください。",
 							HttpServletResponse.SC_CONFLICT);
 				case ACCOUNT_UNAVAILABLE -> response.sendError(HttpServletResponse.SC_FORBIDDEN);
+				case RESPONSE_CHANGED ->
+					forwardWithError(request, response, user,
+							"別の画面で回答が変更されています。現在の回答を確認してから操作してください。",
+							HttpServletResponse.SC_CONFLICT);
+				case CONFIRMATION_REQUIRED ->
+					forwardWithError(request, response, user,
+							"確認ダイアログで変更を確定してください。",
+							HttpServletResponse.SC_BAD_REQUEST);
 				case INVALID_DECISION ->
 					forwardWithError(request, response, user,
 							"同意するか、同意しないかを選択してください。",
@@ -107,7 +118,6 @@ public final class StudentConsentServlet extends HttpServlet {
 		}
 		request.setAttribute("consentPage", page);
 		request.setAttribute("consentDocument", page.getDocument().orElse(null));
-		request.setAttribute("studentDisplayName", user.displayName());
 		request.setAttribute("csrfToken", CsrfTokens.getOrCreate(request.getSession(false)));
 		request.getRequestDispatcher("/WEB-INF/student/survey/consent.jsp").forward(request, response);
 		return true;

@@ -35,7 +35,7 @@ window.addEventListener('DOMContentLoaded', () => {
     window.localStorage.setItem(TEACHER_SESSION_STORAGE_KEY, JSON.stringify(session));
 
     if (session.teacherId.toLowerCase() === 'admin') {
-      window.location.href = '../../admin/account-management.html';
+      window.location.href = '../../admin/management.html';
       return;
     }
 

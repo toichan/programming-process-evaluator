@@ -134,7 +134,6 @@
 						</li>
 						<li><hr class="dropdown-divider"></li>
 						<li class="dropdown-header fw-semibold">生徒ID：<c:out value="${studentLoginId}"/></li>
-						<li class="dropdown-item-text text-muted small"><c:out value="${studentDisplayName}"/></li>
 						<li><hr class="dropdown-divider"></li>
 						<li>
 							<form method="post" action="<c:url value='/auth/logout'/>" class="m-0">

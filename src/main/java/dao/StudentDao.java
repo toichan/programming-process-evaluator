@@ -22,9 +22,12 @@ import lib.mysql.Client;
 
 public final class StudentDao {
 	private static final String FIND_ACCOUNT = """
-			SELECT sp.student_code, sp.security_level, sp.first_login_status, sp.must_change_password
+			SELECT u.login_id AS student_id,
+			       CASE WHEN sp.school_id IS NULL THEN sp.security_level ELSE school.security_level END AS security_level,
+			       sp.first_login_status, sp.must_change_password
 			FROM users u
 			JOIN student_profiles sp ON sp.user_id = u.user_id
+			LEFT JOIN schools school ON school.school_id = sp.school_id
 			WHERE u.user_id = ? AND u.user_type = 'student'
 			  AND u.account_status = 'active' AND u.deleted_at IS NULL
 			""";
@@ -54,39 +57,42 @@ public final class StudentDao {
 			        WHERE s_latest.participation_id = tp.participation_id
 			        ORDER BY s_latest.revision_number DESC
 			        LIMIT 1) AS latest_submission_id,
-			       CASE
-			         WHEN NOT EXISTS (
-			           SELECT 1 FROM surveys sv
-			           WHERE sv.task_id = t.task_id AND sv.survey_status = 'active'
-			         ) THEN 'not_applicable'
-			         WHEN EXISTS (
-			           SELECT 1 FROM surveys sv
-			           WHERE sv.task_id = t.task_id AND sv.survey_status = 'active'
-			             AND NOT EXISTS (
-			               SELECT 1 FROM survey_responses sr
-			               WHERE sr.survey_id = sv.survey_id
-			                 AND sr.student_user_id = scm.student_user_id
-			                 AND sr.response_status = 'submitted'
-			             )
-			             AND EXISTS (
-			               SELECT 1 FROM survey_responses sr
-			               WHERE sr.survey_id = sv.survey_id
-			                 AND sr.student_user_id = scm.student_user_id
-			                 AND sr.response_status = 'in_progress'
-			             )
-			         ) THEN 'in_progress'
-			         WHEN EXISTS (
-			           SELECT 1 FROM surveys sv
-			           WHERE sv.task_id = t.task_id AND sv.survey_status = 'active'
-			             AND NOT EXISTS (
-			               SELECT 1 FROM survey_responses sr
-			               WHERE sr.survey_id = sv.survey_id
-			                 AND sr.student_user_id = scm.student_user_id
-			                 AND sr.response_status = 'submitted'
-			             )
-			         ) THEN 'not_answered'
-			         ELSE 'submitted'
-			       END AS survey_status
+			       (SELECT sv.survey_id
+			        FROM surveys sv
+			        WHERE sv.task_id = t.task_id AND sv.survey_status = 'active'
+			        ORDER BY sv.survey_id DESC
+			        LIMIT 1) AS active_survey_id,
+			       (SELECT e_done.evaluation_id
+			        FROM task_participations tp_done
+			        JOIN submissions s_done ON s_done.participation_id = tp_done.participation_id
+			        JOIN evaluations e_done ON e_done.submission_id = s_done.submission_id
+			        WHERE tp_done.student_user_id = scm.student_user_id
+			          AND tp_done.task_class_assignment_id = ca.task_class_assignment_id
+			          AND e_done.evaluation_status = 'completed'
+			          AND e_done.evaluation_kind IN ('initial','reevaluation')
+			        ORDER BY s_done.revision_number DESC, e_done.completed_at DESC, e_done.evaluation_id DESC
+			        LIMIT 1) AS latest_completed_evaluation_id,
+			       (SELECT sr.response_status
+			        FROM survey_responses sr
+			        WHERE sr.student_user_id = scm.student_user_id
+			          AND sr.survey_id = (
+			            SELECT sv.survey_id FROM surveys sv
+			            WHERE sv.task_id = t.task_id AND sv.survey_status = 'active'
+			            ORDER BY sv.survey_id DESC LIMIT 1
+			          )
+			          AND sr.evaluation_id = (
+			            SELECT e_done.evaluation_id
+			            FROM task_participations tp_done
+			            JOIN submissions s_done ON s_done.participation_id = tp_done.participation_id
+			            JOIN evaluations e_done ON e_done.submission_id = s_done.submission_id
+			            WHERE tp_done.student_user_id = scm.student_user_id
+			              AND tp_done.task_class_assignment_id = ca.task_class_assignment_id
+			              AND e_done.evaluation_status = 'completed'
+			              AND e_done.evaluation_kind IN ('initial','reevaluation')
+			            ORDER BY s_done.revision_number DESC, e_done.completed_at DESC, e_done.evaluation_id DESC
+			            LIMIT 1
+			          )
+			        LIMIT 1) AS target_survey_response_status
 			FROM student_class_memberships scm
 			JOIN classrooms c ON c.classroom_id = scm.classroom_id AND c.classroom_status = 'active'
 			JOIN schools s ON s.school_id = c.school_id AND s.school_status = 'active'
@@ -103,7 +109,7 @@ public final class StudentDao {
 			""";
 
 	private static final String FIND_LATEST_CONSENT = """
-			SELECT consent_status, updated_at
+			SELECT consent_id, consent_status, updated_at
 			FROM consent_records
 			WHERE user_id = ?
 			ORDER BY consent_id DESC
@@ -120,7 +126,7 @@ public final class StudentDao {
 			""";
 
 	public Optional<StudentAccountDetails> findAccountDetails(long studentUserId) throws SQLException {
-		String studentCode;
+		String studentId;
 		int securityLevel;
 		FirstLoginStatus firstLoginStatus;
 		boolean mustChangePassword;
@@ -137,21 +143,24 @@ public final class StudentDao {
 				} catch (IllegalArgumentException e) {
 					throw new SQLException("Invalid stored first-login status.", e);
 				}
-				studentCode = resultSet.getString("student_code");
+				studentId = resultSet.getString("student_id");
 				securityLevel = resultSet.getInt("security_level");
+				if (resultSet.wasNull() || (securityLevel != 1 && securityLevel != 2)) {
+					throw new SQLException("Student account has no valid school security policy.");
+				}
 				mustChangePassword = resultSet.getBoolean("must_change_password");
 			}
 			return Optional.of(new StudentAccountDetails(
-					studentCode,
+					studentId,
 					securityLevel,
 					firstLoginStatus,
 					mustChangePassword,
 					findAffiliations(connection, studentUserId),
-					findCredentialHistory(connection, studentUserId, studentCode)));
+					findCredentialHistory(connection, studentUserId, studentId)));
 		}
 	}
 
-	public List<StudentTaskSummary> findPublishedTasks(long studentUserId) throws SQLException {
+	public List<StudentTaskSummary> findPublishedTasks(long studentUserId, ConsentStatus consentStatus) throws SQLException {
 		List<StudentTaskSummary> tasks = new ArrayList<>();
 		try (Connection connection = Client.createConnection();
 				PreparedStatement statement = connection.prepareStatement(FIND_TASKS)) {
@@ -163,6 +172,14 @@ public final class StudentDao {
 					Long secondsUntilDue = resultSet.wasNull() ? null : secondsUntilDueValue;
 					long latestSubmissionValue = resultSet.getLong("latest_submission_id");
 					Long latestSubmissionId = resultSet.wasNull() ? null : latestSubmissionValue;
+					long activeSurveyValue = resultSet.getLong("active_survey_id");
+					Long activeSurveyId = resultSet.wasNull() ? null : activeSurveyValue;
+					long latestEvaluationValue = resultSet.getLong("latest_completed_evaluation_id");
+					Long latestCompletedEvaluationId = resultSet.wasNull() ? null : latestEvaluationValue;
+					String targetResponseStatus = resultSet.getString("target_survey_response_status");
+					String surveyStatus = activeSurveyId == null || latestCompletedEvaluationId == null
+							? "not_applicable"
+							: targetResponseStatus == null ? "not_answered" : targetResponseStatus;
 					tasks.add(new StudentTaskSummary(
 							resultSet.getLong("task_class_assignment_id"),
 							resultSet.getLong("task_id"),
@@ -175,7 +192,10 @@ public final class StudentDao {
 							resultSet.getString("progress_status"),
 							resultSet.getString("save_status"),
 							resultSet.getString("evaluation_status"),
-							resultSet.getString("survey_status"),
+							surveyStatus,
+							activeSurveyId,
+							latestCompletedEvaluationId,
+							consentStatus,
 							secondsUntilDue,
 							latestSubmissionId));
 				}
@@ -191,7 +211,8 @@ public final class StudentDao {
 			return new StudentConsentPage(
 					document,
 					response.map(ConsentResponse::status).orElse(ConsentStatus.UNCONFIRMED),
-					response.map(ConsentResponse::respondedAt).orElse(null));
+					response.map(ConsentResponse::respondedAt).orElse(null),
+					response.map(ConsentResponse::id).orElse(0L));
 		}
 	}
 
@@ -207,6 +228,15 @@ public final class StudentDao {
 			long studentUserId,
 			long submittedDocumentId,
 			ConsentStatus decision) throws SQLException {
+		return saveConsent(studentUserId, submittedDocumentId, decision, 0, false);
+	}
+
+	public ConsentSaveResult saveConsent(
+			long studentUserId,
+			long submittedDocumentId,
+			ConsentStatus decision,
+			long expectedResponseId,
+			boolean changeConfirmed) throws SQLException {
 		if (decision != ConsentStatus.AGREED && decision != ConsentStatus.DECLINED) {
 			return ConsentSaveResult.INVALID_DECISION;
 		}
@@ -227,20 +257,33 @@ public final class StudentDao {
 					connection.rollback();
 					return ConsentSaveResult.DOCUMENT_CHANGED;
 				}
-				if (hasConsentRecord(connection, studentUserId)) {
+				Optional<ConsentResponse> previous = findLatestConsentResponse(connection, studentUserId);
+				ConsentStatus current = previous.map(ConsentResponse::status).orElse(ConsentStatus.UNCONFIRMED);
+				ConsentStatus target = entity.ConsentDecision.resolve(current, decision);
+				if (previous.map(ConsentResponse::id).orElse(0L) != expectedResponseId) {
+					connection.rollback();
+					return ConsentSaveResult.RESPONSE_CHANGED;
+				}
+				if (current == target) {
 					connection.rollback();
 					return ConsentSaveResult.ALREADY_RECORDED;
+				}
+				if (current != ConsentStatus.UNCONFIRMED && !changeConfirmed) {
+					connection.rollback();
+					return ConsentSaveResult.CONFIRMATION_REQUIRED;
 				}
 
 				try (PreparedStatement statement = connection.prepareStatement("""
 						INSERT INTO consent_records
 							(user_id, consent_status, consent_document_version_id, consented_at, withdrawn_at, updated_at)
-						VALUES (?, ?, ?, CASE WHEN ? = 'agreed' THEN CURRENT_TIMESTAMP ELSE NULL END, NULL, CURRENT_TIMESTAMP)
+						VALUES (?, ?, ?, CASE WHEN ? = 'agreed' THEN CURRENT_TIMESTAMP ELSE NULL END,
+						  CASE WHEN ? = 'withdrawn' THEN CURRENT_TIMESTAMP ELSE NULL END, CURRENT_TIMESTAMP)
 						""")) {
 					statement.setLong(1, studentUserId);
-					statement.setString(2, decision.getDatabaseValue());
+					statement.setString(2, target.getDatabaseValue());
 					statement.setLong(3, submittedDocumentId);
-					statement.setString(4, decision.getDatabaseValue());
+					statement.setString(4, target.getDatabaseValue());
+					statement.setString(5, target.getDatabaseValue());
 					statement.executeUpdate();
 				}
 				connection.commit();
@@ -276,7 +319,7 @@ public final class StudentDao {
 	private static List<StudentCredentialHistoryEntry> findCredentialHistory(
 			Connection connection,
 			long studentUserId,
-			String studentCode) throws SQLException {
+			String studentId) throws SQLException {
 		List<StudentCredentialHistoryEntry> history = new ArrayList<>();
 		try (PreparedStatement statement = connection.prepareStatement("""
 				SELECT ch.action_type, ch.result_status, ch.actor_user_id,
@@ -297,7 +340,7 @@ public final class StudentDao {
 					String actorLabel = !hasActor
 							? "システム"
 							: actorUserId == studentUserId
-									? "生徒（" + studentCode + "）"
+									? "生徒（" + studentId + "）"
 									: "teacher".equals(actorType)
 											? "教師（" + actorLoginId + "）"
 											: "admin".equals(actorType)
@@ -351,6 +394,7 @@ public final class StudentDao {
 				}
 				Timestamp respondedAt = resultSet.getTimestamp("updated_at");
 				return Optional.of(new ConsentResponse(
+						resultSet.getLong("consent_id"),
 						status,
 						respondedAt == null ? null : respondedAt.toLocalDateTime()));
 			}
@@ -381,16 +425,6 @@ public final class StudentDao {
 		}
 	}
 
-	private static boolean hasConsentRecord(Connection connection, long studentUserId) throws SQLException {
-		try (PreparedStatement statement = connection.prepareStatement(
-				"SELECT consent_id FROM consent_records WHERE user_id = ? ORDER BY consent_id DESC LIMIT 1 FOR UPDATE")) {
-			statement.setLong(1, studentUserId);
-			try (ResultSet resultSet = statement.executeQuery()) {
-				return resultSet.next();
-			}
-		}
-	}
-
-	private record ConsentResponse(ConsentStatus status, java.time.LocalDateTime respondedAt) {
+	private record ConsentResponse(long id, ConsentStatus status, java.time.LocalDateTime respondedAt) {
 	}
 }

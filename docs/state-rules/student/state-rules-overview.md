@@ -160,4 +160,4 @@
 
 ## 7. 実装用状態表
 
-- `implementation-state-table.md`: 画面制御に必要な状態、遷移、操作可否を実装用に整理した一覧
+- `implementation-state-table.md`: 実装時に各分野の状態ルールと実装契約を参照するための索引

@@ -248,10 +248,10 @@
                   <div class="modal-body">
                     <div class="mb-3">
                       <label for="schoolSelect" class="form-label">学校</label>
-                      <input class="form-control" id="schoolSelect" list="schoolOptions" placeholder="既存候補から選択、または入力" required>
+                      <input class="form-control" id="schoolSelect" list="schoolOptions" placeholder="登録済みの学校を選択" required>
                       <datalist id="schoolOptions">
-                        <option value="国際中等"></option>
-                        <option value="附属高校"></option>
+                        <option value="国際中等" data-security-level="2"></option>
+                        <option value="附属高校" data-security-level="1"></option>
                       </datalist>
                     </div>
                     <div class="mb-3">
@@ -278,10 +278,12 @@
                     </div>
                     <div class="mt-3">
                       <label for="securityLevelSelect" class="form-label">セキュリティレベル</label>
-                      <select class="form-select" id="securityLevelSelect" required>
+                      <select class="form-select" id="securityLevelSelect" disabled>
+                        <option value="" selected>学校を選択してください</option>
                         <option value="1">レベル1</option>
-                        <option value="2" selected>レベル2</option>
+                        <option value="2">レベル2</option>
                       </select>
+                      <div class="form-text">学校の設定を適用します。教師は生徒個別に変更できません。学校の登録・設定は管理者が行います。</div>
                     </div>
                     <div class="mt-3">
                       <label for="initialPassword" class="form-label">初期パスワード</label>

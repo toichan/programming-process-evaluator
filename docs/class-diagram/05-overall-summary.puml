@@ -23,7 +23,9 @@ class User {
 
 class StudentProfile {
   + userId: Long <<PK, FK>>
-  + studentCode: String <<UK>>
+  + schoolId: Long <<FK>>
+  + studentId: String <<derived from User.loginId>>
+  + studentCode: String <<legacy compatibility only>>
   + securityLevel: Integer
   + firstLoginStatus: FirstLoginStatus
   + mustChangePassword: Boolean
@@ -33,6 +35,9 @@ class School {
   + schoolId: Long <<PK>>
   + name: String
   + schoolStatus: SchoolStatus
+  + securityLevel: Integer
+  + securityLevelLocked: Boolean
+  + version: Long
 }
 
 class Classroom {
@@ -535,9 +540,11 @@ note bottom of Task
 end note
 
 note right of ResearchSubjectIdentifier
-  ログイン用ID（StudentProfile.studentCode）は教師の閲覧範囲内で
-  可視のまま維持する。研究データ外部提供・Gemini送信時のみ、
-  氏名・出席番号・ログイン用IDから推測できない本識別子を使用する。
+  ログイン用ID（User.loginId、生徒のstudent_id・教師のteacher_id）は教師の閲覧範囲内で
+  可視のまま維持する。アンケート研究データでは users.userId を
+  仮名識別子として使用し、完全匿名データとは扱わない。
+  Gemini送信時は氏名・出席番号・ログイン用IDから推測できない
+  本識別子を使用する。
 end note
 
 note bottom of AuditLog

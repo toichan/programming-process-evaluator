@@ -82,6 +82,17 @@
   margin-bottom: 0;
 }
 
+.ppe-feedback-detail-structured {
+  margin-bottom: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
+.ppe-feedback-detail-label {
+  display: block;
+  color: var(--bs-gray-900);
+  margin-bottom: 0.2rem;
+}
+
 .ppe-feedback-modal-danger .ppe-feedback-kicker {
   color: #b91c1c;
 }

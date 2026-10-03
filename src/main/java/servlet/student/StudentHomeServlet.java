@@ -39,10 +39,11 @@ public final class StudentHomeServlet extends HttpServlet {
 			}
 			request.setAttribute("studentHome", page);
 			request.setAttribute("taskCount", page.getTasks().size());
-			request.setAttribute("studentDisplayName", user.displayName());
 			request.setAttribute("csrfToken", CsrfTokens.getOrCreate(request.getSession(false)));
 			HttpSession session = request.getSession(false);
 			if (session != null) {
+				request.setAttribute("passwordChangeNotice", session.getAttribute("passwordChangeNotice"));
+				session.removeAttribute("passwordChangeNotice");
 				request.setAttribute("studentHomeNotice", session.getAttribute(NOTICE_ATTRIBUTE));
 				session.removeAttribute(NOTICE_ATTRIBUTE);
 			}

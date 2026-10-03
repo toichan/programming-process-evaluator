@@ -100,7 +100,6 @@ public final class StudentEditorServlet extends HttpServlet {
 			EditorPreferences preferences = PREFERENCES.load(user);
 			request.setAttribute("editorPage", page);
 			request.setAttribute("editorPreferences", preferences);
-			request.setAttribute("studentDisplayName", user.displayName());
 			request.setAttribute("csrfToken", CsrfTokens.getOrCreate(request.getSession(false)));
 			request.setAttribute("screenDesign", "student");
 			request.setAttribute("screenPageTitle", page.getTitle());
@@ -319,7 +318,8 @@ public final class StudentEditorServlet extends HttpServlet {
 			case SUBMITTED, DUPLICATE -> {
 				session.removeAttribute(CHECK_ATTRIBUTE);
 				writeJson(response, HttpServletResponse.SC_OK,
-						Map.of("status", "submitted", "revisionNumber", result.revisionNumber()));
+						Map.of("status", "submitted", "submissionId", result.submissionId(),
+								"revisionNumber", result.revisionNumber()));
 			}
 			case CONFLICT -> writeJson(response, HttpServletResponse.SC_CONFLICT,
 					error("draft_conflict", "下書きまたは課題の入出力条件が更新されています。最新の内容を読み込み直してください。"));

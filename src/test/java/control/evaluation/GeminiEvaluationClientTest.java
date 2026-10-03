@@ -86,6 +86,7 @@ class GeminiEvaluationClientTest {
 				() -> newClient(testKey).generate("gemini-test", new JsonObject()));
 
 		assertTrue(error.isRetryable());
+		assertEquals(429, error.getHttpStatusCode());
 		assertTrue(error.getMessage().contains("429"));
 		assertTrue(error.getMessage().contains("RESOURCE_EXHAUSTED"));
 		assertFalse(error.getMessage().contains(testKey));

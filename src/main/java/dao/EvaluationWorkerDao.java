@@ -310,7 +310,7 @@ public final class EvaluationWorkerDao implements EvaluationWorkRepository {
 				}
 				try (PreparedStatement update = connection.prepareStatement("""
 						UPDATE evaluation_requests
-						SET request_status = 'failed', retry_count = ?,
+						SET request_status = 'failed', retry_count = GREATEST(retry_count, ?),
 						    completed_at = CURRENT_TIMESTAMP(6), error_detail = ?
 						WHERE evaluation_request_id = ? AND request_status = 'in_progress'
 						""")) {
