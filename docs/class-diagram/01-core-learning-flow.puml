@@ -87,7 +87,6 @@ class TaskClassAssignment {
   + publishAt: DateTime
   + dueAt: DateTime
   + lateSubmissionPolicy: LateSubmissionPolicy
-  + resubmissionPolicy: ResubmissionPolicy
   + createdAt: DateTime
   + updatedAt: DateTime
 }

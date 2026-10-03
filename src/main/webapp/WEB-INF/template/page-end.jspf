@@ -1,0 +1,26 @@
+	</main>
+	<c:choose>
+		<c:when test="${screenDesign == 'student'}">
+			<footer class="bg-light py-4 mt-5 border-top">
+				<div class="container text-center">
+					<p class="text-muted mb-0">&copy; 2026 Takumi Toida. All rights reserved.</p>
+				</div>
+			</footer>
+		</c:when>
+		<c:otherwise>
+			<footer class="border-top bg-white">
+				<div class="container py-3 text-secondary small">
+					Programming Process Evaluator
+				</div>
+			</footer>
+		</c:otherwise>
+	</c:choose>
+	<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"
+		integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI"
+		crossorigin="anonymous" defer></script>
+	<script src="${pageContext.request.contextPath}/js/shared/feedback.js" defer></script>
+	<c:if test="${not empty screenScript}">
+		<script src="<c:url value='${screenScript}'/>" defer></script>
+	</c:if>
+</body>
+</html>

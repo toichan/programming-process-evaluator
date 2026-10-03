@@ -155,4 +155,20 @@ body {
   .hero-title {
     font-size: 2rem;
   }
+
+  .hero-brand .navbar-brand {
+    flex-direction: column;
+    padding-top: 2.5rem !important;
+    padding-bottom: 1.5rem !important;
+  }
+
+  .hero-brand .navbar-brand > svg {
+    width: 3.5rem;
+    height: 3.5rem;
+    margin: 0 0 0.75rem !important;
+  }
+
+  .hero-brand .brand-text .brand-line {
+    font-size: clamp(1.45rem, 8vw, 2rem);
+  }
 }

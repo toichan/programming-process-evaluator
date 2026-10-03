@@ -1,7 +1,7 @@
 # データベース設計書
 
 作成日：2026/10/01
-版数：2
+版数：5
 作成者：樋田巧
 
 ## 改版履歴
@@ -10,6 +10,9 @@
 |-|-|-|-|
 |2026/10/01|初版|樋田|- クラス図を基にデータベース設計を整理 |
 |2026/10/02|2|Codex（ユーザー確認済み）|- 原則論理削除の共通方針と課題改訂モデルを追加 |
+|2026/10/03|3|Copilot（ユーザー確認済み）|- 生徒アカウントごとのエディター設定保存テーブルを追加 |
+|2026/10/03|4|Copilot（ユーザー確認済み）|- エディター文字サイズの最小値を12pxへ変更 |
+|2026/10/03|5|Copilot（ユーザー確認済み）|- エディター文字サイズの最小値を10pxへ変更 |
 
 ### データベース名
 
@@ -23,7 +26,7 @@
 現状の `screen-flow-diagram` は画面遷移プロトタイプであり、ログイン/監査履歴や実行結果の一部は固定データまたはブラウザー内保存で動作する。以下のDB定義は永続化先の設計であり、DBへの実書込みが実装済みであることを示すものではない。
 
 ### 主な対象テーブル
-- users / student_profiles / schools / classrooms / student_class_memberships
+- users / student_profiles / user_editor_preferences / research_subject_identifiers / schools / classrooms / student_class_memberships
 - teacher_school_permissions / teacher_feature_permissions / password_reset_records / credential_history
 - tasks / task_features / task_class_assignments / task_participations / task_activity_sessions
 - task_test_cases / task_hints / submissions / code_logs / code_executions / code_execution_test_results

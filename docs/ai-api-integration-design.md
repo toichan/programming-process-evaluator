@@ -49,6 +49,77 @@
 - 不要な履歴や重複データは送信しない。
 - 応答の根拠として使用したログIDを保存し、追跡可能にする。
 
+### 2.6 Gemini API キーの設定と疎通確認
+
+1. API 管理者が [Google AI Studio の API キー管理画面](https://aistudio.google.com/apikey)で、利用する Google アカウント・プロジェクトの API キーを発行し、Gemini API の利用条件、データ取扱い、料金、レート制限を確認する。
+2. ローカル疎通確認では、キーをリポジトリルートの Git 管理外 `.env` の `GEMINI_API_KEY` に設定する。値をチャット、ソースコード、`.env.sample`、ログ、スクリーンショット、コミットへ含めない。`.env` が存在しない場合は `.env.sample` をコピーして作成する。
+3. アプリコンテナを再作成して環境変数を渡し、値を表示せず設定済みかだけ確認する。
+
+```sh
+docker compose up -d --force-recreate app
+docker compose exec -T app sh -c 'if [ -n "$GEMINI_API_KEY" ]; then echo "GEMINI_API_KEY is set"; else echo "GEMINI_API_KEY is missing"; exit 1; fi'
+```
+
+4. 実データを使う前に、実在する氏名・ログイン ID・提出コード・コードログを含まない合成入力だけで疎通を確認する。疎通確認時も API 利用料が発生し得るため、管理者が予算・利用上限を確認する。
+5. キー未設定または無効時は評価を成功扱いにせず、評価要求を失敗として記録する。API キーはリクエストヘッダーで送信し、URL・アプリログ・例外メッセージへ出力しない。
+6. ローカル `.env` は本番用の秘密情報管理手段ではない。本番環境では AWS Secrets Manager 等の組織承認済みシークレットストアから実行時に注入し、アクセス権・ローテーション・失効担当者を定める。本番公開前に [本番運用条件](./system-configuration/production-operations-decisions.md) の API 上限・費用アラート・キー管理者を決定する。
+
+疎通テストは通常の単体テストではスキップされ、明示的に指定した場合だけ1回の外部 API 呼び出しを行う。評価クライアントは、Google AI Studio の Get Started ガイドに合わせて `POST /v1beta/interactions` を使用し、`x-goog-api-key` と `Api-Revision: 2026-05-20` をヘッダーに指定する。現在の疎通テストモデルは `gemini-3.7-flash` とし、[Gemini 3.7 Flash のモデル情報](https://ai.google.dev/gemini-api/docs/models/gemini-3.7-flash)でモデルIDを確認した。モデル一覧・詳細に存在することは、特定プロジェクトでの生成枠の利用可否を保証しない。利用可能なモデルはプロジェクトごとに異なるため、[Gemini API モデル一覧](https://ai.google.dev/gemini-api/docs/models)で確認し、実行前にプロジェクトの利用可否・料金・上限を確認する。旧候補 `gemini-2.5-flash` はこのAPIキーでは「新規利用者には利用不可」と返されたため、疎通モデルに使用しない。
+
+Interactions API の入力には評価指示を `system_instruction`、匿名化済み評価データを `input` として分けて渡す。`response_format` でJSON MIMEタイプと出力スキーマを指定し、REST応答の `steps` から `model_output` のテキストだけを取り出して、アプリケーション側でも評価スキーマを検証する。
+
+旧 `generateContent` エンドポイントはHTTP 402で拒否された。2026-10-02のクレジット購入後にInteractions APIへ合成入力を再送したところ、最初はHTTP 400だったため、ガイドの例に合わせて構造化出力スキーマを基本型・必須項目のみに簡素化した。2026-10-03の診断付き合成スモークテストでは、`gemini-3.8-flash` に続き `gemini-3.7-flash` もHTTP 503で拒否され、どちらも「currently experiencing high demand」とのメッセージを受信した。続いて、キーを `x-goog-api-key` ヘッダーで送るListModels要求はHTTP 200で、2ページにわたり候補一覧を確認した。`gemini-3.7-flash`、`gemini-3.8-flash`、`gemini-2.5-pro`、`gemini-3.5-flash-lite` 等は一覧に含まれたが、`gemini-3.8-flash-lite` は一覧に含まれなかった。ただし `supportedGenerationMethods` は一覧モデルで `generateContent` を示すだけで、Interactions APIの生成利用可否を保証しない。さらに `gemini-3.7-flash` に `input` と `store:false` のみを指定した最小Interactions要求はHTTP 200となり、`OK` の生成応答を取得した。応答ヘッダーには `x-request-id`、`x-goog-request-id`、`traceparent` は見当たらなかった。よってキー・ネットワーク・最小Interactions要求は動作しているが、先行する503が一時的な混雑だったか、構造化出力等の追加パラメーターとの組み合わせによるかは未確定。実データは送信していない。
+
+#### 2026-10-03 段階診断（合成データ）
+
+同一の `gemini-3.7-flash`、Interactions API (`POST /v1beta/interactions`)、`x-goog-api-key`、`Api-Revision: 2026-05-20` で、A〜Gの入力を変えて実行した。全要求に `Accept: application/json` も付与した。A〜Fでは `store:false`、Gでは本番クライアントと同じく `store` を省略した。外部APIへの要求は各ケース1回で、最初に503となったBだけ合計5回まで確認した。各要求は合成データのみを使用し、APIキーはヘッダーから出力・記録していない。
+
+| Test | 追加した条件 | HTTP | latency | 結果 |
+|---|---|---:|---:|---|
+| A | 短いテキスト入力、構造化出力なし | 200 | 3.379秒 | `OK` |
+| B | JSON MIME typeのみ、schemaなし | 503 | 1.907秒 | `service_unavailable`。`Retry-After: 30` |
+| C | 最小の整数 `score` schema | 503 | 4.043秒 | `service_unavailable`。`Retry-After: 30` |
+| D | 本番JSON Schema、短い入力 | 200 | 8.779秒 | JSON評価オブジェクトを生成 |
+| D2 | Dに `generation_config.max_output_tokens: 4096` を追加 | 503 | 3.227秒 | `service_unavailable`。`Retry-After: 30` |
+| E | 本番schema・generation config・評価指示、短い合成評価データ | 503 | 7.027秒 | `service_unavailable`。`Retry-After: 30` |
+| F | 本番相当構造の完全な合成評価ペイロード、`store:false` | 503 | 8.394秒 | `service_unavailable`。`Retry-After: 30` |
+| G | Fと同一の合成ペイロードで `store` のみ省略 | 503 | 15.217秒 | `service_unavailable`。`Retry-After: 30` |
+
+Bを同一bodyで4回再試行した結果は、Attempt 2=503 (13.608秒)、Attempt 3=503 (7.063秒)、Attempt 4=503 (2.251秒)、Attempt 5=200 (2.346秒、JSON `score: 1`)。したがってBは5回中4回503・1回200であり、同一条件で常に失敗するわけではない。503応答は `error.code=service_unavailable`、`error.status` はなし、messageはモデルが高需要のため後で再試行するよう案内する内容だった。全503応答で `Retry-After: 30` が返った。観測した応答ヘッダーにrequest ID / trace IDはなかった。
+
+診断要求は `Retry-After: 30` を受信した一方、Bの再試行間隔はレスポンス時間込みで概ね19〜22秒となり、各回30秒を満たしていない。再試行系列は最大5回という上限内だが、間隔の遵守は不十分であり、今後同条件を再試験する場合は `Retry-After` を優先する。全ケースに `Accept: application/json` を付けたため、Acceptヘッダーを送らない本番クライアントとの完全なHTTPヘッダー一致は未確認。またF/Gは実データを含まない本番相当形の合成ペイロードであり、実際の生徒評価ペイロードによる試験ではない。
+
+観測上、200から503へ変わった最初のケースはBだが、これはパラメーターが原因だと確定する境界ではない。後続のより複雑な本番schemaを使うDは200である一方、D2は503となり、同一のBも5回中に503と200の両方を返した。この非単調な結果は「schemaが複雑だから失敗」「max_output_tokensが原因」「本番相当の入力サイズが原因」のいずれも裏付けない。時間変動・モデル側の一時的な処理状況と各設定の影響を切り分けられておらず、503のmessageだけでGoogle側capacityを確定もできない。
+
+現時点の証拠:
+
+- **APIキー・モデル一覧**: キーがコンテナに設定されていることは値を表示せず確認済み。ListModelsはHTTP 200で `gemini-3.7-flash` を含む一覧を返した。これはInteractionsでの生成権限・容量・Structured Output可用性の証明ではない。
+- **Interactions API**: AがHTTP 200で、API方式そのものが全面的に利用不能ではない。A〜Gは同一endpoint/method/auth/revisionを使い、入力条件で結果が変化した。ただし `Accept` ヘッダーは本番と一致するか未確認。
+- **Structured Output / schema**: B/C/E/F/Gで503、Dではproduction schemaで200。schemaの有無や複雑さのみを原因とする仮説を確定できない。
+- **max_output_tokens**: Dは指定なしで200、D2は4096指定で503だが、それぞれ1回ずつの異なる時間帯の試験であり、因果関係は未確認。
+- **ペイロードサイズ**: 短い入力のD/Eおよび合成の大きなFの結果が混在しており、サイズ起因は確定できない。
+- **モデル固有 / Googleサービスcapacity**: 全段階を3.7 Flashで行ったため、別モデルとの比較は今回していない。高需要messageと同一条件での503/200混在は一時的な処理変動と整合するが、単独では根本原因の証明にならない。
+- **quota / billing / key restrictions**: 今回のInteractionsエラー本文にquota・billing・APIキー制限を明示する兆候は見られず、最小要求とBの成功も確認した。ただしConsole設定は取得できないため、人間による確認が必要。
+
+本番評価要求は `GeminiEvaluationClient` が `system_instruction`、匿名化評価JSONの `input`、`response_format` のschema、`generation_config.max_output_tokens: 4096` を送信し、`store` は指定しない。以前の最小疎通テストは `store:false` を指定していた。A〜Fの段階診断も `store:false`、GはFと同じbodyからその指定だけを外したが、F/Gはどちらも503だったため、この1組だけではstore設定の因果関係は判断できない。研究・生徒データを扱う前に、保存方針を確認してから本番クライアントのstore指定を判断する。
+
+Google AI Studio / Google Cloud Consoleで人間が確認する項目:
+
+1. APIキーが想定プロジェクトに属し、Generative Language APIへのキー制限・IP制限・API制限に矛盾がないこと。
+2. AI Studioの利用枠 / tier、当月利用量、費用上限・請求状態。
+3. 対象プロジェクトのGemini APIのrate limit / quotaと、発生時刻付近の利用状況・エラー。
+4. 研究データ利用時に適用されるデータ利用・保持方針、およびInteractionsの `store` 既定値を許容できるか。
+
+本番workerは最大3試行で、同じ処理内に指数backoff・jitterなしで再試行する。408、429、500以上を再試行対象とし、503も対象になる。最終試行では一部のログsnapshot / 入出力情報を簡略化するため、試行別の観測にworker retryを通すと初回の失敗情報が追いにくい。今回はworkerを介さず直接HTTPで診断した。改善案として、診断では試行ごとのstatusを記録し、再試行を無効にする。本番運用ではRetry-Afterを優先し、それがない場合は上限付き指数backoff＋full jitterを用い、408/429/500/502/503/504など一時障害に限定して最大3回程度までとする。400系の恒久的な入力・認証エラーは再試行せず、総処理deadlineを超えないようにする。これは提案であり、この診断では本番retry実装を変更していない。
+
+詳細確認が必要なときは、実データではなく合成スモークテストに限り、`GEMINI_API_SMOKE_TEST=true` と `GEMINI_API_DIAGNOSTICS=true` を同時に設定する。診断出力はプロバイダーの `error.message` のみ（最大500文字）で、APIキーを伏せる。通常実行ではプロバイダー応答本文を表示・保存しない。503は短時間の再試行で解決し得るため、連続呼び出しは避け、間隔を置いて再確認する。成功した生成応答が確認できるまではAI評価完了として扱わない。
+
+```sh
+docker compose exec -T -e GEMINI_API_SMOKE_TEST=true app gradle test \
+  --tests 'control.evaluation.GeminiEvaluationSmokeTest' \
+  --warning-mode all
+```
+
 ## 3. 場面別設計
 
 ## 3.1 課題評価
@@ -112,6 +183,8 @@ User:
 - confidence: 0.0-1.0
 - evidence_refs: 根拠ログID配列
 - warnings: 配列
+
+`turning_points[].log_id` と `stagnation_points[].log_id` は、送信した `timeline_logs[].log_id` の値だけを参照する。`evidence_refs[]` はコードログIDまたは、そのログに含まれるコード実行IDを参照できる。数値または `log_` 接頭辞付き表記はコードログ、`run_` 接頭辞付き表記はコード実行として保存時に実DBのIDへ対応付ける。未知のIDや重複した根拠IDを含む応答は不正として再試行する。
 
 ### 3.1.5 応答JSON例
 {

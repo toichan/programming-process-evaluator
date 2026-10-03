@@ -620,6 +620,9 @@ body {
 }
 
 .lesson-file-tab-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   margin-top: 1.25rem;
 }
 
@@ -633,6 +636,26 @@ body {
   border-bottom: 0;
   font-weight: 700;
   color: var(--bs-gray-800);
+}
+
+.lesson-settings-button {
+  display: inline-grid;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  place-items: center;
+}
+
+.lesson-settings-icon {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.lesson-setting-value {
+  min-width: 3.5rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  text-align: right;
 }
 
 .lesson-editor-shell {
@@ -658,9 +681,8 @@ body {
 
 .lesson-editor-shell .CodeMirror {
   min-height: 560px;
-  height: 560px;
+  height: auto;
   font: 500 0.95rem/1.7 "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
-  background: #0f172a;
 }
 
 .lesson-editor-shell .cm-s-material-darker.CodeMirror,
@@ -669,13 +691,55 @@ body {
   background: #0f172a;
 }
 
-.lesson-editor-shell .CodeMirror-gutters {
+.lesson-editor-shell .cm-s-material-darker .CodeMirror-gutters {
   border-right: 1px solid rgba(148, 163, 184, 0.18);
   background: #111c33;
 }
 
-.lesson-editor-shell .CodeMirror-linenumber {
+.lesson-editor-shell .cm-s-material-darker .CodeMirror-linenumber {
   color: #94a3b8;
+}
+
+.lesson-editor-shell .cm-s-ppe-high-contrast.CodeMirror,
+.lesson-editor-shell .cm-s-ppe-high-contrast .CodeMirror-scroll,
+.lesson-editor-shell .cm-s-ppe-high-contrast .CodeMirror-gutters {
+  background: #000;
+  color: #fff;
+}
+
+.lesson-editor-shell .cm-s-ppe-high-contrast .CodeMirror-gutters {
+  border-right: 1px solid #fff;
+}
+
+.lesson-editor-shell .cm-s-ppe-high-contrast .CodeMirror-linenumber,
+.lesson-editor-shell .cm-s-ppe-high-contrast .CodeMirror-cursor {
+  color: #fff;
+  border-left-color: #fff;
+}
+
+.lesson-editor-shell .cm-s-ppe-high-contrast .cm-keyword,
+.lesson-editor-shell .cm-s-ppe-high-contrast .cm-def {
+  color: #ff0;
+  font-weight: 700;
+}
+
+.lesson-editor-shell .cm-s-ppe-high-contrast .cm-string {
+  color: #7fff00;
+}
+
+.lesson-editor-shell .cm-s-ppe-high-contrast .cm-number,
+.lesson-editor-shell .cm-s-ppe-high-contrast .cm-builtin,
+.lesson-editor-shell .cm-s-ppe-high-contrast .cm-atom {
+  color: #0ff;
+}
+
+.lesson-editor-shell .cm-s-ppe-high-contrast .cm-comment {
+  color: #ddd;
+}
+
+.lesson-editor-shell .cm-s-ppe-high-contrast .cm-operator,
+.lesson-editor-shell .cm-s-ppe-high-contrast .cm-meta {
+  color: #ffb000;
 }
 
 .lesson-editor-shell .CodeMirror-lines {
@@ -685,6 +749,84 @@ body {
 .lesson-editor-shell .CodeMirror pre.CodeMirror-line,
 .lesson-editor-shell .CodeMirror pre.CodeMirror-line-like {
   padding: 0 1.5rem;
+}
+
+.lesson-output-section {
+  min-width: 0;
+}
+
+.lesson-result-meta {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+}
+
+.lesson-result-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1.25rem;
+}
+
+.lesson-output-section .output-tabs {
+  gap: 0.4rem;
+  margin-bottom: 0;
+}
+
+.lesson-output-section .output-tabs .nav-link {
+  padding: 0.45rem 0.7rem;
+  border-radius: 999px;
+  background: var(--bs-gray-100);
+  color: var(--bs-gray-700);
+}
+
+.lesson-output-section .output-tabs .nav-link.active {
+  background: var(--lesson-accent);
+  color: var(--bs-white);
+}
+
+.lesson-output-section .output-view[hidden] {
+  display: none;
+}
+
+.lesson-output-section .output-error-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.15rem;
+  height: 1.15rem;
+  margin-left: 0.4rem;
+  padding: 0 0.25rem;
+  border-radius: 999px;
+  background: #b91c1c;
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.lesson-output-section .output-error-indicator[hidden] {
+  display: none;
+}
+
+.lesson-output-section .output-console-source {
+  display: none;
+}
+
+.lesson-output-section .output-panel .CodeMirror {
+  height: 220px;
+  border-radius: 0.75rem;
+  overflow: hidden;
+  font: 500 0.88rem/1.6 "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+}
+
+.lesson-output-section .output-panel .cm-s-material-darker.CodeMirror,
+.lesson-output-section .output-panel .cm-s-material-darker .CodeMirror-scroll,
+.lesson-output-section .output-panel .cm-s-material-darker .CodeMirror-gutters {
+  background: #0f172a;
 }
 
 .lesson-status-row {
@@ -724,30 +866,9 @@ body {
   font-weight: 600;
 }
 
-.lesson-output-note {
-  padding: 1rem 1.1rem;
-  border-radius: 1rem;
-  background: rgba(15, 118, 110, 0.08);
-  border: 1px solid rgba(15, 118, 110, 0.12);
-  color: var(--bs-gray-700);
-  font-weight: 600;
-}
-
 .output-panel {
   display: grid;
   gap: 0.75rem;
-}
-
-.output-panel-label {
-  font-size: 0.82rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--lesson-accent-alt);
-}
-
-.output-panel.is-error .output-panel-label {
-  color: #b91c1c;
 }
 
 .output-panel .CodeMirror {
@@ -761,16 +882,6 @@ body {
 .output-panel .cm-s-material-darker .CodeMirror-scroll,
 .output-panel .cm-s-material-darker .CodeMirror-gutters {
   background: #0f172a;
-}
-
-.run-result-modal .modal-content {
-  border: 0;
-  border-radius: 1.25rem;
-  overflow: hidden;
-}
-
-.run-result-modal .modal-body {
-  background: linear-gradient(135deg, #f8fafc 0%, #effcfb 100%);
 }
 
 .info-label {
@@ -796,6 +907,24 @@ body {
 }
 
 @media (max-width: 767px) {
+  .lesson-result-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .lesson-result-meta {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .lesson-result-toolbar .output-tabs {
+    width: 100%;
+  }
+
+  .lesson-result-toolbar .output-tabs .nav-link {
+    flex: 1 1 0;
+  }
+
   .lesson-toolbar,
   .section-header-row,
   .lesson-status-row {
@@ -850,11 +979,17 @@ body {
   .editor-textarea,
   .lesson-editor-shell .CodeMirror {
     min-height: 420px;
-    height: 420px;
+    height: auto;
+  }
+
+  .lesson-file-tab-row {
+    gap: 0.5rem;
   }
 
   .lesson-file-tab {
-    width: 100%;
+    flex: 1 1 auto;
+    width: auto;
     border-radius: 0.9rem 0.9rem 0 0;
   }
+
 }

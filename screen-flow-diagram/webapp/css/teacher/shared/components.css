@@ -81,6 +81,10 @@ main.flex-grow-1 {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
+.teacher-nav-toggle {
+  display: none;
+}
+
 .header-logo {
   gap: 0.75rem;
 }
@@ -385,5 +389,128 @@ main.flex-grow-1 {
   .rubric-header-brand {
     align-items: flex-start;
     gap: 0.85rem;
+  }
+}
+
+@media (max-width: 767px) {
+  body.d-flex {
+    flex-direction: column;
+  }
+
+  .teacher-header {
+    height: auto;
+    min-height: 70px;
+  }
+
+  .teacher-header > .container-fluid {
+    height: auto !important;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding: 0.75rem !important;
+  }
+
+  .teacher-nav-toggle {
+    display: inline-flex;
+    flex: 0 0 2.5rem;
+    width: 2.5rem;
+    height: 2.5rem;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #cbd5e1;
+    border-radius: 0.5rem;
+    background: #fff;
+    color: #334155;
+  }
+
+  .header-logo {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .header-logo h2 {
+    min-width: 0;
+    font-size: 1rem;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+  }
+
+  .header-actions {
+    flex: 1 1 100%;
+    min-width: 0;
+    justify-content: space-between;
+    gap: 0.5rem !important;
+  }
+
+  .teacher-info {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 0.35rem 0.5rem;
+  }
+
+  .teacher-info-item {
+    flex-wrap: wrap;
+    min-width: 0;
+    gap: 0.25rem 0.4rem;
+  }
+
+  .teacher-info-text {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .teacher-rubric-fab {
+    position: static;
+    align-self: flex-end;
+    margin: 0 0.75rem 0.75rem;
+    max-width: calc(100vw - 1.5rem);
+  }
+
+  .page-content .container-fluid {
+    padding-right: 0.75rem !important;
+    padding-left: 0.75rem !important;
+  }
+
+  .page-content .filter-grid,
+  .page-content .history-filter-grid {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  }
+
+  main .hero-stats {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 7.5rem), 1fr));
+  }
+
+  main .hero-stats > * {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .action-buttons {
+    flex-wrap: wrap;
+  }
+
+  .action-buttons > * {
+    flex: 1 1 8rem;
+  }
+
+  body.teacher-nav-open {
+    overflow: hidden;
+  }
+
+  body.teacher-nav-open::before {
+    position: fixed;
+    z-index: 1039;
+    background: rgba(15, 23, 42, 0.45);
+    content: "";
+    inset: 0;
+  }
+
+  .teacher-sidebar.show {
+    box-shadow: 0 0 2rem rgba(15, 23, 42, 0.2);
+  }
+}
+
+@media (max-width: 1200px) {
+  .page-content .history-filter-grid {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
   }
 }

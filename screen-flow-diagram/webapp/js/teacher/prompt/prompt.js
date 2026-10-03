@@ -717,6 +717,34 @@ async function resetStep2Inputs() {
   pageFeedback.toast({ message: 'STEP2の入力内容をリセットしました。', variant: 'success', delay: 1800 });
 }
 
+function clearStep2Inputs() {
+  const fluctuationList = document.getElementById('fluctuationList');
+  const fluctuationEmpty = document.getElementById('fluctuationEmpty');
+  const fluctuationStatus = document.getElementById('fluctuationStatus');
+  const additionalInstructionInput = document.getElementById('additionalInstructionInput');
+  const savePromptButton = document.getElementById('savePromptButton');
+  const runReevaluationButton = document.getElementById('runReevaluationButton');
+  const resetStep2Button = document.getElementById('resetStep2Button');
+
+  if (additionalInstructionInput) additionalInstructionInput.value = '';
+  if (fluctuationList) {
+    fluctuationList.innerHTML = '';
+    fluctuationList.classList.add('d-none');
+  }
+  if (fluctuationEmpty) fluctuationEmpty.classList.remove('d-none');
+  if (fluctuationStatus) {
+    fluctuationStatus.textContent = '未生成';
+    fluctuationStatus.className = 'badge text-bg-light border';
+  }
+
+  if (savePromptButton) savePromptButton.disabled = true;
+  if (runReevaluationButton) runReevaluationButton.disabled = true;
+  if (resetStep2Button) resetStep2Button.disabled = true;
+
+  renderStep2VersionOptions(getTaskId());
+  setStep2AiLoading(false);
+}
+
 function renderVersionOptions(taskId) {
   const versionSelect = document.getElementById('versionSelect');
   if (!versionSelect) return;

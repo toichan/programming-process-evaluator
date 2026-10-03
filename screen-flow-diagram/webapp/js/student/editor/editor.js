@@ -86,7 +86,11 @@ window.addEventListener('DOMContentLoaded', () => {
   const headerPlaceholder = document.querySelector('#header-placeholder');
   const footerPlaceholder = document.querySelector('#footer-placeholder');
   const codeEditor = document.querySelector('#codeEditor');
-  const outputConsole = document.querySelector('#outputConsole');
+  const terminalOutput = document.querySelector('#terminalOutput');
+  const terminalInputForm = document.querySelector('#terminalInputForm');
+  const terminalInput = document.querySelector('#terminalInput');
+  const terminalSendButton = document.querySelector('#terminalSendButton');
+  const terminalCancelButton = document.querySelector('#terminalCancelButton');
   const editorMessage = document.querySelector('#editorMessage');
   const lastSavedAt = document.querySelector('#lastSavedAt');
   const codeLogList = document.querySelector('#codeLogList');
@@ -95,28 +99,54 @@ window.addEventListener('DOMContentLoaded', () => {
   const downloadButton = document.querySelector('#downloadButton');
   const saveButton = document.querySelector('#saveButton');
   const runButton = document.querySelector('#runButton');
-  const runResultModalElement = document.querySelector('#runResultModal');
+  const runResultStatus = document.querySelector('#runResultStatus');
+  const runResultTime = document.querySelector('#runResultTime');
   const submitButton = document.querySelector('#submitButton');
   const submitCheckModalElement = document.querySelector('#submitCheckModal');
   const submitCheckSummary = document.querySelector('#submitCheckSummary');
   const submitCheckTableBody = document.querySelector('#submitCheckTableBody');
   const confirmSubmitAfterCheck = document.querySelector('#confirmSubmitAfterCheck');
   const infoTabs = document.querySelectorAll('[data-panel-target]');
+  const editorFontSizeInput = document.querySelector('#editorFontSize');
+  const editorFontSizeValue = document.querySelector('#editorFontSizeValue');
+  const editorLineWrappingInput = document.querySelector('#editorLineWrapping');
+  const editorIndentWidthInput = document.querySelector('#editorIndentWidth');
+  const editorThemeInput = document.querySelector('#editorTheme');
+  const editorPreferencesStatus = document.querySelector('#editorPreferencesStatus');
+  const resetEditorPreferencesButton = document.querySelector('#resetEditorPreferences');
   let codeMirrorEditor = null;
-  let outputConsoleEditor = null;
-  let errorConsoleEditor = null;
-  const EDITOR_HEIGHT_DESKTOP = 620;
-  const EDITOR_HEIGHT_MOBILE = 460;
   const codeLogEditors = [];
   const ioExampleEditors = [];
   const hintEditors = [];
   let hintEditorsInitialized = false;
+  let mockInputsRemaining = 0;
+  let mockInputValues = [];
+  const defaultEditorPreferences = {
+    fontSizePx: 16,
+    lineWrapping: false,
+    indentWidth: 4,
+    theme: 'dark'
+  };
+  const validThemes = ['dark', 'light', 'high_contrast'];
+  const preferenceStorageKey = 'ppe.editorPreferences.demo-student';
+  let editorPreferences = { ...defaultEditorPreferences };
+  let preferenceStorageError = false;
+  try {
+    const storedPreferences = JSON.parse(localStorage.getItem(preferenceStorageKey) || 'null');
+    if (storedPreferences && Number.isInteger(storedPreferences.fontSizePx)
+      && storedPreferences.fontSizePx >= 10 && storedPreferences.fontSizePx <= 24
+      && storedPreferences.fontSizePx % 2 === 0
+      && typeof storedPreferences.lineWrapping === 'boolean'
+      && [2, 4].includes(storedPreferences.indentWidth)
+      && validThemes.includes(storedPreferences.theme)) {
+      editorPreferences = storedPreferences;
+    }
+  } catch {
+    preferenceStorageError = true;
+  }
   const pageFeedback = feedback.createPageFeedback({ title: 'エディター' });
   const submitCheckModal = (typeof bootstrap !== 'undefined' && submitCheckModalElement)
     ? bootstrap.Modal.getOrCreateInstance(submitCheckModalElement)
-    : null;
-  const runResultModal = (typeof bootstrap !== 'undefined' && runResultModalElement)
-    ? bootstrap.Modal.getOrCreateInstance(runResultModalElement)
     : null;
   let latestCheckSummary = null;
 
@@ -132,12 +162,17 @@ window.addEventListener('DOMContentLoaded', () => {
     codeMirrorEditor = CodeMirror.fromTextArea(codeEditor, {
       mode: 'python',
       lineNumbers: true,
-      lineWrapping: false,
-      theme: 'material-darker',
-      indentUnit: 4,
-      tabSize: 4,
+      lineWrapping: editorPreferences.lineWrapping,
+      theme: {
+        dark: 'material-darker',
+        light: 'default',
+        high_contrast: 'ppe-high-contrast'
+      }[editorPreferences.theme],
+      indentUnit: editorPreferences.indentWidth,
+      tabSize: editorPreferences.indentWidth,
       viewportMargin: Infinity
     });
+    codeMirrorEditor.getWrapperElement().style.fontSize = `${editorPreferences.fontSizePx}px`;
   }
 
   function syncMainEditorLayout() {
@@ -145,35 +180,97 @@ window.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    const targetHeight = window.matchMedia('(max-width: 767px)').matches
-      ? EDITOR_HEIGHT_MOBILE
-      : EDITOR_HEIGHT_DESKTOP;
-
-    codeMirrorEditor.setSize(null, targetHeight);
+    codeMirrorEditor.setSize(null, 'auto');
     codeMirrorEditor.refresh();
   }
 
   syncMainEditorLayout();
   window.addEventListener('resize', syncMainEditorLayout);
 
-  function createReadOnlyConsole(sourceTextarea) {
-    if (!sourceTextarea || typeof CodeMirror === 'undefined') {
-      return null;
+  function applyEditorPreferences() {
+    codeMirrorEditor?.setOption('lineWrapping', editorPreferences.lineWrapping);
+    codeMirrorEditor?.setOption('indentUnit', editorPreferences.indentWidth);
+    codeMirrorEditor?.setOption('tabSize', editorPreferences.indentWidth);
+    codeMirrorEditor?.setOption('theme', {
+      dark: 'material-darker',
+      light: 'default',
+      high_contrast: 'ppe-high-contrast'
+    }[editorPreferences.theme]);
+    if (codeMirrorEditor) {
+      codeMirrorEditor.getWrapperElement().style.fontSize = `${editorPreferences.fontSizePx}px`;
+      codeMirrorEditor.refresh();
     }
-
-    return CodeMirror.fromTextArea(sourceTextarea, {
-      mode: 'shell',
-      lineNumbers: false,
-      lineWrapping: true,
-      readOnly: true,
-      cursorBlinkRate: -1,
-      theme: 'material-darker',
-      viewportMargin: Infinity
-    });
   }
 
-  outputConsoleEditor = createReadOnlyConsole(outputConsole);
-  errorConsoleEditor = createReadOnlyConsole(document.querySelector('#errorConsole'));
+  function syncEditorPreferencesControls() {
+    if (editorFontSizeInput) {
+      editorFontSizeInput.value = String(editorPreferences.fontSizePx);
+    }
+    if (editorFontSizeValue) {
+      editorFontSizeValue.textContent = `${editorPreferences.fontSizePx}px`;
+    }
+    if (editorLineWrappingInput) {
+      editorLineWrappingInput.checked = editorPreferences.lineWrapping;
+    }
+    if (editorIndentWidthInput) {
+      editorIndentWidthInput.value = String(editorPreferences.indentWidth);
+    }
+    if (editorThemeInput) {
+      editorThemeInput.value = editorPreferences.theme;
+    }
+  }
+
+  function saveEditorPreferences() {
+    try {
+      localStorage.setItem(preferenceStorageKey, JSON.stringify(editorPreferences));
+      preferenceStorageError = false;
+      if (editorPreferencesStatus) {
+        editorPreferencesStatus.textContent = '設定を保存しました。';
+      }
+    } catch {
+      preferenceStorageError = true;
+      if (editorPreferencesStatus) {
+        editorPreferencesStatus.textContent = '設定を保存できませんでした。このブラウザーの保存領域を確認してください。';
+      }
+    }
+  }
+
+  function updateEditorPreferences() {
+    applyEditorPreferences();
+    syncEditorPreferencesControls();
+    saveEditorPreferences();
+  }
+
+  syncEditorPreferencesControls();
+  if (preferenceStorageError && editorPreferencesStatus) {
+    editorPreferencesStatus.textContent = '保存済みの設定を読み込めませんでした。初期設定で表示しています。';
+  }
+
+  editorFontSizeInput?.addEventListener('input', () => {
+    editorPreferences.fontSizePx = Number(editorFontSizeInput.value);
+    updateEditorPreferences();
+  });
+  editorLineWrappingInput?.addEventListener('change', () => {
+    editorPreferences.lineWrapping = editorLineWrappingInput.checked;
+    updateEditorPreferences();
+  });
+  editorIndentWidthInput?.addEventListener('change', () => {
+    editorPreferences.indentWidth = Number(editorIndentWidthInput.value);
+    updateEditorPreferences();
+  });
+  editorThemeInput?.addEventListener('change', () => {
+    editorPreferences.theme = editorThemeInput.value;
+    updateEditorPreferences();
+  });
+  resetEditorPreferencesButton?.addEventListener('click', () => {
+    editorPreferences = { ...defaultEditorPreferences };
+    updateEditorPreferences();
+    if (editorPreferencesStatus) {
+      editorPreferencesStatus.textContent = '初期設定に戻しました。';
+    }
+  });
+
+  applyEditorPreferences();
 
   function getEditorValue() {
     return codeMirrorEditor ? codeMirrorEditor.getValue() : (codeEditor?.value || '');
@@ -238,21 +335,21 @@ window.addEventListener('DOMContentLoaded', () => {
     initializeLogItem(item);
   });
 
-  function syncLogToggleButton(isExpanded) {
-    if (!toggleLogButton) {
+  function syncCollapseToggleButton(button, isExpanded) {
+    if (!button) {
       return;
     }
 
-    toggleLogButton.textContent = isExpanded ? '折りたたむ' : '表示する';
+    button.textContent = isExpanded ? '折りたたむ' : '表示する';
   }
 
   if (toggleLogButton && codeLogContent) {
-    syncLogToggleButton(toggleLogButton.getAttribute('aria-expanded') === 'true');
+    syncCollapseToggleButton(toggleLogButton, toggleLogButton.getAttribute('aria-expanded') === 'true');
     codeLogContent.addEventListener('shown.bs.collapse', () => {
-      syncLogToggleButton(true);
+      syncCollapseToggleButton(toggleLogButton, true);
     });
     codeLogContent.addEventListener('hidden.bs.collapse', () => {
-      syncLogToggleButton(false);
+      syncCollapseToggleButton(toggleLogButton, false);
     });
   }
 
@@ -295,18 +392,46 @@ window.addEventListener('DOMContentLoaded', () => {
     });
 
     hintEditorsInitialized = true;
+    applyEditorPreferences();
   }
 
-  function setConsoleValue(editor, textarea, value) {
-    if (editor) {
-      editor.setValue(value);
-      editor.refresh();
-      return;
-    }
+  function showInfoPanel(targetId) {
+    infoTabs.forEach((tab) => {
+      const selected = tab.getAttribute('data-panel-target') === targetId;
+      tab.classList.toggle('active', selected);
+      tab.setAttribute('aria-selected', String(selected));
+    });
+    document.querySelectorAll('.info-panel').forEach((panel) => {
+      panel.classList.toggle('is-active', panel.id === targetId);
+    });
 
-    if (textarea) {
-      textarea.value = value;
+    if (targetId === 'hintPanel') {
+      initializeHintEditors();
+      hintEditors.forEach((editor) => editor.refresh());
     }
+  }
+
+  function appendTerminalText(text, className = '') {
+    const output = document.createElement('span');
+    if (className) {
+      output.className = className;
+    }
+    output.textContent = text;
+    terminalOutput.append(output);
+    terminalOutput.scrollTop = terminalOutput.scrollHeight;
+  }
+
+  function finishMockExecution(status) {
+    const succeeded = status === 'succeeded';
+    runResultStatus.textContent = succeeded ? '実行完了' : '実行エラー';
+    runResultStatus.className = succeeded ? 'badge text-bg-success' : 'badge text-bg-danger';
+    runResultTime.textContent = `最終実行: ${nowTimeLabel()}`;
+    terminalInput.disabled = true;
+    terminalSendButton.disabled = true;
+    terminalCancelButton.hidden = true;
+    runButton.disabled = false;
+    editorMessage.textContent = succeeded ? '実行が完了しました。' : '実行に失敗しました。';
+    prependLog('実行', succeeded ? '実行結果を更新しました。' : '実行時にエラーが発生しました。');
   }
 
   function buildDownloadFileName() {
@@ -376,40 +501,67 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 
   function runCode() {
-    const hasInput = getEditorValue().includes('input(');
-    const stdout = hasInput
-      ? '$ python main.py\n入力待ちの処理が含まれています。\nテスト用入力: パー\n\n実行結果:\nあなたの勝ち'
-      : '$ python main.py\n実行しました。\n\n標準入出力:\n(ここに結果が表示されます)';
-    const stderr = hasInput
-      ? 'エラーはありません。'
-      : 'エラーはありません。';
-
-    setConsoleValue(outputConsoleEditor, outputConsole, stdout);
-    setConsoleValue(errorConsoleEditor, document.querySelector('#errorConsole'), stderr);
-
-    if (editorMessage) {
-      editorMessage.textContent = '実行が完了しました。実行結果モーダルを確認してください。';
+    document.querySelector('.execution-result-card')?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'start'
+    });
+    const code = getEditorValue();
+    const inputCalls = code.match(/\binput\s*\(/g) || [];
+    mockInputsRemaining = inputCalls.length;
+    mockInputValues = [];
+    const hasError = code.includes('raise');
+    terminalOutput.replaceChildren();
+    appendTerminalText('$ python main.py\n');
+    if (runResultStatus) {
+      runResultStatus.textContent = '実行中';
+      runResultStatus.className = 'badge text-bg-primary';
     }
-
-    prependLog('実行', '実行結果をモーダルへ表示しました。');
-    if (runResultModal) {
-      runResultModal.show();
+    runButton.disabled = true;
+    if (mockInputsRemaining > 0) {
+      appendTerminalText('入力を待っています。\n', 'terminal-system-message');
+      terminalInput.disabled = false;
+      terminalSendButton.disabled = false;
+      terminalCancelButton.hidden = false;
+      terminalInput.focus();
+      editorMessage.textContent = '実行中です。ターミナルから入力してください。';
+      return;
     }
+    window.setTimeout(() => {
+      if (hasError) {
+        appendTerminalText('Traceback (most recent call last):\n  File "main.py", line 1, in <module>\nRuntimeError: サンプルエラー\n', 'terminal-stderr');
+        finishMockExecution('failed');
+      } else {
+        appendTerminalText('実行しました。\n');
+        finishMockExecution('succeeded');
+      }
+    }, 250);
+  }
+
+  function sendMockInput(event) {
+    event.preventDefault();
+    if (mockInputsRemaining <= 0 || terminalInput.disabled) {
+      return;
+    }
+    const value = terminalInput.value;
+    appendTerminalText(`>>> ${value}\n`, 'terminal-input-echo');
+    mockInputValues.push(value);
+    terminalInput.value = '';
+    mockInputsRemaining -= 1;
+    if (mockInputsRemaining > 0) {
+      appendTerminalText('次の入力を待っています。\n', 'terminal-system-message');
+      return;
+    }
+    appendTerminalText(`入力を受け取りました: ${mockInputValues.join(' / ')}\n`);
+    finishMockExecution('succeeded');
+  }
+
+  function cancelMockExecution() {
+    appendTerminalText('[実行を停止しました]\n', 'terminal-system-message');
+    mockInputsRemaining = 0;
+    finishMockExecution('failed');
   }
 
   renderTaskPanel();
-
-  if (runResultModalElement) {
-    runResultModalElement.addEventListener('shown.bs.modal', () => {
-      if (outputConsoleEditor) {
-        outputConsoleEditor.refresh();
-      }
-
-      if (errorConsoleEditor) {
-        errorConsoleEditor.refresh();
-      }
-    });
-  }
 
   function normalizeValue(value) {
     return String(value || '').replace(/\r\n/g, '\n').trim();
@@ -576,17 +728,12 @@ window.addEventListener('DOMContentLoaded', () => {
   infoTabs.forEach((tab) => {
     tab.addEventListener('click', () => {
       const targetId = tab.getAttribute('data-panel-target');
-      infoTabs.forEach((button) => button.classList.remove('active'));
-      document.querySelectorAll('.info-panel').forEach((panel) => panel.classList.remove('is-active'));
-      tab.classList.add('active');
-      document.getElementById(targetId)?.classList.add('is-active');
-
-      if (targetId === 'hintPanel') {
-        initializeHintEditors();
-        hintEditors.forEach((editor) => editor.refresh());
-      }
+      showInfoPanel(targetId);
     });
   });
+
+  terminalInputForm?.addEventListener('submit', sendMockInput);
+  terminalCancelButton?.addEventListener('click', cancelMockExecution);
 
   window.setInterval(() => {
     markSaved('自動保存');

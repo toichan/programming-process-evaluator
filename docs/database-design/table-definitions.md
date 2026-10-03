@@ -35,11 +35,13 @@
 |フィールド名|和名|型|主キー|NULL|その他制約|備考|
 |:--|:--|:--|:--|:--|:--|:--|
 |user_id|ユーザID|BIGINT|〇|NO|PRIMARY_KEY, AUTO_INCREMENT||
-|user_type|ユーザ種別|ENUM('student','teacher','admin')||NO||管理者は1アカウントのみとする制約を別途適用|
+|user_type|ユーザ種別|ENUM('student','teacher','admin')||NO||管理者は1アカウントのみ。DBの一意制約で保証|
 |login_id|ログインID|VARCHAR(64)||NO|UNIQUE||
 |password_hash|パスワードハッシュ|VARCHAR(255)||NO||平文パスワードを保存しない|
 |display_name|表示名|VARCHAR(100)||NO|||
 |account_status|アカウント状態|ENUM('active','suspended','deleted')||NO|||
+|consecutive_login_failures|連続ログイン失敗回数|TINYINT UNSIGNED||NO||0〜5。成功ログイン・30分ロック満了・教師解除で0に戻す|
+|login_locked_until|ログインロック期限|DATETIME||YES||5回連続失敗後、現在時刻から30分。期限満了後は再試行可能|
 |created_by_user_id|作成者ユーザID|BIGINT||YES|FOREIGN_KEY|users.user_id|
 |updated_by_user_id|更新者ユーザID|BIGINT||YES|FOREIGN_KEY|users.user_id|
 |created_at|作成日時|DATETIME||NO|||
@@ -54,9 +56,22 @@
 |:--|:--|:--|:--|:--|:--|:--|
 |user_id|ユーザID|BIGINT|〇|NO|PRIMARY_KEY, FOREIGN_KEY|users.user_id|
 |student_code|生徒ID|VARCHAR(32)||NO|UNIQUE|例: s001|
-|security_level|セキュリティレベル|TINYINT||NO||1または2|
+|security_level|セキュリティレベル|TINYINT||NO||1または2。DBのCHECK制約で保証|
 |first_login_status|初回ログイン状態|ENUM('not_logged_in','password_change_required','completed')||NO|||
 |must_change_password|次回ログイン時変更要否|BOOLEAN||NO||リセット後の変更強制にも利用|
+
+## user_editor_preferences
+
+生徒アカウントごとのエディター表示・入力設定。端末を変更しても同じ設定を使用する。
+
+|フィールド名|和名|型|主キー|NULL|その他制約|備考|
+|:--|:--|:--|:--|:--|:--|:--|
+|user_id|ユーザID|BIGINT|〇|NO|PRIMARY_KEY, FOREIGN_KEY|users.user_id|
+|font_size_px|コード文字サイズ|TINYINT UNSIGNED||NO|CHECK 10〜24|ピクセル単位|
+|line_wrapping|コード折り返し|BOOLEAN||NO|||
+|indent_width|インデント幅|TINYINT UNSIGNED||NO|CHECK IN (2,4)|Tabキー入力時のスペース数|
+|editor_theme|エディターテーマ|ENUM('dark','light','high_contrast')||NO|||
+|updated_at|更新日時|DATETIME(6)||NO|||
 
 ## research_subject_identifiers
 
@@ -219,7 +234,7 @@
 
 ## task_class_assignments
 
-課題の学校/クラス別対象、公開日時、提出期限、期限後提出ポリシー
+課題の学校/クラス別対象、公開日時、提出期限、期限後初回提出ポリシー
 
 |フィールド名|和名|型|主キー|NULL|その他制約|備考|
 |:--|:--|:--|:--|:--|:--|:--|
@@ -230,7 +245,7 @@
 |publish_at|公開予定日時|DATETIME||YES||NULLは即時公開|
 |due_at|提出期限|DATETIME||YES||NULLは期限なし|
 |late_submission_policy|期限後提出方針|ENUM('allow','deny')||NO|||
-|resubmission_policy|再提出方針|ENUM('allow','deny')||NO||対象クラスの全生徒に共通適用。提出期限まで変更可能|
+|resubmission_policy|再提出方針|ENUM('allow','deny')||NO||旧設定。機能仕様書第70版以降は参照・更新せず、期限内の再提出可否にも使用しない。互換性維持のためDB列は現時点で保持|
 |created_at|作成日時|DATETIME||NO|||
 |updated_at|更新日時|DATETIME||YES|||
 
@@ -248,7 +263,7 @@
 |save_status|コード保存状態|ENUM('unsaved','draft','saved')||NO||画面状態。未保存フラグはエディター更新時に送信して保持|
 |current_draft_code|現在の編集用下書き|LONGTEXT||YES||初回編集または再提出用。提出版とは分離して更新可能|
 |draft_base_submission_id|下書きのコピー元提出ID|BIGINT||YES|FOREIGN_KEY|submissions.submission_id。初回提出用下書きではNULL|
-|draft_updated_at|下書き更新日時|DATETIME||YES||下書き保存時の楽観ロックキー。クライアントが保持する値と不一致の場合は同時更新として拒否する|
+|draft_updated_at|下書き更新日時|DATETIME(6)||YES||下書き保存時の楽観ロックキー。マイクロ秒精度を保持し、クライアントが保持する値と不一致の場合は同時更新として拒否する|
 |evaluation_status|評価状態|ENUM('not_started','in_progress','completed','failed','needs_revision')||NO|||
 |active_duration_seconds|累積取り組み時間(秒)|BIGINT||NO||task_activity_sessionsから集計し、一覧用に更新|
 |last_activity_at|最終活動日時|DATETIME||YES|||
@@ -312,6 +327,7 @@
 |revision_number|版番号|INT||NO|UNIQUE(participation_id, revision_number)||
 |submitted_code|提出コード|LONGTEXT||NO|||
 |submission_status|提出状態|ENUM('submitted','accepted','locked')||NO||submitted=受付・チェック処理中、accepted=チェック結果保存済み、locked=評価対象として固定。拒否した操作は行を作成しない|
+|submission_request_key|提出要求キー|CHAR(36)||YES|UNIQUE(participation_id, submission_request_key)|短時間の再送を冪等に処理する。既存行はNULL|
 |submitted_at|提出日時|DATETIME||NO|||
 |review_locked_at|レビュー固定日時|DATETIME||YES|||
 |created_at|作成日時|DATETIME||NO|||
@@ -335,7 +351,7 @@
 |created_at|記録日時|DATETIME||NO|||
 
 推奨インデックス: `(participation_id, observed_at)`, `(event_type, observed_at)`
-演習領域は主キーで識別する。同名領域の許可/禁止は作成元に応じてService層で検証する。
+演習領域は主キーで識別する。同名領域の許可/禁止は作成元に応じてControl層で検証する。
 ## code_executions
 
 コード実行とテストケース確認の結果
@@ -647,6 +663,8 @@ AIが抽出した揺らぎ項目と教師の対応記述
 |initial_content|初期内容|LONGTEXT||YES||ファイル項目のみ|
 |entry_status|項目状態|ENUM('active','inactive')||NO|||
 
+一意制約はパス全体に適用する。MySQL InnoDB の索引長制限を超えないよう、マイグレーションでは `utf8mb4_0900_ai_ci` の照合順序ウェイトから生成する SHA-256 列を内部索引に使う。
+
 ## distributions
 
 配信実行単位の全体状態
@@ -731,6 +749,8 @@ AIが抽出した揺らぎ項目と教師の対応記述
 |updated_at|更新日時|DATETIME||YES|||
 |trashed_at|ごみ箱移動日時|DATETIME||YES|||
 |deleted_at|削除日時|DATETIME||YES|||
+
+一意制約はパス全体に適用する。MySQL InnoDB の索引長制限を超えないよう、マイグレーションでは `utf8mb4_0900_ai_ci` の照合順序ウェイトから生成する SHA-256 列を内部索引に使う。
 
 ## consent_document_versions
 
@@ -960,7 +980,8 @@ AIへ渡した匿名化済み入力の再現用スナップショット
 |課題の保存/公開/論理削除|tasks.save_status, publication_status, deleted_at|保存状態と公開状態を分離|
 |クラス別の公開/提出期限|task_class_assignments.assignment_status, publish_at, due_at, late_submission_policy|対象クラスごとに保持|
 |生徒の課題学習/保存/評価|task_participations.learning_status, progress_status, save_status, evaluation_status|生徒×クラス割当ごと|
-|クラス別の期限後提出・再提出条件|task_class_assignments.late_submission_policy, resubmission_policy|同じ課題割当の生徒に共通適用|
+|期限後の初回提出|task_class_assignments.late_submission_policy|同じ課題割当の生徒に共通適用|
+|再提出可否|提出期限|期限内は一律許可。旧 `resubmission_policy` 列は互換性維持のみ|
 |提出状態|submissions.submission_status|提出版ごとに履歴を保持|
 |実行状態|code_executions.execution_status|標準出力/標準エラーも保存|
 |ログイン試行の表示情報|login_history.attempted_login_id, error_message, ip_address, user_agent, session_id|ユーザーID不明の失敗試行も記録|

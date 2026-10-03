@@ -16,8 +16,7 @@
   <link href="../../../css/template/template.css" rel="stylesheet">
   <link href="../../../css/student/exercise/exercise.css" rel="stylesheet">
 </head>
-<body>
-  <div id="header-placeholder"></div>
+<body>  <div id="header-placeholder"></div>
 
   <main class="pt-2 pb-5">
     <div class="container">
@@ -71,6 +70,11 @@
 
             <div class="lesson-file-tab-row">
               <span id="currentFileTab" class="lesson-file-tab is-active">greeting.py</span>
+              <button class="btn btn-outline-secondary btn-sm lesson-settings-button" id="editorSettingsButton" type="button"
+                title="エディター設定" aria-label="エディター設定"
+                data-bs-toggle="modal" data-bs-target="#editorSettingsModal" aria-haspopup="dialog">
+                <span class="lesson-settings-icon" aria-hidden="true">⚙</span>
+              </button>
             </div>
 
             <div class="editor-shell lesson-editor-shell">
@@ -86,33 +90,85 @@ print(f"こんにちは、{name}さん")</textarea>
             </div>
           </section>
 
+          <section class="sample-section lesson-output-section mt-3">
+            <div class="section-header-row mb-3">
+              <h2 class="card-title mb-0">実行結果</h2>
+            </div>
+
+            <div id="lessonExecutionResultContent">
+              <div class="lesson-result-toolbar mb-3">
+                <div class="lesson-result-meta">
+                  <span id="lessonRunResultStatus" class="badge text-bg-light border">実行待ち</span>
+                  <span id="lessonRunResultTime" class="small text-secondary">実行すると結果がここに表示されます。</span>
+                </div>
+                <div class="nav nav-pills output-tabs" role="tablist" aria-label="実行結果の種類">
+                  <button class="nav-link active" type="button" role="tab" aria-selected="true"
+                    data-output-target="lessonStdoutOutputPanel">入出力</button>
+                  <button id="lessonStderrTab" class="nav-link" type="button" role="tab" aria-selected="false"
+                    data-output-target="lessonStderrOutputPanel" aria-label="エラー">
+                    エラー<span id="lessonStderrIndicator" class="output-error-indicator" aria-label="エラーあり" hidden>!</span>
+                  </button>
+                </div>
+              </div>
+              <div class="output-view is-active" id="lessonStdoutOutputPanel" role="tabpanel">
+                <div class="output-panel">
+                  <textarea id="outputConsole" spellcheck="false">実行待ちです。「実行」を押すと結果を表示します。</textarea>
+                </div>
+              </div>
+              <div class="output-view" id="lessonStderrOutputPanel" role="tabpanel" hidden>
+                <div class="output-panel is-error">
+                  <textarea id="errorConsole" spellcheck="false">エラーはありません。</textarea>
+                </div>
+              </div>
+            </div>
+          </section>
+
         </div>
       </div>
     </div>
   </main>
 
-  <div class="modal fade run-result-modal" id="runResultModal" tabindex="-1" aria-labelledby="runResultModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+  <div class="modal fade" id="editorSettingsModal" tabindex="-1"
+    aria-labelledby="editorSettingsModalLabel" aria-describedby="editorSettingsDescription" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content">
         <div class="modal-header">
-          <h2 class="modal-title h5 mb-0" id="runResultModalLabel">実行結果</h2>
+          <h2 class="modal-title h5 mb-0" id="editorSettingsModalLabel">エディター設定</h2>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
         </div>
         <div class="modal-body">
-          <div class="row g-4">
-            <div class="col-lg-6">
-              <div class="output-panel">
-                <div class="output-panel-label">標準入出力</div>
-                <textarea id="outputConsole" spellcheck="false">実行待ちです。「実行」を押すと結果を表示します。</textarea>
-              </div>
-            </div>
-            <div class="col-lg-6">
-              <div class="output-panel is-error">
-                <div class="output-panel-label">エラー</div>
-                <textarea id="errorConsole" spellcheck="false">エラーはありません。</textarea>
-              </div>
+          <p id="editorSettingsDescription" class="text-muted">文字の大きさや表示方法を自分に合わせて変更できます。</p>
+          <div class="mb-3">
+            <label class="form-label" for="editorFontSize">文字の大きさ</label>
+            <div class="d-flex align-items-center gap-3">
+              <input id="editorFontSize" class="form-range mb-0" type="range" min="10" max="24" step="2" value="16">
+              <output id="editorFontSizeValue" for="editorFontSize" class="lesson-setting-value">16px</output>
             </div>
           </div>
+          <div class="form-check form-switch mb-3">
+            <input id="editorLineWrapping" class="form-check-input" type="checkbox">
+            <label class="form-check-label" for="editorLineWrapping">長いコードを折り返す</label>
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="editorIndentWidth">Tabキーの空白</label>
+            <select id="editorIndentWidth" class="form-select">
+              <option value="2">2個</option>
+              <option value="4" selected>4個</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="editorTheme">配色</label>
+            <select id="editorTheme" class="form-select">
+              <option value="dark" selected>暗い背景</option>
+              <option value="light">明るい背景</option>
+              <option value="high_contrast">見やすさ重視</option>
+            </select>
+          </div>
+          <p id="editorPreferencesStatus" class="small text-secondary mb-0" role="status" aria-live="polite"></p>
+        </div>
+        <div class="modal-footer justify-content-between">
+          <button type="button" class="btn btn-outline-secondary" id="resetEditorPreferences">初期設定に戻す</button>
+          <button type="button" class="btn btn-primary" data-bs-dismiss="modal">閉じる</button>
         </div>
       </div>
     </div>

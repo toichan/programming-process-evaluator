@@ -13,14 +13,14 @@
 | [機能仕様書](../function-specification.md) | 利用者、機能要件、入力制約、期待結果、権限、匿名化、非機能要件、技術スタック | すべての機能実装・受け入れ条件の基準 |
 | [画面遷移図の説明](../screen-flow-diagram.md) | 画面一覧、画面間の導線、画面項目、画面遷移の意図 | URL / Servlet / JSP の画面構成・導線 |
 | [画面遷移プロトタイプ](../../screen-flow-diagram/webapp/) | HTML、CSS、JavaScript の画面レイアウト、共通部品、操作イメージ | 見た目と操作の参考。実装コードやデータの正本にはしない |
-| [クラス図一覧](../class-diagram/README.md) と各図（[学習フロー](../class-diagram/01-core-learning-flow.puml)、[評価・ルーブリック](../class-diagram/02-evaluation-rubric.puml)、[教師・課題・配信](../class-diagram/03-teacher-task-distribution.puml)、[AI・同意・ログ](../class-diagram/04-ai-consent-log.puml)、[全体図](../class-diagram/05-overall-summary.puml)） | エンティティ、関連、責務境界、ユースケースの流れ | Service / DAO の責務とデータ関連の確認 |
+| [クラス図一覧](../class-diagram/README.md) と各図（[学習フロー](../class-diagram/01-core-learning-flow.puml)、[評価・ルーブリック](../class-diagram/02-evaluation-rubric.puml)、[教師・課題・配信](../class-diagram/03-teacher-task-distribution.puml)、[AI・同意・ログ](../class-diagram/04-ai-consent-log.puml)、[全体図](../class-diagram/05-overall-summary.puml)） | エンティティ、関連、責務境界、ユースケースの流れ | Control / DAO の責務とデータ関連の確認 |
 | [DB 設計書](../database-design/README.md) と[テーブル定義](../database-design/table-definitions.md) | テーブル、項目、制約、リレーション、インデックスの方針 | Flyway マイグレーション、DAO、データ連携 |
-| [状態ルール一覧](../state-rules/README.md)、[状態命名標準](../state-rules/state-naming-standard.md)、[実装用状態表](../state-rules/implementation-state-table.md)、[学生共通](../state-rules/student/state-rules-overview.md)・[学生エディター](../state-rules/student/editor-state-rules.md)・[学生評価](../state-rules/student/evaluation-state-rules.md)・[学生演習](../state-rules/student/exercise-state-rules.md)・[学生アンケート](../state-rules/student/survey-state-rules.md)、[教師課題](../state-rules/teacher/task-state-rules.md)・[教師配信](../state-rules/teacher/distribution-state-rules.md)・[教師プロンプト](../state-rules/teacher/prompt-state-rules.md)・[教師評価](../state-rules/teacher/evaluation-state-rules.md)・[教師進捗](../state-rules/teacher/progress-state-rules.md) | 状態名、遷移条件、操作可否、例外時の表示 | DB / Service / Servlet / JSP で状態と操作を一貫させる |
+| [状態ルール一覧](../state-rules/README.md)、[状態命名標準](../state-rules/state-naming-standard.md)、[実装用状態表](../state-rules/implementation-state-table.md)、[学生共通](../state-rules/student/state-rules-overview.md)・[学生エディター](../state-rules/student/editor-state-rules.md)・[学生評価](../state-rules/student/evaluation-state-rules.md)・[学生演習](../state-rules/student/exercise-state-rules.md)・[学生アンケート](../state-rules/student/survey-state-rules.md)、[教師課題](../state-rules/teacher/task-state-rules.md)・[教師配信](../state-rules/teacher/distribution-state-rules.md)・[教師プロンプト](../state-rules/teacher/prompt-state-rules.md)・[教師評価](../state-rules/teacher/evaluation-state-rules.md)・[教師進捗](../state-rules/teacher/progress-state-rules.md) | 状態名、遷移条件、操作可否、例外時の表示 | DB / Control / Servlet / JSP で状態と操作を一貫させる |
 | [生成AI API連携設計書](../ai-api-integration-design.md) | Gemini への送信内容、匿名化、JSON 入出力、再試行、失敗時処理 | AI 評価・プロンプト支援の実装 |
 | [評価・ルーブリック資料](../rubric/) と[入出力フォーマット](../format/) | 評価観点、CSV の列、課題・テストケース・ヒント等の形式 | 評価ロジック、CSV 入出力、初期データ投入 |
 | [システム構成図](../figures/system-figure.puml) と[AI評価のシステムコンテキスト図](../figures/system-context-main-ai-evaluation.puml) | アプリケーション・外部サービス・AI評価の構成や境界 | 層・サービス間の接続関係の確認 |
 | [フィードバックUIガイド](../feedback-guideline.md) | toast / inline alert / confirm の使い分けと共通化 | Servlet の結果を画面通知へ反映 |
-| [システム構成ガイド](./system-strucure-guide.md) | Servlet / Service / DAO、JSP、DB、コンテナの配置と責務の参考例 | Java パッケージ・リソース配置の整理 |
+| [システム構成ガイド](./system-strucure-guide.md) | Servlet / Control / DAO、JSP、DB、コンテナの配置と責務 | Java パッケージ・リソース配置の整理 |
 | [AGENTS.md](../../AGENTS.md)、[README.md](../../README.md)、[build.gradle](../../build.gradle)、[docker-compose.yml](../../docker-compose.yml)、[.env.sample](../../.env.sample)、[containers/](../../containers/) | リポジトリの作業規約、現在の起動方法、ビルド・コンテナ構成 | ローカル環境の準備と現状との差分確認 |
 
 ### 資料の優先順位
@@ -30,18 +30,13 @@
 3. 状態ルールは状態名・遷移・操作可否の設計資料として必ず参照します。画面状態を DB の状態値へ直接コピーせず、[実装契約](./implementation-contract.md)で実装用状態表と DB 定義との対応・未合意事項を先に確認します。
 4. クラス図はモデル・責務の可視化資料、DB 設計書は永続化の設計資料として使います。両者や機能仕様に差があれば独自判断で片方を捨てず、差分を記録して確認します。
 5. 画面遷移プロトタイプの静的データやクリック時の疑似結果は、仕様の正本ではありません。業務上必要な動作は機能仕様書と状態ルールに従い、DB とサーバー側で実現します。
-6. [画面プロトタイプの実装計画](../plan.md)は `screen-flow-diagram` の作成・画面構成に関する計画資料です。本実装の機能優先順位や DB / API 仕様としては扱いません。[サーバ維持費・AI API費の試算](../server-cost-estimate.md)は予算・容量検討に使い、現在の確定価格や実装要件とはみなしません。
+6. [サーバ維持費・AI API費の試算](../server-cost-estimate.md)は予算・容量検討に使い、現在の確定価格や実装要件とはみなしません。画面プロトタイプ自体は[screen-flow-diagram/webapp](../../screen-flow-diagram/webapp/)を参照してください。
 
 ## 2. 着手時に把握する現状
 
-段階2の開始時点でリポジトリから確認できるのは、画面遷移プロトタイプと最小限の Java 起動・DB 接続用コードです。
+この文書に固定の「現在のリポジトリ状態」は重複記載しません。機能ごとの実装状況・検証結果は[実装ロードマップ](./implementation-roadmap.md)とリンク先の[機能別実装計画](./feature-plans/)を参照してください。起動・ビルド・マイグレーションの最新コマンドは[README](../../README.md)と[AGENTS.md](../../AGENTS.md)を正本とします。
 
-- [screen-flow-diagram/webapp](../../screen-flow-diagram/webapp/) には画面 HTML、CSS、JavaScript があり、見た目や操作イメージは本実装へ活用できます。
-- `screen-flow-diagram` 内に Java ソースは見つかりませんでした。プロトタイプの JavaScript による画面遷移・ダミー応答を、Servlet 実装済みとみなさないでください。
-- [src/main](../../src/main/) の Java は現時点で `HelloWorldServlet` と MySQL 接続用 `Client` が中心です。全機能の DB 連携が実装済みという状態ではありません。
-- 現在の [Client.java](../../src/main/java/lib/mysql/Client.java) は接続先 DB 名・ユーザー名・パスワードをコードに固定し、接続エラーを握りつぶして `null` を返します。業務機能から使い回さず、設定の外部化、接続失敗の明示、リソース管理を先に整えます。
-- ルートの [docker-compose.yml](../../docker-compose.yml) はローカル開発用です。DB の root パスワードが固定され、現在の Java 接続設定とも DB 名が一致していません。本番へ流用せず、ローカル設定も含め、接続値を一元化してから利用します。
-- [build.gradle](../../build.gradle) には Flyway 依存がまだ見当たらず、マイグレーションの導入と実行確認が必要です。
+画面プロトタイプは見た目・画面構成の参考であり、本実装の完了やDB連携を意味しません。ルートのComposeはローカル開発用で、本番公開に使える構成ではありません。
 
 最初に Git の差分を確認し、既存の利用者作業を保持したまま、実装対象のブランチと作業単位を用意してください。
 
@@ -89,9 +84,9 @@
 - 固定のログイン成功、権限判定、評価結果など、サーバー確認なしで成功する動作
 - サンプル CSV / フォーマットの例示データを、本番実行時の業務データとして読む仕組み
 
-プロトタイプは画面設計資料として残し、本実装では仮データを JSP の固定値に置き換えるのではなく、Servlet → Service → DAO → MySQL の経路で取得・更新します。初期データが必要な場合は、開発専用の seed として管理し、本番データと混同しないようにします。
+プロトタイプは画面設計資料として残し、本実装では仮データを JSP の固定値に置き換えるのではなく、Servlet → Control → DAO → MySQL の経路で取得・更新します。初期データが必要な場合は、開発専用の seed として管理し、本番データと混同しないようにします。
 
-画面表示の組み立てだけを理由に JSP から JDBC を呼び出さず、Servlet が認可と Service 呼び出しを行い、JSP には表示用データを渡します。更新操作の可否は UI のボタン無効化だけに頼らず、Service 層でも状態・所有者・ロールを再検証します。
+画面表示の組み立てだけを理由に JSP から JDBC を呼び出さず、Servlet が認可と Control 呼び出しを行い、JSP には表示用データを渡します。更新操作の可否は UI のボタン無効化だけに頼らず、Control 層でも状態・所有者・ロールを再検証します。
 
 ## 5. 推奨する実装順序
 
@@ -99,7 +94,7 @@
 
 ### 5.1 共通基盤と DB の土台
 
-1. `src/main/java` のパッケージ方針を定め、既存 Servlet を新しい入口の参考として扱います。機能単位の Controller / Service / DAO と、共有設定・認証・エラー処理の配置を決めます。
+1. `src/main/java` は `servlet/`、`control/`、`dao/`、`entity/` を基本とし、HTTP 入出力とアプリケーション処理を分離します。
 2. `src/main/webapp` に JSP、CSS、JavaScript、画像を整理し、画面遷移プロトタイプから必要な画面資産を移します。
 3. ローカル設定を外部化します。DB ホスト・DB 名・ユーザー・パスワードを一元化し、Java と Compose で異なる固定値を持たせません。秘密値が Git に含まれないことを確認します。
 4. 現在の `Client` にある固定認証情報、`null` による接続失敗通知、空 catch を解消します。接続・Statement・ResultSet は適切に閉じ、SQL は `PreparedStatement` を使います。
@@ -111,7 +106,7 @@
 ### 5.2 認証・権限と共通画面制御
 
 1. 生徒・教師・管理者のログイン、ログアウト、セッション、パスワード変更ルールを機能仕様書に合わせます。
-2. 全 Servlet / Service 操作でログイン状態とロールをサーバー側で確認します。
+2. 全 Servlet / Control 操作でログイン状態とロールをサーバー側で確認します。
 3. データ取得・更新クエリ自体に所有範囲を含め、生徒は自身のデータ、教師は所属範囲のデータのみ扱えるようにします。
 4. 研究同意が必要な画面・AI 評価のアクセス制御を同意状態と連動させます。
 5. 共通エラー、入力検証、CSRF、出力エスケープ、フィードバック UI を用意します。
@@ -148,13 +143,13 @@
 7. アンケート結果・CSV 出力を DB から生成し、エクスポート権限と対象範囲を確認します。
 8. 管理者専用の教師アカウント管理は、機能仕様書の優先度と画面遷移資料上の未実装扱いを確認し、対象範囲を合意してから実装します。
 
-状態遷移は画面の JavaScript にだけ実装せず、Service 層で旧状態・操作権限・遷移条件を検証し、許可された遷移のみ DB に保存します。
+状態遷移は画面の JavaScript にだけ実装せず、Control 層で旧状態・操作権限・遷移条件を検証し、許可された遷移のみ DB に保存します。
 
 **参照資料:** [機能仕様書](../function-specification.md)の教師向け機能、[教師・課題・配信図](../class-diagram/03-teacher-task-distribution.puml)、[教師状態ルール](../state-rules/teacher/)、[実装用状態表](../state-rules/implementation-state-table.md)、[DB 設計書](../database-design/README.md)。
 
 ### 5.5 Gemini API 評価・支援機能
 
-1. API 呼び出しを画面 Servlet から分離し、Service と Gemini 接続アダプターに境界を設けます。
+1. API 呼び出しを画面 Servlet から分離し、Control と Gemini 接続アダプターに境界を設けます。
 2. API 送信直前に、氏名・出席番号・自由記述の個人識別情報を除去または置換します。
 3. 必要最小限の課題、ルーブリック、提出、コードログだけを送信し、プロンプト版・ルーブリック版・request ID・根拠ログ ID を保存します。
 4. 応答 JSON をスキーマ検証し、失敗時の再試行回数・簡略ペイロード・エラー状態を設計書どおり実装します。
@@ -168,7 +163,7 @@
 - DB から取得すべき業務データは、HTML / JSP / JavaScript の固定配列や表示用サンプルで代替しません。
 - 入力値を検証し、SQL はパラメーター化します。JSP 出力はエスケープし、外部からの更新要求を CSRF 対策で保護します。
 - 画面にボタンを表示しない制御に加え、サーバー側でもロール・対象データの所有者・現在状態・許可操作を検証します。
-- 更新が複数テーブルにまたがる場合は、整合性を保つトランザクション境界を Service に設けます。
+- 更新が複数テーブルにまたがる場合は、整合性を保つトランザクション境界を Control に設けます。
 - エラーはログに記録し、利用者には復旧可能な説明を返します。成功したように見せる代替値、握りつぶし、黙った `null` は使いません。
 - 同意、匿名化、論理削除、評価履歴、プロンプト / ルーブリック版管理など、研究データの追跡性に関わる情報を画面都合で省略しません。
 - 通知・確認 UI は shared feedback の仕組みを利用し、ページごとに native `alert` / `confirm` を再実装しません。
@@ -179,14 +174,21 @@
 
 1. 変更対象の機能と関連する仕様・画面・状態・DB資料を確認する。
 2. 必要なら、先に機能仕様・状態契約・DB 定義の差分を合意済みの内容へ更新する。
-3. 1つのユースケースを縦切りで実装する（DB migration → DAO → Service → Servlet → JSP / JavaScript）。
-4. `docker-compose build` と `docker-compose up` 等、リポジトリで定めるローカル手順で起動する。
+3. 1つのユースケースを縦切りで実装する（DB migration → DAO → Control → Servlet → JSP / JavaScript）。
+4. `docker compose up --build -d` で Gretty アプリ・DB を起動する。
 5. `.env.sample` を確認して作成したローカル `.env` の値で、Tomcat と DB の接続先が一致することを確認する。
 6. 実ブラウザーから操作し、DB に保存された値を再読込・別画面・再ログイン後にも取得できることを確認する。
 7. 状態遷移、権限境界、入力不正、DB / API 障害を確認し、未確認事項を記録する。
 8. 差分を読み、仮データ・一時的な認証情報・デバッグ出力が残っていないことを確認して、作業単位を完了する。
 
-現時点では自動テスト基盤が十分に整っていないため、テスト追加は機能実装の一部として計画します。少なくとも状態遷移と Service / DAO のデータ処理には再現可能なテストを追加し、実行できない確認は「未確認」と明記します。
+### Gemini API のローカル疎通準備
+
+- Gemini API を実接続する場合は、[AI API 連携設計書のキー設定手順](../ai-api-integration-design.md#26-gemini-api-キーの設定と疎通確認)に従い、`.env` の `GEMINI_API_KEY` を設定します。`.env` は Git 管理外ですが、キーの値をチャットやコミットへ貼らないでください。
+- 起動済みコンテナには環境変数が自動反映されないため、キーを設定・変更した後は `docker compose up -d --force-recreate app` を実行します。確認コマンドはキー値を出力せず、設定済みかだけを表示します。
+- 接続確認は合成入力だけで行い、実際の生徒提出や個人情報を含むデータを外部送信する前に、データ取扱いと本番運用条件を確認します。
+- ローカル `.env` を本番へ流用せず、本番用シークレットストアから実行時に注入します。
+
+現時点では自動テスト基盤が十分に整っていないため、テスト追加は機能実装の一部として計画します。少なくとも状態遷移と Control / DAO のデータ処理には再現可能なテストを追加し、実行できない確認は「未確認」と明記します。
 
 ## 7. 段階2の完了条件
 
