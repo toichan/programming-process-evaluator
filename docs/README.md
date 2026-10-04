@@ -27,6 +27,31 @@
 | [DB設計](./database-design/README.md) | テーブル設計・項目定義 |
 | [クラス図一覧](./class-diagram/README.md) | 責務とデータ関係の図 |
 
+## 作業記録の区分（2026-10-04）
+
+進捗の正本は[実装ロードマップ](./system-configuration/implementation-roadmap.md)です。完了済み文書は削除・移動せず、根拠を調べるための記録として残します。以下の完了範囲を超えて、後続機能や未確認事項まで完了と扱わないでください。
+
+### 完了済みの作業記録
+
+| 対象 | 記録・完了範囲 |
+|---|---|
+| 工程1〜4の基盤 | [構成整合](./system-configuration/feature-plans/system-structure-alignment.md)、[初期DBマイグレーション](./system-configuration/feature-plans/initial-database-migration.md)、[DB接続・利用者DAO](./system-configuration/feature-plans/database-connection-and-user-dao.md)、[Web共通基盤](./system-configuration/feature-plans/web-common-foundation.md)。後続のスキーマ追加・業務画面移植を含まない |
+| 生徒演習 | [授業演習計画](./system-configuration/feature-plans/student-exercise.md)T001〜T051。教師配信・進捗制御・教師/管理者の完全削除は後続範囲。OS標準ダイアログ等の未確認事項は同計画に保持 |
+| 教師工程前デバッグ | [デバッグ計画](./system-configuration/feature-plans/pre-teacher-debugging.md)T001〜T014と[エラーレポート](./system-configuration/error-report.md)。既知5件は修正・再検証・反映・清掃済み。過去の失敗分類は履歴であり、現在の未解決バグではない |
+
+### 実装済み範囲・受入保留を確認する記録
+
+| 対象 | 記録・残る範囲 |
+|---|---|
+| 認証・学校管理 | [認証計画](./system-configuration/feature-plans/authentication-and-login.md)。教師業務機能・教師アカウント管理・管理者画面統合・本番認証条件の完了を意味しない |
+| 生徒ホーム・同意・アカウント | [生徒ホーム等の計画](./system-configuration/feature-plans/student-home-consent-account.md)。ID統一・認証情報履歴等も記録済み。個別の未確認事項を保持 |
+| 生徒エディター | [エディター計画](./system-configuration/feature-plans/student-editor.md)。主要実装済み、30秒記録・競合・重複提出・再提出等の受入残件あり |
+| 評価・コードログ・課題別アンケート | [評価・アンケート計画](./system-configuration/feature-plans/student-evaluation-survey.md)。主要実装と既知バグ検証は済み、正式設定・ユーザー手動E2Eは教師画面完成後。全体アンケートはシステム対象外 |
+
+### 次工程・後続範囲
+
+次は[ロードマップの工程10](./system-configuration/implementation-roadmap.md)の資料照合・初回スライス計画です。教師専用の機能別計画は未作成です。[AGENTS.mdの引継ぎ](../AGENTS.md)と[計画テンプレート](./system-configuration/feature-plan-template.md)を入口にしてください。工程11〜13、通知/教師ヘッダーの残課題、管理者統合、その他の保留事項はロードマップに保持します。
+
 ## 機能別・補助資料
 
 - [Gemini API連携設計](./ai-api-integration-design.md): API要求、匿名化、失敗時処理、現在の疎通状況。

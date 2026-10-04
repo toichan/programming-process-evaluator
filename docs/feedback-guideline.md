@@ -28,6 +28,8 @@
 - 画面ごとの通知タイトルや inline alert の出し先は createPageFeedback() でまとめる
 - 画面側では shared feedback の再実装をせず、文言と details のみを定義する
 - fallback の alert / confirm は shared feedback 内に閉じ込め、画面側へ広げない
+- 確認ダイアログのPromiseは閉じるアニメーションとフォーカス復帰の完了後に解決する。確定は`true`、取消・Escape・閉じる操作は`false`。次のモーダル表示や送信は、このPromiseを待って行う。
+- 閉じる直前にダイアログ内部のフォーカスを外し、閉じた後に起動元へ戻す。起動元が削除・非表示・無効化された場合は、表示中のモーダルまたは主領域内の操作可能な要素へ戻す。画面ごとに`aria-hidden`やfocus trapを無効化しない。
 - 本実装の共通 feedback の `details` は、従来の文字列に加え `{ label, text, emphasis }` を指定できる。`label` は太字の見出し、`emphasis: true` は本文の太字表示に使う。すべてテキストとしてエスケープし、HTMLを直接渡さない。長い確認では情報を項目別にまとめ、重要な影響だけを強調する。
 
 ## 実装例

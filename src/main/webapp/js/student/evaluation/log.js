@@ -140,13 +140,15 @@
 		nextButton.disabled = index === items.length - 1;
 	}
 
-	items.forEach((item, index) => item.addEventListener("click", () => render(index)));
-	previousButton.addEventListener("click", () => {
-		if (selectedIndex > 0) render(selectedIndex - 1);
-	});
-	nextButton.addEventListener("click", () => {
-		if (selectedIndex < items.length - 1) render(selectedIndex + 1);
-	});
+	if (items.length > 0) {
+		items.forEach((item, index) => item.addEventListener("click", () => render(index)));
+		previousButton.addEventListener("click", () => {
+			if (selectedIndex > 0) render(selectedIndex - 1);
+		});
+		nextButton.addEventListener("click", () => {
+			if (selectedIndex < items.length - 1) render(selectedIndex + 1);
+		});
+	}
 	document.querySelectorAll("[data-sidebar-panel]").forEach(button => {
 		button.addEventListener("click", () => {
 			document.querySelectorAll("[data-sidebar-panel]").forEach(tab => {

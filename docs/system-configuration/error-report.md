@@ -2,6 +2,69 @@
 
 秘密情報・実際の生徒データ・研究データは記載しない。解消後も履歴を保持する。
 
+## 2026-10-04 17:32 JST以降: 教師工程前デバッグ完了
+
+[デバッグ計画](./feature-plans/pre-teacher-debugging.md)の5件を修正・再検証・ローカル反映済み。以下の17:23時点の「未修正」は当時の分類であり、現在の未解決事項ではない。専用Composeの合成DB・認証HTTP・ブラウザーで検証し、既存利用者のデータ・パスワード・回答は変更していない。外部AI APIは呼び出していない。
+
+| 対象 | 修正前の再現 | 原因・対応 | 再検証結果 |
+|---|---|---|---|
+| アンケートGET503 | 同意済み本人・公開割当・完了評価・active surveyでHTTP503。DAO回帰テストも`Column 'evaluation_feedback' not found.`で2件失敗 | SELECTに対応する`feedback_summary`をResultSetから取得。DB列やアクセス条件は変更しない | DAO4件＋回答入力6件成功/skip0。認証HTTPで取得・下書き・送信・再読込・重複防止・同意/所有者/非対象拒否を確認。実画面でフィードバック・提出済み回答を表示 |
+| コードログ0件 | ブラウザーで`Cannot read properties of null (reading 'addEventListener')` | ログがある場合だけ前後/タイムラインのイベントを登録。独立したサイドバー初期化は継続 | 0/1/3件で例外0。サイドバー、前後、タイムライン、差分、合成実行の入出力表示・アクセス境界を確認 |
+| 404のJSTL | HTTP404本文・ページタイトルに未処理`c:`タグ | エラーJSPに共通テンプレートで必要なtaglibを宣言 | HTTP404維持・未処理タグなし・日本語画面表示・ローカルCSS/JS各200。ログイン/生徒/管理者の通常画面も表示正常 |
+| 共通確認のfocus | 通常の確定クリックで内部buttonの`aria-hidden`警告 | hide時に内部focusを解除し、hidden後に起動元または有効な代替へ復帰してPromiseを解決。本実装・生徒/教師プロトタイプを同様に修正 | 各版で取消/確定/Escape/閉じる/Enter・Tab・再表示を検証。起動元の削除/非表示/disabled、次モーダル切替、表示途中の二重確定も確認。同意/学校登録は取消POST0・確定POST1、演習は取消で未保存コード保持。対象の警告なし |
+| runner pipe | 既存17テストは成功するがstdout/stderr/stdinにResourceWarning。追加closureテストも失敗 | stream読取担当がcontext managerでclose。対話stdinは入力lock下でcloseして終了状態を公開 | ホストPython3.13・配備先Python3.12とも20件成功・ResourceWarning0。成功/実行例外/timeout/取消/読み取り例外のcloseを検証。実runnerでもUTF-8・対話・制限・idle timeout・復旧が成功 |
+
+### 検証中の失敗と切り分け
+
+- 新しい合成fixtureの初期版ではgetter名、プロフィール列数/学校必須、seed済み同意文書ID、PBKDF2のsalt長が不適合だった。実装の定義・V11・既存seedに合わせて修正し、fixtureの登録/削除まで再検証した。後半の実行ログfixtureで非対応の`event_type='execution'`を指定した失敗も、既存の`manual_save`を維持して修正した。これらを製品の新しい障害とは扱わない。
+- 共有ソースの`.gradle/8.10.2/fileHashes`が別containerのGradle（Owner PID41）に使用され、専用環境の再試験が約1分でtimeout。lock削除・他プロセス停止はせず、`--project-cache-dir`で各試験を分離して成功した。
+- ブラウザー試験で誤ったセレクター、隠れたタイムラインへのクリック、複数`main`へのstrict locator、不可視tabのstable待ち、未サポートの`Storage.getCookies`が失敗した。対象セレクター/起動ページを直し、通常クリック・shown/hidden完了待ち・ページ内の同一origin fetchで再成功。モーダルのアニメーションを無効化して成功扱いにはしていない。合成の次モーダル自体を閉じた際のBootstrap警告は試験用DOMの後片付けであり、共通確認の復帰・次モーダル表示の検証とは区別する。
+- live runnerの入力受付を当初200と期待して試験が停止した。既存契約の202 `accepted:true`に試験側を合わせて全項目再成功。管理者取消後のfocusを学校名だけに限定した試験も、仕様どおり有効な主領域リンクへの復帰を許容して再確認した。
+- 関連画面回帰で、起動buttonが確認表示前にdisabledとなる場合、`activeElement`がBODYになって代替focusが選ばれないことを検出。BODY/HTMLを起動元復帰の対象から外し、実同意画面の有効checkbox・学校画面の主領域リンクへの復帰を再検証した。
+
+### 最終確認・残事項
+
+- 通常の`docker compose exec -T app gradle test build --warning-mode all --no-daemon --console=plain`は成功。その後の最終コマンドはproject cacheを分離し、`docker compose exec -T app gradle --project-cache-dir /tmp/pre-teacher-debug-main-cache test build --warning-mode all --no-daemon --console=plain`で成功。全136件中82件成功、54件は専用DB等の明示ゲートでskip、失敗/エラー0。対象DAO4件は専用環境で別途実行済みで、skipを成功件数に加えない。
+- 修正後のWAR内JSP/JSはソースbyte一致。app再起動・runner再build/再配備後、login200、処理済み404、配信JSのSHA-256一致とrunner healthを確認。
+- 専用単体DBのusers/tasks/evaluations/survey_responses/code_logs/code_executionsは各0。専用app/db/container/networkを削除し、tmpfs上のHTTP/単体DBと合成セッションも破棄。共有DB volumeは保持。今回生成したPython cacheと試験専用project cacheも除去した。
+- 検証ページの最後の解放呼出しは`Page not found`となり、個々のタブ閉鎖までは追跡できなかった。検証サーバーは停止済みで、既存ユーザーのタブを閉じる操作は行っていない。
+- 対象5件の未解決ブロッカーはなし。Gradle/SLF4Jの既存警告、本番運用、OSダイアログ/全ブラウザー互換性、教師完成後の評価・アンケート全体のユーザー手動確認は従来どおり別の残事項。
+
+## 2026-10-04 17:23 JST以降: デバッグ要否の整理
+
+以下は過去の記録を後続の解消記録と照合した現在の分類。今回の作業は整理と読み取り確認のみで、本実装・DB・設定は変更していない。アンケート/コードログは現行コードの確認、404は未認証の存在しないURLへのHTTP GETで確認した。実データ・外部AI APIは使用していない。
+
+### 未修正・デバッグ対象
+
+| 優先度 | 内容 | 現在の根拠・影響 | 次の確認・修正範囲 |
+|---|---|---|---|
+| 高 | アンケートGETの503 | [StudentSurveyDao](../../src/main/java/dao/StudentSurveyDao.java)のSELECTは`feedback_summary`を返すが、`findPageTarget`は`evaluation_feedback`を取得する。対象行がある場合に列名不一致で失敗する構造が残る。最新の標準ルーブリック検証でも503を記録 | DB列追加ではなく、SELECT/ResultSetの対応を修正する対象。専用合成DBで画面取得と回答保存・再読込を検証する。[評価・アンケート計画T006](./feature-plans/student-evaluation-survey.md)に引継ぎ済み。機能全体の確認を教員画面完成後に再開する合意とは分けて、既知バグの先行修正可否を確認する |
+| 高 | コードログ0件時のJavaScript例外 | [log.jsp](../../src/main/webapp/WEB-INF/student/evaluation/log.jsp)は0件時に前後ボタンを出力しないが、[log.js](../../src/main/webapp/js/student/evaluation/log.js)は`previousButton.addEventListener`等を無条件に呼ぶ。空状態で初期化が中断する構造が残る | 空状態を正常な表示として扱う初期化へ修正し、0/1/複数件で表示・前後移動・サイドバー操作を確認する。T006へ引継ぎ済み |
+| 中 | 404画面のJSTL未処理 | `GET /__error_report_review_missing_page`はHTTP404を返すが、本文に`<c:if>`、`<c:choose>`、未処理の`<c:url>`が残る。[404.jsp](../../src/main/webapp/WEB-INF/error/404.jsp)には共通テンプレートで使用するJSTLのtaglib宣言がない | エラーページのJSTL宣言・共通includeを確認し、404を維持したまま本文のタグ処理とCSS/JSのURLが正常になることを検証する |
+| 中 | 共通確認モーダルのフォーカス警告 | 同意変更・管理者・授業演習プロトタイプで、内部にフォーカスが残った状態の`aria-hidden`警告を繰り返し記録。[本実装feedback.js](../../src/main/webapp/js/shared/feedback.js)の確認処理にはhide前のフォーカス解除・起動元への明示復帰がない。ただし個別画面の対策・Bootstrap標準動作もあるため、今回すべての画面で再現したとは扱わない | 共通feedbackとプロトタイプの同等部品で、取消・確定・Escape・再表示の通常操作を再現し、必要な共通修正を行う。機能成功の記録とは別のアクセシビリティ残件 |
+| 低 | runnerテストの`ResourceWarning` | process pipeの未close警告が残るとの記録。最終runner試験は成功しており、現時点でアプリの実行障害とは確認されていない | テスト側の子プロセス・pipe後片付けを再現確認する。実行コンテナcleanup競合の修正とは別件 |
+
+### デバッグではなく再検証・環境整備の対象
+
+| 内容 | 扱い |
+|---|---|
+| OS標準フォルダ選択・ZIP保存・ブラウザー/OS互換性 | 未確認の受入検証。通常Chromeの単体`.py`保存は利用者確認済み。統合ブラウザーのdownloadイベントtimeoutだけでアプリ不具合とは断定しない |
+| 認証済みの評価・アンケートE2E、教員が設定する実プロンプト等 | [評価・アンケート計画](./feature-plans/student-evaluation-survey.md)の意図的な保留。教員画面完成後に再開する。上記の既知バグは保留中でも未修正として保持する |
+| Gradle cache lock・PID namespace・TIME_WAIT・起動直後の404 | 検証環境・起動手順の問題。cache分離、同一container内実行、readiness待ち等で後続成功の記録がある。通常運用で再発する場合に再調査する |
+| V11トリガー作成権限（MySQL1419） | 移行用権限の問題。移行時だけ適切な管理権限を使う手順で成功済み。通常アプリユーザーの権限を緩める修正は不要。本番移行時の手順確認は必要 |
+| Gradle `WarPluginConvention`非推奨 / SLF4J警告 | ビルド停止ではない警告。Gradle更新前の互換性対応・ログ設定確認として扱い、緊急デバッグ対象とはしない |
+| セレクター誤り、fade完了前操作、不可視ページ、汎用runTestsのJava未検出、Node/Playwright不足、fixture/FK/文字コードの誤り | 試験手順・ツール・合成データの問題。修正後の成功記録を参照し、これだけを理由に製品コードを変更しない |
+
+### 解消済みとして履歴保持する主な問題
+
+- runnerのcleanup競合・日本語出力32KiB境界・入力上限エラー理由の欠落: 「T012のrunner修正・最終再検証」で修正と実再検証済み。古い節の「未解決」は当時の状態。
+- 単体ダウンロードのMIME不一致: 「単体ダウンロード修正・教師工程前の最終確認」で解消済み。
+- 三点メニューの切取り・矢印/Escape操作、移動先選択のlistener配置、二重ルート表示、親チェック状態、Tooltip再描画例外: 各第100〜104版の後続検証で修正済み。
+- 評価保存エラーと不正AI出力の混同（ERR-20261003-001）: 例外境界の分離と回帰/専用DB検証で解消済み。今回、実APIの障害が継続しているとは判断しない。
+- 学校管理CSS未適用、パスワード変更の履歴欠落、ルーブリック再試行時のフォーカス: 各節の修正後検証を参照。共通feedbackのフォーカス残件とは別。
+
+推奨順序は、アンケート列名不一致 → コードログ空状態 → 404画面 → 共通モーダルのフォーカス → テスト警告・環境整備。対応着手時に合成データで再現・回帰検証し、今回の静的照合だけで修正完了とは扱わない。
+
 ## 2026-10-04: 生徒共通標準ルーブリック閲覧
 
 - 指定0805資料をDBから取得してprototypeの全画面modalで表示。固定版の不変登録と2次元/6観点/30説明を確認し、既存課題・評価の割当は変更しない。教師画面・評価再実行・アンケート回答確認は対象外。

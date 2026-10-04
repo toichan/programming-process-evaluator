@@ -260,7 +260,7 @@ public final class StudentSurveyDao {
 						resultSet.getString("task_title"),
 						resultSet.getString("difficulty"),
 						resultSet.getString("survey_title"),
-						resultSet.getString("evaluation_feedback"),
+						resultSet.getString("feedback_summary"),
 						hasResponse ? responseId : null,
 						resultSet.getString("response_status"),
 						resultSet.getLong("submission_id"));

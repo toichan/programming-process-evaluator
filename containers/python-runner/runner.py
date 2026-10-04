@@ -70,12 +70,13 @@ class BoundedOutput:
             return self._append_text(self.decoder.decode(b"", final=not self.truncated.is_set()))
 
     def drain(self, stream):
-        while True:
-            chunk = stream.read(4096)
-            if not chunk:
-                self.finish()
-                return
-            self.append(chunk)
+        with stream:
+            while True:
+                chunk = stream.read(4096)
+                if not chunk:
+                    self.finish()
+                    return
+                self.append(chunk)
 
     def text(self):
         with self.lock:
@@ -298,18 +299,19 @@ class ExecutionSession:
 
     def _drain_stream(self, stream_name, pipe):
         output = self.outputs[stream_name]
-        while True:
-            chunk = pipe.read(4096)
-            if not chunk:
-                break
+        with pipe:
+            while True:
+                chunk = pipe.read(4096)
+                if not chunk:
+                    break
+                with self.lock:
+                    self._append_event(stream_name, output.append(chunk))
+                    if output.truncated.is_set():
+                        self.output_truncated[stream_name] = True
+                        self.last_activity_at = time.monotonic()
             with self.lock:
-                self._append_event(stream_name, output.append(chunk))
-                if output.truncated.is_set():
-                    self.output_truncated[stream_name] = True
-                    self.last_activity_at = time.monotonic()
-        with self.lock:
-            self._append_event(stream_name, output.finish())
-            self.output_truncated[stream_name] = output.truncated.is_set()
+                self._append_event(stream_name, output.finish())
+                self.output_truncated[stream_name] = output.truncated.is_set()
 
     def send_input(self, value):
         encoded = value.encode("utf-8") + b"\n"
@@ -394,11 +396,13 @@ class ExecutionSession:
             status = "succeeded" if self.process.returncode == 0 else "failed"
             error_code = None if self.process.returncode == 0 else "runtime_error"
 
-        with self.lock:
-            self.status = status
-            self.exit_code = self.process.returncode
-            self.error_code = error_code
-            self.finished_at = time.monotonic()
+        with self.input_lock:
+            with self.lock:
+                self.process.stdin.close()
+                self.status = status
+                self.exit_code = self.process.returncode
+                self.error_code = error_code
+                self.finished_at = time.monotonic()
         MAX_CONCURRENT_EXECUTIONS.release()
 
     def snapshot(self, cursor):

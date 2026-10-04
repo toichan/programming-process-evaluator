@@ -1,5 +1,7 @@
 # 生徒の評価・コードログ・アンケート実装計画
 
+現在の状態（2026-10-04整理）: **工程8の主要実装と標準ルーブリック閲覧は実装済み、全体受入は保留**。アンケートGET503・空コードログの既知バグは[教師工程前デバッグ計画](./pre-teacher-debugging.md)で解消・検証・反映済み。専用合成DBの認証HTTP・ブラウザーによる確認と、正式設定・ユーザー手動E2Eを区別する。後者は教師画面完成後に再開する。次の着手対象は[実装ロードマップ](../implementation-roadmap.md)の工程10であり、以下の古い次工程指示を再実施しない。
+
 ## 目的と範囲
 
 - 利用者に提供する動作: 生徒が提出版ごとの評価状態・評価結果・根拠ログを本人の学習履歴から確認し、対象かつ同意済みの場合に限り、システム評価を参照しながらアンケートへ回答できる。
@@ -9,15 +11,15 @@
 
 ## 必読資料
 
-- 機能仕様書: [function-specification.md](../function-specification.md) の生徒ホーム、評価表示、コードログ、アンケート機能
-- 画面遷移図 / プロトタイプ: [evaluation.html](../../../screen-flow-diagram/webapp/WEB-INF/student/evaluation/evaluation.html)、[log.html](../../../screen-flow-diagram/webapp/WEB-INF/student/evaluation/log.html)、[survey.html](../../../screen-flow-diagram/webapp/WEB-INF/student/survey/survey.html)、各画面のCSS・JavaScript、[screen-flow-diagram.md](../screen-flow-diagram.md)
+- 機能仕様書: [function-specification.md](../../function-specification.md) の生徒ホーム、評価表示、コードログ、アンケート機能
+- 画面遷移図 / プロトタイプ: [evaluation.html](../../../screen-flow-diagram/webapp/WEB-INF/student/evaluation/evaluation.html)、[log.html](../../../screen-flow-diagram/webapp/WEB-INF/student/evaluation/log.html)、[survey.html](../../../screen-flow-diagram/webapp/WEB-INF/student/survey/survey.html)、各画面のCSS・JavaScript、[screen-flow-diagram.md](../../screen-flow-diagram.md)
 - 状態ルール: [evaluation-state-rules.md](../../state-rules/student/evaluation-state-rules.md)、[survey-state-rules.md](../../state-rules/student/survey-state-rules.md)、[editor-state-rules.md](../../state-rules/student/editor-state-rules.md)
 - DB 設計・テーブル定義: [table-definitions.md](../../database-design/table-definitions.md)、[V1 schema](../../../src/main/resources/db/migration/V1__create_initial_schema.sql) と既存マイグレーション
-- クラス図 / AI連携設計 / その他: [ai-api-integration-design.md](../ai-api-integration-design.md)、[evaluation-rubric.puml](../../class-diagram/02-evaluation-rubric.puml)、[ai-consent-log.puml](../../class-diagram/04-ai-consent-log.puml)、[implementation-contract.md](../implementation-contract.md) IC-004、IC-006、IC-008
+- クラス図 / AI連携設計 / その他: [ai-api-integration-design.md](../../ai-api-integration-design.md)、[evaluation-rubric.puml](../../class-diagram/02-evaluation-rubric.puml)、[ai-consent-log.puml](../../class-diagram/04-ai-consent-log.puml)、[implementation-contract.md](../implementation-contract.md) IC-004、IC-006、IC-008
 
 ## 前提・未決事項
-- 2026-10-04ユーザー確認: 評価・アンケートの確認は教師向け画面完成後、必要な課題/プロンプト/アンケート設定を行える段階で再開する。それまでは未確認のまま保持する。直近は授業演習のユーザー手動確認を優先する。
-- 2026-10-03引継ぎ: 主要実装と合成データによる実API→DB保存・再読込は確認済み。ローカル課題の評価設定・active survey、認証済み正常系/権限境界/E2Eとユーザー手動確認は未完了。ユーザー指示によりこれらを後回しにし、工程9の計画作成へ進む。T004〜T006・工程8の完了条件は未達のまま保持し、設定が整った時点で提出→評価表示→アンケート導線・下書き/送信/再読込を確認するようリマインドする。
+- 2026-10-04ユーザー確認: 評価・アンケート全体の実設定・ユーザー手動確認は教師向け画面完成後、必要な課題/プロンプト/アンケート設定を行える段階で再開する。設定が整った時点で提出→評価表示→アンケート導線・下書き/送信/再読込の確認をリマインドする。
+- 現在の検証範囲: 合成データによる実API→DB保存・再読込と、既知バグ修正後の専用合成DB・認証HTTP・実画面の表示/権限境界/回答保存は確認済み。これだけでT004〜T006全体・工程8の完了条件を満たしたとは扱わず、正式設定とユーザー手動E2Eは保留する。
 
 - 合意済み前提: `evaluations` が提出版ごとの評価状態の正本であり、`task_participations.evaluation_status` は同じトランザクション内で同期する表示用状態。AI評価とコードログ収集は研究同意状態を問わず実行する。研究識別子のみをAIへ送信し、同意状態はリクエスト時点の記録に使う。アンケート対象・アクセス可否は同意状態と分離して判定する。
 - 実装契約上の関連 ID: IC-004（評価状態と履歴）、IC-006（同意・アンケート履歴）、IC-008（AI送信前の匿名化と研究ID）
@@ -62,7 +64,14 @@
 - 503 JSON/不完全JSON/HTML応答の注入で代替の表を表示せずshared feedback＋再試行を確認。再試行後のEscape/focusも確認。遅延応答中のclose→reopenでは旧応答を破棄した。注入試験を実DB障害試験とは扱わない。
 - ローカル `docker compose exec -T app gradle flywayMigrate flywayValidate registerStandardRubric --no-daemon --console=plain --warning-mode all` 成功、`registerStandardRubric` の再実行は内容一致・無変更。標準版に割り当てられた課題/評価は各0で、表示のために割当を追加していない。
 - ローカル `docker compose exec -T app gradle war appRestart --no-daemon --console=plain --warning-mode all` 成功、login200、配信 `rubric.js?v=106` のbyte一致。Node CLIがないためsyntaxはブラウザーで両scriptを構文解析し成功。専用合成行/主要7表0、container/network/所有copy/cache/serverを除去し、検証page解放を確認した。
-- T004〜T006の保留と教師工程手前での停止は維持する。
+- ルーブリック追加バッチ時点ではT004〜T006を保留し、教師工程の手前で停止していた。現在は教師工程への移行が承認済みで、T004〜T006全体の受入保留だけを維持する。
+
+#### 教師工程前デバッグによる既知バグの解消（2026-10-04）
+
+- 上記T007〜T010検証時に残ったアンケートGET503とコードログ0件時のJS例外は、[教師工程前デバッグ計画](./pre-teacher-debugging.md)で修正・再検証済み。
+- アンケートは専用DBの合成完了評価・active surveyで修正前503を再現し、修正後GET200・評価フィードバック・下書き/送信/再読込・重複回答防止・同意/所有者/非対象のアクセス拒否を確認した。追加DAOテスト4件と回答入力テスト6件は失敗/skip各0。実ブラウザーでも提出済み回答とフィードバックの表示を確認した。
+- コードログは0/1/3件の実画面で例外なし、サイドバー切替、前後の無効状態、タイムライン選択と追加/削除差分を確認した。1件の合成実行記録では標準入力/出力/エラーも表示された。
+- これら既知バグの修正完了と、T004〜T006全体の完了は別。教師が設定する実プロンプト・正式なアンケート設定・ユーザー手動E2Eは、教師画面完成後の保留を維持する。標準ルーブリックの未登録/再試行検証を今回再実施したとは扱わない。
 
 1. [x] T001 評価・ログ画面を既存レイアウトに沿ってDBデータへ接続する。本人の提出版と評価状態以外を表示しない。
 2. [x] T002 提出確定から評価待ちを作成し、DB上の評価ワーカーで版固定・匿名化・AI要求・リトライ・JSON検証を実装する。失敗時も元提出と過去評価を変更しない。合成データによる実API→DB保存・再読込を専用DBで確認済み。認証済み画面・実運用設定の確認はT006に残す。
