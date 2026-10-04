@@ -15,6 +15,10 @@ public record StandardRubric(String title, String version, List<Dimension> dimen
 		}
 	}
 
+	public String getTitle() { return title; }
+	public String getVersion() { return version; }
+	public List<Dimension> getDimensions() { return dimensions; }
+
 	private static boolean validDimension(Dimension dimension, String code, int count) {
 		if (!code.equals(dimension.code()) || dimension.label().isBlank()
 				|| dimension.criteria().size() != count) return false;

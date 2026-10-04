@@ -26,8 +26,22 @@ import entity.TeacherTaskInput.HintInput;
 import entity.TeacherHintOption;
 
 public final class TeacherTaskDao {
+	@FunctionalInterface
+	interface StandardRubricIdProvider {
+		long requireActiveId(Connection connection) throws SQLException;
+	}
+
 	private static final String TASK_FEATURE_CODE = "task-management";
 	private static final String TASK_TARGET_TYPE = "task";
+	private final StandardRubricIdProvider standardRubricIdProvider;
+
+	public TeacherTaskDao() {
+		this(new StandardRubricDao()::requireActiveId);
+	}
+
+	TeacherTaskDao(StandardRubricIdProvider standardRubricIdProvider) {
+		this.standardRubricIdProvider = java.util.Objects.requireNonNull(standardRubricIdProvider);
+	}
 
 	public List<TeacherTaskDetails> findDrafts(Connection connection, long teacherUserId) throws SQLException {
 		requireTeacherId(teacherUserId);
@@ -150,6 +164,7 @@ public final class TeacherTaskDao {
 			throws SQLException {
 		requireWriteTransaction(connection);
 		requireTeacherId(teacherUserId);
+		long rubricId = standardRubricIdProvider.requireActiveId(connection);
 		UUID series = UUID.randomUUID();
 		String taskCode = "TASK-" + series.toString().replace("-", "").toUpperCase(java.util.Locale.ROOT);
 		String revisionCode = taskCode + "-v1";
@@ -157,22 +172,24 @@ public final class TeacherTaskDao {
 		try (PreparedStatement statement = connection.prepareStatement("""
 				INSERT INTO tasks (
 				  task_code, task_revision_code, revision_number, supersedes_task_id,
-				  created_by_user_id, updated_by_user_id, title, theme, difficulty, language,
+				  created_by_user_id, updated_by_user_id, rubric_id,
+				  title, theme, difficulty, language,
 				  description, input_constraints, creation_rules, initial_code, save_status,
 				  publication_status, created_at, version
-				) VALUES (?, ?, 1, NULL, ?, NULL, ?, ?, ?, 'Python', ?, ?, ?, ?, 'draft',
+				) VALUES (?, ?, 1, NULL, ?, NULL, ?, ?, ?, ?, 'Python', ?, ?, ?, ?, 'draft',
 				  'draft', CURRENT_TIMESTAMP, 1)
 				""", Statement.RETURN_GENERATED_KEYS)) {
 			statement.setString(1, taskCode);
 			statement.setString(2, revisionCode);
 			statement.setLong(3, teacherUserId);
-			statement.setString(4, input.title());
-			statement.setString(5, input.theme());
-			statement.setString(6, databaseDifficulty(input.difficulty()));
-			statement.setString(7, input.description());
-			statement.setString(8, input.inputConstraints());
-			statement.setString(9, input.creationRules());
-			statement.setString(10, input.initialCode());
+			statement.setLong(4, rubricId);
+			statement.setString(5, input.title());
+			statement.setString(6, input.theme());
+			statement.setString(7, databaseDifficulty(input.difficulty()));
+			statement.setString(8, input.description());
+			statement.setString(9, input.inputConstraints());
+			statement.setString(10, input.creationRules());
+			statement.setString(11, input.initialCode());
 			statement.executeUpdate();
 			taskId = generatedId(statement);
 		}
@@ -196,25 +213,28 @@ public final class TeacherTaskDao {
 			throw new IllegalArgumentException("A valid task version is required.");
 		}
 		requireDraftForUpdate(connection, teacherUserId, taskId, expectedVersion);
+		long rubricId = standardRubricIdProvider.requireActiveId(connection);
 		try (PreparedStatement statement = connection.prepareStatement("""
 				UPDATE tasks
-				SET updated_by_user_id = ?, title = ?, theme = ?, difficulty = ?, language = 'Python',
+				SET updated_by_user_id = ?, rubric_id = COALESCE(rubric_id, ?),
+				    title = ?, theme = ?, difficulty = ?, language = 'Python',
 				    description = ?, input_constraints = ?, creation_rules = ?, initial_code = ?,
 				    save_status = 'draft', version = version + 1, updated_at = CURRENT_TIMESTAMP
 				WHERE task_id = ? AND created_by_user_id = ?
 				  AND publication_status = 'draft' AND deleted_at IS NULL AND version = ?
 				""")) {
 			statement.setLong(1, teacherUserId);
-			statement.setString(2, input.title());
-			statement.setString(3, input.theme());
-			statement.setString(4, databaseDifficulty(input.difficulty()));
-			statement.setString(5, input.description());
-			statement.setString(6, input.inputConstraints());
-			statement.setString(7, input.creationRules());
-			statement.setString(8, input.initialCode());
-			statement.setLong(9, taskId);
-			statement.setLong(10, teacherUserId);
-			statement.setLong(11, expectedVersion);
+			statement.setLong(2, rubricId);
+			statement.setString(3, input.title());
+			statement.setString(4, input.theme());
+			statement.setString(5, databaseDifficulty(input.difficulty()));
+			statement.setString(6, input.description());
+			statement.setString(7, input.inputConstraints());
+			statement.setString(8, input.creationRules());
+			statement.setString(9, input.initialCode());
+			statement.setLong(10, taskId);
+			statement.setLong(11, teacherUserId);
+			statement.setLong(12, expectedVersion);
 			if (statement.executeUpdate() != 1) {
 				throw new SQLException("Task draft update lost its version or ownership condition.");
 			}

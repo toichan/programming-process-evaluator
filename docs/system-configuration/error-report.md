@@ -2,6 +2,38 @@
 
 秘密情報・実際の生徒データ・研究データは記載しない。解消後も履歴を保持する。
 
+## 2026-10-05: 教師プロンプトS2の専用DB受入追補
+
+- 対象: 専用Compose project `ppe-s2-validation-20261005`、schema `ppe_teacher_task_test_s2_20261005` のみ。共有開発DBと8080サービスには変更を加えていない。
+- migration初回失敗: V11のroutine作成がMySQL error 1419（binary loggingとroutine creator設定）で失敗した。専用DBコンテナだけに`SET GLOBAL log_bin_trust_function_creators = 1`を設定して再試行したところ、最初の失敗で既に作られた`chk_school_security_level`との重複（error 3822）が発生した。Flyway repairだけでは部分適用DDLを戻せないため、専用Compose projectのDB volumeだけを破棄・再作成し、同じ専用コンテナ内で設定後にやり直した。
+- migration再検証: `DB_PORT=3307 DB_NAME=ppe_teacher_task_test_s2_20261005 docker compose -p ppe-s2-validation-20261005 run --rm --no-deps app gradle flywayMigrate flywayValidate --no-daemon --console=plain`成功。
+- DBテストの誤った初回実行: `TEACHER_TASK_DB_TEST=true`をCompose呼出し元だけに設定した実行は、コンテナへ環境変数が渡らず11件全てskipとなった。`-e TEACHER_TASK_DB_TEST=true`と`--rerun-tasks`を追加して専用DBのfixtureを実際に実行した。
+- 実DBで見つかった不具合: `TeacherTaskDao.insertDraft`のtask INSERT列/value位置がずれ、prepared statementでparameter 12未設定となった。SQL内の固定Python値の位置を修正し、登録パラメーターと列を一致させた。
+- fixture cleanupで見つかった不具合: prompt版を持つ課題の削除時、`prompt_versions`のFKにより親taskを削除できなかった。専用合成fixtureのprompt監査・評価例・揺らぎ項目を先に削除し、active版参照を解除してからprompt版とtaskを削除するようcleanupを修正した。加えて、新規DBテストに誤って含まれていた別テストのdraft-update assertionsが未定義の`saved`変数を参照していたため、重複する無関係なassertionsを削除した。
+- 専用DB受入: `DB_PORT=3307 DB_NAME=ppe_teacher_task_test_s2_20261005 docker compose -p ppe-s2-validation-20261005 run --rm --no-deps -e TEACHER_TASK_DB_TEST=true app gradle test --tests control.teacher.TeacherTaskDatabaseTest --rerun-tasks --no-daemon --console=plain`成功。11件実行、成功11、失敗0、skip 0。V17を含むmigrations適用済みDBでprompt draft/rubric/楽観version競合を含めたfixtureを検証した。
+- 全体再検証: `JAVA_HOME=/Users/t.toida/.jdk/jdk-21.0.10/jdk-21.0.10+7/Contents/Home gradle test war --no-daemon --console=plain`成功。JUnit合計190件（成功125、失敗0、skip65）、WAR生成成功。専用DB統合テスト11件は別コマンドでskipなし実行。Gradle 9互換性に関する既存deprecation warningは残る。
+- 追加した`TeacherPromptServletTest`の未認証GET/POST拒否テストを含めて再実行: 同じGradle test/WARコマンド成功。最新JUnit XML合計192件（成功127、失敗0、skip65）、WAR build task成功。HTTP/JSPの認証済み表示・ブラウザー操作を確認した結果ではない。
+- 未確認/blocked: 認証済みHTTP/JSP・ブラウザー操作、Gemini実API、8080への反映は未実施。共有開発DBにV17を適用せずappを再起動していないため、8080がS2実装を提供しているとは扱わない。再評価対象固定・差分preview・通知チャネルの既存契約がないため、全体再評価操作は画面上で無効のまま。プロトタイプ資産は変更していない。
+
+## 2026-10-05 07:23 JST: 8080教師プロンプト画面の500/404
+
+- 対象: `http://localhost:8080/teacher/prompt` の500、ブラウザーconsoleの404、および教師サイドバー表示。
+- 500の原因: 課題/プロンプト版未選択時、`TeacherPromptServlet.render`のnullable `Long`と`long`を混在した条件式がnullをunboxしていた。また同じ初期表示状態で評価例保存可能状態を計算する際に選択版を参照していた。版未選択をnullのまま扱い、評価例操作は選択版が存在する場合のみ有効判定するよう修正。`TeacherPromptServletTest`へnull版ID回帰テストを追加。
+- 404の原因/対応: 教師ナビの`aria-current`条件を`<a>`開始タグ途中へJSTL body出力していたため、属性断片が画面テキストへ漏れ、不正なリンクを生成していた。課題編集・プロンプト設計リンクともEL属性値へ変更し、`aria-current`がHTML属性内で完結するよう修正。
+- DB/実行反映: 8080共有開発DBがV16であり、課題選択時に参照するプロンプト版の`row_version`等を含むV17がpendingだった。migration内容はprompt版の更新者/更新日時/楽観version列追加と、rubric未設定draftへのactive共通標準rubric関連付けのみであることを確認し、ユーザーの8080画面復旧依頼に必要なため`docker compose exec -T app gradle flywayMigrate --no-daemon --console=plain`で適用。適用後`docker compose exec -T app gradle flywayValidate --no-daemon --console=plain`成功。テーブル/課題を削除せず、プロトタイプには変更なし。
+- 反映/検証: ソース修正後に8080 app containerだけを再起動。未認証`GET /teacher/prompt`は期待どおり302で教師ログインへ遷移し、プロンプトCSS/JSは各HTTP 200。再起動後直近ログに当該null-unboxing/JSP例外なし。`JAVA_HOME=/Users/t.toida/.jdk/jdk-21.0.10/jdk-21.0.10+7/Contents/Home gradle test war --no-daemon --console=plain`成功（JUnit XML: 192件、成功127、失敗0、skip65、WAR成功）。専用DB統合11件の成功は上記S2受入追補の通り。
+- 制約: app再起動により既存のブラウザーsessionは無効になった。認証済みJSP操作を本ターン中に再ログインして確認していない。教師として再ログイン後、`/teacher/prompt`の初期表示と課題選択、ナビリンクを確認すること。Gemini APIは呼び出していない。全体再評価は契約未解決のため引き続き無効。
+
+## 2026-10-05 00:39 JST: 教師プロンプトS2の実装・検証
+
+- 対象: `TeacherPromptDao` / `TeacherPromptControl` / Gemini構造化出力 / `/teacher/prompt` とStep 1〜3/履歴画面。
+- 初回の検証エラー: `JAVA_HOME=/Users/t.toida/.jdk/jdk-21.0.10/jdk-21.0.10+7/Contents/Home gradle test --tests dao.TeacherTaskDaoTest --tests control.teacher.TeacherTaskDatabaseTest` は`compileTestJava`で失敗。変更中の`TeacherTaskDatabaseTest`でrubric集計helperが別helper内に誤配置されていたため、独立メソッドへ移動した。
+- 2回目の検証エラー: 同コマンドは`Files.readString`の検査例外を統合fixtureが宣言しておらず失敗。`IOException`をfixture setupから宣言するよう修正した。
+- 再検証: 上記のfocusedテストと`JAVA_HOME=/Users/t.toida/.jdk/jdk-21.0.10/jdk-21.0.10+7/Contents/Home gradle test war`が成功。JUnit XML合計189件（成功125、失敗0、skip64）、WAR生成成功。skipには専用DB条件で動く統合テストが含まれ、S2用DB統合は未実施。
+- 外部API: Gemini実APIは呼び出していない。APIクライアントはモックテストのみ。
+- 8080/DB: 8080のCompose app/DBは稼働中。未認証の`/teacher/prompt`は認証filterにより教師ログインへ転送された。V17未適用の共有開発DBにmigrationを適用したりappを再起動したりせず、認証済みJSP/DBの実行確認は行っていない。従って今回の変更が8080へデプロイ済みとは扱わない。
+- 未解決: V17を適用する使い捨て専用DBでのmigration/DAO統合、認証済みHTTP/JSPの描画・操作、ブラウザーでのプロトタイプ差分確認。対象提出snapshot/差分preview/通知の契約がない再評価ボタンは成功動作へ接続せず無効化した。
+
 ## 2026-10-04 23:34 JST: 教師画面ルーブリック導線・文字コードのブラウザー確認
 
 - 対象/期待結果: 8080の教師課題画面で、プロトタイプどおりルーブリックボタンを操作でき、日本語が正しく表示されること。

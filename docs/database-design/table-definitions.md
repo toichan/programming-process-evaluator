@@ -473,6 +473,9 @@ T012最終確認（2026-10-03）: runnerの各出力は捕捉生バイト/表示
 
 課題ごとのプロンプト設定・版・生成段階状態
 
+- V17で`updated_by_user_id`、`updated_at`、`row_version`を追加する。未適用下書きの更新者と楽観ロック版を保存し、設定済み/版管理済みの内容は上書きしない。
+- V17は標準ルーブリックが既にDBへ登録されている場合、未削除draft課題で`rubric_id`がNULLの行へ共通標準版を関連付ける。登録前にmigrationされたDBでは、教師prompt操作時にトランザクション内で不足分を関連付ける。
+
 |フィールド名|和名|型|主キー|NULL|その他制約|備考|
 |:--|:--|:--|:--|:--|:--|:--|
 |prompt_version_id|プロンプト版ID|BIGINT|〇|NO|PRIMARY_KEY, AUTO_INCREMENT||
@@ -485,7 +488,10 @@ T012最終確認（2026-10-03）: runnerの各出力は捕捉生バイト/表示
 |fluctuation_generation_status|揺らぎ項目生成状態|ENUM('not_generated','in_progress','completed','failed')||NO|||
 |evaluation_examples_status|評価例生成状態|ENUM('not_generated','in_progress','completed','failed')||NO|||
 |created_by_user_id|作成者ユーザID|BIGINT||NO|FOREIGN_KEY|users.user_id|
+|updated_by_user_id|更新者ユーザID|BIGINT||YES|FOREIGN_KEY|users.user_id|
 |created_at|作成日時|DATETIME||NO|||
+|updated_at|更新日時|DATETIME||YES|||
+|row_version|更新競合検出版|BIGINT||NO||V17追加。初期値1|
 
 ## prompt_fluctuation_items
 

@@ -1,0 +1,157 @@
+metadata:
+  generated: "2026-10-04"
+  source_plan: "docs/system-configuration/feature-plans/teacher-prompt-ai.md"
+  target_tasks: "Task Breakdown section in source_plan"
+
+summary:
+  total_plan_items: 10
+  covered_plan_items: 10
+  missing_plan_items: 0
+  coverage_percentage: 100.0
+  total_tasks_generated: 20
+  orphan_tasks: 0
+
+phases:
+  - phase_id: "Phase-1"
+    phase_name: "着手ゲート・基盤"
+    items:
+      - item_id: "1.1"
+        description: "合意済み方針を実装契約へ落とし込む"
+        tasks:
+          - task_id: "T001"
+            description: "Verify preview, notification, and reevaluation target contracts."
+        notes: "The three user decisions are confirmed; undocumented implementation contracts remain gates."
+      - item_id: "1.2"
+        description: "専用DB・Gemini検証条件と既存schemaを確認する"
+        tasks:
+          - task_id: "T002"
+            description: "Set up an isolated synthetic database gate."
+          - task_id: "T003"
+            description: "Inspect API config and reusable integration without calling the API."
+  - phase_id: "Phase-2"
+    phase_name: "課題プロンプトの下書き・履歴"
+    items:
+      - item_id: "2.1"
+        description: "共通標準rubricの関連付けと型付きpromptモデル・DAO・状態/認可を実装する"
+        tasks:
+          - task_id: "T004"
+            description: "Implement prompt version and related typed DTOs."
+          - task_id: "T005"
+            description: "Implement prompt persistence, state, and audit DAO."
+          - task_id: "T006"
+            description: "Add a migration only if schema gaps are proven."
+          - task_id: "T007"
+            description: "Implement prompt authorization and shared standard rubric linking."
+      - item_id: "2.2"
+        description: "教師Servletで課題別promptを読込・保存する"
+        tasks:
+          - task_id: "T008"
+            description: "Implement the teacher prompt servlet."
+  - phase_id: "Phase-3"
+    phase_name: "AI揺らぎ項目・教師対応"
+    items:
+      - item_id: "3.1"
+        description: "揺らぎ項目生成clientと状態遷移を実装する"
+        tasks:
+          - task_id: "T009"
+            description: "Implement API client and response contract."
+          - task_id: "T010"
+            description: "Connect AI generation state and persistence."
+      - item_id: "3.2"
+        description: "揺らぎ項目への教師対応と課題別指示を保存する"
+        tasks:
+          - task_id: "T011"
+            description: "Persist teacher resolutions and additional instructions."
+  - phase_id: "Phase-4"
+    phase_name: "合成評価例生成・永続化"
+    items:
+      - item_id: "4.1"
+        description: "評価例の合成入力、生成、検証、保存を実装する"
+        tasks:
+          - task_id: "T012"
+            description: "Create synthetic evaluation examples."
+          - task_id: "T013"
+            description: "Generate, validate, and persist example outputs."
+      - item_id: "4.2"
+        description: "評価例・prompt版履歴と詳細を表示する"
+        tasks:
+          - task_id: "T014"
+            description: "Implement page/history DTO and read-only version access."
+          - task_id: "T015"
+            description: "Implement prototype-aligned prompt page."
+          - task_id: "T016"
+            description: "Wire page route and shared feedback."
+  - phase_id: "Phase-5"
+    phase_name: "統合受入"
+    items:
+      - item_id: "5.1"
+        description: "共通rubric/active promptと再評価jobを評価queueへ接続する"
+        tasks:
+          - task_id: "T006"
+            description: "Add only proven schema support for reevaluation target snapshots."
+          - task_id: "T014"
+            description: "Load reevaluation history alongside prompt history."
+          - task_id: "T016"
+            description: "Wire preview, confirmation, and job progress routes."
+          - task_id: "T017"
+            description: "Atomically switch the active prompt and snapshot reevaluation targets."
+          - task_id: "T018"
+            description: "Process reevaluation jobs and preserve append-only evaluation history."
+      - item_id: "5.2"
+        description: "DB/HTTP/ブラウザーを通した正常系・拒否系を受け入れる"
+        tasks:
+          - task_id: "T019"
+            description: "Add focused unit/database/servlet tests."
+          - task_id: "T020"
+            description: "Run integrated validation and update reports."
+
+missing_plan_items: []
+orphan_tasks: []
+
+upstream_trace:
+  - plan_item: "1.1"
+    source_requirements: ["REQ-108", "REQ-109"]
+    tasks: ["T001"]
+    full_trace: "REQ-108,REQ-109 → Phase-1.1 → T001"
+  - plan_item: "1.2"
+    source_requirements: ["REQ-109"]
+    tasks: ["T002", "T003"]
+    full_trace: "REQ-109 → Phase-1.2 → T002,T003"
+  - plan_item: "2.1"
+    source_requirements: ["REQ-101", "REQ-102", "REQ-106", "REQ-108"]
+    tasks: ["T004", "T005", "T006", "T007"]
+    full_trace: "REQ-101,REQ-102,REQ-106 → Phase-2.1 → T004,T005,T006,T007"
+  - plan_item: "2.2"
+    source_requirements: ["REQ-101", "REQ-102", "REQ-106", "REQ-107", "REQ-109"]
+    tasks: ["T008"]
+    full_trace: "REQ-101,REQ-102,REQ-106,REQ-107,REQ-109 → Phase-2.2 → T008"
+  - plan_item: "3.1"
+    source_requirements: ["REQ-103", "REQ-109"]
+    tasks: ["T009", "T010"]
+    full_trace: "REQ-103,REQ-109 → Phase-3.1 → T009,T010"
+  - plan_item: "3.2"
+    source_requirements: ["REQ-104", "REQ-102", "REQ-106", "REQ-109"]
+    tasks: ["T011"]
+    full_trace: "REQ-104,REQ-102,REQ-106,REQ-109 → Phase-3.2 → T011"
+  - plan_item: "4.1"
+    source_requirements: ["REQ-105", "REQ-109"]
+    tasks: ["T012", "T013"]
+    full_trace: "REQ-105,REQ-109 → Phase-4.1 → T012,T013"
+  - plan_item: "4.2"
+    source_requirements: ["REQ-105", "REQ-106", "REQ-107"]
+    tasks: ["T014", "T015", "T016"]
+    full_trace: "REQ-105,REQ-106,REQ-107 → Phase-4.2 → T014,T015,T016"
+  - plan_item: "5.1"
+    source_requirements: ["REQ-108", "REQ-109"]
+    tasks: ["T006", "T014", "T016", "T017", "T018", "T019"]
+    full_trace: "REQ-108,REQ-109 → Phase-5.1 → T006,T014,T016,T017,T018,T019"
+  - plan_item: "5.2"
+    source_requirements: ["REQ-101", "REQ-102", "REQ-103", "REQ-104", "REQ-105", "REQ-106", "REQ-107", "REQ-108", "REQ-109"]
+    tasks: ["T019", "T020"]
+    full_trace: "REQ-101..109 → Phase-5.2 → T019,T020"
+
+validation:
+  passed: true
+  errors: []
+  warnings:
+    - "T001 must confirm the existing preview, notification, and target-snapshot contracts; any undocumented contract blocks the affected functionality pending user confirmation."

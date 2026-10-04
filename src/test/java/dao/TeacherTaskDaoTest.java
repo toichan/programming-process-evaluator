@@ -42,12 +42,14 @@ class TeacherTaskDaoTest {
 	void insertsDraftWithInitialOptimisticLockVersion() throws SQLException {
 		List<String> preparedSql = new ArrayList<>();
 		Connection connection = insertConnection(preparedSql, 41);
+		TeacherTaskDao taskDao = new TeacherTaskDao(ignored -> 17L);
 
-		assertEquals(41, dao.insertDraft(connection, 7, emptyInput()));
+		assertEquals(41, taskDao.insertDraft(connection, 7, emptyInput()));
 		assertEquals(1, preparedSql.size());
 		String normalizedSql = preparedSql.get(0).replaceAll("\\s+", " ");
 		assertTrue(normalizedSql.contains("publication_status, created_at, version"));
 		assertTrue(normalizedSql.contains("'draft', 'draft', CURRENT_TIMESTAMP, 1)"));
+		assertTrue(normalizedSql.contains("created_by_user_id, updated_by_user_id, rubric_id,"));
 	}
 
 	private static TeacherTaskInput emptyInput() {

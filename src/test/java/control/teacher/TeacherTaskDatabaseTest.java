@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.IOException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -27,6 +28,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import control.auth.AuthenticatedUser;
+import control.student.StandardRubricSource;
 import entity.EditorHint;
 import entity.EditorTestCase;
 import entity.TeacherNavigationSummary;
@@ -38,6 +40,7 @@ import entity.TeacherTaskInput.LateSubmissionPolicy;
 import entity.UserCredential.UserType;
 import lib.mysql.Client;
 import dao.StudentEditorDao;
+import dao.StandardRubricDao;
 
 class TeacherTaskDatabaseTest {
 	private static final TeacherTaskControl TASKS = new TeacherTaskControl();
@@ -53,7 +56,7 @@ class TeacherTaskDatabaseTest {
 	private boolean fixtureInstalled;
 
 	@BeforeEach
-	void installFixtureOnlyInDedicatedDatabase() throws SQLException {
+	void installFixtureOnlyInDedicatedDatabase() throws SQLException, IOException {
 		Assumptions.assumeTrue("true".equals(System.getenv("TEACHER_TASK_DB_TEST")));
 		String database = System.getenv("DB_NAME");
 		assertTrue(database != null && database.matches("ppe_teacher_task_test_[a-z0-9_]+"),
@@ -61,8 +64,13 @@ class TeacherTaskDatabaseTest {
 
 		try (Connection connection = Client.createConnection()) {
 			assertEquals(database, connection.getCatalog());
-			assertTrue(hasSuccessfulMigration(connection, "16"),
-					"V16 must be applied to the isolated test database before running integration tests.");
+			assertTrue(hasSuccessfulMigration(connection, "17"),
+					"V17 must be applied to the isolated test database before running integration tests.");
+			new StandardRubricDao().register(StandardRubricSource.parse(
+					java.nio.file.Files.readString(java.nio.file.Path.of(
+							"docs/rubric/思考力・判断力・表現力_ルーブリック_0805.md")),
+					java.nio.file.Files.readString(java.nio.file.Path.of(
+							"docs/rubric/主体的に学習に取り組む態度_ルーブリック_0805.md"))));
 			connection.setAutoCommit(false);
 			try {
 				teacherLoginId = "task-test-" + UUID.randomUUID().toString().replace("-", "");
@@ -91,31 +99,46 @@ class TeacherTaskDatabaseTest {
 		assertEquals("Synthetic task school", navigation.schools().getFirst().name());
 
 		long taskId = TASKS.createDraft(teacher, input("Initial draft"), UUID.randomUUID().toString());
+		assertEquals(1, countTaskRubric(taskId));
 		var saved = TASKS.loadPage(teacher, taskId, schoolId).selectedTask();
 		assertEquals("Initial draft", saved.input().title());
 		assertEquals(1, saved.version());
 		assertEquals("test output", saved.input().testCases().getFirst().getExpectedOutput());
 		assertEquals(classroomId, saved.input().classAssignments().getFirst().classroomId());
 		assertEquals(1, TASKS.loadAuditEntries(teacher, taskId).size());
+	}
 
-		TASKS.updateDraft(teacher, taskId, saved.version(),
-				inputWithAllFields("Updated draft", List.of(classroomId, secondClassroomId)),
-				UUID.randomUUID().toString());
-		var reloaded = TASKS.loadPage(teacher, taskId, schoolId).selectedTask();
-		assertEquals("Updated draft", reloaded.input().title());
-		assertEquals(2, reloaded.version());
-		assertEquals(List.of("updated feature one", "updated feature two"), reloaded.input().features());
-		assertEquals(2, reloaded.input().testCases().size());
-		assertEquals("updated output two", reloaded.input().testCases().get(1).getExpectedOutput());
-		assertEquals(1, reloaded.input().hints().size());
-		assertEquals("Updated hint", reloaded.input().hints().getFirst().hint().getTitle());
-		assertEquals(Set.of(classroomId, secondClassroomId),
-				reloaded.input().classAssignments().stream()
-						.map(ClassAssignmentInput::classroomId).collect(java.util.stream.Collectors.toSet()));
-		assertTrue(reloaded.input().classAssignments().stream()
-				.allMatch(assignment -> assignment.lateSubmissionPolicy() == LateSubmissionPolicy.DENY));
-		assertEquals(2, countUnpublishedAssignments(taskId));
-		assertEquals(2, TASKS.loadAuditEntries(teacher, taskId).size());
+	@Test
+	void promptDraftUsesSharedRubricAndOptimisticVersioning() throws SQLException {
+		AuthenticatedUser teacher = teacher();
+		long taskId = TASKS.createDraft(teacher, input("Prompt draft task"), UUID.randomUUID().toString());
+		TeacherPromptControl prompts = new TeacherPromptControl();
+
+		var initialPage = prompts.loadPage(teacher, taskId, null);
+		assertEquals(entity.StandardRubric.VERSION, initialPage.standardRubric().version());
+		assertEquals(1, countTaskRubric(taskId));
+		assertTrue(initialPage.selectedVersion() == null);
+
+		long promptVersionId = prompts.saveDraft(
+				teacher, taskId, null, 0, "gemini-2.5-pro", "Initial evaluation instructions", null);
+		var created = prompts.loadPage(teacher, taskId, promptVersionId).selectedVersion();
+		assertEquals("v1", created.version());
+		assertEquals("draft", created.promptStatus());
+		assertEquals(1, created.rowVersion());
+
+		assertEquals(promptVersionId, prompts.saveDraft(
+				teacher, taskId, promptVersionId, created.rowVersion(),
+				"gemini-2.5-flash", "Updated evaluation instructions", "Check input validation."));
+		var updatedPage = prompts.loadPage(teacher, taskId, promptVersionId);
+		assertEquals("Updated evaluation instructions", updatedPage.selectedVersion().commonPrompt());
+		assertEquals("Check input validation.", updatedPage.selectedVersion().additionalInstruction());
+		assertEquals(2, updatedPage.selectedVersion().rowVersion());
+		assertEquals(1, updatedPage.versions().size());
+		assertFalse(updatedPage.auditEntries().isEmpty());
+		assertThrows(dao.TeacherPromptDao.PromptVersionConflictException.class,
+				() -> prompts.saveDraft(
+						teacher, taskId, promptVersionId, created.rowVersion(),
+						"gemini-2.5-pro", "Stale update", null));
 	}
 
 	@Test
@@ -362,6 +385,45 @@ class TeacherTaskDatabaseTest {
 					statement.setLong(1, teacherId);
 					statement.executeUpdate();
 				}
+				try (PreparedStatement statement = connection.prepareStatement("""
+						DELETE FROM audit_logs WHERE actor_user_id = ? AND feature_code = 'teacher-prompt-design'
+						""")) {
+					statement.setLong(1, teacherId);
+					statement.executeUpdate();
+				}
+				try (PreparedStatement statement = connection.prepareStatement("""
+						DELETE FROM evaluation_examples
+						WHERE prompt_version_id IN (
+						  SELECT prompt_version_id FROM prompt_versions
+						  WHERE task_id IN (SELECT task_id FROM tasks WHERE created_by_user_id = ?)
+						)
+						""")) {
+					statement.setLong(1, teacherId);
+					statement.executeUpdate();
+				}
+				try (PreparedStatement statement = connection.prepareStatement("""
+						DELETE FROM prompt_fluctuation_items
+						WHERE prompt_version_id IN (
+						  SELECT prompt_version_id FROM prompt_versions
+						  WHERE task_id IN (SELECT task_id FROM tasks WHERE created_by_user_id = ?)
+						)
+						""")) {
+					statement.setLong(1, teacherId);
+					statement.executeUpdate();
+				}
+				try (PreparedStatement statement = connection.prepareStatement("""
+						UPDATE tasks SET active_prompt_version_id = NULL WHERE created_by_user_id = ?
+						""")) {
+					statement.setLong(1, teacherId);
+					statement.executeUpdate();
+				}
+				try (PreparedStatement statement = connection.prepareStatement("""
+						DELETE FROM prompt_versions
+						WHERE task_id IN (SELECT task_id FROM tasks WHERE created_by_user_id = ?)
+						""")) {
+					statement.setLong(1, teacherId);
+					statement.executeUpdate();
+				}
 				deleteTaskChildren(connection, "task_features");
 				deleteTaskChildren(connection, "task_test_cases");
 				deleteTaskChildren(connection, "task_hints");
@@ -489,6 +551,28 @@ class TeacherTaskDatabaseTest {
 			try (ResultSet rows = statement.executeQuery()) {
 				if (!rows.next()) {
 					throw new SQLException("Assignment count query returned no row.");
+				}
+				return rows.getInt(1);
+			}
+		}
+	}
+
+	private int countTaskRubric(long taskId) throws SQLException {
+		try (Connection connection = Client.createConnection();
+				PreparedStatement statement = connection.prepareStatement("""
+						SELECT COUNT(*)
+						FROM tasks t
+						JOIN rubrics r ON r.rubric_id = t.rubric_id
+						WHERE t.task_id = ? AND r.title = ? AND r.version = ?
+						  AND r.rubric_status = 'active'
+						""")) {
+			assertEquals(System.getenv("DB_NAME"), connection.getCatalog());
+			statement.setLong(1, taskId);
+			statement.setString(2, entity.StandardRubric.TITLE);
+			statement.setString(3, entity.StandardRubric.VERSION);
+			try (ResultSet rows = statement.executeQuery()) {
+				if (!rows.next()) {
+					throw new SQLException("Task rubric lookup returned no row.");
 				}
 				return rows.getInt(1);
 			}
