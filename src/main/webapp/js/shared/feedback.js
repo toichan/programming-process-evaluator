@@ -248,28 +248,68 @@
 
     return new Promise((resolve) => {
       const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-      let handled = false;
+      const trigger = document.activeElement;
+      const focusContainer = trigger?.closest('.modal, main') || document.querySelector('main') || document.body;
+      let confirmed = false;
+
+      function canFocus(element) {
+        return element instanceof HTMLElement && element.isConnected &&
+          !element.matches(':disabled, [aria-disabled="true"]') &&
+          !element.closest('[inert], [aria-hidden="true"]') &&
+          element.getClientRects().length > 0 && getComputedStyle(element).visibility !== 'hidden';
+      }
+
+      function restoreFocus() {
+        const activeModal = document.querySelector('.modal.show');
+        if (trigger !== document.body && trigger !== document.documentElement &&
+            canFocus(trigger) && (!activeModal || activeModal.contains(trigger))) {
+          trigger.focus({ preventScroll: true });
+          return;
+        }
+        const container = activeModal || (canFocus(focusContainer) ? focusContainer : document.querySelector('main')) || document.body;
+        const candidate = Array.from(container.querySelectorAll(
+          'button, a[href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        )).find(canFocus);
+        if (candidate) {
+          candidate.focus({ preventScroll: true });
+        } else {
+          const tabindex = container.getAttribute('tabindex');
+          container.setAttribute('tabindex', '-1');
+          container.focus({ preventScroll: true });
+          if (tabindex === null) container.removeAttribute('tabindex');
+          else container.setAttribute('tabindex', tabindex);
+        }
+      }
 
       function cleanup() {
         confirmButton.removeEventListener('click', onConfirm);
+        modalEl.removeEventListener('shown.bs.modal', onShown);
+        modalEl.removeEventListener('hide.bs.modal', onHide);
         modalEl.removeEventListener('hidden.bs.modal', onHidden);
       }
 
       function onConfirm() {
-        handled = true;
-        cleanup();
+        confirmed = true;
         modal.hide();
-        resolve(true);
+      }
+
+      function onShown() {
+        if (confirmed) modal.hide();
+      }
+
+      function onHide() {
+        if (modalEl.contains(document.activeElement)) document.activeElement.blur();
       }
 
       function onHidden() {
         cleanup();
-        if (!handled) {
-          resolve(false);
-        }
+        restoreFocus();
+        resolve(confirmed);
       }
 
       confirmButton.addEventListener('click', onConfirm);
+      modalEl.addEventListener('shown.bs.modal', onShown);
+      modalEl.addEventListener('hide.bs.modal', onHide);
       modalEl.addEventListener('hidden.bs.modal', onHidden);
       modal.show();
     });

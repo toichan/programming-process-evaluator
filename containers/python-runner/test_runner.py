@@ -56,6 +56,44 @@ class BoundedOutputTest(unittest.TestCase):
         self.assertEqual("\ufffd" * 10, result["standardOutput"])
         self.assertTrue(result["standardOutputTruncated"])
 
+    def test_drain_closes_stream_on_read_failure(self):
+        stream = io.BytesIO(b"synthetic")
+        with patch.object(stream, "read", side_effect=OSError("synthetic read failure")):
+            with self.assertRaisesRegex(OSError, "synthetic read failure"):
+                runner.BoundedOutput().drain(stream)
+        self.assertTrue(stream.closed)
+
+
+class SynchronousPipeOwnershipTest(unittest.TestCase):
+    def test_closes_all_pipes_after_success_failure_and_timeout(self):
+        original_popen = runner.subprocess.Popen
+        for source, expected in [
+            ("print('done')", "succeeded"),
+            ("raise ValueError('synthetic')", "failed"),
+            ("import time; time.sleep(5)", "timed_out"),
+        ]:
+            with self.subTest(status=expected):
+                processes = []
+
+                def start(*args, **kwargs):
+                    process = original_popen(*args, **kwargs)
+                    processes.append(process)
+                    return process
+
+                with patch.object(runner, "_container_command",
+                                  return_value=[sys.executable, "-u", "-c", source]), \
+                        patch.object(runner.subprocess, "Popen", side_effect=start), \
+                        patch.object(runner, "_cleanup_container", return_value=True), \
+                        patch.object(runner, "EXECUTION_TIMEOUT_SECONDS", 0.15):
+                    result, status = runner._run_container("synthetic", "")
+                self.assertEqual(200, status)
+                self.assertEqual(expected, result["status"])
+                self.assertEqual(1, len(processes))
+                process = processes[0]
+                self.assertIsNotNone(process.poll())
+                for stream in (process.stdin, process.stdout, process.stderr):
+                    self.assertTrue(stream.closed)
+
 
 class ContainerCleanupTest(unittest.TestCase):
     def test_confirms_absence_after_removal_in_progress(self):
@@ -116,6 +154,9 @@ class InteractiveExecutionSessionTest(unittest.TestCase):
         while time.monotonic() < deadline:
             snapshot = session.snapshot(0)
             if snapshot["status"] != "running":
+                self.assertIsNotNone(session.process.poll())
+                for stream in (session.process.stdin, session.process.stdout, session.process.stderr):
+                    self.assertTrue(stream.closed)
                 return snapshot
             time.sleep(0.01)
         self.fail("Execution session did not finish before the test deadline.")
@@ -204,6 +245,13 @@ class InteractiveExecutionSessionTest(unittest.TestCase):
 
         self.assertEqual("cancelled", result["status"])
         self.assertEqual("execution_cancelled", result["errorCode"])
+
+    def test_runtime_error_closes_pipes_and_rejects_late_input(self):
+        session = self.start_session("raise ValueError('synthetic')")
+        result = self.wait_for_completion(session)
+        self.assertEqual("runtime_error", result["errorCode"])
+        with self.assertRaisesRegex(ValueError, "execution_not_running"):
+            session.send_input("late")
 
     def test_multibyte_output_events_match_bounded_terminal_snapshot(self):
         with patch.object(runner, "MAX_OUTPUT_BYTES", 32):

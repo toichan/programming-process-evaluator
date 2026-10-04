@@ -138,50 +138,38 @@
 
 詳細仕様は既存文書を一次情報として参照する。AGENTS.md には実行ルールと観点のみを保持し、仕様本文の重複記載はしない。
 
-## Handoff: 開発再開時に参照する資料と順序（2026-10-03 時点）
+## Handoff: 教師向け機能の開始（2026-10-04更新）
 
 詳細な機能仕様を本書へ複製せず、[docs/README.md](docs/README.md)を文書索引、[実装ロードマップ](docs/system-configuration/implementation-roadmap.md)を工程と進捗の正本として使う。
 
 ### 作業開始時に確認する資料
 
-1. [実装ロードマップ](docs/system-configuration/implementation-roadmap.md): 現在の工程、依存関係、完了条件を確認する。
-2. [実装とローカル開発の詳細手順](docs/system-configuration/implementation-and-local-development.md): 層の責務、実装ルール、ローカル開発ループを確認する。
-3. 対象工程の[機能仕様書](docs/function-specification.md)、[画面遷移図](docs/screen-flow-diagram.md)、対象画面の`screen-flow-diagram/webapp`資産を確認する。
-4. 対象機能の[状態ルール](docs/state-rules/README.md)、[DB設計・テーブル定義](docs/database-design/README.md)、関連[クラス図](docs/class-diagram/README.md)を確認する。
-5. [実装契約](docs/system-configuration/implementation-contract.md)で関連ICの未合意事項を確認し、未合意事項が実装方式に影響する場合は決め打ちせず、差分と選択肢を提示する。
-6. 既存の[機能別実装計画](docs/system-configuration/feature-plans/)を確認し、未完了タスク・検証結果を引き継ぐ。新規作業では[機能別実装計画テンプレート](docs/system-configuration/feature-plan-template.md)を使う。
+1. [実装ロードマップ](docs/system-configuration/implementation-roadmap.md): 「次の着手」と工程10を読む。完了記録を再実装の指示と扱わない。
+2. [実装手順](docs/system-configuration/implementation-and-local-development.md)と[実装契約](docs/system-configuration/implementation-contract.md): 層の責務、教師の所有範囲、IC-001/005/007/009等の実装前確認事項を確認する。
+3. [機能仕様書](docs/function-specification.md)と[画面遷移図](docs/screen-flow-diagram.md): 教師の課題・プロンプト・ルーブリック・配信と、それに接続する生徒側の要件を確認する。
+4. 教師の[課題状態](docs/state-rules/teacher/task-state-rules.md)、[プロンプト状態](docs/state-rules/teacher/prompt-state-rules.md)、[配信状態](docs/state-rules/teacher/distribution-state-rules.md)と[実装用状態表](docs/state-rules/implementation-state-table.md)を読む。授業演習の配信を扱う場合は[演習状態](docs/state-rules/student/exercise-state-rules.md)も確認する。
+5. [DBテーブル定義](docs/database-design/table-definitions.md)、[教師クラス図](docs/class-diagram/03-teacher-task-distribution.puml)、[入出力形式](docs/format/)を確認する。プロンプト・評価接続を扱う場合は[AI連携設計](docs/ai-api-integration-design.md)も読む。
+6. 教師の[課題画面](screen-flow-diagram/webapp/WEB-INF/teacher/task/task.html)、[プロンプト画面](screen-flow-diagram/webapp/WEB-INF/teacher/prompt/prompt.html)、[配信画面](screen-flow-diagram/webapp/WEB-INF/teacher/distribution/distribution.html)、関連CSS/JS・共通部品と[feedbackガイド](docs/feedback-guideline.md)を確認する。
+7. [機能別計画テンプレート](docs/system-configuration/feature-plan-template.md)で工程10の計画を作る。教師工程の機能別計画はまだ作成していない。完了済み計画は[文書索引](docs/README.md)から必要な根拠だけ参照する。
 
-### ロードマップの現在位置と次の順序
+### 現在位置と次の順序
 
-- 完了済みの基盤工程: 1〜4。認証工程5、生徒ホーム等の工程6は実装済み。詳しい根拠・制約はロードマップと各機能別計画を参照する。
-- **工程9「授業演習」は[機能別計画](docs/system-configuration/feature-plans/student-exercise.md)のT001〜T017を完了、初回スライスPASS、V12適用済み**。T012で検出したrunner cleanup/UTF-8出力境界/入力拒否理由を修正し、実制限・障害復旧・認可/再ログイン・課題提出回帰を再確認、T013引継ぎまで完了。次は工程10「教師の課題・プロンプト・配信」。演習の進捗制御/未実装追加操作/配信等は後続範囲。工程8「評価・コードログ・アンケート」は主要実装済みだが、設定・認証済みE2E・ユーザー手動確認が残る。ユーザー指示でこれらを保留して開発を先へ進めるため、工程8を完了扱いにせず[同計画](docs/system-configuration/feature-plans/student-evaluation-survey.md)の残件を引き継ぐ。
-- 2026-10-03追加指示により工程12の学校管理を先行実装。管理者ホームから学校一覧・登録・編集へ進む。学校単位のレベル設定と、生徒登録後の変更禁止が合意済み。根拠・検証は[認証計画の学校管理追加バッチ](docs/system-configuration/feature-plans/authentication-and-login.md)を参照。教師アカウント管理・クラス/生徒作成UIの実装完了を意味しない。
-- 次の開発順は9「授業演習」 → 10「教師の課題・プロンプト・配信」 → 11「教師の進捗・提出・評価・CSV」 → 12「管理者の教師アカウント管理・画面統合」 → 13「機能横断検証」。工程7・8の未確認事項は各計画に残し、必要な設定が整った時点で再開する。
-- 工程5で実装済みなのは認証・管理者ロール・初期管理者作成手段等であり、管理者用の教師アカウント管理業務画面は未実装。工程12として別途実装・検証する。
-- 段階2の機能横断検証完了後、本番公開作業へ進む場合は[開発からデプロイまでの全体手順](docs/system-configuration/development-and-deployment-flow.md)と[本番運用条件の確認テンプレート](docs/system-configuration/production-operations-decisions.md)を使う。ローカルComposeを本番へ流用しない。
+- 2026-10-04ユーザー指示で教師向け機能へ進む。以前の演習確認優先・教師工程前停止の指示は終了したものとして扱う。
+- 工程1〜4の基盤、工程5の認証、工程6の生徒ホーム等は実装済み。工程9の生徒演習T001〜T051と教師工程前の既知バグ5件は完了済み。詳細はロードマップから参照し、本書に版別履歴や完了済みタスクを再掲しない。
+- 工程7・8は主要実装済みだが残る検証がある。教師の課題・プロンプト・配信、進捗・評価・CSVなどの業務機能は未着手。認証用の教師ホームを業務機能の完成と扱わない。
+- 次の順序は工程10 → 11 → 12 → 13。工程12の学校管理だけは先行実装済み。新セッションの最初の成果物は工程10の機能別計画とする。
 
-### 保留事項
+### 新セッションの最初のステップ
 
-- 管理者画面の統合（2026-10-03ユーザー指示）: 教師管理／学校管理の2タブと作成・編集・履歴モーダルへの変更は**プロトタイプのみ反映済み**。入口は[管理者画面](screen-flow-diagram/webapp/WEB-INF/admin/management.html)、詳細は[画面遷移図](docs/screen-flow-diagram.md)を参照。不要な旧ホーム・学校管理ページは削除済み。**本実装への反映は今は行わず、ロードマップ工程12で再開する**。それまでは管理者UI調整をプロトタイプ専用資産で行い、`src/main`・DB・ローカルアプリを変更しない。先行実装済みの管理者ホーム・学校管理とプロトタイプの差は意図的な保留であり、整合のために自動反映しない。
-- ユーザーへのリマインド（2026-10-03）: **評価確認機能とアンケート機能は、後でユーザーが手動確認する**。現在はプロンプト未設定のため評価生成を含む確認を保留し、開発は先へ進める。必要なプロンプト・アンケート設定が整った時点で、提出確定後の「評価の確認」への遷移、評価表示、アンケートへの導線・保存・送信を確認するようユーザーへリマインドする。確認結果は[評価・コードログ・アンケート計画](docs/system-configuration/feature-plans/student-evaluation-survey.md)へ記録し、確認待ちを検証完了扱いにしない。
-  - 2026-10-04ユーザー確認: 評価・アンケートの確認再開は**教師向け画面が完成し、必要な設定を行えるようになってから**とする。直近は授業演習のユーザー手動確認を優先し、指摘への対応中は工程10へ自動で進まない。
-  - 第95〜97版の追加T018〜T024は実装・検証済み。次はユーザーの授業演習手動確認を継続する。移動機能は次回対象で未実装のため、本バッチの完了と混同しない。根拠と未確認事項は[授業演習計画Plan 3.7](docs/system-configuration/feature-plans/student-exercise.md)を参照する。
-  - 第98版は方針承認済み。T025〜T029のごみ箱基盤・単一ルート/明示確認による既存データ統合を実装・移行検証・ローカル反映済み。次はT030のアップロード同名解決、T031の最終確認へ進む。通常の領域選択は非表示、複数移行元がある場合だけ確認前の切替と統合確認を残す。第98版全体の完了と報告しない。可視ブラウザーの通常クリックは検証済みだが、利用者自身の画面とOSファイル選択の再確認は残る。詳細は[授業演習計画](docs/system-configuration/feature-plans/student-exercise.md)が正本。
-- IC-010の保存期間満了時処理は、ユーザーが再開を指示するまで着手しない。
-- 第99版T032〜T034は承認済み・実装/検証/ローカル反映済み。ごみ箱の名前/階層確認、全文tooltip、一括ZIP名のルート名統一を追加した。次工程は引き続きT030/T031。受入結果とOS保存の手動確認残件は[授業演習計画Plan3.12](docs/system-configuration/feature-plans/student-exercise.md)を参照する。
-- 第100版エクスプローラ拡張はT035〜T042と既存T030/T031まで実装・検証・ローカル反映済み。上記の各版の未実装記録よりこの最新状況を優先する。次はユーザーの授業演習手動確認を継続し、工程10へ自動で進まない。詳細・証跡・OS操作等の未確認事項は[授業演習計画Plan3.13〜3.18](docs/system-configuration/feature-plans/student-exercise.md)を正本とする。
-- 第101版の移動先ツリー/補助操作折りたたみ/選択モード/名前幅改善もT043〜T045で反映・検証済み。異なる階層の選択はユーザー承認により維持する。次は引き続きユーザー手動確認。詳細は[授業演習計画Plan3.19/3.20](docs/system-configuration/feature-plans/student-exercise.md)を参照。
-- 第102版T046/T047も反映・検証済み。初期配置は追加open、表示設定/選択操作closeを優先し、チェックで選択操作を自動展開しない。全展開/折りたたみ・小型upload・検索位置と検証証跡は[授業演習計画Plan3.21](docs/system-configuration/feature-plans/student-exercise.md)参照。引き続き利用者のデザイン/手動確認を継続する。
-- 第103版T048/T049も反映・検証済み。作成は1行文字の縦2段＋中央upload、操作アイコン/枠なし、検索解除は入力内×。選択モード中は0件でも操作表示。親folder配下は含まれるチェック済み・個別解除不可表示で明示IDは増やさない。最新の仕様/検証は[授業演習計画Plan3.22](docs/system-configuration/feature-plans/student-exercise.md)参照。
-- 第104版T050/T051も反映・検証済み。選択操作は同幅2列、件数補足なし、確認確定は操作名/削除だけ赤、削除確認は有効全配下を表示する。POST単位/ごみ箱/取消dirtyは維持。[授業演習計画Plan3.23](docs/system-configuration/feature-plans/student-exercise.md)参照。ユーザー手動確認を継続する。
-- 実装・検証の最新状況はこのHandoffへ細かく複製せず、ロードマップと対象の機能別実装計画だけを更新する。
-- 2026-10-04ユーザー指示: 授業演習の不具合修正と最終確認を行い、**教師向け工程の手前で停止する**。通常Chromeの単体.py保存・内容一致は利用者確認済み。最新結果と検証限界は[授業演習計画](docs/system-configuration/feature-plans/student-exercise.md)を参照し、工程10へ自動で進まない。
-- 生徒共通の標準ルーブリック閲覧は本実装・DB登録済み。検証結果、アンケートGET/空ログの別件、評価・アンケートの保留は[評価・アンケート計画T007〜T010](docs/system-configuration/feature-plans/student-evaluation-survey.md)を参照し、教師工程へ自動で進まない。
-- 2026-10-04ユーザー指示により通知一覧は作らず、通知アイコンを準備中表示にする。プロトタイプの固定通知サンプルを除去し、生徒・教師ヘッダーの差分/残課題は[実装ロードマップ](docs/system-configuration/implementation-roadmap.md)に記録した。再評価完了通知要件との整合と教師ヘッダーの本実装は別途確認する。
+1. `git status --short`で引き継いだ未コミット変更を確認する。直前のデバッグ修正・テスト・文書は作業ツリーに残っている。勝手に破棄・revert・commitせず、既存の開発環境やDBを初期化しない。
+2. 上記資料と既存コードを照合し、教師の学校/クラス権限・課題改訂・適用版・配信状態を確認する。不足する業務画面や設定を仮データで補わず、最初の機能スライスと前提を計画に明記する。
+3. 工程10の機能別計画を作成する。新たな仕様判断が必要ならユーザーへ確認し、仕様変更は所定の文書確認手順を先に行う。既存の合意を再確認待ちとして巻き戻さない。
+4. 計画の最初のスライスからDB → DAO → Control → Servlet → JSP/JavaScript → 保存後の再読込・権限/状態境界・ブラウザー検証の順で進める。この引継ぎ整理自体は文書のみで、教師機能の実装には着手していない。
 
-### 再開時に最初に行うこと
+### 維持する保留・制約
 
-1. [ロードマップ工程10](docs/system-configuration/implementation-roadmap.md)、対象の機能仕様/教師画面プロトタイプ・状態ルール・DB設計と[実装契約](docs/system-configuration/implementation-contract.md)を確認し、教師の課題/プロンプト/配信の機能別計画を作成する。未合意事項が影響する場合は着手前に確認する。
-2. [授業演習計画](docs/system-configuration/feature-plans/student-exercise.md)のT012修正後の最終判定とT013を引き継ぐ。T001〜T017/V12を作り直さず、初回スライス完了を教師配信や演習進捗制御全体の完了とみなさない。修正前のFAIL履歴は保持し、最終13件成功と区別する。ネイティブ保存ダイアログの利用者操作、本番全資源認証等の未確認事項も同計画で保持する。
-3. 計画に沿ってDB → DAO → Control → Servlet → JSP/JavaScript → 保存後の再読込・権限境界・ブラウザー検証の順で進める。授業演習では課題用の30秒コードログを記録しない。画面はプロトタイプに従い、授業演習の結果カードは課題本実装と共通の対話ターミナルを維持する。
-4. 管理者統合の本実装、実管理者アカウント作成、IC-010には自動着手しない。管理者統合は工程12かつユーザーの「ローカル環境へ反映」指示後に再開する。
+- 評価・アンケート全体の実設定とユーザー手動E2Eは、教師画面完成後に再開する。専用合成データの既知バグ検証と、実運用設定の受入完了を混同しない。詳細はロードマップ工程8から参照する。
+- 管理者の2タブ/モーダル統合は[管理者プロトタイプ](screen-flow-diagram/webapp/WEB-INF/admin/management.html)のみ。本実装への統合は工程12かつユーザーのローカル反映指示後。実管理者アカウント作成やIC-010の保存期間満了処理にも自動着手しない。
+- 通知一覧は追加しない。教師ヘッダー、ナビゲーションの用語・権限、再評価完了通知要件との整合は、ロードマップ末尾の未完了項目として引き継ぐ。
+- OS標準ダイアログ・全ブラウザー/OS互換性、本番運用条件、工程7の残る回帰確認はロードマップに保持する。今回の教師工程への移行を、それらの検証完了とは扱わない。
+- 失敗・修正・再検証の履歴はエラーレポートへ残す。解消済みの不具合は再発の根拠がない限り再オープンしない。
