@@ -1,4 +1,4 @@
-package servlet.auth;
+package servlet.admin;
 
 import java.io.IOException;
 
@@ -9,24 +9,25 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 import control.auth.AuthenticatedUser;
+import servlet.auth.CsrfTokens;
+import entity.UserCredential.UserType;
 
-@WebServlet("/teacher/home")
-public final class AuthHomeServlet extends HttpServlet {
+@WebServlet("/admin/home")
+public final class AdminHomeServlet extends HttpServlet {
 	private static final long serialVersionUID = 1L;
 
 	@Override
 	protected void doGet(HttpServletRequest request, HttpServletResponse response)
 			throws ServletException, IOException {
 		AuthenticatedUser user = (AuthenticatedUser) request.getAttribute("authenticatedUser");
-		if (user == null) {
+		if (user == null || user.userType() != UserType.ADMIN) {
 			response.sendError(HttpServletResponse.SC_FORBIDDEN);
 			return;
 		}
 
 		request.setAttribute("displayName", user.displayName());
-		request.setAttribute("teacherId", user.loginId());
-		request.setAttribute("isAdmin", user.userType() == entity.UserCredential.UserType.ADMIN);
 		request.setAttribute("csrfToken", CsrfTokens.getOrCreate(request.getSession(false)));
-		request.getRequestDispatcher("/WEB-INF/teacher/home.jsp").forward(request, response);
+		request.setAttribute("screenPageTitle", "管理者ホーム");
+		request.getRequestDispatcher("/WEB-INF/admin/home.jsp").forward(request, response);
 	}
 }

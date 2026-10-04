@@ -2,6 +2,96 @@
 
 秘密情報・実際の生徒データ・研究データは記載しない。解消後も履歴を保持する。
 
+## 2026-10-04 23:34 JST: 教師画面ルーブリック導線・文字コードのブラウザー確認
+
+- 対象/期待結果: 8080の教師課題画面で、プロトタイプどおりルーブリックボタンを操作でき、日本語が正しく表示されること。
+- 発見した問題と対応: デスクトップでも教師サイドバーに`z-index:1051`を指定していたため、`z-index:1049`の固定ルーブリックボタンが覆われていた。デスクトップのサイドバーを`z-index:auto`にし、オーバーレイを使うモバイル幅だけ`1051`を維持した。ルーブリックJSP fragmentにUTF-8宣言がなく、ボタン/見出しの日本語が文字化けしていたため`pageEncoding="UTF-8"`を追加した。画面遷移図・プロトタイプは変更していない。
+- ブラウザー操作時の制約: 統合ブラウザー上の通常クリック/hoverは要素の安定待ちでtimeoutし、`page.keyboard.press('Escape')`でもナビが閉じなかった。調査ではページが`visibilityState=hidden`、`document.timeline.currentTime=0`で、CSS遷移が進まない状態だった。DOM経由のクリックではルーブリックが開き、閉じる操作でモーダルの`show`状態が解除された。スクリーンショットでUTF-8のルーブリック表示を確認し、Escapeの合成`keydown`でモバイルナビが閉じてトグルへフォーカスが戻ることも確認した。隠しタブ上のクリック/キー入力や遷移完了状態は実利用ブラウザーでの確認に代えられないため、手動の実キー操作は未確認。
+- 関連回帰: `http://127.0.0.1:8080/teacher/task`でボタン位置のクリック対象がボタン内にあること、教師ログインでパスワード表示切替が`password`→`text`→`password`となることを確認。
+- 再検証: `docker compose exec -T app gradle test war --rerun-tasks --no-daemon --console=plain --warning-mode all`成功。`git diff --check`成功。未解決の実装エラーは確認されていない。実利用ブラウザーでの手動確認は未実施。
+
+## 2026-10-04: 教師課題T010のURLクエリ成功通知
+
+- 対象: 課題下書き保存後のPRG完了通知。
+- 発見した問題: `?notice=saved`というクライアント指定可能なqueryだけでJSPが成功表示していたため、実保存のない直接GETでも成功メッセージを表示できた。
+- 対応: 保存成功後にServletがsessionへ一回限りの通知を置き、ページデータ読込後にServletが取り出して削除した場合だけ画面へ渡す。成功判定にURL queryを使わない。通知を一回だけ消費するJUnitを追加。
+- 再検証: `docker compose exec -T app gradle compileJava test --tests 'servlet.teacher.TeacherTaskServletTest' --no-daemon --console=plain --warning-mode all`成功（2件）。`docker compose exec -T app gradle test war --rerun-tasks --no-daemon --console=plain --warning-mode all`のJUnit XMLは合計165件（成功111、失敗0、skip54）。
+- 影響/未解決事項: 誤成功表示は修正済み。認証済みHTTP保存/再読込とsession/DB統合はこの時点では未検証だったが、後続T014で使い捨て専用DBを用いて一部確認した。T014の残受入は未完了。
+
+## 2026-10-04: 教師ナビ・課題画面のHTTP/JSP受入
+
+- 対象: T011〜T014の教師ホーム、`/teacher/task`、共通テンプレートと使い捨てDBのブラウザー受入。
+- 発見した問題: `TeacherTaskServlet`が認証Filterの設定する`authenticatedUser`ではなく別の属性キーを参照していたため、認証済み課題画面が403になった。ナビJSP fragmentにはUTF-8 page encodingがなく日本語が文字化けし、親JSPで宣言済みのJSTL taglibを重複宣言していた。エラー再表示時は未選択の`Long`値をprimitiveへunboxしてNPEが発生した。
+- 追加発見: 複数クラスとヒントを含む更新を実DBで試すと、`TeacherTaskDao.bindHint`がINSERTのparameter 6を設定しておらず、ヒント追加時に`No value specified for parameter 6`で保存失敗した。
+- 対応: Filterと同じrequest属性キーを使用し、fragmentのUTF-8を明示、重複taglib宣言を削除、未選択値をnull-safeに扱う。モバイルナビの閉じ操作ではフォーカスをトグルへ戻す。ヒントINSERTはtask IDと5つのヒント値を正しいparameter位置へbindするよう修正した。
+- 再検証: 使い捨て専用MySQLにV1〜V16を適用し、専用DB統合テスト8件と全JUnit/WAR（合計178件、成功124、失敗0、skip54）を実行。複数クラス/子項目更新、同version同時更新、子ID所属エラーとMySQL障害時のtransaction rollback、学生DAOの未公開割当拒否、student/adminの作成拒否、別教師所有課題/未許可校割当拒否を確認。実ブラウザーでログイン、教師ホーム、課題JSP、保存/PRG/再読込、一回限り通知、モバイルナビを確認。検証用MySQL/containerは削除し、共有DBはversion 15のまま。
+- HTTP smoke: 未認証GET `/student/home`は302で`/student/account/login`へ、`/admin/schools`と`/teacher/home`は302で`/teacher/account/login`へ転送し、`/student/account/login`は200を返した。認証ガードの確認に限られ、認証済み既存画面の回帰確認ではない。
+- 追加の環境制約: 共有MySQLではV11のstored routine作成権限がなくmigrationが失敗したため、DB限定権限の変更も行わず、localhostのみに公開した使い捨てMySQLで検証した。
+- 当時点の未解決事項: T014の全endpoint/action認可マトリクスと認証済み既存画面のHTTP/ブラウザー回帰は未完了。後続のT014完了記録に最終結果とS1外の未確認事項を記載した。
+
+## 2026-10-04: 教師課題T014受入マトリクスと既存画面回帰
+
+- 対象: 工程10 S1の教師課題認可/状態/rollbackと、教師・管理者・生徒画面の認証済み回帰。
+- 対応/再検証: 合成ユーザー/学校/クラスだけを使う専用MySQLにV1〜V16を適用しvalidate。追加DB受入10件が成功し、全JUnit/WARも成功（180件、成功126、失敗0、skip54）。停止教師、機能/学校権限の無効化、別教師による課題/監査参照、複数校をまたぐ偽造割当、偽造task/child ID、同version競合、transaction rollbackを確認した。
+- 認証HTTP: 教師ホーム/課題編集、管理者ホーム/学校管理、生徒ホーム/既存公開課題エディター/標準ルーブリック/授業演習を確認。adminと生徒の教師画面GET/POSTは403、存在しない課題/editorは404、存在しないsurveyは403。実ブラウザーで教師ホーム/課題編集、生徒ホーム/エディター、幅390pxの教師ナビを確認した。
+- テストDBの初回migrationはMySQL binary logging下のroutine作成設定によりV11で失敗した。設定変更は当該使い捨てMySQLだけに限定し、専用schemaを作り直した後V1〜V16のmigration/validateと受入を再実行して成功。専用DB/volume/containerを削除し、共有DBはversion 15のまま、V16未適用。
+- 未確認/対象外: 有効な評価・アンケートfixtureは作成していないため、生徒の提出→評価→アンケートの正式E2Eは未確認のまま工程8に保持する。54件のskipは受入根拠に含めない。
+- 詳細: [T014/T015バッチレポート](./feature-plans/checkpoints/teacher-task-draft/batch-report-T014-T015.yaml)。
+
+## 2026-10-04: 8080で教師課題画面を確認するための開発環境更新
+
+- ユーザー依頼に基づき、`programming_process_evaluator`開発DBへFlyway V16を適用し`flywayValidate`を実行。既存データを削除・初期化する操作は行っていない。
+- 認証用の合成テスト教師と、専用の合成学校/クラス、`task-management`機能権限を追加した。パスワードはPBKDF2-SHA256形式のハッシュのみDBに保存。資格情報は会話でユーザーへ案内し、文書/ソースには保存しない。
+- 初回seedでMySQL clientへUTF-8を明示しなかったため合成表示名が文字化けした。`--default-character-set=utf8mb4`を指定して合成ユーザー/学校/クラス名を修正し、DB接続後のUTF-8表示を再確認した。
+- 8080のTomcatを再起動して作業ツリーの最新コードを読み込み、合成教師のログイン後に`/teacher/home`と`/teacher/task`がHTTP 200、課題フォーム/新規作成領域/合成学校名が表示されることをブラウザーとHTTPで確認した。
+- 認証情報を受け取った利用者が作る課題下書きは開発DBに保存される。不要になったアカウント/合成学校データの削除は、ユーザーの確認後に対象IDを限定して行う。
+
+## 2026-10-04: 教師課題T009の初回production compile失敗
+
+- 対象/操作: T009のServletへJSP表示用フォーム状態を追加後、`docker compose exec -T app gradle compileJava --rerun-tasks --no-daemon --console=plain --warning-mode all`を実行。
+- 実際の結果: `TeacherTaskServlet`から`TeacherTaskInput`を参照するimportが不足しcompile失敗。
+- 対応/再検証: entity importを追加。`docker compose exec -T app gradle compileJava test --tests 'servlet.teacher.TeacherTaskFormTest' --tests 'control.teacher.TeacherTaskInputValidatorTest' --tests 'control.teacher.TeacherTaskCreateRegistryTest' --tests 'control.teacher.TeacherTaskControlTest' --tests 'dao.TeacherTaskDaoTest' --tests 'dao.TeacherPermissionDaoTest' --tests 'entity.TeacherTaskInputTest' --no-daemon --console=plain --warning-mode all`成功。その後、JUnit XML合計163件（成功109、失敗0、skip54）で全テストとWAR生成が成功。
+- 影響/未解決事項: 修正済み。Gradle WAR taskはJSPをコンパイルしないため、認証済みHTTPでのJSP描画はこの時点では未確認だったが、後続T014で実環境のJSP描画を確認した。
+
+## 2026-10-04: 教師課題T007/T008の実装中コンパイル・テスト失敗
+
+- 対象: 課題入力検証/作成token registry/ControlおよびServlet/form parserの追加時の局所コンパイル・JUnit確認。
+- 初回結果: `TeacherTaskControl`でローカル変数名が重複してproduction compileが失敗。Registryテストでは割込み例外の宣言と成功IDの期待値が実装契約に一致せず失敗。Servlet追加後はフォームbody上限例外の可視性が不足しcompileが失敗した。
+- 対応: 重複ローカル名を整理し、Registryテストを実際のchecked-exception/成功ID契約に合わせ、Servletから必要な例外型を参照できる可視性へ変更した。
+- 再検証: `docker compose exec -T app gradle test --tests 'servlet.teacher.TeacherTaskFormTest' --tests 'control.teacher.TeacherTaskInputValidatorTest' --tests 'control.teacher.TeacherTaskCreateRegistryTest' --tests 'control.teacher.TeacherTaskControlTest' --tests 'dao.TeacherTaskDaoTest' --tests 'dao.TeacherPermissionDaoTest' --tests 'entity.TeacherTaskInputTest' --no-daemon --console=plain --warning-mode all` 成功（27件、失敗0、skip 0）。`docker compose exec -T app gradle compileJava --rerun-tasks --no-daemon --console=plain --warning-mode all`と`git diff --check`も成功。
+- 影響/未解決事項: 失敗はいずれも修正済み。専用教師DB未準備につきV16、MySQL DAO/認可/監査統合、Servlet-JSP認証HTTPは未検証で、T009/T013/T014に残す。
+
+## 2026-10-04: 教師課題T005のDAO単体テスト初回失敗
+
+- 対象/コマンド: `TeacherTaskDaoTest`追加後に `docker compose exec -T app gradle test --tests 'dao.TeacherTaskDaoTest' --tests 'dao.TeacherPermissionDaoTest' --tests 'entity.TeacherTaskInputTest' --no-daemon --console=plain --warning-mode all` を実行。
+- 実際の結果: 初回はテスト用JDBC proxyが空の機能リスト保存時の`executeBatch()`を扱えず1件失敗。空リストではDB更新が不要なためDAOを早期returnに変更した後、SQL検査の改行差分を含む未正規化文字列比較が1件失敗。
+- 対応/再検証: 空の機能リストでbatch SQLを発行しないよう修正し、INSERT SQL assertion前に空白を正規化。上記Gradleコマンドは10件成功、失敗0、skip 0。強制production compileと`git diff --check`も成功。
+- 影響/未解決事項: 共有DBには接続せず、データ変更なし。これはテストfixture/assertionの失敗として解消。実SQL・ロック・V16は専用教師合成DBが未準備のため未確認で、T013/T014に残す。
+
+## 2026-10-04 18:41 JST以降: 教師課題T003/T004のテストツール検出
+
+- 対象/操作: T003/T004の新規Java/JUnitテストを`runTests`ツールで指定ファイル実行。期待結果は対象テストの発見・実行。
+- 実際の結果: `No tests found in the files. Ensure the correct absolute paths are passed to the tool.`。テスト内容の失敗ではなく、この実行環境がGradle Javaテストを検出できなかった。
+- 影響: 初回テスト呼出しのみ。ソース/DB/APIへの変更なし。
+- 対応/再検証: リポジトリ標準のGradle runnerで `docker compose exec -T app gradle test --tests 'entity.TeacherTaskInputTest' --tests 'dao.TeacherPermissionDaoTest' --no-daemon --console=plain --warning-mode all` を実行しBUILD SUCCESSFUL。新規JUnit 6件を実行し、失敗0。`git diff --check`も成功。
+- 未解決事項: DAOのSQL・ロック動作は専用教師DBが未準備のため未検証。これはT013/T014へ残し、単体テスト成功と混同しない。
+
+## 2026-10-04 18:39 JST以降: 教師課題version migration検証
+
+- 対象/コマンド: 工程10 T002でV16を追加した後、`docker compose exec -T app gradle flywayValidate --no-daemon --console=plain --warning-mode all`を実行。期待結果はFlywayの適用済みmigration整合確認、DB変更なし。
+- 実際の結果: 終了1。`Validate failed: Migrations have failed validation`、`Detected resolved migration not applied to database: 16.`。新規V16はFlywayから認識されたが、接続先共有開発DBはschema version 15のためpending migrationを通常validateが拒否した。DDL実行・migration適用は発生していない。
+- 影響: validationコマンドのみ失敗。開発DBに変更なし。migrationソースの文法/制約がDB上で受け入れられるかは未検証。
+- 対応: pending migrationを反映する目的でDBへ`migrate`を実行せず、読み取り専用`flywayInfo`でschema 15/V16 pendingを確認する。T002の検証記録に失敗と理由を明記する。
+- 未解決事項: 専用の教師合成DB作成後、V16適用・既存行のversion初期値・`CHECK(version >= 1)`違反拒否を確認する。共有DBの通常`flywayValidate`は専用でないV16適用まではpending理由で失敗し続ける。
+
+## 2026-10-04 18:27 JST以降: 工程10計画の文書検証
+
+- 対象/手順: [教師課題下書き計画](./feature-plans/teacher-task-draft.md)の要件/タスク対応・ローカルリンクを、Ruby標準YAMLと正規表現で読み取り確認。期待結果は日本語MarkdownのUTF-8解析と全対応の一致。
+- 初回コマンド形式: `ruby -ryaml -e '検証コード'`。実際は`invalid byte sequence in US-ASCII (ArgumentError)`で終了1。実行環境の既定文字コードで日本語本文を解析できず、計画の整合判定まで進まなかった。
+- 影響: 文書検証コマンドのみ。製品コード、DB、設定、外部APIへの変更/送信なし。
+- 対応/再検証: 同じ検証コードを`ruby -EUTF-8:UTF-8 -ryaml -e '検証コード'`で実行して終了0。要件9件・計画9項目・タスク15件・上流対応、ローカルリンク247件と末尾空白なしを確認。
+- 未解決事項: この文字コードエラーは解消。計画の静的確認と教師機能の実装/DB/ブラウザー受入は別で、後者は未着手。
+
 ## 2026-10-04 17:32 JST以降: 教師工程前デバッグ完了
 
 [デバッグ計画](./feature-plans/pre-teacher-debugging.md)の5件を修正・再検証・ローカル反映済み。以下の17:23時点の「未修正」は当時の分類であり、現在の未解決事項ではない。専用Composeの合成DB・認証HTTP・ブラウザーで検証し、既存利用者のデータ・パスワード・回答は変更していない。外部AI APIは呼び出していない。

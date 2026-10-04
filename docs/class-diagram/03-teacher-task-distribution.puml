@@ -54,6 +54,7 @@ class Task {
   + taskCode: String
   + taskRevisionCode: String <<UK>>
   + revisionNumber: Integer
+  + version: Long
   + supersedesTaskId: Long <<FK>>
   + createdByUserId: Long <<FK>>
   + updatedByUserId: Long <<FK>>

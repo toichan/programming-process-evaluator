@@ -31,6 +31,8 @@
 - 画面遷移プロトタイプ作業時はテンプレート資産を優先利用する。
   - 参照: `screen-flow-diagram/webapp/WEB-INF/template`
   - 参照: `screen-flow-diagram/webapp/css/template/template.css`
+- 画面遷移図と `screen-flow-diagram/webapp` の画面デザイン・項目・機能・導線は、利用者が意図をもって設計した仕様として尊重し、必要がない限り変更しない。本実装への移植・接続では既存デザインと機能を維持し、Servlet/JSP化、DB・認可への接続、共通部品との統合、アクセシビリティやレスポンシブ対応など、実装上必要な差分だけを加える。
+- 画面遷移図やプロトタイプの変更が必要な場合は、依頼された範囲と目的を先に特定し、既存仕様を独自の画面案・簡略化・機能削除で置き換えない。設計意図や要件の変更を伴う場合は、関連する仕様書・画面遷移図・プロトタイプの順に差分を示して確認を得てから更新する。
 - 新規の確認・通知 UI は `shared feedback` を使い、画面ごとに alert / confirm を再実装しない。
   - 参照: `docs/feedback-guideline.md`
 
@@ -150,21 +152,21 @@
 4. 教師の[課題状態](docs/state-rules/teacher/task-state-rules.md)、[プロンプト状態](docs/state-rules/teacher/prompt-state-rules.md)、[配信状態](docs/state-rules/teacher/distribution-state-rules.md)と[実装用状態表](docs/state-rules/implementation-state-table.md)を読む。授業演習の配信を扱う場合は[演習状態](docs/state-rules/student/exercise-state-rules.md)も確認する。
 5. [DBテーブル定義](docs/database-design/table-definitions.md)、[教師クラス図](docs/class-diagram/03-teacher-task-distribution.puml)、[入出力形式](docs/format/)を確認する。プロンプト・評価接続を扱う場合は[AI連携設計](docs/ai-api-integration-design.md)も読む。
 6. 教師の[課題画面](screen-flow-diagram/webapp/WEB-INF/teacher/task/task.html)、[プロンプト画面](screen-flow-diagram/webapp/WEB-INF/teacher/prompt/prompt.html)、[配信画面](screen-flow-diagram/webapp/WEB-INF/teacher/distribution/distribution.html)、関連CSS/JS・共通部品と[feedbackガイド](docs/feedback-guideline.md)を確認する。
-7. [機能別計画テンプレート](docs/system-configuration/feature-plan-template.md)で工程10の計画を作る。教師工程の機能別計画はまだ作成していない。完了済み計画は[文書索引](docs/README.md)から必要な根拠だけ参照する。
+7. [工程10の初回スライス計画](docs/system-configuration/feature-plans/teacher-task-draft.md)と[最終受入レポート](docs/system-configuration/feature-plans/checkpoints/teacher-task-draft/batch-report-T014-T015.yaml)を確認する。S1のT001〜T015は完了し、専用DBでV1〜V16、認証境界、HTTP/ブラウザー回帰を検証済み。ユーザー依頼で8080の共有開発DBにもV16を適用し、合成テスト教師と専用学校/クラス権限を追加済み。教師向けホーム画面とそのServlet/JSPは設けず、現在のログイン後は利用可能な課題編集へ遷移する。アカウント管理機能の実装後は画面遷移図どおり同機能へ遷移する。管理者ホームは `/admin/home` として分離・維持する。共有DBへの追加変更は、依頼された確認準備の範囲を超えないよう扱う。次はS2（ルーブリック/プロンプト準備・AI生成）の計画を具体化する。画面遷移図とプロトタイプは、必要性が明確でない限りデザイン/機能を変更しない。
 
 ### 現在位置と次の順序
 
 - 2026-10-04ユーザー指示で教師向け機能へ進む。以前の演習確認優先・教師工程前停止の指示は終了したものとして扱う。
 - 工程1〜4の基盤、工程5の認証、工程6の生徒ホーム等は実装済み。工程9の生徒演習T001〜T051と教師工程前の既知バグ5件は完了済み。詳細はロードマップから参照し、本書に版別履歴や完了済みタスクを再掲しない。
-- 工程7・8は主要実装済みだが残る検証がある。教師の課題・プロンプト・配信、進捗・評価・CSVなどの業務機能は未着手。認証用の教師ホームを業務機能の完成と扱わない。
-- 次の順序は工程10 → 11 → 12 → 13。工程12の学校管理だけは先行実装済み。新セッションの最初の成果物は工程10の機能別計画とする。
+- 工程7・8は主要実装済みだが残る検証がある。教師の課題下書きS1（T001〜T015）は専用DB、認証HTTP、ブラウザーで受入済み。正式な評価設定/アンケートE2E、教師のプロンプト・配信、進捗・評価・CSVなどは未完了。
+- 次の順序は工程10 → 11 → 12 → 13。工程10はS1完了後、S2のルーブリック/プロンプト準備・AI生成を別計画として具体化する。S3公開/改訂とS4配信は分離する。工程12の学校管理だけは先行実装済み。
 
 ### 新セッションの最初のステップ
 
 1. `git status --short`で引き継いだ未コミット変更を確認する。直前のデバッグ修正・テスト・文書は作業ツリーに残っている。勝手に破棄・revert・commitせず、既存の開発環境やDBを初期化しない。
-2. 上記資料と既存コードを照合し、教師の学校/クラス権限・課題改訂・適用版・配信状態を確認する。不足する業務画面や設定を仮データで補わず、最初の機能スライスと前提を計画に明記する。
-3. 工程10の機能別計画を作成する。新たな仕様判断が必要ならユーザーへ確認し、仕様変更は所定の文書確認手順を先に行う。既存の合意を再確認待ちとして巻き戻さない。
-4. 計画の最初のスライスからDB → DAO → Control → Servlet → JSP/JavaScript → 保存後の再読込・権限/状態境界・ブラウザー検証の順で進める。この引継ぎ整理自体は文書のみで、教師機能の実装には着手していない。
+2. [教師課題下書き計画](docs/system-configuration/feature-plans/teacher-task-draft.md)と[最終受入レポート](docs/system-configuration/feature-plans/checkpoints/teacher-task-draft/batch-report-T014-T015.yaml)を読み、T001〜T015の完了範囲と正式評価/アンケートE2Eなどの保留を確認する。
+3. 次はS2（ルーブリック/プロンプト準備・AI生成）の計画を具体化する。S3公開/改訂・削除/復元、S4演習コード配信は混在させない。新たな仕様判断が必要な場合のみユーザーへ確認し、既存合意の実装を巻き戻さない。
+4. S1確認準備として共有開発DBをV16に更新済み。以後のDB受入/破壊的検証はfail-closed gate付きの使い捨て専用合成DBで行い、ユーザーが明示依頼しない限り共有DBに追加変更をしない。画面遷移図とプロトタイプは必要性が明確でない限り変更しない。
 
 ### 維持する保留・制約
 

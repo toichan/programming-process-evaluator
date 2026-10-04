@@ -1,0 +1,607 @@
+metadata:
+  generated: "2026-10-04"
+  source_tasks: "docs/system-configuration/feature-plans/teacher-task-draft.md"
+  last_updated: "2026-10-04"
+summary:
+  total_tasks: 15
+  completed_tasks: 15
+  in_progress_tasks: 0
+  pending_tasks: 0
+  completion_percentage: 100
+tasks:
+  - task_id: "T001"
+    description: "Confirm initial worktree and isolated DB prerequisites"
+    status: "completed"
+    implementation:
+      files_changed:
+        - file: "docs/system-configuration/feature-plans/teacher-task-draft.md"
+          change_type: "modified"
+          description: "Recorded worktree, Compose services, Flyway version and missing isolated test fixture"
+    verification:
+      build_passed: true
+      test_results:
+        command: "docker compose exec -T app gradle flywayInfo --no-daemon --console=plain --warning-mode all"
+        passed: 1
+        failed: 0
+        skipped: 0
+        failures: []
+      notes: "Read-only; schema version 15. No test DB changes."
+    upstream_trace:
+      plan_item: "1.1"
+      requirements: ["REQ-001", "REQ-003", "REQ-009"]
+      full_trace: "REQ-001/003/009 -> Plan 1.1 -> T001 -> teacher-task-draft.md"
+  - task_id: "T002"
+    description: "Add task draft save version migration and update design sources"
+    status: "completed"
+    implementation:
+      files_changed:
+        - file: "src/main/resources/db/migration/V16__support_teacher_task_drafts.sql"
+          change_type: "created"
+          description: "Adds tasks.version with default 1 and a positive-value check"
+        - file: "docs/database-design/table-definitions.md"
+          change_type: "modified"
+          description: "Documents the task draft optimistic-lock version"
+        - file: "docs/class-diagram/03-teacher-task-distribution.puml"
+          change_type: "modified"
+          description: "Adds version to Task"
+        - file: "docs/system-configuration/feature-plans/teacher-task-draft.md"
+          change_type: "modified"
+          description: "Records migration and pending shared-schema validation"
+    verification:
+      build_passed: false
+      test_results:
+        command: "docker compose exec -T app gradle flywayValidate --no-daemon --console=plain --warning-mode all"
+        passed: 0
+        failed: 1
+        skipped: 0
+        failures: ["Existing shared schema is version 15; Flyway rejects validation while V16 is pending."]
+      notes: "No migration was applied. flywayInfo confirmed V16 pending; apply and DB constraints await an isolated test database."
+    upstream_trace:
+      plan_item: "2.1"
+      requirements: ["REQ-005"]
+      full_trace: "REQ-005 -> Plan 2.1 -> T002 -> V16 migration and task schema documentation"
+  - task_id: "T003"
+    description: "Define typed task input and display DTOs"
+    status: "completed"
+    implementation:
+      files_changed:
+        - file: "src/main/java/entity/TeacherTaskInput.java"
+          change_type: "created"
+          description: "Defines task fields, policy enums and immutable child inputs"
+        - file: "src/main/java/entity/TeacherTaskDetails.java"
+          change_type: "created"
+          description: "Defines task metadata and typed detail view"
+        - file: "src/main/java/entity/TeacherTaskPage.java"
+          change_type: "created"
+          description: "Defines immutable page data"
+        - file: "src/main/java/entity/TeacherTaskAuditEntry.java"
+          change_type: "created"
+          description: "Defines audit history view"
+        - file: "src/main/java/entity/TeacherSchoolOption.java"
+          change_type: "created"
+          description: "Defines authorized school option"
+        - file: "src/main/java/entity/TeacherClassOption.java"
+          change_type: "created"
+          description: "Defines active class option"
+        - file: "src/main/java/entity/TeacherHintOption.java"
+          change_type: "created"
+          description: "Defines reusable task hint view"
+        - file: "src/test/java/entity/TeacherTaskInputTest.java"
+          change_type: "created"
+          description: "Covers enum mapping, whitespace preservation and collection immutability"
+    verification:
+      build_passed: true
+      test_results:
+        command: "docker compose exec -T app gradle test --tests 'entity.TeacherTaskInputTest' --tests 'dao.TeacherPermissionDaoTest' --no-daemon --console=plain --warning-mode all"
+        passed: 3
+        failed: 0
+        skipped: 0
+        failures: []
+      notes: "Targeted Gradle run also compiled production and test sources."
+    upstream_trace:
+      plan_item: "2.2"
+      requirements: ["REQ-002", "REQ-005", "REQ-006"]
+      full_trace: "REQ-002/005/006 -> Plan 2.2 -> T003 -> typed task entities and unit tests"
+  - task_id: "T004"
+    description: "Implement teacher task-management permission and school/class scope queries"
+    status: "completed"
+    implementation:
+      files_changed:
+        - file: "src/main/java/dao/TeacherPermissionDao.java"
+          change_type: "created"
+          description: "Checks transaction, active teacher, task-management permission and locked school/class scope"
+        - file: "src/test/java/dao/TeacherPermissionDaoTest.java"
+          change_type: "created"
+          description: "Covers transaction and invalid-identifier guards"
+    verification:
+      build_passed: true
+      test_results:
+        command: "docker compose exec -T app gradle test --tests 'entity.TeacherTaskInputTest' --tests 'dao.TeacherPermissionDaoTest' --no-daemon --console=plain --warning-mode all"
+        passed: 3
+        failed: 0
+        skipped: 0
+        failures: []
+      notes: "MySQL authorization and locking queries remain unverified until the isolated synthetic teacher DB is available."
+    upstream_trace:
+      plan_item: "2.2"
+      requirements: ["REQ-001"]
+      full_trace: "REQ-001 -> Plan 2.2 -> T004 -> TeacherPermissionDao and guard tests"
+  - task_id: "T005"
+    description: "Implement teacher task DAO"
+    status: "completed"
+    implementation:
+      files_changed:
+        - file: "src/main/java/dao/TeacherTaskDao.java"
+          change_type: "created"
+          description: "Implements teacher-owned draft reads/writes, optimistic locking, child and assignment persistence, and successful audit history"
+        - file: "src/test/java/dao/TeacherTaskDaoTest.java"
+          change_type: "created"
+          description: "Covers transaction and identifier guards plus initial-version insert and generated key handling"
+    verification:
+      build_passed: true
+      test_results:
+        command: "docker compose exec -T app gradle test --tests 'dao.TeacherTaskDaoTest' --tests 'dao.TeacherPermissionDaoTest' --tests 'entity.TeacherTaskInputTest' --no-daemon --console=plain --warning-mode all"
+        passed: 10
+        failed: 0
+        skipped: 0
+        failures: []
+      notes: "Forced production compile and git diff --check passed. MySQL DAO SQL/integration remains unverified pending the isolated synthetic teacher database."
+    upstream_trace:
+      plan_item: "2.2"
+      requirements: ["REQ-001", "REQ-002", "REQ-003", "REQ-005", "REQ-006"]
+      full_trace: "REQ-001/002/003/005/006 -> Plan 2.2 -> T005 -> TeacherTaskDao and focused unit tests"
+  - task_id: "T006"
+    description: "Implement transactional teacher task control"
+    status: "completed"
+    implementation:
+      files_changed:
+        - file: "src/main/java/control/teacher/TeacherTaskControl.java"
+          change_type: "created"
+          description: "Connects authorized task reads/writes, version and class-scope checks, and transactional success/failure audit handling"
+        - file: "src/main/java/dao/TeacherPermissionDao.java"
+          change_type: "modified"
+          description: "Adds locked active class and school authorization validation"
+        - file: "src/main/java/dao/TeacherTaskDao.java"
+          change_type: "modified"
+          description: "Adds failure audit persistence for a separate post-rollback transaction"
+        - file: "src/test/java/control/teacher/TeacherTaskControlTest.java"
+          change_type: "created"
+          description: "Covers admin-role and invalid-version rejection before database access"
+        - file: "src/test/java/dao/TeacherPermissionDaoTest.java"
+          change_type: "modified"
+          description: "Covers invalid class identifier rejection"
+        - file: "docs/system-configuration/feature-plans/teacher-task-draft.md"
+          change_type: "modified"
+          description: "Records T006 behavior, test results, and the remaining DB integration boundary"
+    verification:
+      build_passed: true
+      test_results:
+        command: "docker compose exec -T app gradle test --tests 'control.teacher.TeacherTaskControlTest' --tests 'dao.TeacherTaskDaoTest' --tests 'dao.TeacherPermissionDaoTest' --tests 'entity.TeacherTaskInputTest' --no-daemon --console=plain --warning-mode all"
+        passed: 13
+        failed: 0
+        skipped: 0
+        failures: []
+      notes: "git diff --check passed. SQL authorization, audit, and rollback integration still require the isolated synthetic teacher database."
+    upstream_trace:
+      plan_item: "3.1"
+      requirements: ["REQ-001", "REQ-002", "REQ-003", "REQ-005", "REQ-006"]
+      full_trace: "REQ-001/002/003/005/006 -> Plan 3.1 -> T006 -> TeacherTaskControl and guard tests"
+  - task_id: "T007"
+    description: "Validate task persistence inputs and idempotency"
+    status: "completed"
+    implementation:
+      files_changed:
+        - file: "src/main/java/control/teacher/TeacherTaskInputValidator.java"
+          change_type: "created"
+          description: "Validates database capacities, required values, encoding, dates, identifiers, and child collections"
+        - file: "src/main/java/control/teacher/TeacherTaskCreateRegistry.java"
+          change_type: "created"
+          description: "Serializes session-scoped create tokens and reuses successful task IDs"
+        - file: "src/main/java/control/teacher/TeacherTaskControl.java"
+          change_type: "modified"
+          description: "Applies normalized validation and recovers completed creates after uncertain commit responses"
+        - file: "src/main/java/dao/TeacherTaskDao.java"
+          change_type: "modified"
+          description: "Looks up successful create audit records by request token"
+        - file: "src/test/java/control/teacher/TeacherTaskInputValidatorTest.java"
+          change_type: "created"
+          description: "Covers input limits, normalization, invalid values, dates, and duplicate identifiers"
+        - file: "src/test/java/control/teacher/TeacherTaskCreateRegistryTest.java"
+          change_type: "created"
+          description: "Covers token reuse, concurrent requests, expiry, and retry behavior"
+    verification:
+      build_passed: true
+      test_results:
+        command: "docker compose exec -T app gradle test --tests 'control.teacher.TeacherTaskInputValidatorTest' --tests 'control.teacher.TeacherTaskCreateRegistryTest' --tests 'control.teacher.TeacherTaskControlTest' --tests 'dao.TeacherTaskDaoTest' --tests 'entity.TeacherTaskInputTest' --no-daemon --console=plain --warning-mode all"
+        passed: 20
+        failed: 0
+        skipped: 0
+        failures: []
+      notes: "Tests passed; production compile and git diff --check passed. MySQL persistence and audit recovery remain pending isolated DB verification."
+    upstream_trace:
+      plan_item: "3.1"
+      requirements: ["REQ-001", "REQ-002", "REQ-003", "REQ-005", "REQ-006"]
+      full_trace: "REQ-001/002/003/005/006 -> Plan 3.1 -> T007 -> input validator, idempotency registry, and focused tests"
+  - task_id: "T008"
+    description: "Implement task servlet and form parsing"
+    status: "completed"
+    implementation:
+      files_changed:
+        - file: "src/main/java/servlet/teacher/TeacherTaskForm.java"
+          change_type: "created"
+          description: "Parses bounded strict UTF-8 form bodies and validates scalar and repeated fields"
+        - file: "src/main/java/servlet/teacher/TeacherTaskServlet.java"
+          change_type: "created"
+          description: "Wires authenticated teacher GET/POST, CSRF, create/update, PRG, status handling, and error input retention"
+        - file: "src/test/java/servlet/teacher/TeacherTaskFormTest.java"
+          change_type: "created"
+          description: "Covers form decoding, accepted fields, repeated collection shape, and invalid input rejection"
+    verification:
+      build_passed: true
+      test_results:
+        command: "docker compose exec -T app gradle test --tests 'servlet.teacher.TeacherTaskFormTest' --tests 'control.teacher.TeacherTaskInputValidatorTest' --tests 'control.teacher.TeacherTaskCreateRegistryTest' --tests 'control.teacher.TeacherTaskControlTest' --tests 'dao.TeacherTaskDaoTest' --tests 'dao.TeacherPermissionDaoTest' --tests 'entity.TeacherTaskInputTest' --no-daemon --console=plain --warning-mode all"
+        passed: 27
+        failed: 0
+        skipped: 0
+        failures: []
+      notes: "Forced production compile and git diff --check passed. HTTP/JSP rendering and DB-backed behavior remain pending T009/T013/T014."
+    upstream_trace:
+      plan_item: "3.2"
+      requirements: ["REQ-001", "REQ-002", "REQ-003", "REQ-005", "REQ-008"]
+      full_trace: "REQ-001/002/003/005/008 -> Plan 3.2 -> T008 -> TeacherTaskForm and TeacherTaskServlet"
+  - task_id: "T009"
+    description: "Integrate the task prototype into the production JSP"
+    status: "completed"
+    implementation:
+      files_changed:
+        - file: "src/main/webapp/WEB-INF/teacher/task/task.jsp"
+          change_type: "created"
+          description: "Renders authorized school/class options, draft form/list, live preview, reusable hints, and audit history"
+        - file: "src/main/webapp/css/teacher/task/task.css"
+          change_type: "created"
+          description: "Carries over the task prototype stylesheet with production-only row and preview styles"
+        - file: "src/main/webapp/js/teacher/task/task.js"
+          change_type: "created"
+          description: "Implements dynamic form rows, scheduling, preview, hint import, confirmation, and draft submission"
+        - file: "src/main/java/servlet/teacher/TeacherTaskServlet.java"
+          change_type: "modified"
+          description: "Supplies page assets, form state, authorized selections, schedules, and actual counts to the JSP"
+        - file: "src/main/java/control/teacher/TeacherTaskControl.java"
+          change_type: "modified"
+          description: "Loads class choices across the authenticated teacher's authorized schools"
+        - file: "src/main/webapp/WEB-INF/template/page-start.jspf"
+          change_type: "modified"
+          description: "Loads CodeMirror styles for teacher task pages only when requested"
+        - file: "src/main/webapp/WEB-INF/template/page-end.jspf"
+          change_type: "modified"
+          description: "Loads CodeMirror scripts for teacher task pages only when requested"
+        - file: "src/main/java/entity/TeacherTaskPage.java"
+          change_type: "modified"
+          description: "Exposes JavaBeans getters for JSP EL access to the page record"
+        - file: "src/main/java/entity/TeacherTaskDetails.java"
+          change_type: "modified"
+          description: "Exposes JavaBeans getters for JSP EL access to task details"
+        - file: "src/main/java/entity/TeacherTaskInput.java"
+          change_type: "modified"
+          description: "Exposes JavaBeans getters for JSP EL access to task inputs"
+        - file: "src/main/java/entity/TeacherSchoolOption.java"
+          change_type: "modified"
+          description: "Exposes JavaBeans getters for authorized school options"
+        - file: "src/main/java/entity/TeacherClassOption.java"
+          change_type: "modified"
+          description: "Exposes JavaBeans getters for authorized class options"
+        - file: "src/main/java/entity/TeacherHintOption.java"
+          change_type: "modified"
+          description: "Exposes JavaBeans getters for reusable hint options"
+        - file: "src/main/java/entity/TeacherTaskAuditEntry.java"
+          change_type: "modified"
+          description: "Exposes JavaBeans getters for task audit history"
+        - file: "docs/system-configuration/feature-plans/teacher-task-draft.md"
+          change_type: "modified"
+          description: "Records T009 implementation, validation evidence, and remaining runtime boundary"
+        - file: "docs/system-configuration/feature-plans/checkpoints/teacher-task-draft/tasks-to-impl.yaml"
+          change_type: "modified"
+          description: "Marks T009 complete and updates task counts and traceability"
+        - file: "docs/system-configuration/feature-plans/checkpoints/teacher-task-draft/batch-report-T009.yaml"
+          change_type: "created"
+          description: "Records T009 implementation evidence and remaining acceptance boundary"
+        - file: "docs/system-configuration/implementation-roadmap.md"
+          change_type: "modified"
+          description: "Updates工程10 progress and next task"
+        - file: "docs/README.md"
+          change_type: "modified"
+          description: "Updates current progress and handoff"
+        - file: "AGENTS.md"
+          change_type: "modified"
+          description: "Updates teacher handoff"
+        - file: "docs/system-configuration/error-report.md"
+          change_type: "modified"
+          description: "Records the resolved T009 production-compile failure"
+    verification:
+      build_passed: true
+      test_results:
+        command: "docker compose exec -T app gradle test war --no-daemon --console=plain --warning-mode all"
+        passed: 109
+        failed: 0
+        skipped: 54
+        failures: []
+      notes: "JUnit XML contains 163 tests: 109 passed, 0 failed, 54 skipped. WAR contains the task JSP/CSS/JS; static assets returned HTTP 200; unauthenticated /teacher/task redirected to login. Authenticated JSP/DB acceptance was later partially verified under T014."
+    upstream_trace:
+      plan_item: "3.3"
+      requirements: ["REQ-002", "REQ-006", "REQ-007", "REQ-008"]
+      full_trace: "REQ-002/006/007/008 -> Plan 3.3 -> T009 -> production task JSP/CSS/JS and WAR/test/browser evidence"
+  - task_id: "T010"
+    description: "Remove prototype-only successful task operations"
+    status: "completed"
+    implementation:
+      files_changed:
+        - file: "src/main/webapp/WEB-INF/teacher/task/task.jsp"
+          change_type: "modified"
+          description: "Keeps all operations unsupported by the draft slice unavailable and displays creator and updater login IDs"
+        - file: "src/main/webapp/js/teacher/task/task.js"
+          change_type: "modified"
+          description: "Shows a save toast only when the server-rendered one-time success notice is present"
+        - file: "src/main/java/servlet/teacher/TeacherTaskServlet.java"
+          change_type: "modified"
+          description: "Stores and consumes a session-scoped one-time save notice; does not trust a query parameter"
+        - file: "src/test/java/servlet/teacher/TeacherTaskServletTest.java"
+          change_type: "created"
+          description: "Verifies success notices are consumed once and invalid session state is reported"
+        - file: "docs/system-configuration/feature-plans/teacher-task-draft.md"
+          change_type: "modified"
+          description: "Records T010 hardening and validation evidence"
+        - file: "docs/system-configuration/feature-plans/checkpoints/teacher-task-draft/tasks-to-impl.yaml"
+          change_type: "modified"
+          description: "Marks T010 complete and updates task totals/traceability"
+        - file: "docs/system-configuration/feature-plans/checkpoints/teacher-task-draft/batch-report-T010.yaml"
+          change_type: "created"
+          description: "Records T010 changes and validation"
+        - file: "docs/system-configuration/implementation-roadmap.md"
+          change_type: "modified"
+          description: "Updates engineering progress and next task"
+        - file: "docs/README.md"
+          change_type: "modified"
+          description: "Updates current progress and next step"
+        - file: "AGENTS.md"
+          change_type: "modified"
+          description: "Updates the teacher handoff"
+        - file: "docs/system-configuration/error-report.md"
+          change_type: "modified"
+          description: "Records the discovered and fixed URL-query success-notice bug"
+    verification:
+      build_passed: true
+      test_results:
+        command: "docker compose exec -T app gradle test war --rerun-tasks --no-daemon --console=plain --warning-mode all"
+        passed: 111
+        failed: 0
+        skipped: 54
+        failures: []
+      notes: "The forged notice query/localStorage/fixed sample/fake-save code search returned no matches. Shared DB was not changed."
+    upstream_trace:
+      plan_item: "3.3"
+      requirements: ["REQ-002", "REQ-006", "REQ-008"]
+      full_trace: "REQ-002/006/008 -> Plan 3.3 -> T010 -> server-only one-time save notice, login-ID display, and regression tests"
+  - task_id: "T011"
+    description: "Add teacher shared navigation"
+    status: "completed"
+    implementation:
+      files_changed:
+        - file: "src/main/java/control/teacher/TeacherNavigationControl.java"
+          change_type: "created"
+          description: "Loads teacher navigation data through the permission layer"
+        - file: "src/main/java/entity/TeacherNavigationSummary.java"
+          change_type: "created"
+          description: "Represents authenticated teacher identity, school and feature permission"
+        - file: "src/main/java/dao/TeacherPermissionDao.java"
+          change_type: "modified"
+          description: "Exposes active school and task-management information for navigation"
+        - file: "src/main/webapp/WEB-INF/teacher/shared/navigation.jspf"
+          change_type: "created"
+          description: "Renders the teacher navigation and authorized task entry point"
+        - file: "src/main/webapp/css/teacher/shared/components.css"
+          change_type: "created"
+          description: "Styles the responsive teacher navigation"
+        - file: "src/main/webapp/js/teacher/shared/navigation.js"
+          change_type: "created"
+          description: "Implements mobile menu, Escape close and focus restoration"
+    upstream_trace:
+      plan_item: "3.4"
+      requirements: ["REQ-001", "REQ-007", "REQ-008"]
+      full_trace: "REQ-001/007/008 -> Plan 3.4 -> T011 -> authorized teacher navigation and browser interaction"
+  - task_id: "T012"
+    description: "Wire task entry point to teacher home and template"
+    status: "completed"
+    implementation:
+      files_changed:
+        - file: "src/main/webapp/WEB-INF/template/page-start.jspf"
+          change_type: "modified"
+          description: "Adds teacher-only shared navigation and asset loading"
+        - file: "src/main/webapp/WEB-INF/template/page-end.jspf"
+          change_type: "modified"
+          description: "Adds teacher-only footer and navigation script"
+        - file: "src/main/java/servlet/auth/AuthHomeServlet.java"
+          change_type: "modified"
+          description: "Loads teacher navigation authorization for the home page"
+        - file: "src/main/webapp/WEB-INF/teacher/home.jsp"
+          change_type: "modified"
+          description: "Adds the authorized task editing entry point"
+        - file: "src/main/java/servlet/teacher/TeacherTaskServlet.java"
+          change_type: "modified"
+          description: "Uses the authentication filter's request attribute and retains error form state"
+    verification:
+      build_passed: true
+      test_results:
+        command: "gradle test war --rerun-tasks --no-daemon --console=plain --warning-mode all"
+        passed: 124
+        failed: 0
+        skipped: 54
+        failures: []
+      notes: "JUnit XML contains 178 tests: 124 passed, 0 failed, 54 skipped. Authenticated teacher home, task JSP, save/PRG/reload and mobile navigation were verified in a browser against an isolated disposable MySQL environment."
+    upstream_trace:
+      plan_item: "3.4"
+      requirements: ["REQ-001", "REQ-007", "REQ-008"]
+      full_trace: "REQ-001/007/008 -> Plan 3.4 -> T012 -> teacher home and role-specific template integration"
+  - task_id: "T013"
+    description: "Add isolated database and form tests"
+    status: "completed"
+    implementation:
+      files_changed:
+        - file: "src/test/java/control/teacher/TeacherTaskDatabaseTest.java"
+          change_type: "created"
+          description: "Adds fail-closed disposable-database persistence, reload, version, audit and permission tests"
+        - file: "src/test/java/servlet/teacher/TeacherTaskServletTest.java"
+          change_type: "modified"
+          description: "Verifies authentication attribute integration and one-time success notice"
+        - file: "src/test/java/dao/TeacherPermissionDaoTest.java"
+          change_type: "modified"
+          description: "Tests teacher navigation authorization data"
+    verification:
+      build_passed: true
+      test_results:
+        command: "TEACHER_TASK_DB_TEST=true gradle test --tests 'control.teacher.TeacherTaskDatabaseTest' --no-daemon --console=plain --warning-mode all"
+        passed: 8
+        failed: 0
+        skipped: 0
+        failures: []
+      notes: "Disposable MySQL applied Flyway V1-V16. Shared DB stayed at version 15; the disposable container and DB were removed after verification."
+    upstream_trace:
+      plan_item: "4.1"
+      requirements: ["REQ-001", "REQ-002", "REQ-003", "REQ-005", "REQ-006", "REQ-008"]
+      full_trace: "REQ-001/002/003/005/006/008 -> Plan 4.1 -> T013 -> fail-closed isolated DB and form tests"
+  - task_id: "T014"
+    description: "Run authenticated HTTP and browser acceptance"
+    status: "completed"
+    implementation:
+      files_changed:
+        - file: "src/main/java/dao/TeacherTaskDao.java"
+          change_type: "modified"
+          description: "Fixes hint INSERT parameter binding found by full child-update acceptance"
+        - file: "src/test/java/control/teacher/TeacherTaskDatabaseTest.java"
+          change_type: "modified"
+          description: "Adds multi-class, child update, concurrency, rollback, visibility, inactive-account, revoked-school and forged-ID scenarios"
+        - file: "src/test/java/control/teacher/TeacherTaskControlTest.java"
+          change_type: "modified"
+          description: "Adds student-role rejection coverage"
+        - file: "docs/system-configuration/feature-plans/teacher-task-draft.md"
+          change_type: "modified"
+          description: "Records the completed T014 acceptance matrix, HTTP/browser regression and remaining scope limits"
+        - file: "docs/system-configuration/feature-plans/checkpoints/teacher-task-draft/tasks-to-impl.yaml"
+          change_type: "modified"
+          description: "Records T014/T015 completion and final verification totals"
+        - file: "docs/system-configuration/feature-plans/checkpoints/teacher-task-draft/batch-report-T014-T015.yaml"
+          change_type: "created"
+          description: "Captures T014 acceptance evidence and T015 next-slice handoff"
+        - file: "docs/system-configuration/error-report.md"
+          change_type: "modified"
+          description: "Records the T014 isolated-MySQL acceptance and remaining S1-external verification limits"
+        - file: "docs/system-configuration/implementation-roadmap.md"
+          change_type: "modified"
+          description: "Updates工程10 status and hands off to S2"
+        - file: "docs/README.md"
+          change_type: "modified"
+          description: "Updates the current teacher-slice status and next-slice pointer"
+        - file: "AGENTS.md"
+          change_type: "modified"
+          description: "Updates the teacher handoff to completed S1 and next S2 planning"
+    verification:
+      build_passed: true
+      test_results:
+        command: "TEACHER_TASK_DB_TEST=true gradle test war --rerun-tasks --no-daemon --console=plain --warning-mode all"
+        passed: 126
+        failed: 0
+        skipped: 54
+        failures: []
+      notes: "All 10 isolated TeacherTaskDatabaseTest cases passed. The full suite and WAR build passed with 180 tests, 126 passed, 0 failed and 54 skipped. Disposable-DB authentication HTTP covered teacher home/task, admin home/schools and student home/editor/rubric/exercise; an unavailable survey was denied. Browser checks rendered teacher home/task and student home/editor, including responsive teacher navigation. Shared DB stayed at V15."
+    upstream_trace:
+      plan_item: "4.1"
+      requirements: ["REQ-001", "REQ-002", "REQ-003", "REQ-005", "REQ-006", "REQ-007", "REQ-008", "REQ-009"]
+      full_trace: "REQ-001..009 -> Plan 4.1 -> T014 -> isolated DB authorization/state matrix and authenticated HTTP/browser regression"
+  - task_id: "T015"
+    description: "Record final results and next-slice handoff"
+    status: "completed"
+    implementation:
+      files_changed:
+        - file: "docs/system-configuration/feature-plans/teacher-task-draft.md"
+          change_type: "modified"
+          description: "Records final S1 evidence, limits and S2 handoff"
+        - file: "docs/system-configuration/implementation-roadmap.md"
+          change_type: "modified"
+          description: "Marks the S1 acceptance complete and identifies S2 as the next planned slice"
+        - file: "docs/README.md"
+          change_type: "modified"
+          description: "Points the project handoff to S2 planning"
+        - file: "AGENTS.md"
+          change_type: "modified"
+          description: "Updates current position, sequence and the next-session first step"
+        - file: "docs/system-configuration/feature-plans/checkpoints/teacher-task-draft/tasks-to-impl.yaml"
+          change_type: "modified"
+          description: "Moves T015 into completed tasks and closes the checkpoint"
+        - file: "docs/system-configuration/feature-plans/checkpoints/teacher-task-draft/batch-report-T014-T015.yaml"
+          change_type: "created"
+          description: "Records traceability and the S2 handoff"
+    verification:
+      build_passed: true
+      test_results:
+        command: "TEACHER_TASK_DB_TEST=true gradle test war --rerun-tasks --no-daemon --console=plain --warning-mode all"
+        passed: 126
+        failed: 0
+        skipped: 54
+        failures: []
+      notes: "The handoff keeps prompt/AI setup (S2), publication and revision management (S3), and exercise distribution (S4) as distinct future slices. No prototype or shared database changes."
+    upstream_trace:
+      plan_item: "4.2"
+      requirements: ["REQ-009"]
+      full_trace: "REQ-009 -> Plan 4.2 -> T015 -> recorded S1 outcome, known limits and S2 handoff"
+pending_tasks: []
+untracked_changes: []
+traceability_chain:
+  - chain_id: "TRACE-REQ-001"
+    requirement: "REQ-001"
+    plan_phase: "Phase-2"
+    plan_item: "2.2"
+    tasks: ["T004", "T005", "T006", "T007", "T008", "T009"]
+    files: ["src/main/java/dao/TeacherPermissionDao.java", "src/main/java/dao/TeacherTaskDao.java", "src/main/java/control/teacher/TeacherTaskControl.java", "src/main/java/servlet/teacher/TeacherTaskServlet.java", "src/main/webapp/WEB-INF/teacher/task/task.jsp"]
+    status: "partial"
+  - chain_id: "TRACE-REQ-002"
+    requirement: "REQ-002"
+    plan_phase: "Phase-2"
+    plan_item: "2.2"
+    tasks: ["T003", "T005", "T006", "T007", "T008", "T009", "T010"]
+    files: ["src/main/java/entity/TeacherTaskInput.java", "src/main/java/entity/TeacherTaskDetails.java", "src/main/java/dao/TeacherTaskDao.java", "src/main/java/control/teacher/TeacherTaskControl.java", "src/main/java/control/teacher/TeacherTaskInputValidator.java", "src/main/java/servlet/teacher/TeacherTaskForm.java", "src/main/java/servlet/teacher/TeacherTaskServlet.java", "src/main/webapp/WEB-INF/teacher/task/task.jsp"]
+    status: "partial"
+  - chain_id: "TRACE-REQ-005"
+    requirement: "REQ-005"
+    plan_phase: "Phase-2"
+    plan_item: "2.1/2.2"
+    tasks: ["T002", "T003", "T005", "T006", "T007", "T008", "T009"]
+    files: ["src/main/resources/db/migration/V16__support_teacher_task_drafts.sql", "src/main/java/entity/TeacherTaskInput.java", "src/main/java/dao/TeacherTaskDao.java", "src/main/java/control/teacher/TeacherTaskControl.java", "src/main/java/control/teacher/TeacherTaskInputValidator.java", "src/main/java/servlet/teacher/TeacherTaskForm.java", "src/main/java/servlet/teacher/TeacherTaskServlet.java", "src/main/webapp/WEB-INF/teacher/task/task.jsp"]
+    status: "partial"
+  - chain_id: "TRACE-REQ-006"
+    requirement: "REQ-006"
+    plan_phase: "Phase-2"
+    plan_item: "2.2"
+    tasks: ["T003", "T005", "T006", "T007", "T008", "T009"]
+    files: ["src/main/java/entity/TeacherTaskAuditEntry.java", "src/main/java/dao/TeacherTaskDao.java", "src/main/java/control/teacher/TeacherTaskControl.java", "src/main/java/control/teacher/TeacherTaskCreateRegistry.java", "src/main/java/servlet/teacher/TeacherTaskServlet.java", "src/main/webapp/WEB-INF/teacher/task/task.jsp"]
+    status: "partial"
+  - chain_id: "TRACE-REQ-007"
+    requirement: "REQ-007"
+    plan_phase: "Phase-3"
+    plan_item: "3.3"
+    tasks: ["T009"]
+    files: ["src/main/webapp/WEB-INF/teacher/task/task.jsp", "src/main/webapp/js/teacher/task/task.js"]
+    status: "partial"
+  - chain_id: "TRACE-REQ-008"
+    requirement: "REQ-008"
+    plan_phase: "Phase-3"
+    plan_item: "3.2/3.3"
+    tasks: ["T008", "T009", "T010"]
+    files: ["src/main/java/servlet/teacher/TeacherTaskForm.java", "src/main/java/servlet/teacher/TeacherTaskServlet.java", "src/main/webapp/WEB-INF/teacher/task/task.jsp"]
+    status: "partial"
+validation:
+  passed: true
+  errors: []
+  warnings:
+    - "V16 was applied only to a disposable isolated DB; the shared development DB remains at version 15 and was not migrated."
+    - "54 existing suite tests were skipped; they are not counted as acceptance evidence. All 10 dedicated teacher-task database acceptance tests passed."
+    - "End-to-end requirement chains remain partial for downstream teacher features outside the completed S1 draft slice."
+  blocking_issues: []

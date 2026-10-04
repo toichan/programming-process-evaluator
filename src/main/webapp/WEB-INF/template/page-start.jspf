@@ -13,6 +13,12 @@
 		rel="stylesheet">
 	<link href="${pageContext.request.contextPath}/css/template/template.css" rel="stylesheet">
 	<link href="${pageContext.request.contextPath}/css/shared/feedback.css" rel="stylesheet">
+	<c:if test="${screenDesign == 'teacher'}">
+		<link href="${pageContext.request.contextPath}/css/teacher/shared/components.css?v=teacher-menu-v4" rel="stylesheet">
+	</c:if>
+	<c:if test="${screenDesign == 'teacher-login'}">
+		<link href="${pageContext.request.contextPath}/css/teacher/account/login.css?v=prototype-match-1" rel="stylesheet">
+	</c:if>
 	<c:if test="${screenDesign == 'student'}">
 		<link href="${pageContext.request.contextPath}/css/student/shared/components.css?v=help-modal" rel="stylesheet">
 		<c:if test="${screenUsesCodeMirror}">
@@ -20,16 +26,28 @@
 			<link href="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/theme/material-darker.css" rel="stylesheet">
 		</c:if>
 	</c:if>
+	<c:if test="${screenDesign == 'teacher' and screenUsesCodeMirror}">
+		<link href="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/lib/codemirror.css" rel="stylesheet">
+		<link href="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/theme/material-darker.css" rel="stylesheet">
+	</c:if>
 	<c:if test="${not empty screenStylesheet}">
 		<link href="<c:url value='${screenStylesheet}'/>" rel="stylesheet">
 	</c:if>
 </head>
-<body<c:if test="${screenDesign == 'student'}"> class="student-screen"</c:if>>
-	<c:if test="${screenDesign != 'student'}">
+<body<c:choose><c:when test="${screenDesign == 'student'}"> class="student-screen"</c:when><c:when test="${screenDesign == 'teacher'}"> class="teacher-screen"</c:when><c:when test="${screenDesign == 'teacher-login'}"> class="teacher-login-screen"</c:when></c:choose>>
+	<c:choose>
+		<c:when test="${screenDesign == 'teacher'}">
+			<div class="teacher-app-shell">
+				<%@ include file="/WEB-INF/teacher/shared/navigation.jspf" %>
+		</c:when>
+		<c:when test="${screenDesign == 'teacher-login'}">
+		</c:when>
+		<c:when test="${screenDesign != 'student'}">
 		<header class="bg-white border-bottom">
 			<div class="container py-3">
 				<span class="navbar-brand mb-0">Programming Process Evaluator</span>
 			</div>
 		</header>
 		<main class="container py-5">
-	</c:if>
+		</c:when>
+	</c:choose>

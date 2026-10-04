@@ -218,6 +218,7 @@ Geminiへの送信データでは、`student_profiles.student_code` や氏名等
 |published_at|公開日時|DATETIME||YES|||
 |deleted_at|削除日時|DATETIME||YES|||
 |deleted_by_user_id|削除実行者ユーザID|BIGINT||YES|FOREIGN_KEY|users.user_id|
+|version|保存バージョン|BIGINT||NO|DEFAULT 1, CHECK >= 1|課題下書き更新の楽観ロックに使用。改訂番号とは別。V16で追加|
 
 一意制約: `(task_code, revision_number)`
 

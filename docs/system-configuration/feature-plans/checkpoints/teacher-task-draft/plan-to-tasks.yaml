@@ -1,0 +1,85 @@
+metadata:
+  generated: "2026-10-04"
+  source_plan: "docs/system-configuration/feature-plans/teacher-task-draft.md"
+  target_tasks: "docs/system-configuration/feature-plans/teacher-task-draft.md"
+summary:
+  total_plan_items: 9
+  covered_plan_items: 9
+  missing_plan_items: 0
+  coverage_percentage: 100.0
+  total_tasks_generated: 15
+  orphan_tasks: 0
+phases:
+  - phase_id: "Phase-1"
+    phase_name: "Preflight"
+    items:
+      - item_id: "1.1"
+        description: "Confirm worktree and isolated validation prerequisites"
+        tasks: ["T001"]
+  - phase_id: "Phase-2"
+    phase_name: "Database and authorization foundation"
+    items:
+      - item_id: "2.1"
+        description: "Add task save version without changing revisions"
+        tasks: ["T002"]
+      - item_id: "2.2"
+        description: "Typed inputs, current authorization and task persistence"
+        tasks: ["T003", "T004", "T005"]
+  - phase_id: "Phase-3"
+    phase_name: "Draft vertical slice"
+    items:
+      - item_id: "3.1"
+        description: "Transactional control, validation and duplicate prevention"
+        tasks: ["T006", "T007"]
+      - item_id: "3.2"
+        description: "Servlet and form binding"
+        tasks: ["T008"]
+      - item_id: "3.3"
+        description: "Prototype-based JSP and real persistence feedback"
+        tasks: ["T009", "T010"]
+      - item_id: "3.4"
+        description: "Teacher shared UI and existing entry points"
+        tasks: ["T011", "T012"]
+  - phase_id: "Phase-4"
+    phase_name: "Validation and handoff"
+    items:
+      - item_id: "4.1"
+        description: "Targeted tests and authenticated acceptance"
+        tasks: ["T013", "T014"]
+      - item_id: "4.2"
+        description: "Record outcomes and next-slice gates"
+        tasks: ["T015"]
+missing_plan_items: []
+orphan_tasks: []
+upstream_trace:
+  - plan_item: "1.1"
+    source_requirements: ["REQ-001", "REQ-003", "REQ-009"]
+    tasks: ["T001"]
+  - plan_item: "2.1"
+    source_requirements: ["REQ-005"]
+    tasks: ["T002"]
+  - plan_item: "2.2"
+    source_requirements: ["REQ-001", "REQ-002", "REQ-003", "REQ-005", "REQ-006"]
+    tasks: ["T003", "T004", "T005"]
+  - plan_item: "3.1"
+    source_requirements: ["REQ-001", "REQ-002", "REQ-003", "REQ-004", "REQ-005", "REQ-006"]
+    tasks: ["T006", "T007"]
+  - plan_item: "3.2"
+    source_requirements: ["REQ-001", "REQ-002", "REQ-003", "REQ-005", "REQ-008"]
+    tasks: ["T008"]
+  - plan_item: "3.3"
+    source_requirements: ["REQ-002", "REQ-006", "REQ-007", "REQ-008"]
+    tasks: ["T009", "T010"]
+  - plan_item: "3.4"
+    source_requirements: ["REQ-001", "REQ-007", "REQ-008"]
+    tasks: ["T011", "T012"]
+  - plan_item: "4.1"
+    source_requirements: ["REQ-001", "REQ-002", "REQ-003", "REQ-004", "REQ-005", "REQ-006", "REQ-007", "REQ-008", "REQ-009"]
+    tasks: ["T013", "T014"]
+  - plan_item: "4.2"
+    source_requirements: ["REQ-009"]
+    tasks: ["T015"]
+validation:
+  passed: true
+  errors: []
+  warnings: ["Traceability only; implementation and acceptance not started."]

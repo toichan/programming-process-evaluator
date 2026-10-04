@@ -1,0 +1,94 @@
+batch_id: "B02"
+completed_tasks: ["T005"]
+blocked_tasks: []
+files_changed:
+  T005:
+    - file: "src/main/java/dao/TeacherTaskDao.java"
+      change_type: "created"
+      description: "Adds teacher-owned draft reads/writes, optimistic-lock checks, child and class-assignment persistence, and audit history."
+    - file: "src/test/java/dao/TeacherTaskDaoTest.java"
+      change_type: "created"
+      description: "Tests transaction and identifier guards plus initial-version insert and generated-key handling."
+    - file: "docs/system-configuration/feature-plans/teacher-task-draft.md"
+      change_type: "modified"
+      description: "Records T005 implementation and the remaining database integration boundary."
+    - file: "docs/system-configuration/feature-plans/checkpoints/teacher-task-draft/tasks-to-impl.yaml"
+      change_type: "modified"
+      description: "Marks T005 complete and records test and traceability evidence."
+    - file: "AGENTS.md"
+      change_type: "modified"
+      description: "Updates the engineering handoff to the current T005 checkpoint."
+    - file: "docs/README.md"
+      change_type: "modified"
+      description: "Updates the teacher-slice progress and next tasks."
+    - file: "docs/system-configuration/implementation-roadmap.md"
+      change_type: "modified"
+      description: "Updates the stage 10 status and next tasks."
+    - file: "docs/system-configuration/error-report.md"
+      change_type: "modified"
+      description: "Records the resolved initial DAO-test harness failures and verification."
+upstream_artifacts_consumed:
+  T005:
+    - artifact: "docs/system-configuration/feature-plans/teacher-task-draft.md#T005"
+      used_for: "DAO scope, acceptance constraints, and REQ traceability"
+    - artifact: "docs/system-configuration/feature-plans/checkpoints/teacher-task-draft/plan-to-tasks.yaml"
+      used_for: "Plan 2.2 to T005 mapping"
+    - artifact: "src/main/resources/db/migration/V1__create_initial_schema.sql"
+      used_for: "Existing task, child-row, assignment, and audit columns and allowed values"
+    - artifact: "src/main/resources/db/migration/V16__support_teacher_task_drafts.sql"
+      used_for: "Initial optimistic-lock version column"
+    - artifact: "src/main/java/dao/TeacherPermissionDao.java"
+      used_for: "Transaction and authorization-layer contract"
+    - artifact: "src/main/java/entity/TeacherTaskInput.java"
+      used_for: "Typed task, child-row, and class-assignment input"
+evidence_mapping:
+  T005:
+    - upstream: "teacher-task-draft.md#T005"
+      output: "src/main/java/dao/TeacherTaskDao.java"
+      evidence: "Focused DAO, DTO, and permission tests pass; forced Java compile passes"
+    - upstream: "V1 task and child-table definitions plus V16 tasks.version"
+      output: "src/main/java/dao/TeacherTaskDao.java"
+      evidence: "SQL is statically aligned; execution against MySQL remains pending an isolated teacher test database"
+traceability:
+  - requirement: "REQ-001"
+    plan_item: "2.2"
+    task: "T005"
+    files: ["src/main/java/dao/TeacherTaskDao.java", "src/test/java/dao/TeacherTaskDaoTest.java"]
+    status: "completed"
+  - requirement: "REQ-002"
+    plan_item: "2.2"
+    task: "T005"
+    files: ["src/main/java/dao/TeacherTaskDao.java", "src/test/java/dao/TeacherTaskDaoTest.java"]
+    status: "completed"
+  - requirement: "REQ-003"
+    plan_item: "2.2"
+    task: "T005"
+    files: ["src/main/java/dao/TeacherTaskDao.java"]
+    status: "completed"
+  - requirement: "REQ-005"
+    plan_item: "2.2"
+    task: "T005"
+    files: ["src/main/java/dao/TeacherTaskDao.java", "src/test/java/dao/TeacherTaskDaoTest.java"]
+    status: "completed"
+  - requirement: "REQ-006"
+    plan_item: "2.2"
+    task: "T005"
+    files: ["src/main/java/dao/TeacherTaskDao.java"]
+    status: "completed"
+protocol_violation: false
+errors: []
+warnings:
+  - severity: MEDIUM
+    message: "The isolated synthetic teacher database is not available. V16 and DAO read/write, locking, child-row, assignment, and audit SQL have not been exercised on MySQL; defer those checks to T013/T014 and do not apply V16 to the shared development database."
+test_results:
+  T005:
+    command: "docker compose exec -T app gradle test --tests 'dao.TeacherTaskDaoTest' --tests 'dao.TeacherPermissionDaoTest' --tests 'entity.TeacherTaskInputTest' --no-daemon --console=plain --warning-mode all"
+    passed: 10
+    failed: 0
+    skipped: 0
+    failures: []
+additional_validation:
+  - command: "docker compose exec -T app gradle compileJava --rerun-tasks --no-daemon --console=plain --warning-mode all"
+    result: "passed"
+  - command: "git diff --check"
+    result: "passed"

@@ -1,0 +1,53 @@
+metadata:
+  generated: "2026-10-04"
+  source_spec: "docs/function-specification.md"
+  target_plan: "docs/system-configuration/feature-plans/teacher-task-draft.md"
+  scope: "S1 only; requirement IDs are local to this plan"
+summary:
+  total_requirements: 9
+  covered_requirements: 9
+  missing_requirements: 0
+  coverage_percentage: 100.0
+requirements:
+  - req_id: "REQ-001"
+    req_description: "Teacher role, feature, creator and school authorization"
+    plan_mapping:
+      items: ["1.1", "2.2", "3.1", "3.2", "3.4", "4.1"]
+  - req_id: "REQ-002"
+    req_description: "Persist and reload task draft fields and child records"
+    plan_mapping:
+      items: ["2.2", "3.1", "3.2", "3.3", "4.1"]
+  - req_id: "REQ-003"
+    req_description: "Draft save never publishes or schedules publication"
+    plan_mapping:
+      items: ["1.1", "2.2", "3.1", "3.2", "4.1"]
+  - req_id: "REQ-004"
+    req_description: "Preserve published revisions, applied versions and learning history"
+    plan_mapping:
+      items: ["3.1", "4.1"]
+  - req_id: "REQ-005"
+    req_description: "Reject stale writes and duplicate creation"
+    plan_mapping:
+      items: ["2.1", "2.2", "3.1", "3.2", "4.1"]
+  - req_id: "REQ-006"
+    req_description: "Persist and display actors, changes and operation results"
+    plan_mapping:
+      items: ["2.2", "3.1", "3.3", "4.1"]
+  - req_id: "REQ-007"
+    req_description: "Preserve prototype layout, preview and shared feedback"
+    plan_mapping:
+      items: ["3.3", "3.4", "4.1"]
+  - req_id: "REQ-008"
+    req_description: "Validate inputs, CSRF and output escaping; explicit errors"
+    plan_mapping:
+      items: ["3.2", "3.3", "3.4", "4.1"]
+  - req_id: "REQ-009"
+    req_description: "Verify persistence, authorization, states and record outcomes"
+    plan_mapping:
+      items: ["1.1", "4.1", "4.2"]
+missing_requirements: []
+orphan_plan_items: []
+validation:
+  passed: true
+  errors: []
+  warnings: ["Traceability only; implementation and acceptance not started."]

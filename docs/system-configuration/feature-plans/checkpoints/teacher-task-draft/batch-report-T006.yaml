@@ -1,0 +1,96 @@
+batch_id: "B03"
+completed_tasks: ["T006"]
+blocked_tasks: []
+files_changed:
+  T006:
+    - file: "src/main/java/control/teacher/TeacherTaskControl.java"
+      change_type: "created"
+      description: "Implements teacher-owned task page reads, assignment-scope checks, atomic saves and success audit, and post-rollback failure audit."
+    - file: "src/main/java/dao/TeacherPermissionDao.java"
+      change_type: "modified"
+      description: "Adds locked authorization checks for an active class and its school."
+    - file: "src/main/java/dao/TeacherTaskDao.java"
+      change_type: "modified"
+      description: "Adds failure audit persistence used from a separate transaction."
+    - file: "src/test/java/control/teacher/TeacherTaskControlTest.java"
+      change_type: "created"
+      description: "Verifies admin rejection and invalid update version rejection before opening a connection."
+    - file: "src/test/java/dao/TeacherPermissionDaoTest.java"
+      change_type: "modified"
+      description: "Adds an invalid class identifier guard test."
+    - file: "docs/system-configuration/feature-plans/teacher-task-draft.md"
+      change_type: "modified"
+      description: "Records T006 implementation, focused test results, and DB integration limits."
+    - file: "docs/system-configuration/feature-plans/checkpoints/teacher-task-draft/tasks-to-impl.yaml"
+      change_type: "modified"
+      description: "Marks T006 complete and updates progress and requirement traceability."
+    - file: "AGENTS.md"
+      change_type: "modified"
+      description: "Moves the engineering handoff to T007."
+    - file: "docs/README.md"
+      change_type: "modified"
+      description: "Updates stage 10 progress and next task."
+    - file: "docs/system-configuration/implementation-roadmap.md"
+      change_type: "modified"
+      description: "Updates stage 10 progress and next task."
+upstream_artifacts_consumed:
+  T006:
+    - artifact: "docs/system-configuration/feature-plans/teacher-task-draft.md#Plan-3.1"
+      used_for: "Transaction, authorization, version, and audit requirements"
+    - artifact: "docs/system-configuration/feature-plans/checkpoints/teacher-task-draft/tasks-to-impl.yaml#T005"
+      used_for: "DAO operations and task/child input contracts"
+    - artifact: "docs/system-configuration/implementation-contract.md"
+      used_for: "Role, ownership, and state boundaries"
+    - artifact: "src/main/java/dao/TeacherPermissionDao.java"
+      used_for: "Teacher, feature, and school authorization behavior"
+    - artifact: "src/main/java/dao/TeacherTaskDao.java"
+      used_for: "Draft persistence, version checks, and audit contract"
+evidence_mapping:
+  T006:
+    - upstream: "teacher-task-draft.md#Plan-3.1"
+      output: "src/main/java/control/teacher/TeacherTaskControl.java"
+      evidence: "Focused guard tests pass; all reads/writes use explicit transaction boundaries"
+    - upstream: "implementation-contract.md#teacher ownership and scope"
+      output: "src/main/java/control/teacher/TeacherTaskControl.java"
+      evidence: "Teacher role and every old/new assigned classroom are rechecked through TeacherPermissionDao"
+traceability:
+  - requirement: "REQ-001"
+    plan_item: "3.1"
+    task: "T006"
+    files: ["src/main/java/control/teacher/TeacherTaskControl.java", "src/main/java/dao/TeacherPermissionDao.java"]
+    status: "completed"
+  - requirement: "REQ-002"
+    plan_item: "3.1"
+    task: "T006"
+    files: ["src/main/java/control/teacher/TeacherTaskControl.java", "src/main/java/dao/TeacherTaskDao.java"]
+    status: "completed"
+  - requirement: "REQ-003"
+    plan_item: "3.1"
+    task: "T006"
+    files: ["src/main/java/control/teacher/TeacherTaskControl.java", "src/main/java/dao/TeacherTaskDao.java"]
+    status: "completed"
+  - requirement: "REQ-005"
+    plan_item: "3.1"
+    task: "T006"
+    files: ["src/main/java/control/teacher/TeacherTaskControl.java", "src/main/java/dao/TeacherTaskDao.java"]
+    status: "completed"
+  - requirement: "REQ-006"
+    plan_item: "3.1"
+    task: "T006"
+    files: ["src/main/java/control/teacher/TeacherTaskControl.java", "src/main/java/dao/TeacherTaskDao.java"]
+    status: "completed"
+protocol_violation: false
+errors: []
+warnings:
+  - severity: MEDIUM
+    message: "The isolated synthetic teacher database is not available. Authorization queries, row locks, rollback, and both audit transactions were not exercised on MySQL; keep V16 unapplied to the shared database and defer integration verification to T013/T014."
+test_results:
+  T006:
+    command: "docker compose exec -T app gradle test --tests 'control.teacher.TeacherTaskControlTest' --tests 'dao.TeacherTaskDaoTest' --tests 'dao.TeacherPermissionDaoTest' --tests 'entity.TeacherTaskInputTest' --no-daemon --console=plain --warning-mode all"
+    passed: 13
+    failed: 0
+    skipped: 0
+    failures: []
+additional_validation:
+  - command: "git diff --check"
+    result: "passed"
