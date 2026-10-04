@@ -1,0 +1,22 @@
+<%@ page pageEncoding="UTF-8" %>
+<section class="sample-section execution-result-section mt-4">
+	<div class="section-header-row mb-3">
+		<h2 class="card-title mb-0">実行結果</h2>
+	</div>
+	<div class="execution-result-toolbar mb-3">
+		<div class="execution-result-meta">
+			<span id="runResultStatus" class="badge text-bg-light border">実行待ち</span>
+			<span id="runResultTime" class="small text-secondary">実行すると結果がここに表示されます。</span>
+		</div>
+	</div>
+	<div class="interactive-terminal" role="region" aria-label="実行結果と入力">
+		<pre id="terminalOutput" class="interactive-terminal-output" aria-live="polite">まだ実行していません。</pre>
+		<form id="terminalInputForm" class="interactive-terminal-input-row">
+			<label class="visually-hidden" for="terminalInput">実行中の入力</label>
+			<input id="terminalInput" class="form-control" type="text"
+				autocomplete="off" disabled placeholder="実行中に入力してEnter">
+			<button id="terminalSendButton" class="btn btn-outline-primary" type="submit" disabled>送信</button>
+			<button id="terminalCancelButton" class="btn btn-outline-danger" type="button" hidden>停止</button>
+		</form>
+	</div>
+</section>

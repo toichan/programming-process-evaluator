@@ -143,27 +143,7 @@
 				</c:if>
 			</section>
 
-			<section class="sample-section execution-result-section mt-4">
-				<div class="section-header-row mb-3">
-					<h2 class="card-title mb-0">実行結果</h2>
-				</div>
-				<div class="execution-result-toolbar mb-3">
-					<div class="execution-result-meta">
-						<span id="runResultStatus" class="badge text-bg-light border">実行待ち</span>
-						<span id="runResultTime" class="small text-secondary">実行すると結果がここに表示されます。</span>
-					</div>
-				</div>
-				<div class="interactive-terminal" role="region" aria-label="実行結果と入力">
-					<pre id="terminalOutput" class="interactive-terminal-output" aria-live="polite">まだ実行していません。</pre>
-					<form id="terminalInputForm" class="interactive-terminal-input-row">
-						<label class="visually-hidden" for="terminalInput">実行中の入力</label>
-						<input id="terminalInput" class="form-control" type="text"
-							autocomplete="off" disabled placeholder="実行中に入力してEnter">
-						<button id="terminalSendButton" class="btn btn-outline-primary" type="submit" disabled>送信</button>
-						<button id="terminalCancelButton" class="btn btn-outline-danger" type="button" hidden>停止</button>
-					</form>
-				</div>
-			</section>
+			<%@ include file="/WEB-INF/student/shared/execution-terminal.jspf" %>
 
 			<section class="sample-section log-section mt-4">
 				<div class="section-header-row">
@@ -302,55 +282,7 @@
 	</div>
 </div>
 
-<div class="modal fade" id="editorSettingsModal" tabindex="-1"
-	 aria-labelledby="editorSettingsModalLabel" aria-describedby="editorSettingsDescription" aria-hidden="true">
-	<div class="modal-dialog modal-dialog-centered">
-		<div class="modal-content">
-			<div class="modal-header">
-				<h2 class="modal-title h5 mb-0" id="editorSettingsModalLabel">エディター設定</h2>
-				<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
-			</div>
-			<div class="modal-body">
-				<p id="editorSettingsDescription" class="text-muted">文字の大きさや表示方法を自分に合わせて変更できます。</p>
-				<div class="mb-3">
-					<label class="form-label" for="editorFontSize">文字の大きさ</label>
-					<div class="d-flex align-items-center gap-3">
-						<input id="editorFontSize" class="form-range mb-0" type="range" min="10" max="24" step="2"
-							value="<c:out value='${editorPreferences.fontSizePx}'/>">
-						<output id="editorFontSizeValue" for="editorFontSize" class="editor-setting-value">
-							<c:out value="${editorPreferences.fontSizePx}"/>px
-						</output>
-					</div>
-				</div>
-				<div class="form-check form-switch mb-3">
-					<input id="editorLineWrapping" class="form-check-input" type="checkbox"
-						<c:if test="${editorPreferences.lineWrapping}">checked</c:if>>
-					<label class="form-check-label" for="editorLineWrapping">長いコードを折り返す</label>
-				</div>
-				<div class="mb-3">
-					<label class="form-label" for="editorIndentWidth">Tabキーの空白</label>
-					<select id="editorIndentWidth" class="form-select">
-						<option value="2" <c:if test="${editorPreferences.indentWidth == 2}">selected</c:if>>2個</option>
-						<option value="4" <c:if test="${editorPreferences.indentWidth == 4}">selected</c:if>>4個</option>
-					</select>
-				</div>
-				<div class="mb-3">
-					<label class="form-label" for="editorTheme">配色</label>
-					<select id="editorTheme" class="form-select">
-						<option value="dark" <c:if test="${editorPreferences.themeValue == 'dark'}">selected</c:if>>暗い背景</option>
-						<option value="light" <c:if test="${editorPreferences.themeValue == 'light'}">selected</c:if>>明るい背景</option>
-						<option value="high_contrast" <c:if test="${editorPreferences.themeValue == 'high_contrast'}">selected</c:if>>見やすさ重視</option>
-					</select>
-				</div>
-				<p id="editorPreferencesStatus" class="small text-secondary mb-0" role="status" aria-live="polite"></p>
-			</div>
-			<div class="modal-footer justify-content-between">
-				<button type="button" class="btn btn-outline-secondary" id="resetEditorPreferences">初期設定に戻す</button>
-				<button type="button" class="btn btn-primary" data-bs-dismiss="modal">閉じる</button>
-			</div>
-		</div>
-	</div>
-</div>
+<%@ include file="/WEB-INF/student/shared/editor-settings.jspf" %>
 
 <div class="modal fade submit-check-modal" id="submitCheckModal" tabindex="-1"
 	 aria-labelledby="submitCheckModalLabel" aria-hidden="true">
@@ -388,4 +320,6 @@
 <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/lib/codemirror.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/mode/python/python.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/mode/shell/shell.js"></script>
+<script src="<c:url value='/js/student/shared/code-editor.js'/>" defer></script>
+<script src="<c:url value='/js/student/shared/editor-settings.js'/>" defer></script>
 <%@ include file="/WEB-INF/template/page-end.jspf" %>

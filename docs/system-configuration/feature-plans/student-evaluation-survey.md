@@ -16,6 +16,7 @@
 - クラス図 / AI連携設計 / その他: [ai-api-integration-design.md](../ai-api-integration-design.md)、[evaluation-rubric.puml](../../class-diagram/02-evaluation-rubric.puml)、[ai-consent-log.puml](../../class-diagram/04-ai-consent-log.puml)、[implementation-contract.md](../implementation-contract.md) IC-004、IC-006、IC-008
 
 ## 前提・未決事項
+- 2026-10-04ユーザー確認: 評価・アンケートの確認は教師向け画面完成後、必要な課題/プロンプト/アンケート設定を行える段階で再開する。それまでは未確認のまま保持する。直近は授業演習のユーザー手動確認を優先する。
 - 2026-10-03引継ぎ: 主要実装と合成データによる実API→DB保存・再読込は確認済み。ローカル課題の評価設定・active survey、認証済み正常系/権限境界/E2Eとユーザー手動確認は未完了。ユーザー指示によりこれらを後回しにし、工程9の計画作成へ進む。T004〜T006・工程8の完了条件は未達のまま保持し、設定が整った時点で提出→評価表示→アンケート導線・下書き/送信/再読込を確認するようリマインドする。
 
 - 合意済み前提: `evaluations` が提出版ごとの評価状態の正本であり、`task_participations.evaluation_status` は同じトランザクション内で同期する表示用状態。AI評価とコードログ収集は研究同意状態を問わず実行する。研究識別子のみをAIへ送信し、同意状態はリクエスト時点の記録に使う。アンケート対象・アクセス可否は同意状態と分離して判定する。

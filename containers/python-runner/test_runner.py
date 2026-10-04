@@ -1,10 +1,103 @@
+import io
 import sys
 import time
 import unittest
-from subprocess import CompletedProcess
+from subprocess import CompletedProcess, TimeoutExpired
 from unittest.mock import patch
 
 import runner
+
+
+class BoundedOutputTest(unittest.TestCase):
+    def capture(self, value, limit):
+        with patch.object(runner, "MAX_OUTPUT_BYTES", limit):
+            output = runner.BoundedOutput()
+            output.drain(io.BytesIO(value))
+            return output.text(), output.truncated.is_set()
+
+    def test_clips_at_utf8_character_boundary(self):
+        text, truncated = self.capture("\u3042".encode() * 20, 32)
+        self.assertEqual("\u3042" * 10, text)
+        self.assertTrue(truncated)
+        self.assertLessEqual(len(text.encode()), 32)
+
+    def test_keeps_valid_multibyte_output_across_read_boundaries(self):
+        value = "\u3042" * 2000
+        text, truncated = self.capture(value.encode(), 8192)
+        self.assertEqual(value, text)
+        self.assertFalse(truncated)
+
+    def test_preserves_invalid_byte_replacement_with_bounded_encoded_text(self):
+        text, truncated = self.capture(b"\xff" * 32, 32)
+        self.assertEqual("\ufffd" * 10, text)
+        self.assertTrue(truncated)
+        self.assertLessEqual(len(text.encode()), 32)
+        self.assertEqual(("\ufffd", False), self.capture(b"\xff", 32))
+
+    def test_incomplete_actual_eof_is_replaced_when_not_truncated(self):
+        self.assertEqual(("\ufffd", False), self.capture(b"\xe3\x81", 32))
+
+    def test_does_not_append_later_text_after_decoded_limit(self):
+        with patch.object(runner, "MAX_OUTPUT_BYTES", 8):
+            output = runner.BoundedOutput()
+            output.append(b"\xff" * 3)
+            output.append(b"a")
+            output.finish()
+        self.assertEqual("\ufffd" * 2, output.text())
+        self.assertTrue(output.truncated.is_set())
+
+    def test_synchronous_execution_uses_same_decoding_and_limit(self):
+        with patch.object(runner, "MAX_OUTPUT_BYTES", 32):
+            with patch.object(runner, "_container_command",
+                              return_value=[sys.executable, "-u", "-c", "import sys;sys.stdout.buffer.write(b'\\xff'*32)"]):
+                result, status = runner._run_container("synthetic", "")
+        self.assertEqual(200, status)
+        self.assertEqual("output_limit", result["errorCode"])
+        self.assertEqual("\ufffd" * 10, result["standardOutput"])
+        self.assertTrue(result["standardOutputTruncated"])
+
+
+class ContainerCleanupTest(unittest.TestCase):
+    def test_confirms_absence_after_removal_in_progress(self):
+        responses = [
+            CompletedProcess([], 1, b"", b"removal of container fixture is already in progress"),
+            CompletedProcess([], 0, b"fixture\n", b""),
+            CompletedProcess([], 1, b"", b"error: no such object: fixture"),
+        ]
+        with patch.object(runner.subprocess, "run", side_effect=responses) as command:
+            self.assertTrue(runner._cleanup_container("fixture"))
+        self.assertEqual(3, command.call_count)
+        self.assertEqual(["docker", "inspect", "--format", "{{.Id}}", "fixture"],
+                         command.call_args.args[0])
+
+    def test_does_not_accept_daemon_failure_as_absence(self):
+        with patch.object(runner.subprocess, "run",
+                          return_value=CompletedProcess([], 1, b"", b"Cannot connect to Docker daemon")):
+            with self.assertLogs("runner", level="WARNING"):
+                self.assertFalse(runner._cleanup_container("fixture"))
+
+    def test_does_not_accept_inspect_failure_as_absence(self):
+        with patch.object(runner.subprocess, "run", side_effect=[
+            CompletedProcess([], 1, b"", b"removal of container fixture is already in progress"),
+            CompletedProcess([], 1, b"", b"permission denied"),
+        ]):
+            with self.assertLogs("runner", level="WARNING"):
+                self.assertFalse(runner._cleanup_container("fixture"))
+
+    def test_removal_still_present_is_bounded_by_original_deadline(self):
+        with patch.object(runner, "DOCKER_CLEANUP_TIMEOUT_SECONDS", .05):
+            with patch.object(runner.subprocess, "run", side_effect=[
+                CompletedProcess([], 1, b"", b"removal of container fixture is already in progress"),
+                CompletedProcess([], 0, b"fixture", b""),
+            ]) as command:
+                with self.assertLogs("runner", level="WARNING"):
+                    self.assertFalse(runner._cleanup_container("fixture"))
+        self.assertEqual(2, command.call_count)
+
+    def test_subprocess_timeout_remains_failure(self):
+        with patch.object(runner.subprocess, "run", side_effect=TimeoutExpired(["docker"], 2)):
+            with self.assertLogs("runner", level="WARNING"):
+                self.assertFalse(runner._cleanup_container("fixture"))
 
 
 class InteractiveExecutionSessionTest(unittest.TestCase):
@@ -111,6 +204,18 @@ class InteractiveExecutionSessionTest(unittest.TestCase):
 
         self.assertEqual("cancelled", result["status"])
         self.assertEqual("execution_cancelled", result["errorCode"])
+
+    def test_multibyte_output_events_match_bounded_terminal_snapshot(self):
+        with patch.object(runner, "MAX_OUTPUT_BYTES", 32):
+            with patch.object(runner.subprocess, "run",
+                              return_value=CompletedProcess([], 0, b"", b"")):
+                session = self.start_session(
+                    "import sys,time\nsys.stdout.write('\\u3042'*100)\nsys.stdout.flush()\ntime.sleep(5)")
+                result = self.wait_for_completion(session)
+        streamed = "".join(e["text"] for e in result["events"] if e["stream"] == "stdout")
+        self.assertEqual("\u3042" * 10, result["standardOutput"])
+        self.assertEqual(result["standardOutput"], streamed)
+        self.assertEqual("output_limit", result["errorCode"])
 
 
 if __name__ == "__main__":

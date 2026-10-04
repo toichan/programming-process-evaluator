@@ -11,8 +11,13 @@ import lib.mysql.Client;
 
 public final class StudentEditorPreferencesDao {
 	public EditorPreferences findByUserId(long userId) throws SQLException {
-		try (Connection connection = Client.createConnection();
-				PreparedStatement statement = connection.prepareStatement("""
+		try (Connection connection = Client.createConnection()) {
+			return findByUserId(connection, userId);
+		}
+	}
+
+	public EditorPreferences findByUserId(Connection connection, long userId) throws SQLException {
+		try (PreparedStatement statement = connection.prepareStatement("""
 						SELECT font_size_px, line_wrapping, indent_width, editor_theme
 						FROM user_editor_preferences
 						WHERE user_id = ?

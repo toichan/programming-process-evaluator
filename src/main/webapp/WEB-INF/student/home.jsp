@@ -26,10 +26,10 @@
 			<span class="hero-kicker">Student Dashboard</span>
 			<h1 class="section-title mb-3">ホーム</h1>
 			<p class="hero-description mb-0">
-				公開中の課題を選び、エディターでコードの作成・実行・提出を行えます。授業演習は準備中です。
+				公開中の課題に取り組むほか、授業演習で練習用のコードを作成・保存・実行できます。
 			</p>
 			<div class="button-group hero-action-group mt-4" aria-label="学習導線">
-				<span class="btn btn-primary is-disabled-action" aria-disabled="true" title="後続工程で利用可能になります">授業演習へ進む</span>
+				<a class="btn btn-primary" href="<c:url value='/student/exercise'/>">授業演習へ進む</a>
 				<a class="btn btn-outline-primary" href="#taskListSection">課題一覧を見る</a>
 			</div>
 		</div>

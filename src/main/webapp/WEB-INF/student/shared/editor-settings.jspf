@@ -1,0 +1,43 @@
+<%@ page pageEncoding="UTF-8" %>
+<div class="modal fade" id="editorSettingsModal" tabindex="-1" aria-labelledby="editorSettingsModalLabel" aria-hidden="true">
+	<div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+		<div class="modal-header">
+			<h2 id="editorSettingsModalLabel" class="modal-title h5 mb-0">エディター設定</h2>
+			<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
+		</div>
+		<div class="modal-body">
+			<p class="text-muted">設定は課題と授業演習で共有されます。</p>
+			<div class="mb-3">
+				<label for="editorFontSize" class="form-label">文字の大きさ</label>
+				<div class="d-flex align-items-center gap-3">
+					<input id="editorFontSize" class="form-range" type="range" min="10" max="24" step="1" value="<c:out value='${editorPreferences.fontSizePx}'/>">
+					<output id="editorFontSizeValue" for="editorFontSize"><c:out value="${editorPreferences.fontSizePx}"/>px</output>
+				</div>
+			</div>
+			<div class="form-check form-switch mb-3">
+				<input id="editorLineWrapping" type="checkbox" class="form-check-input" <c:if test="${editorPreferences.lineWrapping}">checked</c:if>>
+				<label for="editorLineWrapping" class="form-check-label">長いコードを折り返す</label>
+			</div>
+			<div class="mb-3">
+				<label for="editorIndentWidth" class="form-label">Tabキーの空白</label>
+				<select id="editorIndentWidth" class="form-select">
+					<option value="2" <c:if test="${editorPreferences.indentWidth == 2}">selected</c:if>>2個</option>
+					<option value="4" <c:if test="${editorPreferences.indentWidth == 4}">selected</c:if>>4個</option>
+				</select>
+			</div>
+			<div class="mb-3">
+				<label for="editorTheme" class="form-label">配色</label>
+				<select id="editorTheme" class="form-select">
+					<option value="dark" <c:if test="${editorPreferences.themeValue == 'dark'}">selected</c:if>>暗い背景</option>
+					<option value="light" <c:if test="${editorPreferences.themeValue == 'light'}">selected</c:if>>明るい背景</option>
+					<option value="high_contrast" <c:if test="${editorPreferences.themeValue == 'high_contrast'}">selected</c:if>>見やすさ重視</option>
+				</select>
+			</div>
+			<p id="editorPreferencesStatus" class="small text-secondary mb-0" role="status" aria-live="polite"></p>
+		</div>
+		<div class="modal-footer justify-content-between">
+			<button id="resetEditorPreferences" type="button" class="btn btn-outline-secondary">初期設定に戻す</button>
+			<button type="button" class="btn btn-primary" data-bs-dismiss="modal">閉じる</button>
+		</div>
+	</div></div>
+</div>
