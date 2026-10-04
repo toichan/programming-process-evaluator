@@ -3,7 +3,7 @@
 <c:if test="${studentPortal}">
 	<c:set var="screenDesign" value="student"/>
 	<c:set var="screenPageTitle" value="ログイン"/>
-	<c:set var="screenStylesheet" value="/css/student/account/login.css"/>
+	<c:set var="screenStylesheet" value="/css/student/account/login.css?v=help-modal"/>
 </c:if>
 <%@ include file="/WEB-INF/template/page-start.jspf" %>
 <c:choose>
@@ -12,17 +12,16 @@
 		<div class="container">
 			<section class="login-hero-section mx-auto" style="max-width: 760px;">
 				<div class="hero-card p-5 rounded-4">
-					<a class="login-help-icon"
-						href="https://forms.cloud.microsoft/Pages/ResponsePage.aspx?id=DQSIkWdsW0yxEjajBLZtrQAAAAAAAAAAAAO__QTn_5NUQzZRTTU4UUdLQ01TQzhYSzhPTjRZRDdBQS4u"
-						target="_blank" rel="noopener noreferrer"
-						aria-label="システムトラブル解決窓口フォームを開く" title="ヘルプ">
+					<button class="login-help-icon" type="button"
+						data-bs-toggle="modal" data-bs-target="#loginHelpModal"
+						aria-label="ログインのヘルプを開く" title="ヘルプ">
 						<svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
 							<path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm0-14.5a6.5 6.5 0 1 1 0 13 6.5 6.5 0 0 1 0-13z"/>
 							<path d="M5.255 5.786a.237.237 0 0 0 .241.247h.825c.138 0 .247-.113.266-.25.09-.656.54-1.134 1.342-1.134.686 0 1.314.343 1.314 1.168 0 .635-.374.927-.965 1.371-.673.503-1.206.94-1.168 1.987l.003.217a.25.25 0 0 0 .25.246h.811a.25.25 0 0 0 .25-.25v-.105c0-.718.273-.927 1.01-1.486.609-.463 1.244-.977 1.244-2.056 0-1.511-1.276-2.241-2.673-2.241-1.267 0-2.655.59-2.75 2.286z"/>
 							<circle cx="8" cy="12.2" r="1"/>
 						</svg>
 						<span class="login-help-label">ヘルプ</span>
-					</a>
+					</button>
 					<div class="hero-brand text-center mb-4">
 						<div class="navbar-brand d-flex align-items-center justify-content-center py-5">
 							<svg class="me-3" width="96" height="96" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -51,13 +50,13 @@
 							<div>
 								<label for="loginId" class="form-label">ID</label>
 								<input type="text" class="form-control" id="loginId" name="loginId"
-									autocomplete="username" maxlength="64" required>
+									placeholder="s000" autocomplete="username" maxlength="64" required>
 							</div>
 							<div>
 								<label for="password" class="form-label">パスワード</label>
 								<div class="password-field">
 									<input type="password" class="form-control" id="password" name="password"
-										autocomplete="current-password" maxlength="256" required>
+										placeholder="••••••••" autocomplete="current-password" maxlength="256" required>
 									<button type="button" class="password-toggle" data-password-toggle="password"
 										aria-label="パスワードを表示">
 										<svg class="password-toggle-icon password-toggle-show" width="20" height="20" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
@@ -83,6 +82,23 @@
 			</section>
 		</div>
 		</main>
+		<div class="modal fade" id="loginHelpModal" tabindex="-1" aria-labelledby="loginHelpModalLabel" aria-hidden="true">
+			<div class="modal-dialog modal-dialog-centered">
+				<div class="modal-content">
+					<div class="modal-header">
+						<h2 class="modal-title h5" id="loginHelpModalLabel">ログインでお困りの場合</h2>
+						<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
+					</div>
+					<div class="modal-body">
+						<p>ログインIDを忘れた場合や、パスワードを忘れてログインできない場合は、<strong>担当者にお問い合わせください。</strong></p>
+						<p class="mb-0">この画面ではパスワードを再設定できません。</p>
+					</div>
+					<div class="modal-footer">
+						<button type="button" class="btn btn-primary" data-bs-dismiss="modal">閉じる</button>
+					</div>
+				</div>
+			</div>
+		</div>
 	</c:when>
 	<c:otherwise>
 		<div class="row justify-content-center py-5">

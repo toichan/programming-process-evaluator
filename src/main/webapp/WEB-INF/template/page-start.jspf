@@ -14,7 +14,7 @@
 	<link href="${pageContext.request.contextPath}/css/template/template.css" rel="stylesheet">
 	<link href="${pageContext.request.contextPath}/css/shared/feedback.css" rel="stylesheet">
 	<c:if test="${screenDesign == 'student'}">
-		<link href="${pageContext.request.contextPath}/css/student/shared/components.css" rel="stylesheet">
+		<link href="${pageContext.request.contextPath}/css/student/shared/components.css?v=help-modal" rel="stylesheet">
 		<c:if test="${screenUsesCodeMirror}">
 			<link href="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/lib/codemirror.css" rel="stylesheet">
 			<link href="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/theme/material-darker.css" rel="stylesheet">

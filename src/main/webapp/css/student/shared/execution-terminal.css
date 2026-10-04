@@ -1,0 +1,87 @@
+.execution-result-section {
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.96));
+}
+
+.output-panel {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.execution-result-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1.25rem;
+}
+
+.execution-result-meta {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+}
+
+.interactive-terminal {
+  overflow: hidden;
+  border: 1px solid #263244;
+  border-radius: 1rem;
+  background: #111827;
+}
+
+.interactive-terminal-output {
+  min-height: 180px;
+  max-height: 360px;
+  margin: 0;
+  overflow: auto;
+  padding: 1.25rem;
+  color: #e5e7eb;
+  font: 500 0.92rem/1.7 "SFMono-Regular", Consolas, monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.interactive-terminal-output .terminal-input-echo {
+  color: #93c5fd;
+}
+
+.interactive-terminal-output .terminal-stderr {
+  color: #fca5a5;
+}
+
+.interactive-terminal-output .terminal-system-message {
+  color: #fcd34d;
+}
+
+.interactive-terminal-input-row {
+  display: flex;
+  gap: 0.5rem;
+  border-top: 1px solid #263244;
+  padding: 0.75rem;
+}
+
+.interactive-terminal-input-row .form-control {
+  flex: 1 1 0;
+  min-width: 0;
+  border-color: #475569;
+  background: #1f2937;
+  color: #f9fafb;
+  font-family: "SFMono-Regular", Consolas, monospace;
+}
+
+.interactive-terminal-input-row .btn {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.interactive-terminal-input-row .form-control::placeholder {
+  color: #9ca3af;
+}
+
+.execution-result-section .CodeMirror pre.CodeMirror-line,
+.execution-result-section .CodeMirror pre.CodeMirror-line-like {
+  padding: 0 1.5rem;
+}
+

@@ -20,13 +20,13 @@ import entity.EditorSubmissionResult;
 import entity.EditorTestCase;
 import entity.InteractiveExecutionUpdate;
 import entity.PythonExecutionResult;
+import entity.PythonExecutionInput;
 import entity.StudentEditorPage;
 import entity.UserCredential.UserType;
 
 public final class StudentEditorControl {
 	private static final Logger LOGGER = Logger.getLogger(StudentEditorControl.class.getName());
-	private static final int MAX_SOURCE_BYTES = 64 * 1024;
-	private static final int MAX_INPUT_BYTES = 8 * 1024;
+	private static final int MAX_INPUT_BYTES = PythonExecutionInput.MAX_INPUT_BYTES;
 	private static final long SESSION_RETENTION_MILLISECONDS = 180_000;
 	private static final long SESSION_MONITOR_MILLISECONDS = 90_000;
 	private static final ConcurrentHashMap<String, InteractiveExecution> INTERACTIVE_EXECUTIONS =
@@ -72,12 +72,10 @@ public final class StudentEditorControl {
 		if (editorDao.findEditorPage(user.userId(), assignmentId).isEmpty()) {
 			throw new IllegalArgumentException("The requested task is not available.");
 		}
-		long startedAt = System.nanoTime();
-		PythonExecutionResult result = runnerClient.execute(sourceCode, standardInput);
-		int duration = (int) Math.min(
-				Integer.MAX_VALUE, Math.max(0, (System.nanoTime() - startedAt) / 1_000_000));
-		editorDao.recordExecution(user.userId(), assignmentId, sourceCode, standardInput, result, duration);
-		return result;
+		var execution = runnerClient.executeTimed(sourceCode, standardInput);
+		editorDao.recordExecution(user.userId(), assignmentId, sourceCode, standardInput,
+				execution.result(), execution.durationMilliseconds());
+		return execution.result();
 	}
 
 	public InteractiveExecutionUpdate startInteractiveExecution(
@@ -255,10 +253,9 @@ public final class StudentEditorControl {
 
 		List<EditorSubmissionCheckCase> results = new ArrayList<>();
 		for (EditorTestCase testCase : page.getTestCases()) {
-			long startedAt = System.nanoTime();
-			PythonExecutionResult execution = runnerClient.execute(sourceCode, testCase.getInput());
-			int duration = (int) Math.min(
-					Integer.MAX_VALUE, Math.max(0, (System.nanoTime() - startedAt) / 1_000_000));
+			var timed = runnerClient.executeTimed(sourceCode, testCase.getInput());
+			PythonExecutionResult execution = timed.result();
+			int duration = timed.durationMilliseconds();
 			String resultStatus = "error";
 			if ("succeeded".equals(execution.getStatus())) {
 				resultStatus = normalizeOutput(testCase.getExpectedOutput())
@@ -319,17 +316,11 @@ public final class StudentEditorControl {
 	}
 
 	private static void validateSource(String sourceCode) {
-		if (sourceCode == null || sourceCode.getBytes(StandardCharsets.UTF_8).length > MAX_SOURCE_BYTES
-				|| sourceCode.indexOf('\0') >= 0) {
-			throw new IllegalArgumentException("コードは64 KiB以下で入力してください。");
-		}
+		PythonExecutionInput.validateSource(sourceCode);
 	}
 
 	private static void validateInput(String standardInput) {
-		if (standardInput == null || standardInput.getBytes(StandardCharsets.UTF_8).length > MAX_INPUT_BYTES
-				|| standardInput.indexOf('\0') >= 0) {
-			throw new IllegalArgumentException("入力は8 KiB以下で指定してください。");
-		}
+		PythonExecutionInput.validateStandardInput(standardInput);
 
 	}
 

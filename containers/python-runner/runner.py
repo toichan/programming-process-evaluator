@@ -1,5 +1,6 @@
 import codecs
 import json
+import logging
 import os
 import subprocess
 import threading
@@ -26,29 +27,94 @@ EXECUTION_WRAPPER = (
 MAX_CONCURRENT_EXECUTIONS = threading.BoundedSemaphore(4)
 SESSIONS = {}
 SESSIONS_LOCK = threading.Lock()
+LOGGER = logging.getLogger(__name__)
 
 
 class BoundedOutput:
     def __init__(self):
-        self.data = bytearray()
+        self.raw_bytes = 0
+        self.text_bytes = 0
+        self.text_closed = False
+        self.parts = []
+        self.decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
         self.lock = threading.Lock()
         self.truncated = threading.Event()
+
+    def _append_text(self, text):
+        if self.text_closed:
+            return ""
+        encoded = text.encode("utf-8")
+        remaining = MAX_OUTPUT_BYTES - self.text_bytes
+        if len(encoded) > remaining:
+            # encoded is valid UTF-8; omit only the cut-off final character.
+            text = encoded[:remaining].decode("utf-8", errors="ignore")
+            self.truncated.set()
+            self.text_closed = True
+        self.text_bytes += len(text.encode("utf-8"))
+        if text:
+            self.parts.append(text)
+        return text
+
+    def append(self, chunk):
+        with self.lock:
+            remaining = MAX_OUTPUT_BYTES - self.raw_bytes
+            allowed = chunk[:remaining]
+            self.raw_bytes += len(allowed)
+            if len(chunk) > remaining:
+                self.truncated.set()
+            return self._append_text(self.decoder.decode(allowed))
+
+    def finish(self):
+        with self.lock:
+            # A limit-induced partial character is not invalid source output.
+            return self._append_text(self.decoder.decode(b"", final=not self.truncated.is_set()))
 
     def drain(self, stream):
         while True:
             chunk = stream.read(4096)
             if not chunk:
+                self.finish()
                 return
-            with self.lock:
-                remaining = MAX_OUTPUT_BYTES - len(self.data)
-                if remaining > 0:
-                    self.data.extend(chunk[:remaining])
-                if len(chunk) > remaining:
-                    self.truncated.set()
+            self.append(chunk)
 
     def text(self):
         with self.lock:
-            return bytes(self.data).decode("utf-8", errors="replace")
+            return "".join(self.parts)
+
+
+def _cleanup_container(container_name):
+    deadline = time.monotonic() + DOCKER_CLEANUP_TIMEOUT_SECONDS
+    try:
+        result = subprocess.run(
+            ["docker", "rm", "--force", container_name],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            timeout=DOCKER_CLEANUP_TIMEOUT_SECONDS, check=False,
+        )
+        if result.returncode == 0 or b"no such container" in result.stderr.lower():
+            return True
+        if b"is already in progress" not in result.stderr:
+            LOGGER.warning("Container cleanup failed for %s: %s", container_name,
+                           result.stderr.decode("utf-8", errors="replace"))
+            return False
+        # --rm may already own deletion; success requires confirmed absence.
+        while time.monotonic() < deadline:
+            result = subprocess.run(
+                ["docker", "inspect", "--format", "{{.Id}}", container_name],
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                timeout=max(.001, deadline - time.monotonic()), check=False,
+            )
+            if result.returncode != 0:
+                if b"no such object:" in result.stderr.lower() or b"no such container:" in result.stderr.lower():
+                    return True
+                LOGGER.warning("Container cleanup verification failed for %s: %s", container_name,
+                               result.stderr.decode("utf-8", errors="replace"))
+                return False
+            time.sleep(min(.05, max(0, deadline - time.monotonic())))
+    except (OSError, subprocess.TimeoutExpired) as error:
+        LOGGER.warning("Container cleanup could not complete for %s: %s", container_name, error)
+        return False
+    LOGGER.warning("Container cleanup verification exceeded its deadline for %s", container_name)
+    return False
 
 
 def _write_stdin(stream, value):
@@ -148,21 +214,11 @@ def _run_container(source, standard_input):
 
     cleanup_failed = wait_failed
     if timed_out or output_limited or process.returncode == 125:
-        try:
-            cleanup = subprocess.run(
-                ["docker", "rm", "--force", container_name],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                timeout=DOCKER_CLEANUP_TIMEOUT_SECONDS,
-                check=False,
-            )
-            if cleanup.returncode != 0 and b"No such container" not in cleanup.stderr:
-                cleanup_failed = True
-        except (OSError, subprocess.TimeoutExpired):
-            cleanup_failed = True
+        cleanup_failed = not _cleanup_container(container_name) or cleanup_failed
 
     for thread in threads:
         thread.join(timeout=1)
+    output_limited = output_limited or stdout.truncated.is_set() or stderr.truncated.is_set()
 
     if cleanup_failed:
         status = "unavailable"
@@ -202,7 +258,7 @@ class ExecutionSession:
         self.input_lock = threading.Lock()
         self.sequence = 0
         self.events = []
-        self.output_data = {"stdout": bytearray(), "stderr": bytearray()}
+        self.outputs = {"stdout": BoundedOutput(), "stderr": BoundedOutput()}
         self.output_truncated = {"stdout": False, "stderr": False}
         self.input_bytes = 0
         self.status = "running"
@@ -241,24 +297,19 @@ class ExecutionSession:
         self.last_activity_at = time.monotonic()
 
     def _drain_stream(self, stream_name, pipe):
-        decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
+        output = self.outputs[stream_name]
         while True:
             chunk = pipe.read(4096)
             if not chunk:
                 break
             with self.lock:
-                remaining = MAX_OUTPUT_BYTES - len(self.output_data[stream_name])
-                allowed = chunk[:max(0, remaining)]
-                if allowed:
-                    self.output_data[stream_name].extend(allowed)
-                    self._append_event(stream_name, decoder.decode(allowed))
-                if len(chunk) > max(0, remaining):
+                self._append_event(stream_name, output.append(chunk))
+                if output.truncated.is_set():
                     self.output_truncated[stream_name] = True
                     self.last_activity_at = time.monotonic()
-        tail = decoder.decode(b"", final=True)
-        if tail:
-            with self.lock:
-                self._append_event(stream_name, tail)
+        with self.lock:
+            self._append_event(stream_name, output.finish())
+            self.output_truncated[stream_name] = output.truncated.is_set()
 
     def send_input(self, value):
         encoded = value.encode("utf-8") + b"\n"
@@ -319,21 +370,13 @@ class ExecutionSession:
             reason = self.termination_reason
         cleanup_failed = wait_failed
         if reason or self.process.returncode == 125:
-            try:
-                cleanup = subprocess.run(
-                    ["docker", "rm", "--force", self.container_name],
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    timeout=DOCKER_CLEANUP_TIMEOUT_SECONDS,
-                    check=False,
-                )
-                if cleanup.returncode != 0 and b"No such container" not in cleanup.stderr:
-                    cleanup_failed = True
-            except (OSError, subprocess.TimeoutExpired):
-                cleanup_failed = True
+            cleanup_failed = not _cleanup_container(self.container_name) or cleanup_failed
 
         for reader in self.readers:
             reader.join(timeout=1)
+        with self.lock:
+            if reason is None and any(self.output_truncated.values()):
+                reason = "output_limit"
 
         if cleanup_failed:
             status, error_code = "unavailable", "runner_cleanup_failed"
@@ -371,12 +414,8 @@ class ExecutionSession:
                 "standardInput": "".join(
                     event["text"] for event in self.events if event["stream"] == "input"
                 ) if finished else "",
-                "standardOutput": bytes(self.output_data["stdout"]).decode(
-                    "utf-8", errors="replace"
-                ) if finished else "",
-                "standardError": bytes(self.output_data["stderr"]).decode(
-                    "utf-8", errors="replace"
-                ) if finished else "",
+                "standardOutput": self.outputs["stdout"].text() if finished else "",
+                "standardError": self.outputs["stderr"].text() if finished else "",
                 "standardOutputTruncated": self.output_truncated["stdout"],
                 "standardErrorTruncated": self.output_truncated["stderr"],
                 "durationMilliseconds": int((time.monotonic() - self.started_at) * 1000),

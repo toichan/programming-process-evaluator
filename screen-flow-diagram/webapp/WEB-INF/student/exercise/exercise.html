@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/lib/codemirror.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/theme/material-darker.css">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
-  <link href="../../../css/student/shared/components.css" rel="stylesheet">
+  <link href="../../../css/student/shared/components.css?v=notification-placeholder" rel="stylesheet">
   <link href="../../../css/student/shared/feedback.css" rel="stylesheet">
   <link href="../../../css/template/template.css" rel="stylesheet">
   <link href="../../../css/student/exercise/exercise.css" rel="stylesheet">
@@ -44,12 +44,72 @@
               </div>
             </div>
 
-            <div class="button-group lesson-tree-actions mb-3">
-              <button id="newFolderButton" class="btn btn-outline-secondary" type="button">新しいフォルダ</button>
-              <button id="newFileButton" class="btn btn-outline-primary" type="button">新しいファイル</button>
-              <button id="uploadButton" class="btn btn-outline-info" type="button">アップロード</button>
-              <button id="downloadAllButton" class="btn btn-outline-secondary" type="button">一括ダウンロード</button>
+            <details class="lesson-explorer-disclosure mb-2" open>
+              <summary class="lesson-explorer-summary">
+                <span class="lesson-explorer-summary-title">追加</span>
+                <span class="lesson-explorer-summary-status">ファイル・フォルダ・アップロード</span>
+              </summary>
+              <div class="button-group lesson-tree-actions">
+                <button id="newFolderButton" class="btn btn-outline-secondary" type="button">新しいフォルダ</button>
+                <button id="newFileButton" class="btn btn-outline-primary" type="button">新しいファイル</button>
+                <button id="uploadButton" class="btn btn-outline-info" type="button" aria-label="アップロード" title="アップロード" data-bs-toggle="tooltip" data-bs-animation="false">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 16V3m-5 5 5-5 5 5M4 15v6h16v-6"/></svg>
+                </button>
+              </div>
+            </details>
+
+            <p class="lesson-add-target mb-2" aria-live="polite">追加先: <strong id="lessonAddTargetPath">s001</strong></p>
+
+            <div class="lesson-explorer-quick-actions mb-2">
+              <details id="lessonDisplaySettings" class="lesson-explorer-disclosure">
+                <summary class="lesson-explorer-summary">
+                  <span class="lesson-explorer-summary-title">表示設定</span>
+                  <span id="lessonDisplaySettingsStatus" class="lesson-explorer-summary-status" aria-live="polite">名前順</span>
+                </summary>
+                <div class="lesson-explorer-tools">
+                  <label class="form-label small fw-semibold mb-1" for="lessonTreeSearch">名前で検索</label>
+                  <input id="lessonTreeSearch" class="form-control form-control-sm" type="search" autocomplete="off"
+                    placeholder="ファイル名・フォルダ名">
+                  <p id="lessonTreeSearchStatus" class="small text-secondary mt-1 mb-0" aria-live="polite" hidden></p>
+                  <div id="lessonTreeSearchResults" class="lesson-tree-search-results mt-2" aria-live="polite"></div>
+                  <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mt-2">
+                    <label class="small text-secondary" for="lessonTreeSort">並び替え</label>
+                    <select id="lessonTreeSort" class="form-select form-select-sm lesson-tree-sort">
+                      <option value="name">名前順</option>
+                      <option value="updated">更新日時の新しい順</option>
+                    </select>
+                  </div>
+                  <div class="lesson-folder-controls mt-2">
+                    <button id="expandAllFoldersButton" class="btn btn-sm btn-outline-secondary" type="button">すべて展開する</button>
+                    <button id="collapseAllFoldersButton" class="btn btn-sm btn-outline-secondary" type="button">すべて折りたたむ</button>
+                    <button id="revealActiveFileButton" class="btn btn-sm btn-outline-primary" type="button">編集中のファイルを表示</button>
+                  </div>
+                </div>
+              </details>
             </div>
+
+            <details id="lessonSelectionTools" class="lesson-explorer-disclosure mb-2">
+              <summary class="lesson-explorer-summary"><span class="lesson-explorer-summary-title">選択操作</span><span id="lessonSelectionStatus" class="lesson-explorer-summary-status" aria-live="polite"></span></summary>
+              <div class="lesson-explorer-tools">
+              <div class="lesson-selection-mode-controls">
+              <button id="lessonSelectionModeButton" class="btn btn-sm btn-outline-primary" type="button" aria-pressed="false">選択</button>
+              <button id="lessonSelectAll" class="btn btn-sm btn-outline-secondary" type="button" hidden>全選択</button>
+              <button id="lessonSelectSearchResults" class="btn btn-sm btn-outline-secondary" type="button" data-select-search-results hidden>表示結果を選択</button>
+              </div>
+            <div id="lessonSelectionToolbar" class="lesson-selection-toolbar mb-2 d-none" aria-live="polite">
+              <div class="d-flex flex-wrap align-items-baseline gap-2">
+                <strong id="lessonSelectionCount">選択 0 件</strong>
+                <span id="lessonHiddenSelectionCount" class="small text-secondary"></span>
+              </div>
+              <div class="lesson-selection-actions">
+                <button id="downloadSelectedButton" class="btn btn-sm btn-outline-secondary" type="button" disabled>ダウンロード</button>
+                <button id="moveSelectedButton" class="btn btn-sm btn-outline-primary" type="button" disabled>移動</button>
+                <button id="trashSelectedButton" class="btn btn-sm btn-outline-danger" type="button" disabled>ごみ箱へ</button>
+                <button id="clearSelectedButton" class="btn btn-sm btn-outline-secondary" type="button" disabled>選択解除</button>
+              </div>
+            </div>
+              </div>
+            </details>
 
             <div id="lessonFileTree" class="lesson-file-tree" aria-label="授業演習ファイルツリー"></div>
           </section>
@@ -62,9 +122,10 @@
                 <span id="currentPathBadge" class="task-badge">Path: ウォームアップ/greeting.py</span>
               </div>
               <div class="button-group">
-                <button id="downloadButton" class="btn btn-outline-secondary" type="button">ダウンロード</button>
-                <button id="saveButton" class="btn btn-secondary" type="button">保存</button>
-                <button id="runButton" class="btn btn-primary" type="button">実行</button>
+                <button id="downloadButton" class="btn btn-outline-secondary" type="button"
+                  title="編集中の内容を取得（未保存の変更を含みます）"><svg class="me-1" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/></svg>ダウンロード</button>
+                <button id="saveButton" class="btn btn-secondary" type="button"><svg class="me-1" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 3h13l4 4v14H3V3h1zm2 0v6h11V3M6 21v-8h12v8"/></svg>保存</button>
+                <button id="runButton" class="btn btn-primary" type="button"><svg class="me-1" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m8 5 11 7-11 7V5z"/></svg>実行</button>
               </div>
             </div>
 
@@ -83,9 +144,9 @@ print(f"こんにちは、{name}さん")</textarea>
             </div>
 
             <div class="editor-status-row lesson-status-row">
-              <div id="lessonEditorMessage" class="editor-message">保存状態: 未保存の変更があります。保存すると最終状態が更新されます。</div>
+              <div id="lessonEditorMessage" class="editor-message">保存状態: 未保存の変更があります。</div>
               <div class="lesson-status-right">
-                <span class="lesson-language-chip">Python 3.x</span>
+                <span class="lesson-language-chip">Python 3.12</span>
               </div>
             </div>
           </section>
@@ -181,17 +242,18 @@ print(f"こんにちは、{name}さん")</textarea>
           <div>
             <h2 class="modal-title h5 mb-1" id="moveEntryModalLabel">移動先を選択</h2>
             <div id="moveEntryModalCurrentPath" class="move-entry-current-path"></div>
+            <div id="moveEntryModalSelectedPath" class="move-entry-selected-path" aria-live="polite">移動先: 未選択</div>
           </div>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
         </div>
         <div class="modal-body">
-          <p class="move-entry-help mb-3">移動先のフォルダをクリックしてください。</p>
+          <p class="move-entry-help mb-3">フォルダ名で移動先を選び、矢印で階層を開閉できます。</p>
           <div id="moveEntryModalTree" class="move-entry-tree"></div>
           <div id="moveEntryModalEmpty" class="move-entry-empty d-none">移動できるフォルダがありません。</div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">キャンセル</button>
-          <button id="moveEntryConfirmButton" type="button" class="btn btn-primary" disabled>この場所に移動</button>
+          <button id="moveEntryConfirmButton" type="button" class="btn btn-primary" disabled>移動</button>
         </div>
       </div>
     </div>
@@ -212,13 +274,14 @@ print(f"こんにちは、{name}さん")</textarea>
             <section class="upload-entry-file-panel">
               <h3 class="upload-entry-heading">1. ファイル/フォルダ選択</h3>
               <div class="upload-entry-source-actions">
-                <button id="uploadSelectFilesButton" class="btn btn-outline-primary" type="button">ファイルを選択</button>
-                <button id="uploadSelectFolderButton" class="btn btn-outline-secondary" type="button">フォルダを選択</button>
+                <button id="uploadSelectFilesButton" class="btn btn-outline-primary" type="button"><svg class="me-1" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 3h9l5 5v13H5zM14 3v5h5M12 12v6m-3-3h6"/></svg>ファイルを選択</button>
+                <button id="uploadSelectFolderButton" class="btn btn-outline-secondary" type="button"><svg class="me-1" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6V4h7l2 3h9v13H3zM14 12v6m-3-3h6"/></svg>フォルダを選択</button>
               </div>
               <input id="uploadSourceFile" class="d-none" type="file" accept=".py" multiple>
               <input id="uploadSourceDirectory" class="d-none" type="file" accept=".py" multiple webkitdirectory directory>
               <p id="uploadFileName" class="upload-entry-file-name">未選択</p>
               <ul id="uploadFilePreviewList" class="upload-file-preview-list" aria-label="選択したファイル一覧"></ul>
+              <p class="upload-entry-help mt-2">UTF-8の.pyのみ。1ファイル64 KiB・100ファイル・合計1 MiB以内。同名は上書きしません。新規フォルダ名にドットは使用できません。</p>
             </section>
             <section class="upload-entry-folder-panel">
               <h3 class="upload-entry-heading">2. 追加先フォルダ</h3>
@@ -244,8 +307,9 @@ print(f"こんにちは、{name}さん")</textarea>
   <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/mode/python/python.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/mode/shell/shell.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-  <script src="../../../js/student/shared/components.js"></script>
+  <script src="../../../js/student/shared/components.js?v=help-modal-5"></script>
   <script src="../../../js/student/shared/feedback.js"></script>
+  <script src="../../../js/student/shared/explorer-menus.js"></script>
   <script src="../../../js/student/exercise/exercise.js"></script>
 </body>
 </html>

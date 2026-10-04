@@ -19,11 +19,19 @@ final class PythonRunnerClient {
 	private final URI executionUri;
 
 	PythonRunnerClient() {
+		this(configuredRunnerUri());
+	}
+
+	private static URI configuredRunnerUri() {
 		String runnerUrl = System.getenv("PYTHON_RUNNER_URL");
 		if (runnerUrl == null || runnerUrl.isBlank()) {
 			throw new IllegalStateException("PYTHON_RUNNER_URL must be configured.");
 		}
-		this.runnerUri = URI.create(runnerUrl.replaceAll("/+$", ""));
+		return URI.create(runnerUrl.replaceAll("/+$", ""));
+	}
+
+	PythonRunnerClient(URI runnerUri) {
+		this.runnerUri = runnerUri;
 		this.executionUri = runnerUri.resolve("/execute");
 		this.httpClient = HttpClient.newBuilder()
 				.connectTimeout(Duration.ofSeconds(2))
@@ -63,6 +71,16 @@ final class PythonRunnerClient {
 				result.standardErrorTruncated,
 				result.errorCode);
 	}
+
+	TimedResult executeTimed(String source, String standardInput) throws IOException, InterruptedException {
+		long startedAt = System.nanoTime();
+		PythonExecutionResult result = execute(source, standardInput);
+		int duration = (int) Math.min(
+				Integer.MAX_VALUE, Math.max(0, (System.nanoTime() - startedAt) / 1_000_000));
+		return new TimedResult(result, duration);
+	}
+
+	record TimedResult(PythonExecutionResult result, int durationMilliseconds) {}
 
 	String startSession(String source) throws IOException, InterruptedException {
 		RunnerSessionResponse result = sendSessionRequest(
@@ -118,6 +136,24 @@ final class PythonRunnerClient {
 		HttpResponse<String> response = httpClient.send(
 				builder.build(), HttpResponse.BodyHandlers.ofString(java.nio.charset.StandardCharsets.UTF_8));
 		if (response.statusCode() != expectedStatus) {
+			if (response.statusCode() == 400 || response.statusCode() == 404
+					|| response.statusCode() == 409 || response.statusCode() == 413
+					|| response.statusCode() == 429 || response.statusCode() == 503) {
+				com.google.gson.JsonElement parsed;
+				try {
+					parsed = com.google.gson.JsonParser.parseString(response.body());
+				} catch (com.google.gson.JsonParseException e) {
+					throw new IOException("The isolated Python execution service returned an invalid error response.", e);
+				}
+				if (parsed.isJsonObject()) {
+					var object = parsed.getAsJsonObject();
+					var code = object.has("errorCode") ? object.get("errorCode") : object.get("error");
+					if (code != null && code.isJsonPrimitive() && code.getAsJsonPrimitive().isString()
+							&& code.getAsString().matches("[a-z_]{1,64}")) {
+						throw new PythonRunnerRequestException(response.statusCode(), code.getAsString());
+					}
+				}
+			}
 			throw new IOException("The isolated Python execution service returned HTTP "
 					+ response.statusCode() + ".");
 		}

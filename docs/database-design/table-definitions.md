@@ -364,8 +364,9 @@ Geminiへの送信データでは、`student_profiles.student_code` や氏名等
 |execution_id|実行ID|BIGINT|〇|NO|PRIMARY_KEY, AUTO_INCREMENT||
 |participation_id|学習参加ID|BIGINT||YES|FOREIGN_KEY|task_participations.participation_id。教師の確認実行ではNULL|
 |submission_id|提出ID|BIGINT||YES|FOREIGN_KEY|submissions.submission_id。提出確認/教師確認実行の対象|
+|exercise_entry_id|演習ファイルID|BIGINT||YES|FOREIGN_KEY|student_exercise_entries.exercise_entry_id。授業演習実行時のみ設定。V12適用、DAO/Control保存・HTTP/画面再読込検証済み|
 |actor_user_id|実行者ユーザID|BIGINT||YES|FOREIGN_KEY|users.user_id。システム実行ではNULL|
-|execution_context|実行用途|ENUM('student_task','submission_check','teacher_review_copy','distribution_template')||NO|||
+|execution_context|実行用途|ENUM('student_task','submission_check','teacher_review_copy','distribution_template','student_exercise')||NO||student_exerciseはV12で末尾追加・適用済み。既存用途の順序を保持|
 |source_code|実行コード|LONGTEXT||NO|||
 |standard_input|標準入力|LONGTEXT||YES||実行に渡した入力全文|
 |execution_status|実行状態|ENUM('queued','running','succeeded','failed','timed_out')||NO|||
@@ -378,6 +379,14 @@ Geminiへの送信データでは、`student_profiles.student_code` や氏名等
 |error_message|エラーメッセージ|TEXT||YES||表示用の安全なメッセージ。機密情報を含めない|
 |duration_milliseconds|実行時間(ms)|INT||YES|||
 |executed_at|実行日時|DATETIME||NO|||
+
+2026-10-03授業演習追加合意: `student_exercise`の実行では`exercise_entry_id`と`actor_user_id`を必須とし、`participation_id`・`submission_id`はNULLにする。対象は実行者本人の有効な演習領域に属する有効なfile項目に限定する。その他の実行用途では`exercise_entry_id`をNULLとし、既存経路を維持する。参照列・用途・文脈CHECKは新規V12で適用済み、既存V1/V11は変更していない。演習のごみ箱移動で実行記録を削除しない。本人/領域状態/項目種別/祖先の検証は実行前と保存直前にDAO/Controlで行い、実行中にDBロックを保持しない。実runner→専用DB保存はT007で検証済み。T008〜T011でHTTP/画面での実行・最新結果再読込を接続し、本人スコープ・競合・保存コード/版不変を検証済み。全条件の検証完了は授業演習計画T012に残す。
+
+演習の対話実行（2026-10-03仕様第93版）でも上記`code_executions`だけを使い、この課題用テスト結果表は更新しない。完了監視と画面取得が競合しても同一sessionの保存は一度だけ行う。`cancelled`は既存ENUMを拡張せず`failed`と`execution_cancelled`に正規化する。最新結果は保存済み標準入力/標準出力/標準エラー・記録日時を再読込する。イベントの交互順序や入力sessionは永続化しないため、再読込は保存済み表示であり入力再開ではない。実行サービス障害を実行完了や保存成功とみなさない。
+
+T012最終確認（2026-10-03）: runnerの各出力は捕捉生バイト/表示テキストとも32KiB以内で、UTF-8文字境界で切り詰め、該当truncated列へ記録する。日本語出力32766バイト/標準エラー32768バイト、入力合計8192バイト、30秒無通信/60秒全体制限/停止の結果と一回保存を実DBで確認済み。cleanup競合と入力拒否理由保持の修正・検証範囲は[授業演習計画](../system-configuration/feature-plans/student-exercise.md)を参照。既存列/用途/状態の変更や追加migrationはない。
+
+授業演習のダウンロード（2026-10-03仕様第94版）は実行記録を作成しない。一括取得は本人所有の`student_exercises`と有効な`student_exercise_entries`の最終保存内容を参照するだけで、版/保存/学習状態や課題用テーブルを更新しない。単体は編集中コードをブラウザーから取得するためDB保存を伴わない。新しい保存先やマイグレーションは追加しない。
 
 ## code_execution_test_results
 
@@ -400,12 +409,17 @@ Geminiへの送信データでは、`student_profiles.student_code` や氏名等
 
 ## rubrics
 
-版管理されたルーブリック
+版管理されたルーブリック。生徒共通ヘッダーの表示は、課題に割り当てられた評価用の版とは独立した標準版を参照する。
+
+- 標準版の一次資料・表示方針: [機能仕様書「ルーブリック参照（生徒）」](../function-specification.md#ルーブリック参照生徒)
+- V15で作成者をNULL許容に変更する。NULLはシステム提供の標準版を表し、既存行の作成者や課題・評価の割当は変更しない。
+- 登録: `docker compose exec -T app gradle flywayMigrate flywayValidate registerStandardRubric --no-daemon --console=plain --warning-mode all`
+- 登録処理は一次資料を読み、`生徒共通標準ルーブリック / 0805-2026-v1` を2次元・6観点・30段階説明としてトランザクション登録する。同一内容の再実行は無変更、同じ版の異なる内容・非active状態はエラーとし、上書きしない。
 
 |フィールド名|和名|型|主キー|NULL|その他制約|備考|
 |:--|:--|:--|:--|:--|:--|:--|
 |rubric_id|ルーブリックID|BIGINT|〇|NO|PRIMARY_KEY, AUTO_INCREMENT||
-|created_by_user_id|作成者ユーザID|BIGINT||NO|FOREIGN_KEY|users.user_id|
+|created_by_user_id|作成者ユーザID|BIGINT||YES|FOREIGN_KEY|users.user_id。システム提供の標準版はNULL|
 |title|タイトル|VARCHAR(255)||NO|||
 |version|版数|VARCHAR(50)||NO|UNIQUE(title, version)||
 |rubric_status|ルーブリック状態|ENUM('draft','active','archived')||NO|||
@@ -713,9 +727,13 @@ AIが抽出した揺らぎ項目と教師の対応記述
 
 生徒の授業演習領域。配信テンプレート外に生徒が作成した演習領域も保持する。
 
+第98版の単一ルート化では、領域IDは保存・競合検出用の内部識別子とする。V14は統合先と項目の元領域参照を追加するだけで、複数領域の項目移動・改名は利用者のプレビュー確認後に実施する。統合後も元領域行と配信対象/作成元を残し、項目の`source_exercise_id`から配信元を追跡できる。通常画面には領域の選択欄を置かない。移行対象が複数残る場合のみ確認前の内容切替と統合確認を表示する。実装・検証は[授業演習計画T029](../system-configuration/feature-plans/student-exercise.md)を参照。
+
 |フィールド名|和名|型|主キー|NULL|その他制約|備考|
 |:--|:--|:--|:--|:--|:--|:--|
 |student_exercise_id|生徒演習ID|BIGINT|〇|NO|PRIMARY_KEY, AUTO_INCREMENT||
+|version|領域版番号|BIGINT||NO|DEFAULT 0, CHECK >= 0|作成/保存/ごみ箱/復元の競合判定。V12で追加・ローカル適用済み|
+|merged_into_exercise_id|統合先生徒演習ID|BIGINT||YES|FOREIGN_KEY, INDEX(student_user_id, merged_into_exercise_id)|V14。未統合/通常ルートはNULL。統合済み元領域から同一生徒の現行ルートを参照し、元領域は物理削除・状態書換えしない|
 |student_user_id|生徒ユーザID|BIGINT||NO|FOREIGN_KEY|student_profiles.user_id|
 |distribution_target_id|配信対象ID|BIGINT||YES|FOREIGN_KEY|distribution_targets.distribution_target_id。生徒作成領域ではNULL|
 |exercise_origin|演習作成元|ENUM('distribution','student_created')||NO|||
@@ -732,18 +750,34 @@ AIが抽出した揺らぎ項目と教師の対応記述
 
 演習領域は主キーで識別し、同名の領域も作成可能とする。
 
+2026-10-03追加合意: 更新は領域行をロックして期待versionを照合し、成功した変更と同じトランザクションで1増やす。競合はHTTP 409として拒否し、入力を保持する。初回自由領域は本人のusers行をロックして存在確認/作成を直列化し、既存の生徒作成領域がある場合は先頭IDを既定領域にする。同時に領域未作成版で送られた古い要求は409とし、既存領域を暗黙に変更しない。配信由来領域や同名領域の許容を全体一意制約で禁止しない。GETと実行記録保存ではversionを増やさない。
+
+第98版の統合では本人の利用可能な未統合領域を範囲ロックして、階層と通常名前空間をDBの照合順序で照合する。既存生徒作成領域を基本の統合先とし、なければ既存配信由来領域を使用する。各元領域の版/項目/新パスを含む確認tokenと、編集中領域の期待版を保存時に再照合する。全項目・削除単位・元領域を一つのトランザクションで統合し、元領域/統合先の各版を一回増やす。閲覧専用・不整合・別名候補や子孫パスの上限超過では全体を変更せず理由を通知する。archived/deleted領域を勝手に復活させない。
+
 ## student_exercise_entries
 
+2026-10-04仕様第98版のごみ箱基盤はV13で通常名前空間と削除単位を分離する。詳細・検証状況は[授業演習計画T029](../system-configuration/feature-plans/student-exercise.md)を参照。単一ルートへの領域統合は別の残件で、このmigrationでは領域/所有者/配信元/項目ID/コード/実行関連を変更しない。
+
+2026-10-04仕様第96版のアップロードはこの既存テーブルへ全項目を一括保存し、`student_exercises.version`を一回だけ増やす。既存項目の上書きや部分保存はしない。新規フォルダ名のドット禁止は入力層に適用し、既存行/相対パスの改名やDB制約/migration追加はしない。
+
+2026-10-04仕様第95版の生徒IDルートは表示上の要素であり、このテーブルへフォルダ行を追加しない。`parent_entry_id IS NULL`の項目を表示ルート直下へ並べ、`path`は生徒IDを含まない従来の領域内相対パスを維持する。新規ファイルは`.py`自動追加後の名前/パスで制約を検証する。既存行の名前/パスを変更するmigrationは不要。
+
 生徒の授業演習ツリー内のフォルダ/ファイルと最新保存内容。30秒の履歴は保存しない。
+
+第100版追加バッチは既存の項目/削除単位/versionを使い、一括移動/ごみ箱/親からの復元を全体トランザクションで更新する。複製は保存内容と有効な階層だけを新IDへ作成し、`source_exercise_id`は作成先ルートを記録する。元の配信target/実行履歴/独立ごみ箱は転記しない。アップロード解決は明示結合/別名/skipで既存コードを上書きせず、全skipは版を変えない。`updated_at`は実値を文字列DTOで返し、未設定を架空日時で埋めない。新しい表/列/migrationは追加せず、専用DBの確認結果は[授業演習計画](../system-configuration/feature-plans/student-exercise.md)へ記録する。
 
 |フィールド名|和名|型|主キー|NULL|その他制約|備考|
 |:--|:--|:--|:--|:--|:--|:--|
 |exercise_entry_id|演習項目ID|BIGINT|〇|NO|PRIMARY_KEY, AUTO_INCREMENT||
 |student_exercise_id|生徒演習ID|BIGINT||NO|FOREIGN_KEY|student_exercises.student_exercise_id|
+|source_exercise_id|元の生徒演習ID|BIGINT||YES|FOREIGN_KEY, INDEX|V14。既存項目へ元student_exercise_idを補完し、新規項目は作成時の領域を記録。統合で変更せず、元領域行の配信元/所有関係を保持する|
 |parent_entry_id|親項目ID|BIGINT||YES|FOREIGN_KEY|student_exercise_entries.exercise_entry_id。ルートはNULL|
 |entry_type|項目種別|ENUM('folder','file')||NO|||
 |name|名前|VARCHAR(255)||NO|||
-|path|パス|VARCHAR(1000)||NO|UNIQUE(student_exercise_id, path)||
+|path|パス|VARCHAR(1000)||NO||領域内相対パス。通常有効項目のみactive_path_hashで一意にする|
+|path_hash|パス照合ハッシュ|BINARY(32)||YES|GENERATED STORED|既存の照合順序ウェイトのSHA-256。V13後は通常一意制約には使用しない|
+|active_path_hash|通常パス照合ハッシュ|BINARY(32)||YES|GENERATED STORED, UNIQUE(student_exercise_id, active_path_hash)|entry_status=activeかつtrash_root_entry_idがNULLの場合のみ生成。ごみ箱/非表示子孫/完全削除はNULL|
+|trash_root_entry_id|削除単位の先頭項目ID|BIGINT||YES|INDEX(student_exercise_id, trash_root_entry_id)|通常項目はNULL。ごみ箱の先頭は自身のID、当時有効な配下は同じ先頭ID。独立した先行削除は独自の単位を維持する。既存の完全削除祖先下もV13で通常名前空間から除外|
 |language|言語|VARCHAR(32)||YES||拡張子から推定できるが表示値を固定する場合は保存|
 |description|説明|TEXT||YES||画面データのnote|
 |current_content|現在内容|LONGTEXT||YES||file項目の最終保存内容|
@@ -753,7 +787,9 @@ AIが抽出した揺らぎ項目と教師の対応記述
 |trashed_at|ごみ箱移動日時|DATETIME||YES|||
 |deleted_at|削除日時|DATETIME||YES|||
 
-一意制約はパス全体に適用する。MySQL InnoDB の索引長制限を超えないよう、マイグレーションでは `utf8mb4_0900_ai_ci` の照合順序ウェイトから生成する SHA-256 列を内部索引に使う。
+通常名前空間の一意制約は有効なパス全体に適用する。MySQL InnoDB の索引長制限を超えないよう、`utf8mb4_0900_ai_ci` の照合順序ウェイトから生成する SHA-256 列を内部索引に使う。ごみ箱内の同名は通常項目を予約しない。
+
+V13は旧階層を根から辿り、既存のtrashed/deleted項目をそれぞれ削除単位の先頭とし、その下のactive項目へ単位IDを補完する。先に個別削除した項目は親の単位に混ぜない。全行を辿れない不整合階層は新列追加前に拒否し、無断で欠落行を統合しない。復元は先頭と同じ単位の有効な配下だけを戻し、独立ごみ箱/完全削除を復活させない。別名復元では独立項目も含む元の親子関係のパスを更新し、日時/版/通常一意制約を全体トランザクションで確定する。
 
 ## consent_document_versions
 
@@ -791,7 +827,7 @@ AIが抽出した揺らぎ項目と教師の対応記述
 |フィールド名|和名|型|主キー|NULL|その他制約|備考|
 |:--|:--|:--|:--|:--|:--|:--|
 |survey_id|アンケートID|BIGINT|〇|NO|PRIMARY_KEY, AUTO_INCREMENT||
-|task_id|課題ID|BIGINT||YES|FOREIGN_KEY|tasks.task_id。全体アンケートの場合はNULL。工程8の生徒向け回答導線ではNULLのsurveyは対象外|
+|task_id|課題ID|BIGINT||YES|FOREIGN_KEY|tasks.task_id。本システムのアンケートは課題別に限定し、課題IDを指定する。既存スキーマはNULLを許容するが、NULLのsurveyはシステムの機能対象外|
 |title|タイトル|VARCHAR(255)||NO|||
 |survey_status|アンケート状態|ENUM('draft','active','closed','archived')||NO|||
 |created_at|作成日時|DATETIME||NO|||

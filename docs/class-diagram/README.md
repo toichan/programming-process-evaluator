@@ -29,6 +29,8 @@
 
 ## 設計方針
 
+授業演習エクスプローラの第100版追加実装は永続ドメインの追加ではなく、既存項目に対する操作入力/結果DTO（`ExerciseBatchInput/Result`、`ExerciseDuplicatePreview`、`ExerciseUploadPreview/Resolution/Result`）と`ExerciseTree`の実日時表示を追加する。Servlet→Control→DAOの接続・新ID複製の責務と検証は[授業演習計画](../system-configuration/feature-plans/student-exercise.md)、永続項目は[DB定義](../database-design/table-definitions.md)を正本とする。
+
 - 1 枚の巨大図ではなく、責務ごとに分割して理解しやすくする。
 - 「保存状態」と「学習・公開状態」を分離する設計思想を維持する。
 - 実装前にデータの責務境界を明確化することを目的とする。

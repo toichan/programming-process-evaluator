@@ -10,6 +10,7 @@
 <div class="container"
 	 id="studentEditorPage"
 	 data-assignment-id="<c:out value='${editorPage.assignmentId}'/>"
+	 data-task-title="<c:out value='${editorPage.title}'/>"
 	 data-draft-updated-at="<c:out value='${editorPage.draftUpdatedAtToken}'/>"
 	 data-editor-font-size-px="<c:out value='${editorPreferences.fontSizePx}'/>"
 	 data-editor-line-wrapping="<c:out value='${editorPreferences.lineWrapping}'/>"
@@ -98,14 +99,15 @@
 	<div class="row g-4 align-items-start">
 		<div class="col-xl-8">
 			<section class="sample-section editor-workspace-section">
-				<div class="editor-toolbar">
+				<div class="editor-toolbar editor-task-toolbar">
 					<div class="toolbar-left">
 						<span class="task-badge"><c:out value="${difficultyLabel}"/>：<c:out value="${editorPage.title}"/></span>
 					</div>
 					<div class="button-group">
+						<button id="downloadButton" class="btn btn-outline-secondary editor-download-button" type="button" aria-label="コードをダウンロード" title="コードをダウンロード（未保存の変更を含む）"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/></svg></button>
 						<button id="saveButton" class="btn btn-secondary" type="button"
-							<c:if test="${not editorPage.editable}">disabled</c:if>>保存</button>
-						<button id="runButton" class="btn btn-primary" type="button">実行</button>
+							<c:if test="${not editorPage.editable}">disabled</c:if>><svg class="me-1" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 3h13l4 4v14H3V3h1zm2 0v6h11V3M6 21v-8h12v8"/></svg>保存</button>
+						<button id="runButton" class="btn btn-primary" type="button"><svg class="me-1" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m8 5 11 7-11 7V5z"/></svg>実行</button>
 						<button id="submitButton" class="btn btn-warning" type="button"
 							<c:if test="${not editorPage.canSubmit}">disabled</c:if>>提出する</button>
 					</div>
@@ -143,27 +145,7 @@
 				</c:if>
 			</section>
 
-			<section class="sample-section execution-result-section mt-4">
-				<div class="section-header-row mb-3">
-					<h2 class="card-title mb-0">実行結果</h2>
-				</div>
-				<div class="execution-result-toolbar mb-3">
-					<div class="execution-result-meta">
-						<span id="runResultStatus" class="badge text-bg-light border">実行待ち</span>
-						<span id="runResultTime" class="small text-secondary">実行すると結果がここに表示されます。</span>
-					</div>
-				</div>
-				<div class="interactive-terminal" role="region" aria-label="実行結果と入力">
-					<pre id="terminalOutput" class="interactive-terminal-output" aria-live="polite">まだ実行していません。</pre>
-					<form id="terminalInputForm" class="interactive-terminal-input-row">
-						<label class="visually-hidden" for="terminalInput">実行中の入力</label>
-						<input id="terminalInput" class="form-control" type="text"
-							autocomplete="off" disabled placeholder="実行中に入力してEnter">
-						<button id="terminalSendButton" class="btn btn-outline-primary" type="submit" disabled>送信</button>
-						<button id="terminalCancelButton" class="btn btn-outline-danger" type="button" hidden>停止</button>
-					</form>
-				</div>
-			</section>
+			<%@ include file="/WEB-INF/student/shared/execution-terminal.jspf" %>
 
 			<section class="sample-section log-section mt-4">
 				<div class="section-header-row">
@@ -302,55 +284,7 @@
 	</div>
 </div>
 
-<div class="modal fade" id="editorSettingsModal" tabindex="-1"
-	 aria-labelledby="editorSettingsModalLabel" aria-describedby="editorSettingsDescription" aria-hidden="true">
-	<div class="modal-dialog modal-dialog-centered">
-		<div class="modal-content">
-			<div class="modal-header">
-				<h2 class="modal-title h5 mb-0" id="editorSettingsModalLabel">エディター設定</h2>
-				<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
-			</div>
-			<div class="modal-body">
-				<p id="editorSettingsDescription" class="text-muted">文字の大きさや表示方法を自分に合わせて変更できます。</p>
-				<div class="mb-3">
-					<label class="form-label" for="editorFontSize">文字の大きさ</label>
-					<div class="d-flex align-items-center gap-3">
-						<input id="editorFontSize" class="form-range mb-0" type="range" min="10" max="24" step="2"
-							value="<c:out value='${editorPreferences.fontSizePx}'/>">
-						<output id="editorFontSizeValue" for="editorFontSize" class="editor-setting-value">
-							<c:out value="${editorPreferences.fontSizePx}"/>px
-						</output>
-					</div>
-				</div>
-				<div class="form-check form-switch mb-3">
-					<input id="editorLineWrapping" class="form-check-input" type="checkbox"
-						<c:if test="${editorPreferences.lineWrapping}">checked</c:if>>
-					<label class="form-check-label" for="editorLineWrapping">長いコードを折り返す</label>
-				</div>
-				<div class="mb-3">
-					<label class="form-label" for="editorIndentWidth">Tabキーの空白</label>
-					<select id="editorIndentWidth" class="form-select">
-						<option value="2" <c:if test="${editorPreferences.indentWidth == 2}">selected</c:if>>2個</option>
-						<option value="4" <c:if test="${editorPreferences.indentWidth == 4}">selected</c:if>>4個</option>
-					</select>
-				</div>
-				<div class="mb-3">
-					<label class="form-label" for="editorTheme">配色</label>
-					<select id="editorTheme" class="form-select">
-						<option value="dark" <c:if test="${editorPreferences.themeValue == 'dark'}">selected</c:if>>暗い背景</option>
-						<option value="light" <c:if test="${editorPreferences.themeValue == 'light'}">selected</c:if>>明るい背景</option>
-						<option value="high_contrast" <c:if test="${editorPreferences.themeValue == 'high_contrast'}">selected</c:if>>見やすさ重視</option>
-					</select>
-				</div>
-				<p id="editorPreferencesStatus" class="small text-secondary mb-0" role="status" aria-live="polite"></p>
-			</div>
-			<div class="modal-footer justify-content-between">
-				<button type="button" class="btn btn-outline-secondary" id="resetEditorPreferences">初期設定に戻す</button>
-				<button type="button" class="btn btn-primary" data-bs-dismiss="modal">閉じる</button>
-			</div>
-		</div>
-	</div>
-</div>
+<%@ include file="/WEB-INF/student/shared/editor-settings.jspf" %>
 
 <div class="modal fade submit-check-modal" id="submitCheckModal" tabindex="-1"
 	 aria-labelledby="submitCheckModalLabel" aria-hidden="true">
@@ -388,4 +322,6 @@
 <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/lib/codemirror.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/mode/python/python.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/mode/shell/shell.js"></script>
+<script src="<c:url value='/js/student/shared/code-editor.js'/>" defer></script>
+<script src="<c:url value='/js/student/shared/editor-settings.js'/>" defer></script>
 <%@ include file="/WEB-INF/template/page-end.jspf" %>

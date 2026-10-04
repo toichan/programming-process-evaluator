@@ -1,14 +1,7 @@
 window.addEventListener('DOMContentLoaded', () => {
   const page = document.querySelector('#studentEditorPage');
   const codeTextarea = document.querySelector('#codeEditor');
-  const editorSettingsModalElement = document.querySelector('#editorSettingsModal');
-  const editorFontSizeInput = document.querySelector('#editorFontSize');
-  const editorFontSizeValue = document.querySelector('#editorFontSizeValue');
-  const editorLineWrappingInput = document.querySelector('#editorLineWrapping');
-  const editorIndentWidthInput = document.querySelector('#editorIndentWidth');
-  const editorThemeInput = document.querySelector('#editorTheme');
-  const editorPreferencesStatus = document.querySelector('#editorPreferencesStatus');
-  const resetEditorPreferencesButton = document.querySelector('#resetEditorPreferences');
+  const downloadButton = document.querySelector('#downloadButton');
   const saveButton = document.querySelector('#saveButton');
   const runButton = document.querySelector('#runButton');
   const submitButton = document.querySelector('#submitButton');
@@ -28,45 +21,18 @@ window.addEventListener('DOMContentLoaded', () => {
   });
   const submitModalElement = document.querySelector('#submitCheckModal');
   const submitModal = bootstrap.Modal.getOrCreateInstance(submitModalElement);
-  const defaultEditorPreferences = {
-    fontSizePx: 16,
-    lineWrapping: false,
-    indentWidth: 4,
-    theme: 'dark'
-  };
-  let editorPreferences = {
-    fontSizePx: Number(page.dataset.editorFontSizePx),
-    lineWrapping: page.dataset.editorLineWrapping === 'true',
-    indentWidth: Number(page.dataset.editorIndentWidth),
-    theme: page.dataset.editorTheme
-  };
-  if (!Number.isInteger(editorPreferences.fontSizePx)
-    || editorPreferences.fontSizePx < 10 || editorPreferences.fontSizePx > 24
-    || ![2, 4].includes(editorPreferences.indentWidth)
-    || !['dark', 'light', 'high_contrast'].includes(editorPreferences.theme)) {
-    editorPreferences = { ...defaultEditorPreferences };
-    if (editorPreferencesStatus) {
-      editorPreferencesStatus.textContent = '保存済み設定を読み取れません。初期設定で表示しています。';
-    }
-  }
-  const themeForEditor = (theme) => ({
-    dark: 'material-darker',
-    light: 'default',
-    high_contrast: 'ppe-high-contrast'
-  })[theme];
-  let codeEditor = CodeMirror.fromTextArea(codeTextarea, {
-    mode: 'python',
-    lineNumbers: true,
-    lineWrapping: editorPreferences.lineWrapping,
-    theme: themeForEditor(editorPreferences.theme),
-    indentUnit: editorPreferences.indentWidth,
-    tabSize: editorPreferences.indentWidth,
-    readOnly: page.dataset.editable !== 'true'
+  const preferences = window.PPECodeEditor.readPreferences(page.dataset, showError);
+  const codeEditor = window.PPECodeEditor.create({
+    textarea: codeTextarea, preferences, options: { readOnly: page.dataset.editable !== 'true' }
   });
-  codeEditor.getWrapperElement().style.fontSize = `${editorPreferences.fontSizePx}px`;
+  window.PPEEditorSettings.bind({
+    root: document.querySelector('#editorSettingsModal'), preferences,
+    preferencesUrl: page.dataset.preferencesUrl, csrfToken: document.querySelector('#csrfToken').value,
+    onChange: (settings) => window.PPECodeEditor.applyPreferences(codeEditor, settings),
+    onError: showError
+  });
   const assignmentId = page.dataset.assignmentId;
   const csrfToken = document.querySelector('#csrfToken').value;
-  const preferencesUrl = page.dataset.preferencesUrl;
   let draftUpdatedAt = page.dataset.draftUpdatedAt;
   let lastSavedCode = codeEditor.getValue();
   let saveInProgress = false;
@@ -76,9 +42,6 @@ window.addEventListener('DOMContentLoaded', () => {
   let submitInProgress = false;
   let activeCheckId = null;
   let submissionRequestKey = null;
-  let preferencesSaveTimer = null;
-  let preferencesSaveQueue = Promise.resolve();
-  let preferencesSaveSequence = 0;
 
   function isDirty() {
     return codeEditor.getValue() !== lastSavedCode;
@@ -97,6 +60,32 @@ window.addEventListener('DOMContentLoaded', () => {
 
   function clearError() {
     feedback.clearInlineAlert();
+  }
+
+  function buildDownloadFileName() {
+    const normalized = (page.dataset.taskTitle || '')
+      .normalize('NFC')
+      .trim()
+      .replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_')
+      .replace(/[. ]+$/g, '')
+      .slice(0, 180);
+    return `${normalized || 'assignment_code'}.py`;
+  }
+
+  function downloadCurrentCode() {
+    const objectUrl = URL.createObjectURL(new Blob([codeEditor.getValue()], {
+      type: 'text/x-python;charset=utf-8'
+    }));
+    const link = document.createElement('a');
+    link.href = objectUrl;
+    link.download = buildDownloadFileName();
+    try {
+      document.body.append(link);
+      link.click();
+    } finally {
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+    }
   }
 
   async function postForm(url, values) {
@@ -126,112 +115,6 @@ window.addEventListener('DOMContentLoaded', () => {
     }
     return result;
   }
-
-  function syncEditorPreferencesControls() {
-    editorFontSizeInput.value = String(editorPreferences.fontSizePx);
-    editorFontSizeValue.textContent = `${editorPreferences.fontSizePx}px`;
-    editorLineWrappingInput.checked = editorPreferences.lineWrapping;
-    editorIndentWidthInput.value = String(editorPreferences.indentWidth);
-    editorThemeInput.value = editorPreferences.theme;
-  }
-
-  function applyEditorPreferences() {
-    codeEditor.setOption('lineWrapping', editorPreferences.lineWrapping);
-    codeEditor.setOption('indentUnit', editorPreferences.indentWidth);
-    codeEditor.setOption('tabSize', editorPreferences.indentWidth);
-    codeEditor.setOption('theme', themeForEditor(editorPreferences.theme));
-    codeEditor.getWrapperElement().style.fontSize = `${editorPreferences.fontSizePx}px`;
-    codeEditor.refresh();
-  }
-
-  async function sendEditorPreferences(sequence, preferences) {
-    try {
-      const body = new URLSearchParams({
-        csrfToken,
-        fontSizePx: String(preferences.fontSizePx),
-        lineWrapping: String(preferences.lineWrapping),
-        indentWidth: String(preferences.indentWidth),
-        theme: preferences.theme
-      });
-      const response = await fetch(preferencesUrl, {
-        method: 'POST',
-        credentials: 'same-origin',
-        cache: 'no-store',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
-        body
-      });
-      const contentType = response.headers.get('content-type') || '';
-      if (!contentType.includes('application/json')) {
-        throw new Error('設定の保存時に予期しない応答が返されました。');
-      }
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(result.message || '設定を保存できませんでした。');
-      }
-      if (sequence === preferencesSaveSequence && editorPreferencesStatus) {
-        editorPreferencesStatus.textContent = '設定を保存しました。別の端末でも使用できます。';
-      }
-    } catch (error) {
-      if (sequence === preferencesSaveSequence) {
-        editorPreferencesStatus.textContent = '設定を保存できませんでした。';
-        showError(error.message);
-      }
-    }
-  }
-
-  function persistEditorPreferences() {
-    const sequence = ++preferencesSaveSequence;
-    const preferences = { ...editorPreferences };
-    const save = () => sendEditorPreferences(sequence, preferences);
-    preferencesSaveQueue = preferencesSaveQueue.then(save, save);
-    return preferencesSaveQueue;
-  }
-
-  function scheduleEditorPreferencesSave() {
-    editorPreferencesStatus.textContent = '設定を保存しています…';
-    window.clearTimeout(preferencesSaveTimer);
-    preferencesSaveTimer = window.setTimeout(() => {
-      preferencesSaveTimer = null;
-      persistEditorPreferences();
-    }, 300);
-  }
-
-  function updateEditorPreferences() {
-    applyEditorPreferences();
-    syncEditorPreferencesControls();
-    scheduleEditorPreferencesSave();
-  }
-
-  syncEditorPreferencesControls();
-  editorFontSizeInput.addEventListener('input', () => {
-    editorPreferences.fontSizePx = Number(editorFontSizeInput.value);
-    updateEditorPreferences();
-  });
-  editorLineWrappingInput.addEventListener('change', () => {
-    editorPreferences.lineWrapping = editorLineWrappingInput.checked;
-    updateEditorPreferences();
-  });
-  editorIndentWidthInput.addEventListener('change', () => {
-    editorPreferences.indentWidth = Number(editorIndentWidthInput.value);
-    updateEditorPreferences();
-  });
-  editorThemeInput.addEventListener('change', () => {
-    editorPreferences.theme = editorThemeInput.value;
-    updateEditorPreferences();
-  });
-  resetEditorPreferencesButton.addEventListener('click', () => {
-    editorPreferences = { ...defaultEditorPreferences };
-    applyEditorPreferences();
-    syncEditorPreferencesControls();
-    scheduleEditorPreferencesSave();
-  });
-  editorSettingsModalElement.addEventListener('hide.bs.modal', () => {
-    if (preferencesSaveTimer !== null) {
-      window.clearTimeout(preferencesSaveTimer);
-      preferencesSaveTimer = null;
-      persistEditorPreferences();
-    }
-  });
 
   function formatNow() {
     return new Date().toLocaleString('ja-JP', {
@@ -674,6 +557,14 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  downloadButton.addEventListener('click', () => {
+    try {
+      downloadCurrentCode();
+      feedback.toast({ message: 'コードをダウンロードしました。', variant: 'success' });
+    } catch (error) {
+      showError(`コードをダウンロードできませんでした。${error instanceof Error ? error.message : String(error)}`);
+    }
+  });
   saveButton.addEventListener('click', () => saveDraft('manual_save', true));
   runButton.addEventListener('click', executeCode);
   submitButton.addEventListener('click', prepareSubmission);
@@ -711,6 +602,7 @@ window.addEventListener('DOMContentLoaded', () => {
       readOnly: true,
       cursorBlinkRate: -1,
       theme: 'material-darker',
+      viewportMargin: textarea.classList.contains('io-case-source') ? Infinity : 10,
       indentUnit: 4,
       tabSize: 4
     });

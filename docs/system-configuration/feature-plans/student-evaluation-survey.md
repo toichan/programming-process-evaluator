@@ -5,7 +5,7 @@
 - 利用者に提供する動作: 生徒が提出版ごとの評価状態・評価結果・根拠ログを本人の学習履歴から確認し、対象かつ同意済みの場合に限り、システム評価を参照しながらアンケートへ回答できる。
 - 今回実装する範囲: ロードマップ工程8。評価状態と版履歴の取得、本人限定の評価・コードログ画面、AI評価リクエストの固定入力・匿名化・検証・失敗記録、課題別アンケート（その課題の完了済み評価を提示）の対象判定・回答保存・再読込。
 - 今回対象外: 教師向け課題・プロンプト・ルーブリック作成画面、教師の評価確認・CSV出力、授業演習。必要なルーブリック・プロンプト設定が存在しない提出に対して、評価を捏造して補うこともしない。
-- 今回対象外: 全体アンケート（`surveys.task_id IS NULL`）。対象者・評価との関連・生徒導線を定義してから別途実装する。
+- システム対象外（2026-10-04ユーザー指示）: 全体アンケートは本システム内では実装しない。課題別アンケートのみを対象とし、全体アンケートを後続タスク・残作業として扱わない。仕様は[機能仕様書第105版](../../function-specification.md)を参照。
 
 ## 必読資料
 
@@ -16,6 +16,7 @@
 - クラス図 / AI連携設計 / その他: [ai-api-integration-design.md](../ai-api-integration-design.md)、[evaluation-rubric.puml](../../class-diagram/02-evaluation-rubric.puml)、[ai-consent-log.puml](../../class-diagram/04-ai-consent-log.puml)、[implementation-contract.md](../implementation-contract.md) IC-004、IC-006、IC-008
 
 ## 前提・未決事項
+- 2026-10-04ユーザー確認: 評価・アンケートの確認は教師向け画面完成後、必要な課題/プロンプト/アンケート設定を行える段階で再開する。それまでは未確認のまま保持する。直近は授業演習のユーザー手動確認を優先する。
 - 2026-10-03引継ぎ: 主要実装と合成データによる実API→DB保存・再読込は確認済み。ローカル課題の評価設定・active survey、認証済み正常系/権限境界/E2Eとユーザー手動確認は未完了。ユーザー指示によりこれらを後回しにし、工程9の計画作成へ進む。T004〜T006・工程8の完了条件は未達のまま保持し、設定が整った時点で提出→評価表示→アンケート導線・下書き/送信/再読込を確認するようリマインドする。
 
 - 合意済み前提: `evaluations` が提出版ごとの評価状態の正本であり、`task_participations.evaluation_status` は同じトランザクション内で同期する表示用状態。AI評価とコードログ収集は研究同意状態を問わず実行する。研究識別子のみをAIへ送信し、同意状態はリクエスト時点の記録に使う。アンケート対象・アクセス可否は同意状態と分離して判定する。
@@ -36,6 +37,32 @@
 | アンケートを提出 | ログイン中の同意済み本人 | 必須回答、対象評価、CSRF | 同一 `(student_user_id, survey_id, evaluation_id)` の回答状態、active設問・必須条件・同意状態 | 初回下書き保存で回答行を作成し、同じ対象の既存行を一意に保持。別評価IDなら新しい履歴を作成 | `in_progress → submitted` | 必須・値範囲をサーバーで検証。同じ対象への重複送信は既存結果を返し、新履歴を作らない。提出済み内容は再編集不可 |
 
 ## 実装タスク
+
+### 生徒共通ルーブリック閲覧追加（第106版、2026-10-04承認）
+
+- Plan R1 / REQ-RUB-001: 指定0805資料の2次元/6観点/30説明を既存DBへ不変版として登録する。既存課題/評価の設定は変更しない。
+- Plan R2 / REQ-RUB-002: 全生徒画面の共通ヘッダーから同一標準版をDB取得し、prototypeの全画面modal/2表/降順levelを再利用する。標準版であることを明示する。
+- Plan R3 / REQ-RUB-003: 未登録/不完全/取得失敗をshared feedbackで通知し、認証/role/初回password制約と未保存editorを維持する。
+- [x] T007 [Plan:R1 / REQ-RUB-001] Markdown取込と既存4テーブルへの登録/再登録照合、DB取得モデル/DAO/control/GETを実装・試験する。
+- [x] T008 [Plan:R2,R3 / REQ-RUB-002,003] 共通navigation/modal/JSを接続し、標準版説明だけprototypeにも反映する。
+- [x] T009 [Plan:R1,R2,R3 / REQ-RUB-001,002,003] 専用環境で30説明一致・登録冪等/失敗・認証・3幅・dirty/focus/取消/取得障害を確認する。
+- [x] T010 [Plan:R1,R2,R3 / REQ-RUB-001,002,003] ローカル標準版登録・配信照合、清掃と結果記録を完了する。教師工程や評価再実行へは進まない。
+- 依存: T007→T008→T009→T010。既存原則/設計はAGENTS.md、既存DB定義とクラス図、feedbackガイドを利用する。新DBテーブル/依存は追加しない。
+- Requirement Mapping: REQ-RUB-001→R1→T007/T009/T010、REQ-RUB-002→R2→T008/T009/T010、REQ-RUB-003→R3→T008/T009/T010。
+
+#### T007〜T010 検証結果（2026-10-04）
+
+- システム標準として作成者NULLを許容する方針を追加確認し、V15を適用。実アカウントの作成・ログイン・変更は行っていない。登録手順は[DB定義](../../database-design/table-definitions.md#rubrics)を参照する。
+- 専用環境の `python3 setup.py` はFlyway V15、移行fixture、選択Java69件（失敗/エラー/skip各0）、WAR、login200成功。追加5件は `StandardRubricSourceTest` / `StandardRubricDatabaseTest`。NULL作成者、同一版の再実行、異なる内容の拒否、不完全データの拒否と課題数保持を確認した。
+- 専用環境の `python3 rubric_runtime_check.py` は匿名302/教師403/初回password302/未登録503/登録後200/no-store成功。一次資料→DB→APIの30説明が完全一致。別の既存版を割り当てた合成課題・評価とその作成者が、再登録前後で不変であることも確認した。
+- `python3 -m unittest -v test_explorer test_organize test_trash test_unification test_trash_display` は10件成功。
+- 実ブラウザーのホーム・アカウント・研究同意・授業演習・課題エディター・評価・コードログで共通ボタン→30説明の表示を確認。後半3画面は専用DBの合成データを用い、評価生成やアンケート回答の正常系を完了扱いにはしていない。
+- 全生徒JSPの共通navigation/page-end接続を確認。アンケート画面は既存DAOの `evaluation_feedback` 列名不一致によりGET503となり、モーダルの実画面確認は未達。コードログの空状態にも既存JSのnull参照を検出し、合成ログ行がある場合は表示を確認した。これらの別件は下記T006と[エラーレポート](../error-report.md)へ引き継ぎ、今回のルーブリック変更で修正していない。
+- 実画面の1280/900/375pxで30説明/5→1/2表/全画面modal/ページ横overflowなし、Escape/focus復帰、未保存コード保持を確認。375pxでは既存ナビゲーションを展開して起動。prototypeの30説明も完全一致し、既存共通CSSと表の構成を再利用した。
+- 503 JSON/不完全JSON/HTML応答の注入で代替の表を表示せずshared feedback＋再試行を確認。再試行後のEscape/focusも確認。遅延応答中のclose→reopenでは旧応答を破棄した。注入試験を実DB障害試験とは扱わない。
+- ローカル `docker compose exec -T app gradle flywayMigrate flywayValidate registerStandardRubric --no-daemon --console=plain --warning-mode all` 成功、`registerStandardRubric` の再実行は内容一致・無変更。標準版に割り当てられた課題/評価は各0で、表示のために割当を追加していない。
+- ローカル `docker compose exec -T app gradle war appRestart --no-daemon --console=plain --warning-mode all` 成功、login200、配信 `rubric.js?v=106` のbyte一致。Node CLIがないためsyntaxはブラウザーで両scriptを構文解析し成功。専用合成行/主要7表0、container/network/所有copy/cache/serverを除去し、検証page解放を確認した。
+- T004〜T006の保留と教師工程手前での停止は維持する。
 
 1. [x] T001 評価・ログ画面を既存レイアウトに沿ってDBデータへ接続する。本人の提出版と評価状態以外を表示しない。
 2. [x] T002 提出確定から評価待ちを作成し、DB上の評価ワーカーで版固定・匿名化・AI要求・リトライ・JSON検証を実装する。失敗時も元提出と過去評価を変更しない。合成データによる実API→DB保存・再読込を専用DBで確認済み。認証済み画面・実運用設定の確認はT006に残す。

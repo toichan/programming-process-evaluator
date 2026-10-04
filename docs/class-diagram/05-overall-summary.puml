@@ -181,6 +181,7 @@ class CodeLog {
 }
 
 class CodeExecution {
+  + exerciseEntryId: Long <<FK, nullable; planned>>
   + executionId: Long <<PK>>
   + participationId: Long <<FK>>
   + submissionId: Long <<FK>>
@@ -294,6 +295,7 @@ class DistributionTarget {
 class StudentExerciseEntry {
   + exerciseEntryId: Long <<PK>>
   + studentExerciseId: Long <<FK>>
+  + sourceExerciseId: Long <<FK>>
   + parentEntryId: Long <<FK>>
   + entryType: TemplateEntryType
   + name: String
@@ -302,6 +304,8 @@ class StudentExerciseEntry {
   + description: Text
   + currentContent: LongText
   + entryStatus: ExerciseEntryStatus
+  + trashRootEntryId: Long
+  + activePathHash: Binary32 <<generated>>
   + createdAt: DateTime
   + trashedAt: DateTime
   + updatedAt: DateTime
@@ -310,6 +314,7 @@ class StudentExerciseEntry {
 
 class StudentExercise {
   + studentExerciseId: Long <<PK>>
+  + mergedIntoExerciseId: Long <<FK>>
   + studentUserId: Long <<FK>>
   + distributionTargetId: Long <<FK>>
   + exerciseOrigin: ExerciseOrigin
@@ -502,6 +507,9 @@ Distribution "1" -- "1..*" DistributionTarget
 Classroom "1" -- "0..*" DistributionTarget
 DistributionTarget "1" -- "0..*" StudentExercise
 StudentExercise "1" -- "0..*" StudentExerciseEntry
+StudentExercise "0..1" -- "0..*" StudentExerciseEntry : 統合前の元領域/配信元
+StudentExercise "0..1" -- "0..*" StudentExercise : 同一生徒の統合先
+StudentExerciseEntry "0..1" -- "0..*" CodeExecution : 演習実行(student_exercise; planned)
 StudentExerciseEntry "0..1" -- "0..*" StudentExerciseEntry : 親子階層
 StudentProfile "1" -- "0..*" StudentExercise
 User "1" -- "0..*" ConsentRecord

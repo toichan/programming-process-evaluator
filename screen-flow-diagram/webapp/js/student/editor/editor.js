@@ -353,6 +353,8 @@ window.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  renderTaskPanel();
+
   document.querySelectorAll('.io-case-source').forEach((textarea) => {
     if (typeof CodeMirror === 'undefined') {
       return;
@@ -435,7 +437,7 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 
   function buildDownloadFileName() {
-    const titleText = document.querySelector('.learning-flow-task-name')?.textContent || '';
+    const titleText = document.querySelector('#editorLayout')?.dataset.taskTitle || '';
     const normalized = titleText
       .replace(/[\\/:*?"<>|]/g, '_')
       .replace(/\s+/g, '_')
@@ -453,9 +455,12 @@ window.addEventListener('DOMContentLoaded', () => {
     anchor.href = objectUrl;
     anchor.download = buildDownloadFileName();
     document.body.appendChild(anchor);
-    anchor.click();
-    document.body.removeChild(anchor);
-    URL.revokeObjectURL(objectUrl);
+    try {
+      anchor.click();
+    } finally {
+      document.body.removeChild(anchor);
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+    }
   }
 
   function nowTimeLabel() {
@@ -560,8 +565,6 @@ window.addEventListener('DOMContentLoaded', () => {
     mockInputsRemaining = 0;
     finishMockExecution('failed');
   }
-
-  renderTaskPanel();
 
   function normalizeValue(value) {
     return String(value || '').replace(/\r\n/g, '\n').trim();
