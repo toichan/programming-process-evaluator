@@ -10,6 +10,7 @@
 <div class="container"
 	 id="studentEditorPage"
 	 data-assignment-id="<c:out value='${editorPage.assignmentId}'/>"
+	 data-task-title="<c:out value='${editorPage.title}'/>"
 	 data-draft-updated-at="<c:out value='${editorPage.draftUpdatedAtToken}'/>"
 	 data-editor-font-size-px="<c:out value='${editorPreferences.fontSizePx}'/>"
 	 data-editor-line-wrapping="<c:out value='${editorPreferences.lineWrapping}'/>"
@@ -98,14 +99,15 @@
 	<div class="row g-4 align-items-start">
 		<div class="col-xl-8">
 			<section class="sample-section editor-workspace-section">
-				<div class="editor-toolbar">
+				<div class="editor-toolbar editor-task-toolbar">
 					<div class="toolbar-left">
 						<span class="task-badge"><c:out value="${difficultyLabel}"/>：<c:out value="${editorPage.title}"/></span>
 					</div>
 					<div class="button-group">
+						<button id="downloadButton" class="btn btn-outline-secondary editor-download-button" type="button" aria-label="コードをダウンロード" title="コードをダウンロード（未保存の変更を含む）"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/></svg></button>
 						<button id="saveButton" class="btn btn-secondary" type="button"
-							<c:if test="${not editorPage.editable}">disabled</c:if>>保存</button>
-						<button id="runButton" class="btn btn-primary" type="button">実行</button>
+							<c:if test="${not editorPage.editable}">disabled</c:if>><svg class="me-1" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 3h13l4 4v14H3V3h1zm2 0v6h11V3M6 21v-8h12v8"/></svg>保存</button>
+						<button id="runButton" class="btn btn-primary" type="button"><svg class="me-1" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m8 5 11 7-11 7V5z"/></svg>実行</button>
 						<button id="submitButton" class="btn btn-warning" type="button"
 							<c:if test="${not editorPage.canSubmit}">disabled</c:if>>提出する</button>
 					</div>

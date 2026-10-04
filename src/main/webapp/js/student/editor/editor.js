@@ -1,6 +1,7 @@
 window.addEventListener('DOMContentLoaded', () => {
   const page = document.querySelector('#studentEditorPage');
   const codeTextarea = document.querySelector('#codeEditor');
+  const downloadButton = document.querySelector('#downloadButton');
   const saveButton = document.querySelector('#saveButton');
   const runButton = document.querySelector('#runButton');
   const submitButton = document.querySelector('#submitButton');
@@ -59,6 +60,32 @@ window.addEventListener('DOMContentLoaded', () => {
 
   function clearError() {
     feedback.clearInlineAlert();
+  }
+
+  function buildDownloadFileName() {
+    const normalized = (page.dataset.taskTitle || '')
+      .normalize('NFC')
+      .trim()
+      .replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_')
+      .replace(/[. ]+$/g, '')
+      .slice(0, 180);
+    return `${normalized || 'assignment_code'}.py`;
+  }
+
+  function downloadCurrentCode() {
+    const objectUrl = URL.createObjectURL(new Blob([codeEditor.getValue()], {
+      type: 'text/x-python;charset=utf-8'
+    }));
+    const link = document.createElement('a');
+    link.href = objectUrl;
+    link.download = buildDownloadFileName();
+    try {
+      document.body.append(link);
+      link.click();
+    } finally {
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+    }
   }
 
   async function postForm(url, values) {
@@ -530,6 +557,14 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  downloadButton.addEventListener('click', () => {
+    try {
+      downloadCurrentCode();
+      feedback.toast({ message: 'コードをダウンロードしました。', variant: 'success' });
+    } catch (error) {
+      showError(`コードをダウンロードできませんでした。${error instanceof Error ? error.message : String(error)}`);
+    }
+  });
   saveButton.addEventListener('click', () => saveDraft('manual_save', true));
   runButton.addEventListener('click', executeCode);
   submitButton.addEventListener('click', prepareSubmission);
@@ -567,6 +602,7 @@ window.addEventListener('DOMContentLoaded', () => {
       readOnly: true,
       cursorBlinkRate: -1,
       theme: 'material-darker',
+      viewportMargin: textarea.classList.contains('io-case-source') ? Infinity : 10,
       indentUnit: 4,
       tabSize: 4
     });

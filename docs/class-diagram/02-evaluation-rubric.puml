@@ -12,13 +12,19 @@ note "削除方針\n- Rubric は rubricStatus=archived でアーカイブする\
 
 class Rubric {
   + rubricId: Long <<PK>>
-  + createdByUserId: Long <<FK>>
+  + createdByUserId: Long <<FK, nullable>>
   + title: String
   + version: String
   + rubricStatus: RubricStatus
   + createdAt: DateTime
   + updatedAt: DateTime
 }
+
+note right of Rubric
+  作成者NULLはシステム提供の標準版。
+  生徒共通ヘッダーは標準版を参照し、
+  課題・評価の割当版は変更しない。
+end note
 
 class RubricCriterion {
   + criterionId: Long <<PK>>

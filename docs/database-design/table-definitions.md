@@ -409,12 +409,17 @@ T012最終確認（2026-10-03）: runnerの各出力は捕捉生バイト/表示
 
 ## rubrics
 
-版管理されたルーブリック
+版管理されたルーブリック。生徒共通ヘッダーの表示は、課題に割り当てられた評価用の版とは独立した標準版を参照する。
+
+- 標準版の一次資料・表示方針: [機能仕様書「ルーブリック参照（生徒）」](../function-specification.md#ルーブリック参照生徒)
+- V15で作成者をNULL許容に変更する。NULLはシステム提供の標準版を表し、既存行の作成者や課題・評価の割当は変更しない。
+- 登録: `docker compose exec -T app gradle flywayMigrate flywayValidate registerStandardRubric --no-daemon --console=plain --warning-mode all`
+- 登録処理は一次資料を読み、`生徒共通標準ルーブリック / 0805-2026-v1` を2次元・6観点・30段階説明としてトランザクション登録する。同一内容の再実行は無変更、同じ版の異なる内容・非active状態はエラーとし、上書きしない。
 
 |フィールド名|和名|型|主キー|NULL|その他制約|備考|
 |:--|:--|:--|:--|:--|:--|:--|
 |rubric_id|ルーブリックID|BIGINT|〇|NO|PRIMARY_KEY, AUTO_INCREMENT||
-|created_by_user_id|作成者ユーザID|BIGINT||NO|FOREIGN_KEY|users.user_id|
+|created_by_user_id|作成者ユーザID|BIGINT||YES|FOREIGN_KEY|users.user_id。システム提供の標準版はNULL|
 |title|タイトル|VARCHAR(255)||NO|||
 |version|版数|VARCHAR(50)||NO|UNIQUE(title, version)||
 |rubric_status|ルーブリック状態|ENUM('draft','active','archived')||NO|||
@@ -822,7 +827,7 @@ V13は旧階層を根から辿り、既存のtrashed/deleted項目をそれぞ�
 |フィールド名|和名|型|主キー|NULL|その他制約|備考|
 |:--|:--|:--|:--|:--|:--|:--|
 |survey_id|アンケートID|BIGINT|〇|NO|PRIMARY_KEY, AUTO_INCREMENT||
-|task_id|課題ID|BIGINT||YES|FOREIGN_KEY|tasks.task_id。全体アンケートの場合はNULL。工程8の生徒向け回答導線ではNULLのsurveyは対象外|
+|task_id|課題ID|BIGINT||YES|FOREIGN_KEY|tasks.task_id。本システムのアンケートは課題別に限定し、課題IDを指定する。既存スキーマはNULLを許容するが、NULLのsurveyはシステムの機能対象外|
 |title|タイトル|VARCHAR(255)||NO|||
 |survey_status|アンケート状態|ENUM('draft','active','closed','archived')||NO|||
 |created_at|作成日時|DATETIME||NO|||

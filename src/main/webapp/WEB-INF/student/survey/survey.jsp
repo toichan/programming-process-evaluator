@@ -209,7 +209,7 @@
 
 						<c:if test="${not surveyPage.readOnly}">
 							<div class="form-save-actions">
-								<button class="btn btn-outline-success" type="submit" name="action" value="draft">下書きを保存する</button>
+								<button class="btn btn-outline-success" type="submit" name="action" value="draft"><svg class="me-1" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 3h13l4 4v14H3V3h1zm2 0v6h11V3M6 21v-8h12v8"/></svg>下書きを保存する</button>
 							</div>
 							<div class="form-actions">
 								<button id="prevStepButton" class="btn btn-secondary" type="button">前の設問へ</button>

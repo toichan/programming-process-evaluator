@@ -1,6 +1,7 @@
 package servlet.auth;
 
 import java.io.IOException;
+import java.sql.SQLException;
 
 import javax.servlet.Filter;
 import javax.servlet.FilterChain;
@@ -13,15 +14,19 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
 
+import control.student.StudentControl;
 import entity.UserCredential.UserType;
 import control.auth.AuthenticatedUser;
 
 @WebFilter("/*")
 public final class AuthenticationFilter implements Filter {
 	private static final String USER_ATTRIBUTE = AuthenticatedUser.class.getName();
+	private static final StudentControl STUDENTS = new StudentControl();
+	private FilterConfig filterConfig;
 
 	@Override
 	public void init(FilterConfig filterConfig) {
+		this.filterConfig = filterConfig;
 	}
 
 	@Override
@@ -67,6 +72,15 @@ public final class AuthenticationFilter implements Filter {
 		request.setAttribute("authenticatedUser", user);
 		if (user.userType() == UserType.STUDENT) {
 			request.setAttribute("studentLoginId", user.loginId());
+			if (studentArea) {
+				try {
+					request.setAttribute("studentAffiliations", STUDENTS.loadAffiliations(user));
+				} catch (SQLException e) {
+					filterConfig.getServletContext().log("Student affiliations could not be loaded.", e);
+					response.sendError(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
+					return;
+				}
+			}
 		}
 		chain.doFilter(request, response);
 	}

@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/lib/codemirror.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/theme/material-darker.css">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
-  <link href="../../../css/student/shared/components.css" rel="stylesheet">
+  <link href="../../../css/student/shared/components.css?v=notification-placeholder" rel="stylesheet">
   <link href="../../../css/student/shared/feedback.css" rel="stylesheet">
   <link href="../../../css/template/template.css" rel="stylesheet">
   <link href="../../../css/student/exercise/exercise.css" rel="stylesheet">
@@ -123,9 +123,9 @@
               </div>
               <div class="button-group">
                 <button id="downloadButton" class="btn btn-outline-secondary" type="button"
-                  title="編集中の内容を取得（未保存の変更を含みます）">ダウンロード</button>
-                <button id="saveButton" class="btn btn-secondary" type="button">保存</button>
-                <button id="runButton" class="btn btn-primary" type="button">実行</button>
+                  title="編集中の内容を取得（未保存の変更を含みます）"><svg class="me-1" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/></svg>ダウンロード</button>
+                <button id="saveButton" class="btn btn-secondary" type="button"><svg class="me-1" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 3h13l4 4v14H3V3h1zm2 0v6h11V3M6 21v-8h12v8"/></svg>保存</button>
+                <button id="runButton" class="btn btn-primary" type="button"><svg class="me-1" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m8 5 11 7-11 7V5z"/></svg>実行</button>
               </div>
             </div>
 
@@ -274,8 +274,8 @@ print(f"こんにちは、{name}さん")</textarea>
             <section class="upload-entry-file-panel">
               <h3 class="upload-entry-heading">1. ファイル/フォルダ選択</h3>
               <div class="upload-entry-source-actions">
-                <button id="uploadSelectFilesButton" class="btn btn-outline-primary" type="button">ファイルを選択</button>
-                <button id="uploadSelectFolderButton" class="btn btn-outline-secondary" type="button">フォルダを選択</button>
+                <button id="uploadSelectFilesButton" class="btn btn-outline-primary" type="button"><svg class="me-1" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 3h9l5 5v13H5zM14 3v5h5M12 12v6m-3-3h6"/></svg>ファイルを選択</button>
+                <button id="uploadSelectFolderButton" class="btn btn-outline-secondary" type="button"><svg class="me-1" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6V4h7l2 3h9v13H3zM14 12v6m-3-3h6"/></svg>フォルダを選択</button>
               </div>
               <input id="uploadSourceFile" class="d-none" type="file" accept=".py" multiple>
               <input id="uploadSourceDirectory" class="d-none" type="file" accept=".py" multiple webkitdirectory directory>
@@ -307,7 +307,7 @@ print(f"こんにちは、{name}さん")</textarea>
   <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/mode/python/python.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/mode/shell/shell.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-  <script src="../../../js/student/shared/components.js"></script>
+  <script src="../../../js/student/shared/components.js?v=help-modal-5"></script>
   <script src="../../../js/student/shared/feedback.js"></script>
   <script src="../../../js/student/shared/explorer-menus.js"></script>
   <script src="../../../js/student/exercise/exercise.js"></script>

@@ -176,6 +176,8 @@
 - 第104版T050/T051も反映・検証済み。選択操作は同幅2列、件数補足なし、確認確定は操作名/削除だけ赤、削除確認は有効全配下を表示する。POST単位/ごみ箱/取消dirtyは維持。[授業演習計画Plan3.23](docs/system-configuration/feature-plans/student-exercise.md)参照。ユーザー手動確認を継続する。
 - 実装・検証の最新状況はこのHandoffへ細かく複製せず、ロードマップと対象の機能別実装計画だけを更新する。
 - 2026-10-04ユーザー指示: 授業演習の不具合修正と最終確認を行い、**教師向け工程の手前で停止する**。通常Chromeの単体.py保存・内容一致は利用者確認済み。最新結果と検証限界は[授業演習計画](docs/system-configuration/feature-plans/student-exercise.md)を参照し、工程10へ自動で進まない。
+- 生徒共通の標準ルーブリック閲覧は本実装・DB登録済み。検証結果、アンケートGET/空ログの別件、評価・アンケートの保留は[評価・アンケート計画T007〜T010](docs/system-configuration/feature-plans/student-evaluation-survey.md)を参照し、教師工程へ自動で進まない。
+- 2026-10-04ユーザー指示により通知一覧は作らず、通知アイコンを準備中表示にする。プロトタイプの固定通知サンプルを除去し、生徒・教師ヘッダーの差分/残課題は[実装ロードマップ](docs/system-configuration/implementation-roadmap.md)に記録した。再評価完了通知要件との整合と教師ヘッダーの本実装は別途確認する。
 
 ### 再開時に最初に行うこと
 

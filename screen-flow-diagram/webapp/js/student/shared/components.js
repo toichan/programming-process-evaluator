@@ -137,28 +137,23 @@ window.PPEComponents = {
               </button>
             </li>
             <li class="nav-item ms-lg-2">
-              <a class="nav-link help-trigger" href="https://forms.cloud.microsoft/Pages/ResponsePage.aspx?id=DQSIkWdsW0yxEjajBLZtrQAAAAAAAAAAAAO__QTn_5NUQzZRTTU4UUdLQ01TQzhYSzhPTjRZRDdBQS4u" target="_blank" rel="noopener noreferrer" aria-label="システムトラブル解決窓口フォームを開く">
+              <button class="nav-link help-trigger" type="button" data-help-modal-target="#studentHelpModal" aria-label="学習ガイドを開く">
                 <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
                   <path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm0-14.5a6.5 6.5 0 1 1 0 13 6.5 6.5 0 0 1 0-13z"/>
                   <path d="M5.255 5.786a.237.237 0 0 0 .241.247h.825c.138 0 .247-.113.266-.25.09-.656.54-1.134 1.342-1.134.686 0 1.314.343 1.314 1.168 0 .635-.374.927-.965 1.371-.673.503-1.206.94-1.168 1.987l.003.217a.25.25 0 0 0 .25.246h.811a.25.25 0 0 0 .25-.25v-.105c0-.718.273-.927 1.01-1.486.609-.463 1.244-.977 1.244-2.056 0-1.511-1.276-2.241-2.673-2.241-1.267 0-2.655.59-2.75 2.286z"/>
                   <circle cx="8" cy="12.2" r="1"/>
                 </svg>
                 ヘルプ
-              </a>
+              </button>
             </li>
             <li class="nav-item dropdown">
-              <a class="nav-link position-relative notification-trigger" href="#" id="notificationsDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <span class="nav-link notification-trigger" aria-label="通知（準備中）" title="通知は準備中です">
                 <svg width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
                   <path d="M8 16a2 2 0 0 0 2-2H6a2 2 0 0 0 2 2z"/>
                   <path d="M8 1.918l-.797.161A4.002 4.002 0 0 0 4 6c0 .628-.134 2.197-.459 3.742-.16.767-.376 1.566-.663 2.258h10.244c-.287-.692-.502-1.49-.663-2.258C12.134 8.197 12 6.628 12 6a4.002 4.002 0 0 0-3.203-3.92L8 1.917zM14.22 12c.223.447.481.801.78 1H1c.299-.199.557-.553.78-1C2.68 10.2 3 6.88 3 6c0-2.42 1.72-4.44 4.005-4.901a1 1 0 1 1 1.99 0A5.002 5.002 0 0 1 13 6c0 .88.32 4.2 1.22 6z"/>
                 </svg>
-                <span class="notification-badge position-absolute top-0 start-100 translate-middle-y" aria-label="未読通知2件">2<span class="visually-hidden">unread notifications</span></span>
-              </a>
-              <ul class="dropdown-menu dropdown-menu-end border-0 shadow-lg" aria-labelledby="notificationsDropdown">
-                <li class="dropdown-header fw-semibold">通知</li>
-                <li><a class="dropdown-item d-flex align-items-center notification-link" href="../editor/editor.html"><div class="me-2"><span class="badge notification-item-badge is-task">要</span></div><div><div class="fw-semibold">「<span class="task-shortcut-level is-beginner">初級</span> じゃんけん判定プログラム」が未提出です。</div><small class="text-muted">課題に取り組み提出してください。</small></div></a></li>
-                <li><a class="dropdown-item d-flex align-items-center notification-link" href="../evaluation/evaluation.html"><div class="me-2"><span class="badge notification-item-badge is-evaluation">再</span></div><div><div class="fw-semibold">「中級：点数集計と平均計算」が再評価されました。</div><small class="text-muted">評価を確認してください。</small></div></a></li>
-              </ul>
+                <span class="visually-hidden">通知は準備中です</span>
+              </span>
             </li>
             <li class="nav-item dropdown">
               <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -198,6 +193,53 @@ window.PPEComponents = {
       </div>
     </nav>
 
+    <div class="modal fade" id="studentHelpModal" tabindex="-1" aria-labelledby="studentHelpModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header">
+            <div>
+              <div class="small text-primary fw-semibold">HELP GUIDE</div>
+              <h2 class="modal-title h4 mb-0" id="studentHelpModalLabel">学習の進め方</h2>
+            </div>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
+          </div>
+          <div class="modal-body">
+            <section class="mb-4" aria-labelledby="helpTaskFlowTitle">
+              <h3 class="h5" id="helpTaskFlowTitle">提出課題</h3>
+              <p class="text-secondary">課題に取り組み、提出後に評価を確認する学習です。</p>
+              <div class="help-flow" aria-label="課題を選ぶ、エディターで作成して保存、提出、評価結果とコードログを確認、対象の場合はアンケート">
+                <div class="help-flow-step"><span class="help-flow-number">1</span><strong>課題を選ぶ</strong><span>ホームの課題一覧から選択</span></div>
+                <span class="help-flow-arrow" aria-hidden="true">→</span>
+                <div class="help-flow-step"><span class="help-flow-number">2</span><strong>作成・保存</strong><span>エディターでコードを書く</span></div>
+                <span class="help-flow-arrow" aria-hidden="true">→</span>
+                <div class="help-flow-step"><span class="help-flow-number">3</span><strong>提出</strong><span>完成したコードを提出</span></div>
+                <span class="help-flow-arrow" aria-hidden="true">→</span>
+                <div class="help-flow-step"><span class="help-flow-number">4</span><strong>評価を確認</strong><span>評価結果・コードログを見る</span></div>
+                <span class="help-flow-arrow" aria-hidden="true">→</span>
+                <div class="help-flow-step"><span class="help-flow-number">5</span><strong>アンケート</strong><span>対象の場合に回答</span></div>
+              </div>
+            </section>
+            <section class="help-practice-panel" aria-labelledby="helpPracticeTitle">
+              <h3 class="h5" id="helpPracticeTitle">授業演習（自由な練習）</h3>
+              <p class="text-secondary">提出課題とは別に、練習用ファイルでコードを試せます。</p>
+              <div class="help-flow help-flow-practice" aria-label="練習用ファイルを作成、保存、実行">
+                <div class="help-flow-step"><span class="help-flow-number">1</span><strong>ファイルを作成</strong><span>ツリーから追加</span></div>
+                <span class="help-flow-arrow" aria-hidden="true">→</span>
+                <div class="help-flow-step"><span class="help-flow-number">2</span><strong>保存</strong><span>コードを保存</span></div>
+                <span class="help-flow-arrow" aria-hidden="true">→</span>
+                <div class="help-flow-step"><span class="help-flow-number">3</span><strong>実行</strong><span>結果を確認</span></div>
+              </div>
+              <p class="small text-secondary mt-3 mb-0">授業演習のコードは課題として提出・評価されません。</p>
+            </section>
+            <p class="alert alert-info mt-4 mb-0">操作に困った場合は、担当者へお問い合わせください。</p>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-primary" data-bs-dismiss="modal">閉じる</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="modal fade rubric-modal" id="rubricModal" tabindex="-1" aria-labelledby="rubricModalLabel" aria-hidden="true">
       <div class="modal-dialog modal-fullscreen modal-dialog-scrollable">
         <div class="modal-content">
@@ -210,7 +252,7 @@ window.PPEComponents = {
                 </svg>
               </div>
               <div class="rubric-header-copy">
-                <div class="rubric-header-kicker">Evaluation Criteria</div>
+                <div class="rubric-header-kicker">標準ルーブリック · 0805</div>
                 <h2 class="modal-title h4 mb-1" id="rubricModalLabel">ルーブリック</h2>
               </div>
             </div>
@@ -328,3 +370,17 @@ window.PPEComponents = {
     </footer>
   `
 };
+
+document.addEventListener('click', (event) => {
+  if (!(event.target instanceof Element)) return;
+  const trigger = event.target.closest('[data-help-modal-target]');
+  if (!trigger) return;
+  const modal = document.querySelector(trigger.dataset.helpModalTarget);
+  if (modal && !modal.classList.contains('show')) {
+    modal.addEventListener('hide.bs.modal', () => {
+      if (modal.contains(document.activeElement)) document.activeElement.blur();
+    }, { once: true });
+    modal.addEventListener('hidden.bs.modal', () => trigger.focus({ preventScroll: true }), { once: true });
+    bootstrap.Modal.getOrCreateInstance(modal).show(trigger);
+  }
+}, true);

@@ -9,6 +9,7 @@ import dao.StudentDao;
 import entity.ConsentSaveResult;
 import entity.ConsentStatus;
 import entity.StudentAccountDetails;
+import entity.StudentAffiliation;
 import entity.StudentConsentPage;
 import entity.StudentHomePage;
 import entity.StudentTaskSummary;
@@ -39,6 +40,11 @@ public final class StudentControl {
 	public Optional<StudentAccountDetails> loadAccount(AuthenticatedUser user) throws SQLException {
 		requireStudent(user);
 		return studentDao.findAccountDetails(user.userId());
+	}
+
+	public List<StudentAffiliation> loadAffiliations(AuthenticatedUser user) throws SQLException {
+		requireStudent(user);
+		return studentDao.findAffiliations(user.userId());
 	}
 
 	public Optional<StudentConsentPage> loadConsentPage(AuthenticatedUser user) throws SQLException {

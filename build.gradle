@@ -68,3 +68,10 @@ tasks.register('createInitialAdmin', JavaExec) {
     classpath = sourceSets.main.runtimeClasspath
     mainClass = 'control.auth.InitialAdminBootstrap'
 }
+
+tasks.register('registerStandardRubric', JavaExec) {
+    group = 'application'
+    description = 'Register the approved 0805 standard rubric without overwriting existing versions.'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'control.student.StandardRubricBootstrap'
+}

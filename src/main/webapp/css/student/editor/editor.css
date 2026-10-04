@@ -172,6 +172,44 @@ body {
   white-space: nowrap;
 }
 
+.editor-toolbar.editor-task-toolbar {
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 0.75rem;
+}
+
+.editor-task-toolbar .toolbar-left {
+  width: auto;
+}
+
+.editor-task-toolbar .task-badge {
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.editor-toolbar.editor-task-toolbar .button-group {
+  width: auto;
+  max-width: 100%;
+  margin-left: auto;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.editor-toolbar.editor-task-toolbar .button-group .btn {
+  flex: 0 0 auto;
+}
+
+.editor-task-toolbar .editor-download-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  padding: 0;
+}
+
 .editor-setting-value {
   min-width: 3.5rem;
   font-variant-numeric: tabular-nums;
@@ -630,6 +668,7 @@ body {
 }
 
 .io-block .case-card {
+  padding: 0.75rem 1rem;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.98));
   color: var(--bs-gray-800);
   border: 1px solid rgba(148, 163, 184, 0.22);
@@ -645,8 +684,8 @@ body {
 }
 
 .io-case-card .CodeMirror {
-  margin-top: 0.55rem;
-  min-height: 56px;
+  margin-top: 0.4rem;
+  min-height: 0;
   height: auto;
   border-radius: 0.85rem;
   border: 1px solid rgba(15, 23, 42, 0.22);
@@ -660,7 +699,7 @@ body {
 }
 
 .io-case-card .CodeMirror-lines {
-  padding: 0.85rem 0;
+  padding: 0.5rem 0;
 }
 
 .io-case-card .CodeMirror pre.CodeMirror-line,
@@ -675,6 +714,14 @@ body {
 }
 
 @media (max-width: 767px) {
+  .editor-toolbar.editor-task-toolbar {
+    flex-wrap: wrap;
+  }
+
+  .editor-task-toolbar .toolbar-left {
+    flex-basis: 100%;
+  }
+
   .execution-result-toolbar {
     align-items: flex-start;
     flex-direction: column;

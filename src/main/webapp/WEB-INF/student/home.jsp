@@ -23,7 +23,7 @@
 	</c:if>
 	<section class="sample-section hero-section mb-4">
 		<div class="hero-copy">
-			<span class="hero-kicker">Student Dashboard</span>
+			<span class="hero-kicker">Home</span>
 			<h1 class="section-title mb-3">ホーム</h1>
 			<p class="hero-description mb-0">
 				公開中の課題に取り組むほか、授業演習で練習用のコードを作成・保存・実行できます。

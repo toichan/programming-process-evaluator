@@ -15,10 +15,20 @@
 			</footer>
 		</c:otherwise>
 	</c:choose>
+	<c:if test="${screenDesign == 'student'}">
+		<%@ include file="/WEB-INF/student/shared/rubric.jspf" %>
+	</c:if>
+	<c:if test="${studentHelpGuideAvailable}">
+		<%@ include file="/WEB-INF/student/shared/help.jspf" %>
+	</c:if>
 	<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"
 		integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI"
 		crossorigin="anonymous" defer></script>
 	<script src="${pageContext.request.contextPath}/js/shared/feedback.js" defer></script>
+	<c:if test="${screenDesign == 'student'}">
+		<script src="${pageContext.request.contextPath}/js/student/shared/rubric.js?v=106" defer></script>
+		<script src="${pageContext.request.contextPath}/js/student/shared/help-modals.js?v=107" defer></script>
+	</c:if>
 	<c:if test="${passwordChangeNotice}">
 		<script src="${pageContext.request.contextPath}/js/shared/password-change-notice.js" defer></script>
 	</c:if>

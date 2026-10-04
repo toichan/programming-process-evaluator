@@ -152,9 +152,9 @@
 				<div class="lesson-toolbar">
 					<div class="toolbar-left"><span id="currentPath" class="task-badge"><c:choose><c:when test="${not empty selectedEntry}">Path: <c:out value="${exerciseRootName}"/>/<c:out value="${selectedEntry.path}"/></c:when><c:otherwise>ファイルを選択してください</c:otherwise></c:choose></span></div>
 					<div class="button-group">
-						<button id="downloadButton" class="btn btn-outline-secondary" type="button" disabled title="編集中のコード（未保存の変更を含む）を取得します">ダウンロード</button>
-						<button id="saveButton" class="btn btn-secondary" type="button" disabled>保存</button>
-						<button id="runButton" class="btn btn-primary" type="button" disabled>実行</button>
+						<button id="downloadButton" class="btn btn-outline-secondary" type="button" disabled title="編集中のコード（未保存の変更を含む）を取得します"><svg class="me-1" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/></svg>ダウンロード</button>
+						<button id="saveButton" class="btn btn-secondary" type="button" disabled><svg class="me-1" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 3h13l4 4v14H3V3h1zm2 0v6h11V3M6 21v-8h12v8"/></svg>保存</button>
+						<button id="runButton" class="btn btn-primary" type="button" disabled><svg class="me-1" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m8 5 11 7-11 7V5z"/></svg>実行</button>
 					</div>
 				</div>
 				<div class="lesson-file-tab-row">
@@ -251,7 +251,7 @@
 			<div class="upload-entry-layout">
 				<section class="upload-entry-file-panel">
 					<h3 class="upload-entry-heading">1. ファイル/フォルダ選択</h3>
-					<div class="upload-entry-source-actions"><button id="uploadSelectFilesButton" class="btn btn-outline-primary" type="button">ファイルを選択</button><button id="uploadSelectFolderButton" class="btn btn-outline-secondary" type="button">フォルダを選択</button></div>
+					<div class="upload-entry-source-actions"><button id="uploadSelectFilesButton" class="btn btn-outline-primary" type="button"><svg class="me-1" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 3h9l5 5v13H5zM14 3v5h5M12 12v6m-3-3h6"/></svg>ファイルを選択</button><button id="uploadSelectFolderButton" class="btn btn-outline-secondary" type="button"><svg class="me-1" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6V4h7l2 3h9v13H3zM14 12v6m-3-3h6"/></svg>フォルダを選択</button></div>
 					<input id="uploadSourceFile" class="d-none" type="file" accept=".py" multiple>
 					<input id="uploadSourceDirectory" class="d-none" type="file" multiple webkitdirectory directory>
 					<p id="uploadFileName" class="upload-entry-file-name" role="status">未選択</p>

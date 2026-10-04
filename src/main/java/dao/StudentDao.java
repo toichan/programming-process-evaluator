@@ -160,6 +160,12 @@ public final class StudentDao {
 		}
 	}
 
+	public List<StudentAffiliation> findAffiliations(long studentUserId) throws SQLException {
+		try (Connection connection = Client.createConnection()) {
+			return findAffiliations(connection, studentUserId);
+		}
+	}
+
 	public List<StudentTaskSummary> findPublishedTasks(long studentUserId, ConsentStatus consentStatus) throws SQLException {
 		List<StudentTaskSummary> tasks = new ArrayList<>();
 		try (Connection connection = Client.createConnection();
