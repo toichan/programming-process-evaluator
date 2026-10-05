@@ -127,7 +127,9 @@
 
 ## Response Format
 
-- 各回答の最後に「次にすること」を記載し、次の作業または必要な確認を具体的に示す。残作業がない場合は、その旨を記載する。
+- 各作業の完了報告の最後に「次にすること」を記載する。次に進む作業を具体的に一つ以上示し、依存・未確認事項・ユーザー判断待ちがあれば明記する。完了した工程だけを報告して次の行動を省略しない。
+- 残作業やブロッカーがない場合は「次にすること: なし（依頼範囲完了）」と記載する。会話上の質問・案内だけでリポジトリ作業がない場合も、必要なら次の操作を示す。
+- 作業後の完了報告の最後に、次にすることと併せて推奨するAIの作業モードを明記する。仕様確認・要件の選択などユーザーとの往復が必要な作業は「対話型」、合意済みの範囲で複数の実装・検証手順を連続して進められる作業は「オートパイロット」を推奨する。どちらでも実装前の停止条件・費用/外部API・共有環境等の制約を守り、承認が必要な事項は自動判断しない。
 
 ## User Decision Flow
 
@@ -152,21 +154,22 @@
 4. 教師の[課題状態](docs/state-rules/teacher/task-state-rules.md)、[プロンプト状態](docs/state-rules/teacher/prompt-state-rules.md)、[配信状態](docs/state-rules/teacher/distribution-state-rules.md)と[実装用状態表](docs/state-rules/implementation-state-table.md)を読む。授業演習の配信を扱う場合は[演習状態](docs/state-rules/student/exercise-state-rules.md)も確認する。
 5. [DBテーブル定義](docs/database-design/table-definitions.md)、[教師クラス図](docs/class-diagram/03-teacher-task-distribution.puml)、[入出力形式](docs/format/)を確認する。プロンプト・評価接続を扱う場合は[AI連携設計](docs/ai-api-integration-design.md)も読む。
 6. 教師の[課題画面](screen-flow-diagram/webapp/WEB-INF/teacher/task/task.html)、[プロンプト画面](screen-flow-diagram/webapp/WEB-INF/teacher/prompt/prompt.html)、[配信画面](screen-flow-diagram/webapp/WEB-INF/teacher/distribution/distribution.html)、関連CSS/JS・共通部品と[feedbackガイド](docs/feedback-guideline.md)を確認する。
-7. [工程10の初回スライス計画](docs/system-configuration/feature-plans/teacher-task-draft.md)と[最終受入レポート](docs/system-configuration/feature-plans/checkpoints/teacher-task-draft/batch-report-T014-T015.yaml)を確認する。S1のT001〜T015は完了し、専用DBでV1〜V16、認証境界、HTTP/ブラウザー回帰を検証済み。ユーザー依頼で8080の共有開発DBにもV16を適用し、合成テスト教師と専用学校/クラス権限を追加済み。教師向けホーム画面とそのServlet/JSPは設けず、現在のログイン後は利用可能な課題編集へ遷移する。アカウント管理機能の実装後は画面遷移図どおり同機能へ遷移する。管理者ホームは `/admin/home` として分離・維持する。共有DBへの追加変更は、依頼された確認準備の範囲を超えないよう扱う。次はS2（ルーブリック/プロンプト準備・AI生成）の計画を具体化する。画面遷移図とプロトタイプは、必要性が明確でない限りデザイン/機能を変更しない。
+7. [工程10の初回スライス計画](docs/system-configuration/feature-plans/teacher-task-draft.md)と[最終受入レポート](docs/system-configuration/feature-plans/checkpoints/teacher-task-draft/batch-report-T014-T015.yaml)を確認する。S1のT001〜T015は完了し、専用DBでV1〜V16、認証境界、HTTP/ブラウザー回帰を検証済み。ユーザー依頼で8080の共有開発DBにもV16を適用し、合成テスト教師と専用学校/クラス権限を追加済み。教師向けホーム画面とそのServlet/JSPは設けず、現在のログイン後は利用可能な課題編集へ遷移する。アカウント管理機能の実装後は画面遷移図どおり同機能へ遷移する。管理者ホームは `/admin/home` として分離・維持する。共有DBへの追加変更は、依頼された確認準備の範囲を超えないよう扱う。S2/T014のprompt履歴・評価例・再評価job/対象者別結果履歴は実装済みで、専用DB/認証browser受入も完了した。S3は[教師課題S3計画](docs/system-configuration/feature-plans/teacher-task-s3.md)に従い、課題の単一学校所属、同校の課題管理権限教師による削除/復元を実装する。現在のデモDBリセットと合成デモ再投入はユーザー確認済み。画面遷移図とプロトタイプは、必要性が明確でない限りデザイン/機能を変更しない。
 
 ### 現在位置と次の順序
 
 - 2026-10-04ユーザー指示で教師向け機能へ進む。以前の演習確認優先・教師工程前停止の指示は終了したものとして扱う。
 - 工程1〜4の基盤、工程5の認証、工程6の生徒ホーム等は実装済み。工程9の生徒演習T001〜T051と教師工程前の既知バグ5件は完了済み。詳細はロードマップから参照し、本書に版別履歴や完了済みタスクを再掲しない。
-- 工程7・8は主要実装済みだが残る検証がある。教師の課題下書きS1（T001〜T015）は専用DB、認証HTTP、ブラウザーで受入済み。正式な評価設定/アンケートE2E、教師のプロンプト・配信、進捗・評価・CSVなどは未完了。
-- 次の順序は工程10 → 11 → 12 → 13。工程10はS1完了後、S2のルーブリック/プロンプト準備・AI生成を別計画として具体化する。S3公開/改訂とS4配信は分離する。工程12の学校管理だけは先行実装済み。
+- 工程7・8は主要実装済みだが残る検証がある。教師の課題下書きS1（T001〜T015）と工程10のS2/T014は専用DB、認証HTTP、ブラウザーで受入済み。正式な評価設定/アンケートE2E、S3/S4、進捗・評価・CSVなどは未完了。
+- 次の順序は工程10 → 11 → 12 → 13。工程10のS1/S2は完了、S3（課題の必須学校所属・論理削除・下書き復元）は権限範囲合意済みで実装中。編集は作成者、削除/復元は同校の課題管理権限教師に限定し、管理者操作は含めない。その後S3公開/改訂とS4配信を分離して進める。工程12の学校管理だけは先行実装済み。
 
 ### 新セッションの最初のステップ
 
-1. `git status --short`で引き継いだ未コミット変更を確認する。直前のデバッグ修正・テスト・文書は作業ツリーに残っている。勝手に破棄・revert・commitせず、既存の開発環境やDBを初期化しない。
+1. `git status --short`で引き継いだ未コミット変更を確認する。直前のデバッグ修正・テスト・文書は作業ツリーに残っている。勝手に破棄・revert・commitせず、S3完了済みのプロジェクト専用デモDBも再初期化しない。
 2. [教師課題下書き計画](docs/system-configuration/feature-plans/teacher-task-draft.md)と[最終受入レポート](docs/system-configuration/feature-plans/checkpoints/teacher-task-draft/batch-report-T014-T015.yaml)を読み、T001〜T015の完了範囲と正式評価/アンケートE2Eなどの保留を確認する。
-3. 次はS2（ルーブリック/プロンプト準備・AI生成）の計画を具体化する。S3公開/改訂・削除/復元、S4演習コード配信は混在させない。新たな仕様判断が必要な場合のみユーザーへ確認し、既存合意の実装を巻き戻さない。
-4. S1確認準備として共有開発DBをV16に更新済み。以後のDB受入/破壊的検証はfail-closed gate付きの使い捨て専用合成DBで行い、ユーザーが明示依頼しない限り共有DBに追加変更をしない。画面遷移図とプロトタイプは必要性が明確でない限り変更しない。
+3. T030/T031の`jobId`付きGET境界・status polling・合成preview/確定受入とT014のjob履歴一覧・対象者別結果表示は完了済み。履歴の認証browser受入は使い捨てV1〜V18 DBと隔離Tomcatで実施し、画面遷移図/prototypeを変更していない。ブラウザー操作前にinstance、revision、port、DB接続先を照合する。
+4. **必須の隔離境界**: 共有8080/共有DBに接続・migration・再起動しない。既存ユーザ/生徒提出・研究データを使わず、専用fixtureと使い捨てschemaだけを使う。Gemini実APIは呼ばず、実提出や個人情報を送信しない。未確認を合格扱いにしない。
+5. T014とT019/T030/T031の実装・test/HTTP/browser受入、S3（V19学校所属・論理削除/復元）の実装・専用DB/browser受入は完了済み。S3の詳細・受入証跡は[教師課題S3計画](docs/system-configuration/feature-plans/teacher-task-s3.md)を参照する。S3で承認されたプロジェクト専用Compose DB（DB名 `programming_process_evaluator`）だけを再構築し、新しい合成デモを投入済み。Compose volume `programming-process-evaluator_mysql` と他DB/共有DBは削除・変更していない。V19を含む以後の検証は使い捨て専用DBを使う。migration自体にデータ削除を含めず、新しい合成デモの初期資格情報は固定せず実行時生成する。画面遷移図とプロトタイプは既存デザインを維持し、必要性が明確な最小変更に限る。工程10の次はS4配信の仕様・受入計画を既存資料と照合する。S2のGemini実API稼働確認はユーザー判断で後続へ延期されており、再開指示までは実API・実提出/コードログを使わない。詳細と未確認作業は[教師プロンプト設計・AI生成計画](docs/system-configuration/feature-plans/teacher-prompt-ai.md)を参照する。
 
 ### 維持する保留・制約
 

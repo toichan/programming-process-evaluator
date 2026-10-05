@@ -8,6 +8,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 import javax.servlet.ServletException;
 import javax.servlet.annotation.WebServlet;
@@ -33,6 +34,7 @@ public final class TeacherTaskServlet extends HttpServlet {
 	private static final int MAX_REQUEST_BYTES = 4 * 1024 * 1024;
 	private static final String CREATE_REGISTRY_ATTRIBUTE = TeacherTaskServlet.class.getName() + ".createRegistry";
 	static final String SAVED_NOTICE_ATTRIBUTE = TeacherTaskServlet.class.getName() + ".savedNotice";
+	private static final String TASK_STATE_NOTICE_ATTRIBUTE = TeacherTaskServlet.class.getName() + ".taskStateNotice";
 	private static final TeacherTaskControl TASKS = new TeacherTaskControl();
 
 	@Override
@@ -80,6 +82,10 @@ public final class TeacherTaskServlet extends HttpServlet {
 				throw new IllegalArgumentException("フォーム形式で送信してください。");
 			}
 			rawValues = TeacherTaskForm.read(request.getInputStream(), MAX_REQUEST_BYTES);
+			if (isTaskStateAction(first(rawValues, "action"))) {
+				processTaskStateOperation(request, response, user, rawValues);
+				return;
+			}
 			request.setAttribute("submittedTeacherTaskValues", rawValues);
 			form = TeacherTaskForm.parse(rawValues);
 			request.setAttribute("teacherTaskForm", form);
@@ -161,10 +167,23 @@ public final class TeacherTaskServlet extends HttpServlet {
 		request.setAttribute("teacherNavigationSummary", new TeacherNavigationSummary(true, page.schools()));
 		request.setAttribute("teacherNavigationActiveItem", "task");
 		request.setAttribute("teacherTaskSaved", consumeSavedNotice(request.getSession(false)));
-		request.setAttribute("teacherTaskDraftCount", page.tasks().size());
+		request.setAttribute("teacherTaskStateNotice", consumeTaskStateNotice(request.getSession(false)));
+		request.setAttribute("teacherTaskDraftCount", page.tasks().stream()
+				.filter(task -> "draft".equals(task.publicationStatus())).count());
 		request.setAttribute("teacherTaskSchoolCount", page.schools().size());
 		request.setAttribute("teacherTaskReusableHintCount", page.reusableHints().size());
+		Map<Long, String> deleteTokens = new HashMap<>();
+		for (var task : page.tasks()) {
+			deleteTokens.put(task.taskId(), UUID.randomUUID().toString());
+		}
+		Map<Long, String> restoreTokens = new HashMap<>();
+		for (var task : page.deletedTasks()) {
+			restoreTokens.put(task.taskId(), UUID.randomUUID().toString());
+		}
+		request.setAttribute("teacherTaskDeleteTokens", deleteTokens);
+		request.setAttribute("teacherTaskRestoreTokens", restoreTokens);
 		request.setAttribute("teacherTaskUser", user);
+		request.setAttribute("teacherTaskUserId", user.userId());
 		request.setAttribute("displayName", user.displayName());
 		request.setAttribute("teacherId", user.loginId());
 		request.setAttribute("csrfToken", CsrfTokens.getOrCreate(request.getSession(false)));
@@ -214,6 +233,7 @@ public final class TeacherTaskServlet extends HttpServlet {
 				}
 			}
 		} else if (input != null) {
+			selectedSchoolIds.add(input.schoolId());
 			for (var assignment : input.classAssignments()) {
 				selectedClassIds.add(assignment.classroomId());
 				assignments.put(assignment.classroomId(), assignmentValues(assignment));
@@ -238,6 +258,90 @@ public final class TeacherTaskServlet extends HttpServlet {
 				: registry.issueToken();
 		request.setAttribute("teacherTaskCreateToken", createToken);
 		request.getRequestDispatcher("/WEB-INF/teacher/task/task.jsp").forward(request, response);
+	}
+
+	private void processTaskStateOperation(
+			HttpServletRequest request,
+			HttpServletResponse response,
+			AuthenticatedUser user,
+			Map<String, List<String>> values) throws IOException {
+		try {
+			TaskStateOperation operation = parseTaskStateOperation(values);
+			HttpServletRequest parsedRequest = csrfRequest(request, operation.csrfToken());
+			if (!CsrfTokens.isValid(parsedRequest)) {
+				response.sendError(HttpServletResponse.SC_FORBIDDEN, "画面を再読み込みしてください。");
+				return;
+			}
+			if ("deleteTask".equals(operation.action())) {
+				TASKS.deleteTask(user, operation.taskId(), operation.expectedVersion(), operation.requestToken());
+				HttpSession session = request.getSession(false);
+				if (session != null) {
+					session.setAttribute(TASK_STATE_NOTICE_ATTRIBUTE, "課題を削除しました。");
+				}
+			} else {
+				TASKS.restoreTask(user, operation.taskId(), operation.expectedVersion(), operation.requestToken());
+				HttpSession session = request.getSession(false);
+				if (session != null) {
+					session.setAttribute(TASK_STATE_NOTICE_ATTRIBUTE, "課題を下書きへ復元しました。");
+				}
+			}
+			response.sendRedirect(request.getContextPath() + "/teacher/task");
+		} catch (TaskDraftConflictException e) {
+			response.sendError(HttpServletResponse.SC_CONFLICT, e.getMessage());
+		} catch (TaskDraftNotFoundException e) {
+			response.sendError(HttpServletResponse.SC_NOT_FOUND);
+		} catch (IllegalArgumentException e) {
+			response.sendError(HttpServletResponse.SC_BAD_REQUEST, e.getMessage());
+		} catch (SecurityException e) {
+			response.sendError(HttpServletResponse.SC_FORBIDDEN);
+		} catch (SQLException e) {
+			getServletContext().log("Teacher task state change failed.", e);
+			response.sendError(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
+		}
+	}
+
+	private static boolean isTaskStateAction(String action) {
+		return "deleteTask".equals(action) || "restoreTask".equals(action);
+	}
+
+	private static TaskStateOperation parseTaskStateOperation(Map<String, List<String>> values) {
+		if (!Set.of("action", "csrfToken", "requestToken", "taskId", "expectedVersion").equals(values.keySet())) {
+			throw new IllegalArgumentException("課題操作の入力が不正です。");
+		}
+		String action = requiredSingle(values, "action");
+		if (!isTaskStateAction(action)) {
+			throw new IllegalArgumentException("利用できない課題操作です。");
+		}
+		return new TaskStateOperation(
+				action,
+				requiredSingle(values, "csrfToken"),
+				requiredSingle(values, "requestToken"),
+				positiveLong(requiredSingle(values, "taskId"), "課題"),
+				positiveLong(requiredSingle(values, "expectedVersion"), "課題更新情報"));
+	}
+
+	private static String requiredSingle(Map<String, List<String>> values, String name) {
+		List<String> entries = values.get(name);
+		if (entries == null || entries.size() != 1 || entries.getFirst().isBlank()) {
+			throw new IllegalArgumentException("課題操作の入力が不正です。");
+		}
+		return entries.getFirst();
+	}
+
+	private static long positiveLong(String value, String label) {
+		try {
+			long parsed = Long.parseLong(value);
+			if (parsed < 1) {
+				throw new NumberFormatException("non-positive");
+			}
+			return parsed;
+		} catch (NumberFormatException e) {
+			throw new IllegalArgumentException("有効な" + label + "を指定してください。", e);
+		}
+	}
+
+	private record TaskStateOperation(
+			String action, String csrfToken, String requestToken, long taskId, long expectedVersion) {
 	}
 
 	private static Map<String, List<String>> rawValues(HttpServletRequest request) {
@@ -363,6 +467,21 @@ public final class TeacherTaskServlet extends HttpServlet {
 			throw new IllegalStateException("Task draft success notice has an invalid session value.");
 		}
 		return true;
+	}
+
+	private static String consumeTaskStateNotice(HttpSession session) {
+		if (session == null) {
+			return null;
+		}
+		Object notice = session.getAttribute(TASK_STATE_NOTICE_ATTRIBUTE);
+		if (notice == null) {
+			return null;
+		}
+		session.removeAttribute(TASK_STATE_NOTICE_ATTRIBUTE);
+		if (!(notice instanceof String message)) {
+			throw new IllegalStateException("Task state notice has an invalid session value.");
+		}
+		return message;
 	}
 
 	private static Long optionalId(HttpServletRequest request, String name) {

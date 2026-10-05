@@ -30,6 +30,7 @@ class TeacherTaskFormTest {
 		assertEquals("createDraft", form.action());
 		assertEquals(0, form.taskId());
 		assertEquals("課題", form.input().title());
+		assertEquals(5, form.input().schoolId());
 		assertEquals(List.of("条件分岐", "入力"), form.input().features());
 		assertEquals(List.of("a", "b"), form.input().testCases().stream().map(c -> c.getInput()).toList());
 		assertEquals("ヒント", form.input().hints().get(0).hint().getTitle());
@@ -51,6 +52,17 @@ class TeacherTaskFormTest {
 		values.put("testCaseOutputs", List.of("only one"));
 
 		assertThrows(IllegalArgumentException.class, () -> TeacherTaskForm.parse(values));
+	}
+
+	@Test
+	void requiresExactlyOneSchool() {
+		Map<String, List<String>> missing = new java.util.HashMap<>(validCreateValues());
+		missing.remove("schoolTargets");
+		assertThrows(IllegalArgumentException.class, () -> TeacherTaskForm.parse(missing));
+
+		Map<String, List<String>> multiple = new java.util.HashMap<>(validCreateValues());
+		multiple.put("schoolTargets", List.of("5", "6"));
+		assertThrows(IllegalArgumentException.class, () -> TeacherTaskForm.parse(multiple));
 	}
 
 	@Test

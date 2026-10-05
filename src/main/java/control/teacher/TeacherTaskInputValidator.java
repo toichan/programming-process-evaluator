@@ -21,6 +21,9 @@ public final class TeacherTaskInputValidator {
 		if (input == null) {
 			throw new IllegalArgumentException("課題情報を指定してください。");
 		}
+		if (input.schoolId() < 1) {
+			throw new IllegalArgumentException("課題の所属学校を選択してください。");
+		}
 		String title = varchar(input.title(), "課題名", true);
 		if (title.isBlank()) {
 			throw new IllegalArgumentException("課題名を入力してください。");
@@ -101,7 +104,8 @@ public final class TeacherTaskInputValidator {
 				features,
 				testCases,
 				hints,
-				assignments);
+				assignments,
+				input.schoolId());
 	}
 
 	private static String varchar(String value, String label, boolean required) {

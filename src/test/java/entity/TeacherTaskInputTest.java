@@ -23,7 +23,7 @@ class TeacherTaskInputTest {
 		List<String> features = new ArrayList<>(List.of("Feature"));
 		TeacherTaskInput input = new TeacherTaskInput(
 				"Title", null, null, "", null, null, null,
-				features, List.of(), List.of(), List.of());
+				features, List.of(), List.of(), List.of(), 1);
 
 		features.add("Changed outside the input");
 
@@ -43,6 +43,6 @@ class TeacherTaskInputTest {
 		return new TeacherTaskInput(
 				"Title", null, TeacherTaskInput.Difficulty.BEGINNER, "",
 				null, null, "  Python code  \n",
-				List.of(), List.of(), List.of(), List.of());
+				List.of(), List.of(), List.of(), List.of(), 1);
 	}
 }

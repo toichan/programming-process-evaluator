@@ -77,6 +77,9 @@ public record TeacherTaskForm(
 		}
 
 		List<Long> schoolIds = positiveIds(list(values, "schoolTargets"));
+		if (schoolIds.size() != 1) {
+			throw new IllegalArgumentException("課題の所属学校を1校選択してください。");
+		}
 		List<Long> classroomIds = positiveIds(list(values, "classTargets"));
 		String rawFeatures = scalar(values, "features");
 		List<String> features = rawFeatures == null || rawFeatures.isEmpty()
@@ -101,7 +104,8 @@ public record TeacherTaskForm(
 				features,
 				testCases,
 				hints,
-				assignments);
+				assignments,
+				schoolIds.getFirst());
 		return new TeacherTaskForm(
 				action,
 				requiredScalar(values, "csrfToken"),

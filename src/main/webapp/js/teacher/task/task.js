@@ -6,6 +6,23 @@ document.addEventListener('DOMContentLoaded', function() {
   const formTaskId = Number(form.querySelector('[name="taskId"]').value);
   const scheduleValues = new Map();
 
+  document.querySelectorAll('.task-state-form').forEach(function(operationForm) {
+    operationForm.addEventListener('submit', async function(event) {
+      event.preventDefault();
+      const confirmed = await feedback.confirm({
+        title: operationForm.dataset.confirmTitle,
+        message: operationForm.dataset.confirmMessage,
+        confirmLabel: '実行する',
+        cancelLabel: '戻る',
+        variant: operationForm.querySelector('[name="action"]').value === 'deleteTask' ? 'danger' : 'primary'
+      });
+      if (!confirmed) return;
+      const button = operationForm.querySelector('button[type="submit"]');
+      button.disabled = true;
+      HTMLFormElement.prototype.submit.call(operationForm);
+    });
+  });
+
   function initializeCodeEditor(textarea, mode) {
     if (!textarea || typeof window.CodeMirror === 'undefined') return null;
     const editor = window.CodeMirror.fromTextArea(textarea, {

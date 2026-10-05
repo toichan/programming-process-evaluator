@@ -8,6 +8,7 @@ public record TeacherTaskPage(
 		List<TeacherSchoolOption> schools,
 		List<TeacherClassOption> classes,
 		List<TeacherHintOption> reusableHints,
+		List<TeacherTaskDetails> deletedTasks,
 		TeacherTaskDetails selectedTask,
 		List<TeacherTaskAuditEntry> auditEntries) {
 
@@ -16,6 +17,7 @@ public record TeacherTaskPage(
 		schools = List.copyOf(Objects.requireNonNull(schools));
 		classes = List.copyOf(Objects.requireNonNull(classes));
 		reusableHints = List.copyOf(Objects.requireNonNull(reusableHints));
+		deletedTasks = List.copyOf(Objects.requireNonNull(deletedTasks));
 		auditEntries = List.copyOf(Objects.requireNonNull(auditEntries));
 	}
 
@@ -33,6 +35,10 @@ public record TeacherTaskPage(
 
 	public List<TeacherHintOption> getReusableHints() {
 		return reusableHints;
+	}
+
+	public List<TeacherTaskDetails> getDeletedTasks() {
+		return deletedTasks;
 	}
 
 	public TeacherTaskDetails getSelectedTask() {

@@ -158,9 +158,20 @@ public final class TeacherPermissionDao {
 
 	public void requireAuthorizedClass(Connection connection, long teacherUserId, long classroomId)
 			throws SQLException {
+		requireAuthorizedClass(connection, teacherUserId, classroomId, null);
+	}
+
+	public void requireAuthorizedClass(
+			Connection connection,
+			long teacherUserId,
+			long classroomId,
+			Long schoolId) throws SQLException {
 		requireTeacherId(teacherUserId);
 		if (classroomId < 1) {
 			throw new IllegalArgumentException("A valid class is required.");
+		}
+		if (schoolId != null) {
+			requireSchoolId(schoolId);
 		}
 		requireTaskManagementAccess(connection, teacherUserId);
 		String sql = """
@@ -169,7 +180,7 @@ public final class TeacherPermissionDao {
 				JOIN schools s ON s.school_id = c.school_id
 				LEFT JOIN teacher_school_permissions tsp
 				  ON tsp.school_id = s.school_id AND tsp.teacher_user_id = ?
-				WHERE c.classroom_id = ?
+				WHERE c.classroom_id = ? AND (? IS NULL OR c.school_id = ?)
 				ORDER BY tsp.teacher_school_permission_id
 				FOR UPDATE
 				""";
@@ -179,6 +190,13 @@ public final class TeacherPermissionDao {
 		try (PreparedStatement statement = connection.prepareStatement(sql)) {
 			statement.setLong(1, teacherUserId);
 			statement.setLong(2, classroomId);
+			if (schoolId == null) {
+				statement.setNull(3, java.sql.Types.BIGINT);
+				statement.setNull(4, java.sql.Types.BIGINT);
+			} else {
+				statement.setLong(3, schoolId);
+				statement.setLong(4, schoolId);
+			}
 			try (ResultSet rows = statement.executeQuery()) {
 				while (rows.next()) {
 					activeClass |= "active".equals(rows.getString("classroom_status"));

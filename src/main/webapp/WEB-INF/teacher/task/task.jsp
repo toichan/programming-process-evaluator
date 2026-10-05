@@ -40,6 +40,9 @@
 		<c:if test="${teacherTaskSaved}">
 			<div class="alert alert-success" id="taskSaveNotice" role="status">課題の下書きを保存しました。</div>
 		</c:if>
+		<c:if test="${not empty teacherTaskStateNotice}">
+			<div class="alert alert-success" role="status"><c:out value="${teacherTaskStateNotice}"/></div>
+		</c:if>
 		<c:if test="${not empty teacherTaskError}">
 			<div class="alert alert-danger" role="alert"><c:out value="${teacherTaskError}"/></div>
 		</c:if>
@@ -81,15 +84,16 @@
 									<div class="dropdown-menu class-dropdown-menu p-2 w-100">
 										<c:forEach items="${teacherTaskPage.schools}" var="school">
 											<div class="form-check">
-												<input class="form-check-input" type="checkbox" name="schoolTargets"
+												<input class="form-check-input" type="radio" name="schoolTargets"
 													id="school-${school.schoolId}" value="${school.schoolId}"
+													required
 													<c:if test="${teacherTaskSelectedSchoolIds.contains(school.schoolId)}">checked</c:if>>
 												<label class="form-check-label" for="school-${school.schoolId}"><c:out value="${school.name}"/></label>
 											</div>
 										</c:forEach>
 									</div>
 								</div>
-								<div id="schoolSelectHelp" class="form-text">担当する学校を選択してください。複数選択できます。</div>
+								<div id="schoolSelectHelp" class="form-text">課題の所属学校を1校選択してください。対象クラスはこの学校内から選びます。</div>
 							</div>
 							<div class="col-md-6">
 								<label class="form-label d-block">クラス</label>
@@ -290,25 +294,30 @@
 
 		<section class="panel-card">
 			<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-				<div><span class="hero-kicker mb-1 d-inline-block">Drafts</span><h2 class="subheading mb-0">保存済み下書き</h2></div>
+				<div><span class="hero-kicker mb-1 d-inline-block">Tasks</span><h2 class="subheading mb-0">担当学校の課題</h2></div>
 				<a class="btn btn-outline-secondary btn-sm" href="<c:url value='/teacher/task'/>">一覧を更新</a>
 			</div>
 			<div class="alert alert-light border task-edit-policy" id="taskListHelp">
 				<strong>現在利用できる操作</strong>
 				<ul class="mb-0 mt-2 small">
-					<li>この一覧には自分が作成した下書きだけが表示されます。</li>
-					<li>公開・削除・復元・プロンプト設定は未対応です。</li>
+					<li>担当学校の課題を表示します。編集は作成者、削除は同校の課題管理権限を持つ教師が行えます。</li>
+					<li>削除した課題は下書きへ復元できます。復元だけでは生徒に公開されません。</li>
 					<li>下書き保存だけでは生徒に課題は公開されません。</li>
 				</ul>
 			</div>
-			<c:if test="${empty teacherTaskPage.tasks}"><p class="text-muted" role="status">保存済み下書きはありません。</p></c:if>
+			<c:if test="${empty teacherTaskPage.tasks}"><p class="text-muted" role="status">表示できる課題はありません。</p></c:if>
 			<div class="table-responsive">
 				<table class="table table-hover align-middle mb-0" id="taskTable" aria-describedby="taskListHelp">
-					<thead class="table-light"><tr><th>課題名</th><th>難易度</th><th>対象クラス</th><th>状態</th><th>プロンプト</th><th>作成者</th><th>最終更新者</th><th>最終更新日時</th><th>操作</th></tr></thead>
+					<thead class="table-light"><tr><th>課題名</th><th>所属学校</th><th>難易度</th><th>対象クラス</th><th>状態</th><th>プロンプト</th><th>作成者</th><th>最終更新者</th><th>最終更新日時</th><th>操作</th></tr></thead>
 					<tbody>
 						<c:forEach items="${teacherTaskPage.tasks}" var="task">
 							<tr>
 								<td><c:out value="${task.input.title}"/></td>
+								<td>
+									<c:forEach items="${teacherTaskPage.schools}" var="school">
+										<c:if test="${school.schoolId == task.input.schoolId}"><c:out value="${school.name}"/></c:if>
+									</c:forEach>
+								</td>
 								<td>
 									<c:choose>
 										<c:when test="${empty task.input.difficulty}">―</c:when>
@@ -334,15 +343,32 @@
 									</c:forEach>
 									<c:if test="${empty task.input.classAssignments}">未割当</c:if>
 								</td>
-								<td><span class="badge text-bg-secondary">下書き</span></td>
+								<td>
+									<c:choose>
+										<c:when test="${task.publicationStatus == 'published'}"><span class="badge text-bg-success">公開中</span></c:when>
+										<c:when test="${task.publicationStatus == 'requires_update'}"><span class="badge text-bg-warning">要更新</span></c:when>
+										<c:otherwise><span class="badge text-bg-secondary">下書き</span></c:otherwise>
+									</c:choose>
+								</td>
 								<td><button class="btn btn-sm btn-outline-secondary" type="button" disabled title="後続工程で実装します。">未設定</button></td>
 								<td><code class="history-creator-id"><c:out value="${task.createdByLoginId}"/></code></td>
 								<td><code class="history-creator-id"><c:out value="${task.updatedByLoginId}" default="-"/></code></td>
 								<td><c:out value="${task.updatedAt}"/></td>
 								<td>
 									<div class="d-flex gap-2">
-										<a class="btn btn-sm btn-outline-primary" href="<c:url value='/teacher/task'><c:param name='taskId' value='${task.taskId}'/></c:url>">編集</a>
-										<a class="btn btn-sm btn-outline-secondary" href="<c:url value='/teacher/task'><c:param name='taskId' value='${task.taskId}'/><c:param name='view' value='history'/></c:url>">履歴</a>
+										<c:if test="${task.createdByUserId == teacherTaskUserId}">
+											<a class="btn btn-sm btn-outline-primary" href="<c:url value='/teacher/task'><c:param name='taskId' value='${task.taskId}'/></c:url>">編集</a>
+											<a class="btn btn-sm btn-outline-secondary" href="<c:url value='/teacher/task'><c:param name='taskId' value='${task.taskId}'/><c:param name='view' value='history'/></c:url>">履歴</a>
+										</c:if>
+										<form class="task-state-form" method="post" action="<c:url value='/teacher/task'/>"
+											data-confirm-title="課題を削除しますか？" data-confirm-message="課題は一覧から非表示になります。関連する提出・評価・履歴は保持されます。">
+											<input type="hidden" name="action" value="deleteTask">
+											<input type="hidden" name="csrfToken" value="<c:out value='${csrfToken}'/>">
+											<input type="hidden" name="requestToken" value="<c:out value='${teacherTaskDeleteTokens[task.taskId]}'/>">
+											<input type="hidden" name="taskId" value="<c:out value='${task.taskId}'/>">
+											<input type="hidden" name="expectedVersion" value="<c:out value='${task.version}'/>">
+											<button class="btn btn-sm btn-outline-danger" type="submit">削除</button>
+										</form>
 									</div>
 								</td>
 							</tr>
@@ -350,6 +376,39 @@
 					</tbody>
 				</table>
 			</div>
+			<section class="mt-4" aria-labelledby="deletedTaskHeading">
+				<h3 class="h5" id="deletedTaskHeading">削除済み課題</h3>
+				<c:if test="${empty teacherTaskPage.deletedTasks}"><p class="text-muted" role="status">削除済み課題はありません。</p></c:if>
+				<div class="table-responsive">
+					<table class="table table-sm align-middle mb-0" id="deletedTaskTable">
+						<thead class="table-light"><tr><th>課題名</th><th>所属学校</th><th>作成者</th><th>操作</th></tr></thead>
+						<tbody>
+							<c:forEach items="${teacherTaskPage.deletedTasks}" var="task">
+								<tr>
+									<td><c:out value="${task.input.title}"/></td>
+									<td>
+										<c:forEach items="${teacherTaskPage.schools}" var="school">
+											<c:if test="${school.schoolId == task.input.schoolId}"><c:out value="${school.name}"/></c:if>
+										</c:forEach>
+									</td>
+									<td><code><c:out value="${task.createdByLoginId}"/></code></td>
+									<td>
+										<form class="task-state-form" method="post" action="<c:url value='/teacher/task'/>"
+											data-confirm-title="課題を下書きへ復元しますか？" data-confirm-message="復元しても生徒への公開・予約公開は再開されません。">
+											<input type="hidden" name="action" value="restoreTask">
+											<input type="hidden" name="csrfToken" value="<c:out value='${csrfToken}'/>">
+											<input type="hidden" name="requestToken" value="<c:out value='${teacherTaskRestoreTokens[task.taskId]}'/>">
+											<input type="hidden" name="taskId" value="<c:out value='${task.taskId}'/>">
+											<input type="hidden" name="expectedVersion" value="<c:out value='${task.version}'/>">
+											<button class="btn btn-sm btn-outline-primary" type="submit">下書きへ復元</button>
+										</form>
+									</td>
+								</tr>
+							</c:forEach>
+						</tbody>
+					</table>
+				</div>
+			</section>
 		</section>
 	</div>
 </div>

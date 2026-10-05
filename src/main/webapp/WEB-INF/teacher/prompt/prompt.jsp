@@ -5,6 +5,8 @@
 <%@ include file="/WEB-INF/template/page-start.jspf" %>
 <c:set var="promptPage" value="${teacherPromptPage}"/>
 <c:set var="promptVersion" value="${promptPage.selectedVersion}"/>
+<c:set var="reevaluationPreview" value="${teacherReevaluationPreview}"/>
+<c:set var="reevaluationJob" value="${teacherReevaluationJob}"/>
 <div class="page-content py-5">
 	<div class="container-fluid px-4">
 		<section class="prompt-hero mb-4">
@@ -39,6 +41,87 @@
 		<c:if test="${not empty teacherPromptError}">
 			<div class="alert alert-danger" id="promptErrorNotice" role="alert"><c:out value="${teacherPromptError}"/></div>
 		</c:if>
+		<c:if test="${not empty reevaluationJob}">
+			<section class="panel-card mb-4" id="reevaluationJobSection"
+				data-job-status="<c:out value='${reevaluationJob.status}'/>">
+				<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+					<div>
+						<span class="hero-kicker mb-1 d-inline-block">Reevaluation job</span>
+						<h2 class="subheading mb-0">全体再評価の進捗</h2>
+					</div>
+					<span class="badge text-bg-light border">
+						<c:choose>
+							<c:when test="${reevaluationJob.status == 'queued'}">待機中</c:when>
+							<c:when test="${reevaluationJob.status == 'in_progress'}">処理中</c:when>
+							<c:when test="${reevaluationJob.status == 'completed'}">完了</c:when>
+							<c:when test="${reevaluationJob.status == 'failed'}">失敗あり</c:when>
+							<c:otherwise><c:out value="${reevaluationJob.status}"/></c:otherwise>
+						</c:choose>
+					</span>
+				</div>
+				<p class="mb-2">
+					Job ID: <c:out value="${reevaluationJob.jobId}"/> —
+					成功 <c:out value="${reevaluationJob.completedCount}"/> /
+					<c:out value="${reevaluationJob.targetCount}"/> 件、
+					失敗 <c:out value="${reevaluationJob.failedCount}"/> 件
+				</p>
+				<div class="progress" role="progressbar"
+					aria-label="再評価の進捗"
+					aria-valuenow="<c:out value='${reevaluationJob.progressPercent}'/>"
+					aria-valuemin="0" aria-valuemax="100">
+					<div class="progress-bar" style="width: <c:out value='${reevaluationJob.progressPercent}'/>%">
+						<c:out value="${reevaluationJob.progressPercent}"/>%
+					</div>
+				</div>
+				<h3 class="subheading mt-4">対象生徒ごとの再評価結果</h3>
+				<div class="table-responsive">
+					<table class="table table-sm table-hover align-middle mb-0">
+						<thead class="table-light">
+							<tr>
+								<th>生徒ID</th>
+								<th>クラス</th>
+								<th>提出版</th>
+								<th>処理結果</th>
+								<th>総合評価</th>
+								<th>思考力・判断力・表現力</th>
+								<th>主体的に学習に取り組む態度</th>
+							</tr>
+						</thead>
+						<tbody>
+							<c:choose>
+								<c:when test="${empty reevaluationJob.targetResults}">
+									<tr><td colspan="7" class="text-secondary">対象結果はありません。</td></tr>
+								</c:when>
+								<c:otherwise>
+									<c:forEach items="${reevaluationJob.targetResults}" var="result">
+										<tr>
+											<td><code><c:out value="${result.studentLoginId}"/></code></td>
+											<td><c:out value="${result.classroomLabel}"/></td>
+											<td><c:out value="${result.submissionRevision}"/></td>
+											<td>
+												<c:choose>
+													<c:when test="${result.status == 'queued'}">待機中</c:when>
+													<c:when test="${result.status == 'in_progress'}">処理中</c:when>
+													<c:when test="${result.status == 'completed'}">完了</c:when>
+													<c:when test="${result.status == 'failed'}">失敗</c:when>
+													<c:otherwise><c:out value="${result.status}"/></c:otherwise>
+												</c:choose>
+												<c:if test="${not empty result.safeErrorMessage}">
+													<div class="small text-danger"><c:out value="${result.safeErrorMessage}"/></div>
+												</c:if>
+											</td>
+											<td><c:choose><c:when test="${not empty result.overallScore}"><c:out value="${result.overallScore}"/></c:when><c:otherwise>—</c:otherwise></c:choose></td>
+											<td><c:choose><c:when test="${not empty result.thinkingScore}"><c:out value="${result.thinkingScore}"/> / 5</c:when><c:otherwise>—</c:otherwise></c:choose></td>
+											<td><c:choose><c:when test="${not empty result.attitudeScore}"><c:out value="${result.attitudeScore}"/> / 5</c:when><c:otherwise>—</c:otherwise></c:choose></td>
+										</tr>
+									</c:forEach>
+								</c:otherwise>
+							</c:choose>
+						</tbody>
+					</table>
+				</div>
+			</section>
+		</c:if>
 
 		<section class="panel-card mb-4">
 			<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
@@ -66,6 +149,11 @@
 							<c:forEach items="${promptPage.tasks}" var="task">
 								<option value="${task.taskId}" <c:if test="${task.taskId == promptPage.selectedTask.taskId}">selected</c:if>>
 									<c:out value="${task.input.title}"/>
+									<c:choose>
+										<c:when test="${task.publicationStatus == 'published'}">（公開中）</c:when>
+										<c:when test="${task.publicationStatus == 'requires_update'}">（要更新）</c:when>
+										<c:otherwise>（下書き）</c:otherwise>
+									</c:choose>
 								</option>
 							</c:forEach>
 						</select>
@@ -108,7 +196,7 @@
 			</div>
 
 			<c:if test="${empty promptPage.selectedTask}">
-				<div class="empty-state mb-3">教師が作成した課題下書きを選択してください。公開済み課題はこの画面では変更できません。</div>
+				<div class="empty-state mb-3">教師が作成した課題を選択してください。公開済み課題の内容は変更できませんが、評価プロンプトは新しい版として作成できます。</div>
 			</c:if>
 			<c:if test="${not empty promptPage.selectedTask}">
 				<c:if test="${not empty promptPage.standardRubric}">
@@ -294,10 +382,16 @@
 				</c:otherwise>
 			</c:choose>
 			<div class="d-flex gap-2 mt-3 flex-wrap justify-content-center">
-				<button class="btn btn-primary" type="button" disabled
-					title="再評価対象の差分プレビュー、提出固定、通知の契約が未確定です。">
-					設定して再評価する
-				</button>
+				<form method="post" action="<c:url value='/teacher/prompt'/>" id="reevaluationStartForm">
+					<input type="hidden" name="csrfToken" value="<c:out value='${csrfToken}'/>">
+					<input type="hidden" name="taskId" value="<c:out value='${teacherPromptTaskId}'/>">
+					<input type="hidden" name="promptVersionId" value="<c:out value='${promptVersion.promptVersionId}'/>">
+					<input type="hidden" name="expectedRowVersion" value="<c:out value='${empty promptVersion ? 0 : promptVersion.rowVersion}'/>">
+					<button class="btn btn-primary" type="submit" name="action" value="startReevaluationPreview"
+						<c:if test="${not teacherPromptCanStartReevaluation or not empty reevaluationPreview}">disabled</c:if>>
+						対象と評価差分をプレビュー
+					</button>
+				</form>
 				<form method="post" action="<c:url value='/teacher/prompt'/>">
 					<input type="hidden" name="csrfToken" value="<c:out value='${csrfToken}'/>">
 					<input type="hidden" name="taskId" value="<c:out value='${teacherPromptTaskId}'/>">
@@ -310,9 +404,136 @@
 				</form>
 			</div>
 			<p class="text-secondary small text-center mt-2 mb-0">
-				再評価は、対象提出の固定方法・差分プレビュー・通知経路が確定するまで実行できません。
+				プレビューの作成では対象者ごとにGeminiを呼び出すため、確定・取消にかかわらずAPI費用が発生します。
 			</p>
 		</section>
+
+		<c:if test="${not empty reevaluationPreview}">
+			<section class="panel-card mb-4" id="reevaluationPreviewSection"
+				data-preview-status="<c:out value='${reevaluationPreview.status}'/>">
+				<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+					<div>
+						<span class="hero-kicker mb-1 d-inline-block">Reevaluation preview</span>
+						<h2 class="subheading mb-0">全体再評価の対象と評価差分</h2>
+					</div>
+					<span class="badge text-bg-light border">
+						<c:choose>
+							<c:when test="${reevaluationPreview.status == 'generating'}">予測生成中</c:when>
+							<c:when test="${reevaluationPreview.status == 'retryable'}">失敗対象の再試行が必要</c:when>
+							<c:when test="${reevaluationPreview.status == 'ready'}">確定可能</c:when>
+							<c:when test="${reevaluationPreview.status == 'expired'}">期限切れ</c:when>
+							<c:when test="${reevaluationPreview.status == 'stale'}">条件変更により無効</c:when>
+							<c:when test="${reevaluationPreview.status == 'cancelled'}">取消済み</c:when>
+							<c:otherwise><c:out value="${reevaluationPreview.status}"/></c:otherwise>
+						</c:choose>
+					</span>
+				</div>
+				<p class="text-secondary">
+					参加者 <c:out value="${reevaluationPreview.participantCount}"/> 人、
+					再評価対象 <c:out value="${reevaluationPreview.targetCount}"/> 人。
+					有効期限: <c:out value="${reevaluationPreview.expiresAt}"/>
+				</p>
+				<div class="table-responsive">
+					<table class="table table-hover align-middle">
+						<thead class="table-light">
+							<tr>
+								<th scope="col">参加者</th>
+								<th scope="col">対象状態</th>
+								<th scope="col">思考力・判断力・表現力</th>
+								<th scope="col">主体的に学習に取り組む態度</th>
+								<th scope="col">予測理由</th>
+							</tr>
+						</thead>
+						<tbody>
+							<c:forEach items="${reevaluationPreview.targets}" var="target">
+								<tr>
+									<th scope="row"><c:out value="${target.displayName}"/></th>
+									<td>
+										<c:choose>
+											<c:when test="${target.status == 'excluded_no_submission'}">最新提出なし・対象外</c:when>
+											<c:when test="${target.status == 'excluded_submission_processing'}">提出受付中・確定不可</c:when>
+											<c:when test="${target.status == 'pending'}">予測待ち</c:when>
+											<c:when test="${target.status == 'in_progress'}">予測中</c:when>
+											<c:when test="${target.status == 'succeeded'}">予測完了</c:when>
+											<c:when test="${target.status == 'failed'}">予測失敗</c:when>
+											<c:otherwise><c:out value="${target.status}"/></c:otherwise>
+										</c:choose>
+										<c:if test="${not empty target.revisionNumber}">
+											<br><small>提出版 <c:out value="${target.revisionNumber}"/></small>
+										</c:if>
+										<c:if test="${not empty target.safeErrorMessage}">
+											<br><small class="text-danger"><c:out value="${target.safeErrorMessage}"/></small>
+										</c:if>
+									</td>
+									<td>
+										<c:choose>
+											<c:when test="${empty target.thinkingScore}">—</c:when>
+											<c:otherwise>
+												<c:out value="${target.thinkingScore}"/> / 5
+												<c:if test="${not empty target.previousThinkingScore}">
+													<small>(前回 <c:out value="${target.previousThinkingScore}"/> /
+														差 <c:out value="${target.thinkingScore - target.previousThinkingScore}"/>)</small>
+												</c:if>
+											</c:otherwise>
+										</c:choose>
+									</td>
+									<td>
+										<c:choose>
+											<c:when test="${empty target.attitudeScore}">—</c:when>
+											<c:otherwise>
+												<c:out value="${target.attitudeScore}"/> / 5
+												<c:if test="${not empty target.previousAttitudeScore}">
+													<small>(前回 <c:out value="${target.previousAttitudeScore}"/> /
+														差 <c:out value="${target.attitudeScore - target.previousAttitudeScore}"/>)</small>
+												</c:if>
+											</c:otherwise>
+										</c:choose>
+									</td>
+									<td>
+										<c:if test="${not empty target.thinkingReason}">
+											<p class="mb-1"><strong>思考:</strong> <c:out value="${target.thinkingReason}"/></p>
+											<p class="mb-0"><strong>態度:</strong> <c:out value="${target.attitudeReason}"/></p>
+										</c:if>
+									</td>
+								</tr>
+							</c:forEach>
+						</tbody>
+					</table>
+				</div>
+				<div class="d-flex gap-2 flex-wrap justify-content-center">
+					<c:if test="${reevaluationPreview.status == 'retryable'}">
+						<form method="post" action="<c:url value='/teacher/prompt'/>">
+							<input type="hidden" name="csrfToken" value="<c:out value='${csrfToken}'/>">
+							<input type="hidden" name="taskId" value="<c:out value='${teacherPromptTaskId}'/>">
+							<input type="hidden" name="promptVersionId" value="<c:out value='${promptVersion.promptVersionId}'/>">
+							<input type="hidden" name="expectedRowVersion" value="<c:out value='${promptVersion.rowVersion}'/>">
+							<input type="hidden" name="previewCode" value="<c:out value='${reevaluationPreview.previewCode}'/>">
+							<button class="btn btn-outline-primary" type="submit" name="action" value="retryReevaluationPreview">失敗対象を再試行</button>
+						</form>
+					</c:if>
+					<c:if test="${reevaluationPreview.status == 'ready'}">
+						<form method="post" action="<c:url value='/teacher/prompt'/>">
+							<input type="hidden" name="csrfToken" value="<c:out value='${csrfToken}'/>">
+							<input type="hidden" name="taskId" value="<c:out value='${teacherPromptTaskId}'/>">
+							<input type="hidden" name="promptVersionId" value="<c:out value='${promptVersion.promptVersionId}'/>">
+							<input type="hidden" name="expectedRowVersion" value="<c:out value='${promptVersion.rowVersion}'/>">
+							<input type="hidden" name="previewCode" value="<c:out value='${reevaluationPreview.previewCode}'/>">
+							<button class="btn btn-primary" type="submit" name="action" value="confirmReevaluationPreview">この内容で適用・再評価を確定</button>
+						</form>
+					</c:if>
+					<c:if test="${reevaluationPreview.status == 'generating' or reevaluationPreview.status == 'retryable' or reevaluationPreview.status == 'ready'}">
+						<form method="post" action="<c:url value='/teacher/prompt'/>">
+							<input type="hidden" name="csrfToken" value="<c:out value='${csrfToken}'/>">
+							<input type="hidden" name="taskId" value="<c:out value='${teacherPromptTaskId}'/>">
+							<input type="hidden" name="promptVersionId" value="<c:out value='${promptVersion.promptVersionId}'/>">
+							<input type="hidden" name="expectedRowVersion" value="<c:out value='${promptVersion.rowVersion}'/>">
+							<input type="hidden" name="previewCode" value="<c:out value='${reevaluationPreview.previewCode}'/>">
+							<button class="btn btn-outline-secondary" type="submit" name="action" value="cancelReevaluationPreview">プレビューを取り消す</button>
+						</form>
+					</c:if>
+				</div>
+			</section>
+		</c:if>
 
 		<section class="panel-card">
 			<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
@@ -360,6 +581,50 @@
 												<button class="btn btn-sm btn-outline-secondary" type="submit" name="action" value="duplicateDraft">複製</button>
 											</form>
 										</td>
+									</tr>
+								</c:forEach>
+							</c:otherwise>
+						</c:choose>
+					</tbody>
+				</table>
+			</div>
+			<h3 class="subheading mt-4">再評価履歴</h3>
+			<div class="table-responsive">
+				<table class="table table-hover align-middle mb-0" id="reevaluationHistoryTable">
+					<thead class="table-light">
+						<tr><th>実行日時</th><th>実行者</th><th>プロンプト版</th><th>状態</th><th>成功</th><th>失敗</th><th>対象</th><th>進捗</th><th>詳細</th></tr>
+					</thead>
+					<tbody>
+						<c:choose>
+							<c:when test="${empty promptPage.reevaluationJobs}">
+								<tr><td colspan="9" class="text-secondary">再評価の履歴はありません。</td></tr>
+							</c:when>
+							<c:otherwise>
+								<c:forEach items="${promptPage.reevaluationJobs}" var="job">
+									<c:url var="reevaluationJobUrl" value="/teacher/prompt">
+										<c:param name="taskId" value="${teacherPromptTaskId}"/>
+										<c:param name="promptVersionId" value="${job.promptVersionId}"/>
+										<c:param name="jobId" value="${job.jobId}"/>
+									</c:url>
+									<tr>
+										<td><c:out value="${job.requestedAt}"/></td>
+										<td><code><c:out value="${job.requestedByLoginId}"/></code></td>
+										<td><c:out value="${job.promptVersion}"/></td>
+										<td>
+											<c:choose>
+												<c:when test="${job.status == 'queued'}">待機中</c:when>
+												<c:when test="${job.status == 'in_progress'}">処理中</c:when>
+												<c:when test="${job.status == 'completed'}">完了</c:when>
+												<c:when test="${job.status == 'failed'}">失敗あり</c:when>
+												<c:when test="${job.status == 'cancelled'}">取消</c:when>
+												<c:otherwise><c:out value="${job.status}"/></c:otherwise>
+											</c:choose>
+										</td>
+										<td><c:out value="${job.completedCount}"/></td>
+										<td><c:out value="${job.failedCount}"/></td>
+										<td><c:out value="${job.targetCount}"/></td>
+										<td><c:out value="${job.progressPercent}"/>%</td>
+										<td><a class="btn btn-sm btn-outline-primary" href="${reevaluationJobUrl}">結果を見る</a></td>
 									</tr>
 								</c:forEach>
 							</c:otherwise>

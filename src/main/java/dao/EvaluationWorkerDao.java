@@ -20,6 +20,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
+import control.evaluation.EvaluationInputBuilder;
 import control.evaluation.EvaluationPrivacyRedactor;
 import lib.mysql.Client;
 
@@ -108,39 +109,10 @@ public final class EvaluationWorkerDao implements EvaluationWorkRepository {
 		try (Connection connection = Client.createConnection()) {
 			connection.setAutoCommit(false);
 			try {
-				InputMetadata metadata = loadMetadata(connection, job);
-				String subjectCode = ensureResearchSubjectCode(connection, job.studentUserId());
-				JsonObject task = buildTask(connection, job.taskId());
-				JsonObject rubric = buildRubric(connection, evaluationRubricId(connection, job.evaluationId()));
-				JsonObject prompt = buildPrompt(connection, evaluationPromptVersionId(connection, job.evaluationId()));
-				JsonObject submission = buildSubmission(connection, job.submissionId());
-				JsonArray logs = buildLogs(connection, job.participationId(), job.submissionId(), metadata);
-				JsonArray testResults = buildSubmissionTestResults(connection, job.submissionId());
-
-				JsonObject payload = new JsonObject();
-				JsonObject requestMetadata = new JsonObject();
-				requestMetadata.addProperty("request_id", job.externalRequestId());
-				requestMetadata.addProperty("requested_at", LocalDateTime.now().toString());
-				requestMetadata.addProperty("model_id", job.modelId());
-				requestMetadata.addProperty("feature_name", "student_task_evaluation");
-				requestMetadata.addProperty("task_id", job.taskId());
-				requestMetadata.addProperty("prompt_version", job.promptVersion());
-				requestMetadata.addProperty("rubric_version", job.rubricVersion());
-				requestMetadata.addProperty("actor_role", "student");
-				requestMetadata.addProperty("consent_status", job.consentStatus());
-				requestMetadata.addProperty("locale", "ja-JP");
-				requestMetadata.addProperty("anonymized_subject_id", subjectCode);
-				payload.add("metadata", requestMetadata);
-				payload.add("task", task);
-				payload.add("rubric", rubric);
-				payload.add("timeline_logs", logs);
-				submission.add("testcase_check_results", testResults);
-				payload.add("submission", submission);
-				payload.add("prompt_evaluation_settings", prompt);
-
-				JsonObject redactedPayload = EvaluationPrivacyRedactor.redact(
-						payload,
-						List.of(metadata.displayName(), metadata.loginId(), metadata.studentCode()));
+				EvaluationPayload built = EvaluationInputBuilder.build(
+						connection, job, evaluationRubricId(connection, job.evaluationId()),
+						evaluationPromptVersionId(connection, job.evaluationId()), "student");
+				JsonObject redactedPayload = built.payload();
 				JsonObject taskSnapshot = new JsonObject();
 				taskSnapshot.add("task", redactedPayload.get("task").deepCopy());
 				taskSnapshot.add("rubric", redactedPayload.get("rubric").deepCopy());
@@ -148,8 +120,7 @@ public final class EvaluationWorkerDao implements EvaluationWorkRepository {
 				taskSnapshot.add("prompt_evaluation_settings",
 						redactedPayload.get("prompt_evaluation_settings").deepCopy());
 				JsonObject submissionSnapshot = redactedPayload.getAsJsonObject("submission").deepCopy();
-				Set<Long> knownLogIds = extractLogIds(logs);
-				Set<Long> knownExecutionIds = extractExecutionIds(logs);
+				JsonArray logs = redactedPayload.getAsJsonArray("timeline_logs");
 				int autoSaveCount = countAutoSaves(logs);
 				int executionCount = countExecutions(logs);
 
@@ -161,13 +132,13 @@ public final class EvaluationWorkerDao implements EvaluationWorkRepository {
 						VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP(6))
 						""")) {
 					insert.setLong(1, job.requestId());
-					insert.setString(2, subjectCode);
+					insert.setString(2, built.anonymizedSubjectId());
 					insert.setString(3, taskSnapshot.toString());
 					insert.setString(4, submissionSnapshot.toString());
-					insert.setTimestamp(5, metadata.logRangeStart() == null
-							? null : Timestamp.valueOf(metadata.logRangeStart()));
-					insert.setTimestamp(6, metadata.submittedAt() == null
-							? null : Timestamp.valueOf(metadata.submittedAt()));
+					insert.setTimestamp(5, built.logRangeStart() == null
+							? null : Timestamp.valueOf(built.logRangeStart()));
+					insert.setTimestamp(6, built.submittedAt() == null
+							? null : Timestamp.valueOf(built.submittedAt()));
 					insert.executeUpdate();
 				}
 				try (PreparedStatement update = connection.prepareStatement("""
@@ -192,12 +163,59 @@ public final class EvaluationWorkerDao implements EvaluationWorkRepository {
 					}
 				}
 				connection.commit();
-				return new EvaluationInput(redactedPayload, knownLogIds, knownExecutionIds);
+				return new EvaluationInput(redactedPayload, built.knownLogIds(), built.knownExecutionIds());
 			} catch (SQLException | RuntimeException e) {
 				rollback(connection, e);
 				throw e;
 			}
 		}
+	}
+
+	public static EvaluationPayload buildPayload(
+			Connection connection,
+			EvaluationJob job,
+			long rubricId,
+			long promptVersionId,
+			String actorRole) throws SQLException {
+		InputMetadata metadata = loadMetadata(connection, job);
+		String subjectCode = ensureResearchSubjectCode(connection, job.studentUserId());
+		JsonObject task = buildTask(connection, job.taskId());
+		JsonObject rubric = buildRubric(connection, rubricId);
+		JsonObject prompt = buildPrompt(connection, promptVersionId);
+		JsonObject submission = buildSubmission(connection, job.submissionId());
+		JsonArray logs = buildLogs(connection, job.participationId(), job.submissionId(), metadata);
+		JsonArray testResults = buildSubmissionTestResults(connection, job.submissionId());
+
+		JsonObject payload = new JsonObject();
+		JsonObject requestMetadata = new JsonObject();
+		requestMetadata.addProperty("request_id", job.externalRequestId());
+		requestMetadata.addProperty("requested_at", LocalDateTime.now().toString());
+		requestMetadata.addProperty("model_id", job.modelId());
+		requestMetadata.addProperty("feature_name", "student_task_evaluation");
+		requestMetadata.addProperty("task_id", job.taskId());
+		requestMetadata.addProperty("prompt_version", job.promptVersion());
+		requestMetadata.addProperty("rubric_version", job.rubricVersion());
+		requestMetadata.addProperty("actor_role", actorRole);
+		requestMetadata.addProperty("consent_status", job.consentStatus());
+		requestMetadata.addProperty("locale", "ja-JP");
+		requestMetadata.addProperty("anonymized_subject_id", subjectCode);
+		payload.add("metadata", requestMetadata);
+		payload.add("task", task);
+		payload.add("rubric", rubric);
+		payload.add("timeline_logs", logs);
+		submission.add("testcase_check_results", testResults);
+		payload.add("submission", submission);
+		payload.add("prompt_evaluation_settings", prompt);
+
+		JsonObject redactedPayload = EvaluationPrivacyRedactor.redact(
+				payload, List.of(metadata.displayName(), metadata.loginId(), metadata.studentCode()));
+		return new EvaluationPayload(
+				redactedPayload,
+				subjectCode,
+				metadata.logRangeStart(),
+				metadata.submittedAt(),
+				extractLogIds(logs),
+				extractExecutionIds(logs));
 	}
 
 	public void recordResponse(long requestId, JsonObject rawResponse, JsonObject validatedOutput) throws SQLException {
@@ -227,48 +245,7 @@ public final class EvaluationWorkerDao implements EvaluationWorkRepository {
 		try (Connection connection = Client.createConnection()) {
 			connection.setAutoCommit(false);
 			try {
-				long[] dimensions = findDimensionIds(connection, job.evaluationId());
-				int thinkingScore = result.getAsJsonObject("scores").get("thinking_expression_level").getAsInt();
-				int attitudeScore = result.getAsJsonObject("scores").get("proactive_attitude_level").getAsInt();
-				String thinkingReason = result.getAsJsonObject("reasons")
-						.get("thinking_expression_reason").getAsString();
-				String attitudeReason = result.getAsJsonObject("reasons")
-						.get("proactive_attitude_reason").getAsString();
-				insertDimensionResult(connection, job.evaluationId(), dimensions[0], thinkingScore, thinkingReason);
-				insertDimensionResult(connection, job.evaluationId(), dimensions[1], attitudeScore, attitudeReason);
-				long thinkingReasonId = insertReason(
-						connection, job.evaluationId(), dimensions[0], "thinking_expression", "思考力・判断力・表現力",
-						thinkingScore, thinkingReason);
-				long attitudeReasonId = insertReason(
-						connection, job.evaluationId(), dimensions[1], "proactive_attitude",
-						"主体的に学習に取り組む態度", attitudeScore, attitudeReason);
-				insertReasonDetails(connection, thinkingReasonId, "turning_point",
-						result.getAsJsonObject("process_analysis").getAsJsonArray("turning_points"));
-				insertReasonDetails(connection, attitudeReasonId, "stagnation_point",
-						result.getAsJsonObject("process_analysis").getAsJsonArray("stagnation_points"));
-				insertReasonDetails(connection, attitudeReasonId, "teacher_support_suggestion",
-						result.getAsJsonObject("process_analysis").getAsJsonArray("teacher_support_suggestions"));
-				insertEvidence(connection, job.evaluationId(), result, thinkingReasonId, attitudeReasonId);
-
-				JsonObject processAnalysis = result.getAsJsonObject("process_analysis");
-				double overall = (thinkingScore + attitudeScore) / 2.0;
-				String feedback = "思考力・判断力・表現力: " + thinkingReason
-						+ "\n主体的に学習に取り組む態度: " + attitudeReason;
-				try (PreparedStatement update = connection.prepareStatement("""
-						UPDATE evaluations
-						SET evaluation_status = 'completed', overall_score = ?, process_analysis = ?,
-						    feedback_summary = ?, final_evaluated_at = CURRENT_TIMESTAMP(6),
-						    completed_at = CURRENT_TIMESTAMP(6)
-						WHERE evaluation_id = ? AND evaluation_status = 'in_progress'
-						""")) {
-					update.setBigDecimal(1, java.math.BigDecimal.valueOf(overall));
-					update.setString(2, processAnalysis.toString());
-					update.setString(3, feedback);
-					update.setLong(4, job.evaluationId());
-					if (update.executeUpdate() != 1) {
-						throw new SQLException("The evaluation could not be completed from its current state.");
-					}
-				}
+				persistValidatedResult(connection, job.evaluationId(), result);
 				try (PreparedStatement update = connection.prepareStatement("""
 						UPDATE evaluation_requests
 						SET request_status = 'succeeded', completed_at = CURRENT_TIMESTAMP(6), error_detail = NULL
@@ -297,6 +274,179 @@ public final class EvaluationWorkerDao implements EvaluationWorkRepository {
 		}
 	}
 
+	public long materializeReevaluationTarget(ReevaluationJobDao.JobWorkItem item) throws SQLException {
+					try (Connection connection = Client.createConnection()) {
+						connection.setAutoCommit(false);
+						try {
+							JsonObject payload = item.payload();
+							JsonObject metadata = payload.getAsJsonObject("metadata");
+							JsonObject submission = payload.getAsJsonObject("submission");
+							JsonArray logs = payload.getAsJsonArray("timeline_logs");
+							String externalRequestId = metadata.get("request_id").getAsString();
+							long evaluationId;
+							try (PreparedStatement insert = connection.prepareStatement("""
+									INSERT INTO evaluations (
+									  evaluation_code, submission_id, reevaluation_job_id, rubric_id, prompt_version_id,
+									  evaluation_status, evaluation_kind, format_version, locale,
+									  auto_save_count, execution_count, created_at
+									)
+									VALUES (?, ?, ?, ?, ?, 'in_progress', 'reevaluation', '1.0.0', 'ja-JP',
+									        ?, ?, CURRENT_TIMESTAMP(6))
+									""", Statement.RETURN_GENERATED_KEYS)) {
+								insert.setString(1, UUID.randomUUID().toString());
+								insert.setLong(2, item.submissionId());
+								insert.setLong(3, item.jobId());
+								insert.setLong(4, item.rubricId());
+								insert.setLong(5, item.promptVersionId());
+								insert.setInt(6, countAutoSaves(logs));
+								insert.setInt(7, countExecutions(logs));
+								insert.executeUpdate();
+								try (ResultSet keys = insert.getGeneratedKeys()) {
+									if (!keys.next()) {
+										throw new SQLException("The reevaluation ID was not generated.");
+									}
+									evaluationId = keys.getLong(1);
+								}
+							}
+							JsonObject requestPayload = payload.deepCopy();
+							requestPayload.addProperty("evaluation_id", evaluationId);
+							requestPayload.addProperty("trigger", "teacher_reevaluation");
+							long requestId;
+							try (PreparedStatement insert = connection.prepareStatement("""
+									INSERT INTO evaluation_requests (
+									  evaluation_id, model_id, prompt_version, rubric_version, actor_role,
+									  consent_status_at_request, locale, request_payload, request_status,
+									  retry_count, requested_at, completed_at
+									)
+									VALUES (?, ?, ?, ?, 'teacher', ?, 'ja-JP', ?, 'in_progress', 0,
+									        CURRENT_TIMESTAMP(6), NULL)
+									""", Statement.RETURN_GENERATED_KEYS)) {
+								insert.setLong(1, evaluationId);
+								insert.setString(2, metadata.get("model_id").getAsString());
+								insert.setString(3, metadata.get("prompt_version").getAsString());
+								insert.setString(4, metadata.get("rubric_version").getAsString());
+								insert.setString(5, metadata.get("consent_status").getAsString());
+								insert.setString(6, requestPayload.toString());
+								insert.executeUpdate();
+								try (ResultSet keys = insert.getGeneratedKeys()) {
+									if (!keys.next()) {
+										throw new SQLException("The evaluation request ID was not generated.");
+									}
+									requestId = keys.getLong(1);
+								}
+							}
+							JsonObject taskSnapshot = new JsonObject();
+							taskSnapshot.add("task", payload.get("task").deepCopy());
+							taskSnapshot.add("rubric", payload.get("rubric").deepCopy());
+							taskSnapshot.add("timeline_logs", logs.deepCopy());
+							taskSnapshot.add("prompt_evaluation_settings",
+									payload.get("prompt_evaluation_settings").deepCopy());
+							LocalDateTime logRangeStart = logs.isEmpty()
+									? null
+									: LocalDateTime.parse(logs.get(0).getAsJsonObject().get("observed_at").getAsString());
+							LocalDateTime submittedAt = LocalDateTime.parse(submission.get("submitted_at").getAsString());
+							try (PreparedStatement insert = connection.prepareStatement("""
+									INSERT INTO evaluation_input_snapshots (
+									  evaluation_request_id, anonymized_subject_id, task_snapshot, submission_snapshot,
+									  log_range_start, log_range_end, created_at
+									)
+									VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP(6))
+									""")) {
+								insert.setLong(1, requestId);
+								insert.setString(2, metadata.get("anonymized_subject_id").getAsString());
+								insert.setString(3, taskSnapshot.toString());
+								insert.setString(4, submission.toString());
+								insert.setTimestamp(5, logRangeStart == null ? null : Timestamp.valueOf(logRangeStart));
+								insert.setTimestamp(6, Timestamp.valueOf(submittedAt));
+								insert.executeUpdate();
+							}
+							try (PreparedStatement insert = connection.prepareStatement("""
+									INSERT INTO evaluation_responses (
+									  evaluation_request_id, raw_response, response_status, confidence, warnings, received_at
+									)
+									VALUES (?, ?, 'validated', ?, ?, CURRENT_TIMESTAMP(6))
+									""")) {
+								insert.setLong(1, requestId);
+								insert.setString(2, item.providerResponse().toString());
+								insert.setBigDecimal(3, java.math.BigDecimal.valueOf(
+										item.validatedResult().get("confidence").getAsDouble()));
+								insert.setString(4, item.validatedResult().getAsJsonArray("warnings").toString());
+								insert.executeUpdate();
+							}
+							persistValidatedResult(connection, evaluationId, item.validatedResult());
+							try (PreparedStatement update = connection.prepareStatement("""
+									UPDATE evaluation_requests
+									SET request_status = 'succeeded', completed_at = CURRENT_TIMESTAMP(6), error_detail = NULL
+									WHERE evaluation_request_id = ? AND request_status = 'in_progress'
+									""")) {
+								update.setLong(1, requestId);
+								if (update.executeUpdate() != 1) {
+									throw new SQLException("The reevaluation request could not be completed.");
+								}
+							}
+							try (PreparedStatement update = connection.prepareStatement("""
+									UPDATE task_participations
+									SET evaluation_status = 'completed'
+									WHERE participation_id = ? AND draft_base_submission_id = ?
+									""")) {
+								update.setLong(1, item.participationId());
+								update.setLong(2, item.submissionId());
+								update.executeUpdate();
+							}
+							ReevaluationJobDao.markCompleted(connection, item.targetId(), item.jobId(), evaluationId);
+							connection.commit();
+							return evaluationId;
+						} catch (SQLException | RuntimeException failure) {
+							rollback(connection, failure);
+							throw failure;
+						}
+					}
+				}
+
+				private static void persistValidatedResult(Connection connection, long evaluationId, JsonObject result)
+						throws SQLException {
+					long[] dimensions = findDimensionIds(connection, evaluationId);
+					int thinkingScore = result.getAsJsonObject("scores").get("thinking_expression_level").getAsInt();
+					int attitudeScore = result.getAsJsonObject("scores").get("proactive_attitude_level").getAsInt();
+					String thinkingReason = result.getAsJsonObject("reasons")
+							.get("thinking_expression_reason").getAsString();
+					String attitudeReason = result.getAsJsonObject("reasons")
+							.get("proactive_attitude_reason").getAsString();
+					insertDimensionResult(connection, evaluationId, dimensions[0], thinkingScore, thinkingReason);
+					insertDimensionResult(connection, evaluationId, dimensions[1], attitudeScore, attitudeReason);
+					long thinkingReasonId = insertReason(
+							connection, evaluationId, dimensions[0], "thinking_expression", "思考力・判断力・表現力",
+							thinkingScore, thinkingReason);
+					long attitudeReasonId = insertReason(
+							connection, evaluationId, dimensions[1], "proactive_attitude",
+							"主体的に学習に取り組む態度", attitudeScore, attitudeReason);
+					insertReasonDetails(connection, thinkingReasonId, "turning_point",
+							result.getAsJsonObject("process_analysis").getAsJsonArray("turning_points"));
+					insertReasonDetails(connection, attitudeReasonId, "stagnation_point",
+							result.getAsJsonObject("process_analysis").getAsJsonArray("stagnation_points"));
+					insertReasonDetails(connection, attitudeReasonId, "teacher_support_suggestion",
+							result.getAsJsonObject("process_analysis").getAsJsonArray("teacher_support_suggestions"));
+					insertEvidence(connection, evaluationId, result, thinkingReasonId, attitudeReasonId);
+					JsonObject processAnalysis = result.getAsJsonObject("process_analysis");
+					double overall = (thinkingScore + attitudeScore) / 2.0;
+					String feedback = "思考力・判断力・表現力: " + thinkingReason
+							+ "\n主体的に学習に取り組む態度: " + attitudeReason;
+					try (PreparedStatement update = connection.prepareStatement("""
+							UPDATE evaluations
+							SET evaluation_status = 'completed', overall_score = ?, process_analysis = ?,
+							    feedback_summary = ?, final_evaluated_at = CURRENT_TIMESTAMP(6),
+							    completed_at = CURRENT_TIMESTAMP(6)
+							WHERE evaluation_id = ? AND evaluation_status = 'in_progress'
+							""")) {
+						update.setBigDecimal(1, java.math.BigDecimal.valueOf(overall));
+						update.setString(2, processAnalysis.toString());
+						update.setString(3, feedback);
+						update.setLong(4, evaluationId);
+						if (update.executeUpdate() != 1) {
+							throw new SQLException("The evaluation could not be completed from its current state.");
+						}
+					}
+				}
 	public void fail(EvaluationJob job, String safeErrorDetail, int retryCount) throws SQLException {
 		try (Connection connection = Client.createConnection()) {
 			connection.setAutoCommit(false);
@@ -1019,6 +1169,15 @@ public final class EvaluationWorkerDao implements EvaluationWorkRepository {
 
 	public record EvaluationInput(
 			JsonObject payload,
+			Set<Long> knownLogIds,
+			Set<Long> knownExecutionIds) {
+	}
+
+	public record EvaluationPayload(
+			JsonObject payload,
+			String anonymizedSubjectId,
+			LocalDateTime logRangeStart,
+			LocalDateTime submittedAt,
 			Set<Long> knownLogIds,
 			Set<Long> knownExecutionIds) {
 	}

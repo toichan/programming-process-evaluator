@@ -68,18 +68,21 @@ public final class TeacherTaskControl {
 								connection, user.userId(), school.schoolId()));
 					}
 				}
-				List<TeacherTaskDetails> tasks = taskDao.findDrafts(connection, user.userId());
-				requireAuthorizedDraftClasses(connection, user.userId(), tasks);
+				List<Long> authorizedSchoolIds = schools.stream().map(TeacherSchoolOption::schoolId).toList();
+				List<TeacherTaskDetails> tasks = taskDao.findManageableTasks(connection, authorizedSchoolIds);
+				List<TeacherTaskDetails> deletedTasks = taskDao.findDeletedTasks(connection, authorizedSchoolIds);
 				List<TeacherHintOption> reusableHints = taskDao.findReusableHints(connection, user.userId());
 				TeacherTaskDetails selectedTask = null;
 				List<TeacherTaskAuditEntry> auditEntries = List.of();
 				if (selectedTaskId != null) {
 					selectedTask = taskDao.findDraft(connection, user.userId(), selectedTaskId, false)
 							.orElseThrow(TaskDraftNotFoundException::new);
+					requireAuthorizedAssignments(connection, user.userId(), selectedTask, selectedTask.input());
 					auditEntries = taskDao.findAuditEntries(connection, user.userId(), selectedTaskId);
 				}
 				connection.commit();
-				return new TeacherTaskPage(tasks, schools, classes, reusableHints, selectedTask, auditEntries);
+				return new TeacherTaskPage(
+						tasks, schools, classes, reusableHints, deletedTasks, selectedTask, auditEntries);
 			} catch (SQLException | RuntimeException failure) {
 				rollback(connection, failure);
 				throw failure;
@@ -98,6 +101,101 @@ public final class TeacherTaskControl {
 			TeacherTaskInput input,
 			String requestId) throws SQLException {
 		saveDraft(user, taskId, expectedVersion, input, requestId);
+	}
+
+	public void deleteTask(
+			AuthenticatedUser user, long taskId, long expectedVersion, String requestId) throws SQLException {
+		changeTaskState(user, taskId, expectedVersion, requestId, true);
+	}
+
+	public void restoreTask(
+			AuthenticatedUser user, long taskId, long expectedVersion, String requestId) throws SQLException {
+		changeTaskState(user, taskId, expectedVersion, requestId, false);
+	}
+
+	private void changeTaskState(
+			AuthenticatedUser user,
+			long taskId,
+			long expectedVersion,
+			String requestId,
+			boolean delete) throws SQLException {
+		requireTeacher(user);
+		requirePositiveId(taskId, "課題");
+		if (expectedVersion < 1) {
+			throw new IllegalArgumentException("課題の更新情報が不正です。画面を読み込み直してください。");
+		}
+		validateRequestId(requestId);
+
+		String action = delete ? "delete_task" : "restore_task";
+		Connection connection = null;
+		boolean committed = false;
+		Exception operationFailure = null;
+		try {
+			connection = connectionFactory.open();
+			connection.setAutoCommit(false);
+			permissionDao.requireTaskManagementAccess(connection, user.userId());
+			TeacherTaskDetails before = taskDao.findTaskForManagement(connection, taskId, true)
+					.orElseThrow(TaskDraftNotFoundException::new);
+			permissionDao.requireAuthorizedSchool(connection, user.userId(), before.input().schoolId());
+			if (before.version() != expectedVersion) {
+				throw new TaskDraftConflictException();
+			}
+			if (before.version() == Long.MAX_VALUE) {
+				throw new IllegalStateException("Task version has reached its maximum value.");
+			}
+			boolean archived = "archived".equals(before.publicationStatus());
+			if (delete == archived) {
+				throw new IllegalArgumentException(delete
+						? "課題は既に削除されています。"
+						: "課題は削除済みではありません。");
+			}
+			if (delete) {
+				taskDao.archiveTask(connection, user.userId(), taskId, expectedVersion);
+			} else {
+				taskDao.restoreTask(connection, user.userId(), taskId, expectedVersion);
+			}
+			String afterStatus = delete ? "archived" : "draft";
+			taskDao.recordAudit(
+					connection,
+					user.userId(),
+					taskId,
+					action,
+					requestId,
+					delete ? "課題を論理削除" : "課題を下書きへ復元",
+					taskStateJson(before.publicationStatus(), before.version()),
+					taskStateJson(afterStatus, before.version() + 1));
+			connection.commit();
+			committed = true;
+		} catch (SQLException | RuntimeException failure) {
+			operationFailure = failure;
+			if (connection != null) {
+				rollback(connection, failure);
+			}
+		} finally {
+			if (connection != null) {
+				try {
+					connection.close();
+				} catch (SQLException | RuntimeException closeFailure) {
+					if (committed) {
+						LOGGER.log(Level.SEVERE, "Task state committed, but closing its connection failed.", closeFailure);
+					} else if (operationFailure == null) {
+						operationFailure = closeFailure;
+					} else {
+						operationFailure.addSuppressed(closeFailure);
+						LOGGER.log(Level.SEVERE, "Unable to close the failed task state transaction.", closeFailure);
+					}
+				}
+			}
+		}
+		if (operationFailure != null) {
+			if (!committed) {
+				recordFailureAudit(user.userId(), taskId, action, requestId, operationFailure);
+			}
+			if (operationFailure instanceof SQLException sqlFailure) {
+				throw sqlFailure;
+			}
+			throw (RuntimeException) operationFailure;
+		}
 	}
 
 	public List<TeacherTaskAuditEntry> loadAuditEntries(AuthenticatedUser user, long taskId) throws SQLException {
@@ -239,6 +337,10 @@ public final class TeacherTaskControl {
 			long teacherUserId,
 			TeacherTaskDetails before,
 			TeacherTaskInput input) throws SQLException {
+		permissionDao.requireAuthorizedSchool(connection, teacherUserId, input.schoolId());
+		if (before != null && before.input().schoolId() != input.schoolId()) {
+			throw new IllegalArgumentException("課題の所属学校は変更できません。");
+		}
 		Set<Long> classroomIds = new HashSet<>();
 		if (before != null) {
 			for (ClassAssignmentInput assignment : before.input().classAssignments()) {
@@ -249,22 +351,7 @@ public final class TeacherTaskControl {
 			classroomIds.add(assignment.classroomId());
 		}
 		for (long classroomId : classroomIds) {
-			permissionDao.requireAuthorizedClass(connection, teacherUserId, classroomId);
-		}
-	}
-
-	private void requireAuthorizedDraftClasses(
-			Connection connection,
-			long teacherUserId,
-			List<TeacherTaskDetails> drafts) throws SQLException {
-		Set<Long> classroomIds = new HashSet<>();
-		for (TeacherTaskDetails draft : drafts) {
-			for (ClassAssignmentInput assignment : draft.input().classAssignments()) {
-				classroomIds.add(assignment.classroomId());
-			}
-		}
-		for (long classroomId : classroomIds) {
-			permissionDao.requireAuthorizedClass(connection, teacherUserId, classroomId);
+			permissionDao.requireAuthorizedClass(connection, teacherUserId, classroomId, input.schoolId());
 		}
 	}
 
@@ -353,6 +440,10 @@ public final class TeacherTaskControl {
 
 	private static String versionJson(long version) {
 		return "{\"version\":" + version + "}";
+	}
+
+	private static String taskStateJson(String status, long version) {
+		return "{\"publicationStatus\":\"" + status + "\",\"version\":" + version + "}";
 	}
 
 	private static void requireTeacher(AuthenticatedUser user) {

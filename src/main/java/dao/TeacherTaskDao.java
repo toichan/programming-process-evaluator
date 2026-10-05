@@ -44,15 +44,36 @@ public final class TeacherTaskDao {
 	}
 
 	public List<TeacherTaskDetails> findDrafts(Connection connection, long teacherUserId) throws SQLException {
+		return findTasks(connection, teacherUserId, "t.publication_status = 'draft'");
+	}
+
+	public List<TeacherTaskDetails> findManageableTasks(
+			Connection connection, List<Long> authorizedSchoolIds) throws SQLException {
+		return findTasksForSchools(connection, authorizedSchoolIds,
+				"t.publication_status IN ('draft','published','requires_update')", false);
+	}
+
+	public List<TeacherTaskDetails> findDeletedTasks(
+			Connection connection, List<Long> authorizedSchoolIds) throws SQLException {
+		return findTasksForSchools(connection, authorizedSchoolIds,
+				"t.publication_status = 'archived' AND t.deleted_at IS NOT NULL", true);
+	}
+
+	public List<TeacherTaskDetails> findPromptTasks(Connection connection, long teacherUserId) throws SQLException {
+		return findTasks(connection, teacherUserId,
+				"t.publication_status IN ('draft','published','requires_update')");
+	}
+
+	private List<TeacherTaskDetails> findTasks(
+			Connection connection, long teacherUserId, String publicationPredicate) throws SQLException {
 		requireTeacherId(teacherUserId);
 		List<Long> taskIds = new ArrayList<>();
 		try (PreparedStatement statement = connection.prepareStatement("""
-				SELECT task_id
-				FROM tasks
-				WHERE created_by_user_id = ? AND publication_status = 'draft'
-				  AND deleted_at IS NULL
-				ORDER BY updated_at DESC, created_at DESC, task_id DESC
-				""")) {
+				SELECT t.task_id
+				FROM tasks t
+				WHERE t.created_by_user_id = ? AND %s AND t.deleted_at IS NULL
+				ORDER BY t.updated_at DESC, t.created_at DESC, t.task_id DESC
+				""".formatted(publicationPredicate))) {
 			statement.setLong(1, teacherUserId);
 			try (ResultSet rows = statement.executeQuery()) {
 				while (rows.next()) {
@@ -62,9 +83,49 @@ public final class TeacherTaskDao {
 		}
 		List<TeacherTaskDetails> tasks = new ArrayList<>(taskIds.size());
 		for (long taskId : taskIds) {
-			findTask(connection, teacherUserId, taskId, false).ifPresent(tasks::add);
+			findTask(connection, teacherUserId, taskId, false, publicationPredicate).ifPresent(tasks::add);
 		}
 		return List.copyOf(tasks);
+	}
+
+	private List<TeacherTaskDetails> findTasksForSchools(
+			Connection connection,
+			List<Long> authorizedSchoolIds,
+			String publicationPredicate,
+			boolean includeDeleted) throws SQLException {
+		if (authorizedSchoolIds.isEmpty()) {
+			return List.of();
+		}
+		List<Long> taskIds = new ArrayList<>();
+		String schoolPlaceholders = String.join(",", java.util.Collections.nCopies(authorizedSchoolIds.size(), "?"));
+		try (PreparedStatement statement = connection.prepareStatement("""
+				SELECT t.task_id
+				FROM tasks t
+				WHERE t.school_id IN (%s) AND %s %s
+				ORDER BY t.updated_at DESC, t.created_at DESC, t.task_id DESC
+				""".formatted(
+						schoolPlaceholders,
+						publicationPredicate,
+						includeDeleted ? "" : "AND t.deleted_at IS NULL"))) {
+			for (int index = 0; index < authorizedSchoolIds.size(); index++) {
+				statement.setLong(index + 1, authorizedSchoolIds.get(index));
+			}
+			try (ResultSet rows = statement.executeQuery()) {
+				while (rows.next()) {
+					taskIds.add(rows.getLong("task_id"));
+				}
+			}
+		}
+		List<TeacherTaskDetails> tasks = new ArrayList<>(taskIds.size());
+		for (long taskId : taskIds) {
+			findTask(connection, null, taskId, false, publicationPredicate, includeDeleted).ifPresent(tasks::add);
+		}
+		return List.copyOf(tasks);
+	}
+
+	public Optional<TeacherTaskDetails> findTaskForManagement(
+			Connection connection, long taskId, boolean forUpdate) throws SQLException {
+		return findTask(connection, null, taskId, forUpdate, "1 = 1", true);
 	}
 
 	public Optional<TeacherTaskDetails> findDraft(
@@ -72,10 +133,42 @@ public final class TeacherTaskDao {
 			long teacherUserId,
 			long taskId,
 			boolean forUpdate) throws SQLException {
-		requireTeacherId(teacherUserId);
+		return findTask(connection, teacherUserId, taskId, forUpdate, "t.publication_status = 'draft'");
+	}
+
+	public Optional<TeacherTaskDetails> findPromptTask(
+			Connection connection,
+			long teacherUserId,
+			long taskId,
+			boolean forUpdate) throws SQLException {
+		return findTask(connection, teacherUserId, taskId, forUpdate,
+				"t.publication_status IN ('draft','published','requires_update')");
+	}
+
+	private Optional<TeacherTaskDetails> findTask(
+			Connection connection,
+			long teacherUserId,
+			long taskId,
+			boolean forUpdate,
+			String publicationPredicate) throws SQLException {
+		return findTask(connection, Long.valueOf(teacherUserId), taskId, forUpdate, publicationPredicate, false);
+	}
+
+	private Optional<TeacherTaskDetails> findTask(
+			Connection connection,
+			Long teacherUserId,
+			long taskId,
+			boolean forUpdate,
+			String publicationPredicate,
+			boolean includeDeleted) throws SQLException {
+		if (teacherUserId != null) {
+			requireTeacherId(teacherUserId);
+		}
 		requireTaskId(taskId);
+		String ownerPredicate = teacherUserId == null ? "" : " AND t.created_by_user_id = ?";
 		String sql = """
 				SELECT t.task_id, t.task_code, t.task_revision_code, t.revision_number, t.version,
+				       t.school_id,
 				       t.created_by_user_id, creator.login_id AS created_by_login_id,
 				       t.updated_by_user_id, updater.login_id AS updated_by_login_id,
 				       t.created_at, t.updated_at, t.save_status, t.publication_status,
@@ -88,12 +181,17 @@ public final class TeacherTaskDao {
 				LEFT JOIN rubrics r ON r.rubric_id = t.rubric_id
 				LEFT JOIN prompt_versions p
 				  ON p.prompt_version_id = t.active_prompt_version_id AND p.task_id = t.task_id
-				WHERE t.task_id = ? AND t.created_by_user_id = ?
-				  AND t.publication_status = 'draft' AND t.deleted_at IS NULL
-				""" + (forUpdate ? " FOR UPDATE" : "");
+				WHERE t.task_id = ? %s AND %s %s
+				""".formatted(
+						ownerPredicate,
+						publicationPredicate,
+						includeDeleted ? "" : "AND t.deleted_at IS NULL")
+				+ (forUpdate ? " FOR UPDATE" : "");
 		try (PreparedStatement statement = connection.prepareStatement(sql)) {
 			statement.setLong(1, taskId);
-			statement.setLong(2, teacherUserId);
+			if (teacherUserId != null) {
+				statement.setLong(2, teacherUserId);
+			}
 			try (ResultSet rows = statement.executeQuery()) {
 				if (!rows.next()) {
 					return Optional.empty();
@@ -123,7 +221,8 @@ public final class TeacherTaskDao {
 								rows.getString("description"),
 								rows.getString("input_constraints"),
 								rows.getString("creation_rules"),
-								rows.getString("initial_code")));
+								rows.getString("initial_code"),
+								rows.getLong("school_id")));
 				return Optional.of(details);
 			}
 		}
@@ -171,25 +270,26 @@ public final class TeacherTaskDao {
 		long taskId;
 		try (PreparedStatement statement = connection.prepareStatement("""
 				INSERT INTO tasks (
-				  task_code, task_revision_code, revision_number, supersedes_task_id,
+				  school_id, task_code, task_revision_code, revision_number, supersedes_task_id,
 				  created_by_user_id, updated_by_user_id, rubric_id,
 				  title, theme, difficulty, language,
 				  description, input_constraints, creation_rules, initial_code, save_status,
 				  publication_status, created_at, version
-				) VALUES (?, ?, 1, NULL, ?, NULL, ?, ?, ?, ?, 'Python', ?, ?, ?, ?, 'draft',
+				) VALUES (?, ?, ?, 1, NULL, ?, NULL, ?, ?, ?, ?, 'Python', ?, ?, ?, ?, 'draft',
 				  'draft', CURRENT_TIMESTAMP, 1)
 				""", Statement.RETURN_GENERATED_KEYS)) {
-			statement.setString(1, taskCode);
-			statement.setString(2, revisionCode);
-			statement.setLong(3, teacherUserId);
-			statement.setLong(4, rubricId);
-			statement.setString(5, input.title());
-			statement.setString(6, input.theme());
-			statement.setString(7, databaseDifficulty(input.difficulty()));
-			statement.setString(8, input.description());
-			statement.setString(9, input.inputConstraints());
-			statement.setString(10, input.creationRules());
-			statement.setString(11, input.initialCode());
+			statement.setLong(1, input.schoolId());
+			statement.setString(2, taskCode);
+			statement.setString(3, revisionCode);
+			statement.setLong(4, teacherUserId);
+			statement.setLong(5, rubricId);
+			statement.setString(6, input.title());
+			statement.setString(7, input.theme());
+			statement.setString(8, databaseDifficulty(input.difficulty()));
+			statement.setString(9, input.description());
+			statement.setString(10, input.inputConstraints());
+			statement.setString(11, input.creationRules());
+			statement.setString(12, input.initialCode());
 			statement.executeUpdate();
 			taskId = generatedId(statement);
 		}
@@ -198,6 +298,56 @@ public final class TeacherTaskDao {
 		insertHints(connection, taskId, input.hints());
 		insertAssignments(connection, taskId, input.classAssignments());
 		return taskId;
+	}
+
+	public void archiveTask(
+			Connection connection,
+			long actorUserId,
+			long taskId,
+			long expectedVersion) throws SQLException {
+		requireWriteTransaction(connection);
+		requireTeacherId(actorUserId);
+		requireTaskId(taskId);
+		try (PreparedStatement statement = connection.prepareStatement("""
+				UPDATE tasks
+				SET publication_status = 'archived', deleted_at = CURRENT_TIMESTAMP,
+				    deleted_by_user_id = ?, updated_by_user_id = ?, version = version + 1,
+				    updated_at = CURRENT_TIMESTAMP
+				WHERE task_id = ? AND publication_status IN ('draft','published','requires_update')
+				  AND deleted_at IS NULL AND version = ?
+				""")) {
+			statement.setLong(1, actorUserId);
+			statement.setLong(2, actorUserId);
+			statement.setLong(3, taskId);
+			statement.setLong(4, expectedVersion);
+			if (statement.executeUpdate() != 1) {
+				throw new IllegalStateException("Task state or version changed during deletion.");
+			}
+		}
+	}
+
+	public void restoreTask(
+			Connection connection,
+			long actorUserId,
+			long taskId,
+			long expectedVersion) throws SQLException {
+		requireWriteTransaction(connection);
+		requireTeacherId(actorUserId);
+		requireTaskId(taskId);
+		try (PreparedStatement statement = connection.prepareStatement("""
+				UPDATE tasks
+				SET publication_status = 'draft', deleted_at = NULL, deleted_by_user_id = NULL,
+				    updated_by_user_id = ?, version = version + 1, updated_at = CURRENT_TIMESTAMP
+				WHERE task_id = ? AND publication_status = 'archived'
+				  AND deleted_at IS NOT NULL AND version = ?
+				""")) {
+			statement.setLong(1, actorUserId);
+			statement.setLong(2, taskId);
+			statement.setLong(3, expectedVersion);
+			if (statement.executeUpdate() != 1) {
+				throw new IllegalStateException("Task state or version changed during restoration.");
+			}
+		}
 	}
 
 	public void updateDraft(
@@ -257,7 +407,7 @@ public final class TeacherTaskDao {
 		requireWriteTransaction(connection);
 		requireTeacherId(teacherUserId);
 		requireTaskId(taskId);
-		if (!List.of("create_draft", "update_draft").contains(actionType)) {
+		if (!List.of("create_draft", "update_draft", "delete_task", "restore_task").contains(actionType)) {
 			throw new IllegalArgumentException("Unsupported task audit action.");
 		}
 		if (requestId == null || requestId.isBlank()) {
@@ -293,7 +443,7 @@ public final class TeacherTaskDao {
 			String errorMessage) throws SQLException {
 		requireWriteTransaction(connection);
 		requireTeacherId(teacherUserId);
-		if (!List.of("create_draft", "update_draft").contains(actionType)) {
+		if (!List.of("create_draft", "update_draft", "delete_task", "restore_task").contains(actionType)) {
 			throw new IllegalArgumentException("Unsupported task audit action.");
 		}
 		try (PreparedStatement statement = connection.prepareStatement("""
@@ -417,7 +567,8 @@ public final class TeacherTaskDao {
 			String description,
 			String inputConstraints,
 			String creationRules,
-			String initialCode) throws SQLException {
+			String initialCode,
+			long schoolId) throws SQLException {
 		List<String> features = new ArrayList<>();
 		try (PreparedStatement statement = connection.prepareStatement("""
 				SELECT feature_text
@@ -504,7 +655,7 @@ public final class TeacherTaskDao {
 				inputConstraints,
 				creationRules,
 				initialCode,
-				features, testCases, hints, assignments);
+				features, testCases, hints, assignments, schoolId);
 	}
 
 	private void insertFeatures(Connection connection, long taskId, List<String> features) throws SQLException {

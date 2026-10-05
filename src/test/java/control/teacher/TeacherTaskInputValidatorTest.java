@@ -45,7 +45,8 @@ class TeacherTaskInputValidatorTest {
 				List.of(" feature "),
 				List.of(new EditorTestCase(0, null, null, null, 0)),
 				List.of(new HintInput(0, 99, new EditorHint(null, null, null, null))),
-				List.of());
+				List.of(),
+				1);
 
 		TeacherTaskInput normalized = validator.validateAndNormalize(raw);
 
@@ -69,6 +70,15 @@ class TeacherTaskInputValidatorTest {
 	}
 
 	@Test
+	void rejectsMissingSchool() {
+		TeacherTaskInput missingSchool = new TeacherTaskInput(
+				"Task", null, null, "", null, null, null,
+				List.of(), List.of(), List.of(), List.of(), 0);
+
+		assertThrows(IllegalArgumentException.class, () -> validator.validateAndNormalize(missingSchool));
+	}
+
+	@Test
 	void rejectsDueDateThatIsNotAfterScheduledPublication() {
 		LocalDateTime publishAt = LocalDateTime.of(2026, 10, 5, 12, 0);
 		ClassAssignmentInput assignment = new ClassAssignmentInput(
@@ -86,6 +96,6 @@ class TeacherTaskInputValidatorTest {
 			List<ClassAssignmentInput> assignments) {
 		return new TeacherTaskInput(
 				title, null, null, description, null, null, null,
-				List.of(), testCases, hints, assignments);
+				List.of(), testCases, hints, assignments, 1);
 	}
 }

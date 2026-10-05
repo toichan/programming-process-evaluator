@@ -69,6 +69,6 @@ class TeacherTaskControlTest {
 
 	private static TeacherTaskInput emptyInput() {
 		return new TeacherTaskInput("Task", null, null, "Description", null, null, null,
-				List.of(), List.of(), List.of(), List.of());
+				List.of(), List.of(), List.of(), List.of(), 1);
 	}
 }

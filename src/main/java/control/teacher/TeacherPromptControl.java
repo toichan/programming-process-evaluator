@@ -61,17 +61,20 @@ public final class TeacherPromptControl {
 			connection.setAutoCommit(false);
 			try {
 				permissionDao.requireTaskManagementAccess(connection, user.userId());
-				List<TeacherTaskDetails> tasks = taskDao.findDrafts(connection, user.userId());
+				List<TeacherTaskDetails> tasks = taskDao.findPromptTasks(connection, user.userId());
 				requireAuthorizedClasses(connection, user.userId(), tasks);
 				if (selectedTaskId == null) {
 					connection.commit();
-					return new TeacherPromptPage(tasks, null, null, List.of(), null, null, "", List.of());
+					return new TeacherPromptPage(
+							tasks, null, null, List.of(), null, null, "", List.of(), List.of());
 				}
-				TeacherTaskDetails selected = taskDao.findDraft(connection, user.userId(), selectedTaskId, true)
+				TeacherTaskDetails selected = taskDao.findPromptTask(connection, user.userId(), selectedTaskId, true)
 						.orElseThrow(TeacherPromptDao.TeacherTaskNotFoundException::new);
 				requireAuthorizedClasses(connection, user.userId(), List.of(selected));
-				promptDao.ensureStandardRubric(connection, user.userId(), selectedTaskId);
-				selected = taskDao.findDraft(connection, user.userId(), selectedTaskId, false)
+				if ("draft".equals(selected.publicationStatus())) {
+					promptDao.ensureStandardRubric(connection, user.userId(), selectedTaskId);
+				}
+				selected = taskDao.findPromptTask(connection, user.userId(), selectedTaskId, false)
 						.orElseThrow(TeacherPromptDao.TeacherTaskNotFoundException::new);
 				StandardRubric rubric = rubricDao.find(connection)
 						.orElseThrow(() -> new SQLException("The active standard rubric is not available."));
@@ -80,9 +83,12 @@ public final class TeacherPromptControl {
 				TeacherPromptVersion selectedVersion = chooseVersion(versions, selectedVersionId, activeVersionId);
 				String targets = promptDao.findTargetSummary(connection, selectedTaskId);
 				var auditEntries = promptDao.findAuditEntries(connection, user.userId(), selectedTaskId);
+				var reevaluationJobs = promptDao.findReevaluationJobHistory(
+						connection, user.userId(), selectedTaskId);
 				connection.commit();
 				return new TeacherPromptPage(
-						tasks, selected, activeVersionId, versions, selectedVersion, rubric, targets, auditEntries);
+						tasks, selected, activeVersionId, versions, selectedVersion, rubric, targets,
+						auditEntries, reevaluationJobs);
 			} catch (SQLException | RuntimeException failure) {
 				rollback(connection, failure);
 				throw failure;
@@ -108,7 +114,7 @@ public final class TeacherPromptControl {
 			connection.setAutoCommit(false);
 			try {
 				permissionDao.requireTaskManagementAccess(connection, user.userId());
-				TeacherTaskDetails task = taskDao.findDraft(connection, user.userId(), taskId, true)
+				TeacherTaskDetails task = taskDao.findPromptTask(connection, user.userId(), taskId, true)
 						.orElseThrow(TeacherPromptDao.TeacherTaskNotFoundException::new);
 				requireAuthorizedClasses(connection, user.userId(), List.of(task));
 				long savedId = promptDao.saveDraft(connection, user.userId(), taskId, promptVersionId,
@@ -274,7 +280,7 @@ public final class TeacherPromptControl {
 			try {
 				requireTaskAccess(connection, user, taskId);
 				promptDao.ensureStandardRubric(connection, user.userId(), taskId);
-				TeacherTaskDetails task = taskDao.findDraft(connection, user.userId(), taskId, true)
+				TeacherTaskDetails task = taskDao.findPromptTask(connection, user.userId(), taskId, true)
 						.orElseThrow(TeacherPromptDao.TeacherTaskNotFoundException::new);
 				rubricDao.requireActiveId(connection);
 				StandardRubric rubric = rubricDao.find(connection)
@@ -303,7 +309,7 @@ public final class TeacherPromptControl {
 
 	private void requireTaskAccess(Connection connection, AuthenticatedUser user, long taskId) throws SQLException {
 		permissionDao.requireTaskManagementAccess(connection, user.userId());
-		TeacherTaskDetails task = taskDao.findDraft(connection, user.userId(), taskId, true)
+		TeacherTaskDetails task = taskDao.findPromptTask(connection, user.userId(), taskId, true)
 				.orElseThrow(TeacherPromptDao.TeacherTaskNotFoundException::new);
 		requireAuthorizedClasses(connection, user.userId(), List.of(task));
 	}

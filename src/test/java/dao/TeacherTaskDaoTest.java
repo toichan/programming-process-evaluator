@@ -47,6 +47,7 @@ class TeacherTaskDaoTest {
 		assertEquals(41, taskDao.insertDraft(connection, 7, emptyInput()));
 		assertEquals(1, preparedSql.size());
 		String normalizedSql = preparedSql.get(0).replaceAll("\\s+", " ");
+		assertTrue(normalizedSql.contains("school_id, task_code, task_revision_code"));
 		assertTrue(normalizedSql.contains("publication_status, created_at, version"));
 		assertTrue(normalizedSql.contains("'draft', 'draft', CURRENT_TIMESTAMP, 1)"));
 		assertTrue(normalizedSql.contains("created_by_user_id, updated_by_user_id, rubric_id,"));
@@ -55,7 +56,7 @@ class TeacherTaskDaoTest {
 	private static TeacherTaskInput emptyInput() {
 		return new TeacherTaskInput(
 				"Task", null, null, "Description", null, null, null,
-				List.of(), List.of(), List.of(), List.of());
+				List.of(), List.of(), List.of(), List.of(), 1);
 	}
 
 	private static Connection connection(boolean autoCommit, List<String> preparedSql) {

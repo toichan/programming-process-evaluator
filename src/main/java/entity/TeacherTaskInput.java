@@ -15,7 +15,8 @@ public record TeacherTaskInput(
 		List<String> features,
 		List<EditorTestCase> testCases,
 		List<HintInput> hints,
-		List<ClassAssignmentInput> classAssignments) {
+		List<ClassAssignmentInput> classAssignments,
+		long schoolId) {
 
 	public TeacherTaskInput {
 		features = List.copyOf(Objects.requireNonNull(features));
@@ -26,6 +27,10 @@ public record TeacherTaskInput(
 
 	public String getTitle() {
 		return title;
+	}
+
+	public long getSchoolId() {
+		return schoolId;
 	}
 
 	public String getTheme() {

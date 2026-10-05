@@ -15,6 +15,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
 import entity.StandardRubric;
+import entity.ReevaluationJobHistory;
 import entity.TeacherPromptAuditEntry;
 import entity.TeacherPromptVersion;
 import entity.TeacherPromptVersion.EvaluationExample;
@@ -193,6 +194,61 @@ public final class TeacherPromptDao {
 		return List.copyOf(entries);
 	}
 
+	public List<ReevaluationJobHistory> findReevaluationJobHistory(
+			Connection connection, long teacherUserId, long taskId) throws SQLException {
+		List<ReevaluationJobHistory> jobs = new ArrayList<>();
+		try (PreparedStatement statement = connection.prepareStatement("""
+				SELECT j.reevaluation_job_id, j.prompt_version_id, pv.version AS prompt_version,
+				       j.reevaluation_status, j.target_count, j.completed_count, j.progress_percent,
+				       COALESCE(
+				         (SELECT COUNT(*) FROM reevaluation_job_targets jt
+				          WHERE jt.reevaluation_job_id = j.reevaluation_job_id
+				            AND jt.target_status = 'failed'),
+				         0) AS failed_count,
+				       requester.login_id AS requested_by_login_id,
+				       COALESCE(
+				         (SELECT a.occurred_at
+				          FROM audit_logs a
+				          WHERE a.actor_role = 'teacher'
+				            AND a.feature_code = 'teacher-prompt-design'
+				            AND a.target_type = 'task' AND a.target_id = j.task_id
+				            AND a.action_type = 'confirm_reevaluation'
+				            AND JSON_UNQUOTE(JSON_EXTRACT(a.after_data, '$.reevaluation_job_id'))
+				                = CAST(j.reevaluation_job_id AS CHAR)
+				          ORDER BY a.occurred_at DESC, a.audit_log_id DESC
+				          LIMIT 1),
+				         j.started_at, j.completed_at) AS requested_at,
+				       j.started_at, j.completed_at
+				FROM reevaluation_jobs j
+				JOIN tasks t ON t.task_id = j.task_id
+				JOIN prompt_versions pv ON pv.prompt_version_id = j.prompt_version_id
+				JOIN users requester ON requester.user_id = j.requested_by_user_id
+				WHERE j.task_id = ? AND t.created_by_user_id = ? AND t.deleted_at IS NULL
+				ORDER BY requested_at DESC, j.reevaluation_job_id DESC
+				""")) {
+			statement.setLong(1, taskId);
+			statement.setLong(2, teacherUserId);
+			try (ResultSet rows = statement.executeQuery()) {
+				while (rows.next()) {
+					jobs.add(new ReevaluationJobHistory(
+							rows.getLong("reevaluation_job_id"),
+							rows.getLong("prompt_version_id"),
+							rows.getString("prompt_version"),
+							rows.getString("reevaluation_status"),
+							rows.getInt("target_count"),
+							rows.getInt("completed_count"),
+							rows.getInt("failed_count"),
+							rows.getBigDecimal("progress_percent"),
+							rows.getString("requested_by_login_id"),
+							toLocalDateTime(rows.getTimestamp("requested_at")),
+							toLocalDateTime(rows.getTimestamp("started_at")),
+							toLocalDateTime(rows.getTimestamp("completed_at"))));
+				}
+			}
+		}
+		return List.copyOf(jobs);
+	}
+
 	public String findTargetSummary(Connection connection, long taskId) throws SQLException {
 		List<String> targets = new ArrayList<>();
 		try (PreparedStatement statement = connection.prepareStatement("""
@@ -225,9 +281,11 @@ public final class TeacherPromptDao {
 			String commonPrompt,
 			String additionalInstruction) throws SQLException {
 		requireWriteTransaction(connection);
-		taskDao.findDraft(connection, teacherUserId, taskId, true)
+			var task = taskDao.findPromptTask(connection, teacherUserId, taskId, true)
 				.orElseThrow(TeacherTaskNotFoundException::new);
-		ensureStandardRubric(connection, teacherUserId, taskId);
+			if ("draft".equals(task.publicationStatus())) {
+				ensureStandardRubric(connection, teacherUserId, taskId);
+			}
 		if (promptVersionId == null) {
 			String version = nextVersion(connection, taskId);
 			long id;
