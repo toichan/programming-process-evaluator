@@ -53,6 +53,7 @@ const PROMPT_VERSION_STORAGE_KEY = 'teacherPromptVersionStore';
 const STEP2_VERSION_STORAGE_KEY = 'teacherPromptStep2VersionStore';
 const EVALUATION_EXAMPLES_STORAGE_KEY = 'teacherEvaluationExamplesStore';
 const STEP3_VERSION_STORAGE_KEY = 'teacherPromptStep3VersionStore';
+const INDEPENDENT_TASK_DRAFT_STORAGE_KEY = 'teacherIndependentTaskDraftStore';
 let commonPromptEditor = null;
 
 const PROMPT_TASK_META = {
@@ -117,6 +118,8 @@ function initializePromptPage() {
   const versionSelectStep2 = document.getElementById('versionSelectStep2');
   const versionSelectStep3 = document.getElementById('versionSelectStep3');
 
+  populateIndependentCopyTaskOptions(taskSelect);
+
   if (taskSelect) {
     taskSelect.addEventListener('change', onTaskChanged);
   }
@@ -178,6 +181,7 @@ function initializePromptPage() {
       }
 
       const saved = saveStep2Version(taskId);
+      if (isIndependentTaskDraft(taskId) && !markIndependentTaskPromptConfigured(taskId)) return;
       const toastMessage = saved.reused
         ? '変更がないため、STEP2は ' + formatStep2VersionLabel(saved.step1Version, saved.version) + ' を利用して評価例を生成します。'
         : 'STEP2を' + formatStep2VersionLabel(saved.step1Version, saved.version) + 'として保存し、評価例を生成します。';
@@ -202,6 +206,7 @@ function initializePromptPage() {
       }
 
       const saved = saveStep2Version(taskId);
+      if (isIndependentTaskDraft(taskId) && !markIndependentTaskPromptConfigured(taskId)) return;
       const toastMessage = saved.reused
         ? '変更がないため、' + formatStep2VersionLabel(saved.step1Version, saved.version) + ' をそのまま利用します。'
         : '課題プロンプトを保存しました。';
@@ -266,6 +271,7 @@ function initializePromptPage() {
   renderStep2VersionOptions(getTaskId());
   renderStep3VersionOptions(getTaskId());
   syncStep2AndStep3Selection(getTaskId());
+  restoreIndependentTaskDraftInstruction(getTaskId());
   bindPromptHistoryDetailButtons();
   bindPromptHistoryDuplicateButtons();
   bindPromptHistoryEditButtons();
@@ -275,6 +281,7 @@ function onTaskChanged() {
   const taskId = getTaskId();
   syncTaskSelectionInUrl(taskId);
   renderVersionOptions(taskId);
+  updateIndependentPromptDraftNotice(taskId);
 
   if (!taskId) {
     setValue('evaluationPromptInput', COMMON_PROMPT_TEMPLATE);
@@ -286,7 +293,20 @@ function onTaskChanged() {
   setValue('evaluationPromptInput', COMMON_PROMPT_TEMPLATE);
 
   if (!hasAnyVersion(taskId)) {
-    applyCurrentFormToDraft(taskId);
+    const independentDraft = getIndependentTaskDraft(taskId);
+    if (independentDraft && independentDraft.promptDraft) {
+      setValue('modelSelect', independentDraft.promptDraft.model || '');
+      setValue('evaluationPromptInput', independentDraft.promptDraft.prompt || '');
+      setValue('additionalInstructionInput', independentDraft.promptDraft.additionalInstruction || '');
+    } else if (independentDraft) {
+      pageFeedback.toast({
+        message: '複製したプロンプト下書きがありません。課題を複製し直してください。',
+        variant: 'warning',
+        delay: 2800
+      });
+    } else {
+      applyCurrentFormToDraft(taskId);
+    }
   } else {
     const latest = getLatestVersionRecord(taskId);
     if (latest) {
@@ -296,6 +316,102 @@ function onTaskChanged() {
 
   renderStep3VersionOptions(taskId);
   syncStep2AndStep3Selection(taskId);
+  restoreIndependentTaskDraftInstruction(taskId);
+}
+
+function populateIndependentCopyTaskOptions(taskSelect) {
+  if (!taskSelect) return;
+  const store = readIndependentTaskDraftStore();
+  if (!store) return;
+
+  Object.keys(store).forEach(function(taskId) {
+    const draft = store[taskId];
+    if (!draft || Array.from(taskSelect.options).some(function(option) { return option.value === taskId; })) return;
+
+    PROMPT_TASK_META[taskId] = {
+      name: draft.taskName || '新しい課題',
+      difficulty: draft.difficulty || '-',
+      target: (draft.schoolName || '学校未選択') + ' / クラス未選択'
+    };
+    const option = document.createElement('option');
+    option.value = taskId;
+    option.textContent = PROMPT_TASK_META[taskId].name + '（' + PROMPT_TASK_META[taskId].difficulty + '・新しい課題）';
+    taskSelect.appendChild(option);
+  });
+}
+
+function readIndependentTaskDraftStore() {
+  try {
+    const raw = window.localStorage.getItem(INDEPENDENT_TASK_DRAFT_STORAGE_KEY);
+    if (!raw) return {};
+    const store = JSON.parse(raw);
+    if (!store || typeof store !== 'object' || Array.isArray(store)) {
+      throw new Error('Independent task draft store must be an object.');
+    }
+    return store;
+  } catch (error) {
+    console.error('Could not read independent task drafts.', error);
+    pageFeedback.toast({
+      message: '複製した課題のプロンプト下書きを読み込めませんでした。',
+      variant: 'warning',
+      delay: 2800
+    });
+    return null;
+  }
+}
+
+function getIndependentTaskDraft(taskId) {
+  if (!taskId) return null;
+  const store = readIndependentTaskDraftStore();
+  return store ? (store[taskId] || null) : null;
+}
+
+function isIndependentTaskDraft(taskId) {
+  return Boolean(getIndependentTaskDraft(taskId));
+}
+
+function markIndependentTaskPromptConfigured(taskId) {
+  const store = readIndependentTaskDraftStore();
+  if (!store || !store[taskId]) return false;
+  store[taskId].promptConfigured = true;
+  try {
+    window.localStorage.setItem(INDEPENDENT_TASK_DRAFT_STORAGE_KEY, JSON.stringify(store));
+    return true;
+  } catch (error) {
+    console.error('Could not mark the independent task prompt as configured.', error);
+    pageFeedback.toast({
+      message: 'プロンプトは保存されましたが、新課題への設定状態を記録できませんでした。ブラウザーの保存領域を確認して再度保存してください。',
+      variant: 'warning',
+      delay: 3600
+    });
+    return false;
+  }
+}
+
+function updateIndependentPromptDraftNotice(taskId) {
+  const notice = document.getElementById('independentPromptDraftNotice');
+  if (!notice) return;
+  const draft = getIndependentTaskDraft(taskId);
+  if (!draft) {
+    notice.classList.add('d-none');
+    notice.textContent = '';
+    return;
+  }
+
+  notice.classList.remove('d-none');
+  notice.textContent = '「' + (draft.taskName || '新しい課題') + '」専用の未適用下書きです。'
+    + ' 複製元 ' + (draft.sourceTaskCode || '不明') + ' の保存済みプロンプト'
+    + (draft.promptDraft && draft.promptDraft.sourceStep1Version ? ' ver.' + draft.promptDraft.sourceStep1Version : '')
+    + ' を複製時点の内容で読み込みました。'
+    + ' 内容を確認し、新課題の共通プロンプトと課題ごとの追加指示を保存してください。'
+    + ' 元課題の設定・履歴は変更されません。';
+}
+
+function restoreIndependentTaskDraftInstruction(taskId) {
+  const draft = getIndependentTaskDraft(taskId);
+  if (draft && draft.promptDraft && !hasAnyStep2Version(taskId)) {
+    setValue('additionalInstructionInput', draft.promptDraft.additionalInstruction || '');
+  }
 }
 
 function applyInitialTaskSelection() {
@@ -439,7 +555,9 @@ function generateFluctuationItems() {
 }
 
 function renderFluctuationItems(taskId) {
-  const list = fluctuationTemplateByTask[taskId] || [];
+  const independentDraft = getIndependentTaskDraft(taskId);
+  const templateTaskId = independentDraft ? independentDraft.sourceTaskCode : taskId;
+  const list = fluctuationTemplateByTask[taskId] || fluctuationTemplateByTask[templateTaskId] || [];
   const fluctuationList = document.getElementById('fluctuationList');
   const fluctuationEmpty = document.getElementById('fluctuationEmpty');
   const savePromptButton = document.getElementById('savePromptButton');
@@ -1295,6 +1413,14 @@ function buildPromptHistoryStatusBadgeHtml(statusText) {
 }
 
 function getPromptTaskMeta(taskId) {
+  const independentDraft = getIndependentTaskDraft(taskId);
+  if (independentDraft) {
+    return {
+      name: independentDraft.taskName || '新しい課題',
+      difficulty: independentDraft.difficulty || '-',
+      target: (independentDraft.schoolName || '学校未選択') + ' / クラス未選択'
+    };
+  }
   const meta = PROMPT_TASK_META[String(taskId || '')];
   if (meta) {
     return meta;

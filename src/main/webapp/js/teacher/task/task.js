@@ -12,7 +12,7 @@ document.addEventListener('DOMContentLoaded', function() {
       const confirmed = await feedback.confirm({
         title: operationForm.dataset.confirmTitle,
         message: operationForm.dataset.confirmMessage,
-        confirmLabel: '実行する',
+        confirmLabel: operationForm.dataset.confirmLabel || '実行する',
         cancelLabel: '戻る',
         variant: operationForm.querySelector('[name="action"]').value === 'deleteTask' ? 'danger' : 'primary'
       });
@@ -176,11 +176,13 @@ document.addEventListener('DOMContentLoaded', function() {
       assignmentId.name = 'assignmentIds';
       const publishAt = document.createElement('input');
       publishAt.type = 'datetime-local';
+      publishAt.step = '1';
       publishAt.className = 'form-control';
       publishAt.name = 'publishAts';
       publishAt.setAttribute('aria-label', name.textContent + ' 公開日時');
       const dueAt = document.createElement('input');
       dueAt.type = 'datetime-local';
+      dueAt.step = '1';
       dueAt.className = 'form-control';
       dueAt.name = 'dueAts';
       dueAt.setAttribute('aria-label', name.textContent + ' 提出期限');
@@ -327,14 +329,45 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('taskCreateForm').addEventListener('input', updatePreview);
   document.getElementById('taskCreateForm').addEventListener('change', updatePreview);
 
-  document.getElementById('saveDraftButton').addEventListener('click', function() {
-    document.getElementById('taskAction').value = formTaskId > 0 ? 'updateDraft' : 'createDraft';
-  });
-  form.addEventListener('submit', function() {
-    document.getElementById('taskAction').value = formTaskId > 0 ? 'updateDraft' : 'createDraft';
-    const button = document.getElementById('saveDraftButton');
-    button.disabled = true;
-    button.textContent = '保存中…';
+  const saveDraftButton = document.getElementById('saveDraftButton');
+  const publishTaskButton = document.getElementById('publishTaskButton');
+  const createRevisionButton = document.getElementById('createRevisionButton');
+  let publicationConfirmed = false;
+  if (saveDraftButton) {
+    saveDraftButton.addEventListener('click', function() {
+      document.getElementById('taskAction').value = formTaskId > 0 ? 'updateDraft' : 'createDraft';
+    });
+  }
+  form.addEventListener('submit', async function(event) {
+    if (event.submitter === publishTaskButton && !publicationConfirmed) {
+      event.preventDefault();
+      const confirmed = await feedback.confirm({
+        title: '課題を保存して公開しますか？',
+        message: '対象クラス、公開日時、提出期限、期限後の提出方針と評価プロンプトを確認してください。',
+        confirmLabel: '公開する',
+        cancelLabel: '戻って確認する',
+        variant: 'warning'
+      });
+      if (!confirmed) return;
+      publicationConfirmed = true;
+      form.requestSubmit(publishTaskButton);
+      return;
+    }
+    if (event.submitter === createRevisionButton) {
+      document.getElementById('taskAction').value = 'createRevision';
+      createRevisionButton.disabled = true;
+      createRevisionButton.textContent = '改訂案を作成中…';
+      return;
+    }
+    const publishing = event.submitter === publishTaskButton;
+    document.getElementById('taskAction').value = publishing
+      ? 'publishTask'
+      : formTaskId > 0 ? 'updateDraft' : 'createDraft';
+    const button = publishing ? publishTaskButton : saveDraftButton;
+    if (button) {
+      button.disabled = true;
+      button.textContent = publishing ? '公開処理中…' : '保存中…';
+    }
   });
 
   document.getElementById('resetFormButton').addEventListener('click', async function() {
@@ -393,6 +426,6 @@ document.addEventListener('DOMContentLoaded', function() {
     window.bootstrap.Modal.getOrCreateInstance(document.getElementById('taskAuditDetailModal')).show();
   }
   if (document.getElementById('taskSaveNotice')) {
-    feedback.toast({ message: '課題の下書きを保存しました。', variant: 'success', delay: 2500 });
+    feedback.toast({ message: '課題を保存しました。', variant: 'success', delay: 2500 });
   }
 });

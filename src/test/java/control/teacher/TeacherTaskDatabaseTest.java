@@ -2,6 +2,9 @@ package control.teacher;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -33,9 +36,14 @@ import control.evaluation.EvaluationProvider;
 import control.evaluation.ReevaluationPreviewWorker;
 import control.student.StandardRubricSource;
 import entity.EditorHint;
+import entity.EditorSubmissionCheck;
+import entity.EditorSubmissionCheckCase;
+import entity.EditorSubmissionResult;
+import entity.EditorSaveResult;
 import entity.EditorTestCase;
 import entity.ReevaluationPreview;
 import entity.ReevaluationJobStatus;
+import entity.StudentEditorPage;
 import entity.TeacherNavigationSummary;
 import entity.TeacherTaskInput;
 import entity.TeacherTaskInput.ClassAssignmentInput;
@@ -47,6 +55,8 @@ import lib.mysql.Client;
 import dao.ReevaluationPreviewDao;
 import dao.StudentEditorDao;
 import dao.StandardRubricDao;
+import dao.TeacherPromptDao;
+import dao.TeacherTaskPublicationDao;
 
 class TeacherTaskDatabaseTest {
 	private static final TeacherTaskControl TASKS = new TeacherTaskControl();
@@ -61,6 +71,335 @@ class TeacherTaskDatabaseTest {
 	private final List<Long> fixtureUserIds = new ArrayList<>();
 	private boolean fixtureInstalled;
 	private boolean retainFixtureAfterTest;
+
+	@Test
+	void createsRetainedSyntheticTeacherFixtureForIsolatedBrowserAcceptance() throws SQLException {
+		Assumptions.assumeTrue("true".equals(System.getenv("TEACHER_TASK_BROWSER_FIXTURE")));
+		assertTrue(System.getenv("DB_NAME").matches("ppe_teacher_task_test_[a-z0-9_]+"));
+		String password = System.getenv("TEACHER_TASK_BROWSER_PASSWORD");
+		assertTrue(password != null && password.length() >= 12,
+				"A throwaway password must be supplied for the isolated browser fixture.");
+
+		try (Connection connection = Client.createConnection();
+				PreparedStatement statement = connection.prepareStatement("""
+						UPDATE users SET password_hash = ? WHERE user_id = ? AND login_id = 'teacher-demo'
+						""")) {
+			assertEquals(System.getenv("DB_NAME"), connection.getCatalog());
+			statement.setString(1, new PasswordHasher().hash(password.toCharArray()));
+			statement.setLong(2, teacherId);
+			assertEquals(1, statement.executeUpdate());
+		}
+
+		long taskId = TASKS.createDraft(
+				teacher(), input("Browser publication acceptance"), UUID.randomUUID().toString());
+		activateConfiguredPrompt(teacher(), taskId);
+		retainFixtureAfterTest = true;
+	}
+
+	@Test
+	void createsRetainedIndependentCopyFixtureForIsolatedBrowserAcceptance() throws SQLException {
+		Assumptions.assumeTrue("true".equals(System.getenv("TEACHER_TASK_BROWSER_FIXTURE")));
+		assertTrue(System.getenv("DB_NAME").matches("ppe_teacher_task_test_[a-z0-9_]+"));
+		String password = System.getenv("TEACHER_TASK_BROWSER_PASSWORD");
+		assertTrue(password != null && password.length() >= 12,
+				"A throwaway password must be supplied for the isolated browser fixture.");
+		try (Connection connection = Client.createConnection();
+				PreparedStatement statement = connection.prepareStatement("""
+						UPDATE users SET password_hash = ? WHERE user_id = ? AND login_id = 'teacher-demo'
+						""")) {
+			assertEquals(System.getenv("DB_NAME"), connection.getCatalog());
+			statement.setString(1, new PasswordHasher().hash(password.toCharArray()));
+			statement.setLong(2, teacherId);
+			assertEquals(1, statement.executeUpdate());
+		}
+
+		AuthenticatedUser owner = teacher();
+		TeacherTaskInput sourceInput = inputWithAssignments(
+				"Independent copy browser source",
+				List.of(new ClassAssignmentInput(
+						0, classroomId, null, null, LateSubmissionPolicy.ALLOW)));
+		long sourceTaskId = TASKS.createDraft(owner, sourceInput, UUID.randomUUID().toString());
+		activateConfiguredPrompt(owner, sourceTaskId);
+		long sourcePromptVersionId = findActivePromptVersionId(sourceTaskId);
+		assertNotNull(sourcePromptVersionId);
+		setActivePromptCopyContent(sourceTaskId, sourcePromptVersionId);
+		publishDraft(owner, sourceTaskId);
+		long assignmentId = findAssignmentId(sourceTaskId, classroomId);
+		long studentId = insertStudentFixture();
+		try (Connection connection = Client.createConnection()) {
+			assertEquals(System.getenv("DB_NAME"), connection.getCatalog());
+			connection.setAutoCommit(false);
+			try {
+				insertParticipationAndAcceptedSubmission(connection, studentId, assignmentId);
+				connection.commit();
+			} catch (SQLException | RuntimeException | Error failure) {
+				rollback(connection, failure);
+				throw failure;
+			}
+		}
+
+		retainFixtureAfterTest = true;
+		System.out.printf("INDEPENDENT_COPY_BROWSER_FIXTURE loginId=%s sourceTaskId=%d%n",
+				teacherLoginId, sourceTaskId);
+	}
+
+	@Test
+	void createsRetainedSyntheticExpiryHistoryFixtureForRuntimeAcceptance() throws SQLException {
+		Assumptions.assumeTrue("true".equals(System.getenv("TEACHER_TASK_EXPIRY_HISTORY_FIXTURE")));
+		assertTrue(System.getenv("DB_NAME").matches("ppe_teacher_task_test_[a-z0-9_]+"));
+
+		AuthenticatedUser owner = teacher();
+		long taskId = TASKS.createDraft(
+				owner,
+				inputWithAssignments(
+						"Expiry history retention acceptance",
+						List.of(new ClassAssignmentInput(
+								0, classroomId, null, LocalDateTime.now().plusDays(1),
+								LateSubmissionPolicy.ALLOW))),
+				UUID.randomUUID().toString());
+		activateConfiguredPrompt(owner, taskId);
+		publishDraft(owner, taskId);
+		long assignmentId = findAssignmentId(taskId, classroomId);
+		long studentId = insertStudentFixture();
+
+		long participationId;
+		long submissionId;
+		long evaluationId;
+		try (Connection connection = Client.createConnection()) {
+			assertEquals(System.getenv("DB_NAME"), connection.getCatalog());
+			connection.setAutoCommit(false);
+			try {
+				participationId = insertParticipationAndAcceptedSubmission(connection, studentId, assignmentId);
+				try (PreparedStatement statement = connection.prepareStatement(
+						"SELECT submission_id FROM submissions WHERE participation_id = ?")) {
+					statement.setLong(1, participationId);
+					try (ResultSet rows = statement.executeQuery()) {
+						if (!rows.next()) {
+							throw new SQLException("Synthetic submission was not created.");
+						}
+						submissionId = rows.getLong("submission_id");
+					}
+				}
+				try (PreparedStatement statement = connection.prepareStatement("""
+						INSERT INTO code_logs (
+						  participation_id, submission_id, event_type, snapshot_text,
+						  execution_status_at_capture, observed_at, created_at
+						) VALUES (?, ?, 'manual_save', 'synthetic expiry history', 'not_run',
+						  CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+						""")) {
+					statement.setLong(1, participationId);
+					statement.setLong(2, submissionId);
+					assertEquals(1, statement.executeUpdate());
+				}
+				evaluationId = insertSyntheticInitialEvaluation(connection, taskId, submissionId);
+				connection.commit();
+			} catch (SQLException | RuntimeException | Error failure) {
+				rollback(connection, failure);
+				throw failure;
+			}
+		}
+
+		assertEquals(1, countHistoryRows("task_participations", "participation_id", participationId));
+		assertEquals(1, countHistoryRows("submissions", "submission_id", submissionId));
+		assertEquals(1, countHistoryRows("evaluations", "evaluation_id", evaluationId));
+		assertEquals(1, countHistoryRows("code_logs", "participation_id", participationId));
+		retainFixtureAfterTest = true;
+		System.out.printf(
+				"EXPIRY_HISTORY_FIXTURE taskId=%d assignmentId=%d studentId=%d participationId=%d "
+						+ "submissionId=%d evaluationId=%d%n",
+				taskId, assignmentId, studentId, participationId, submissionId, evaluationId);
+	}
+
+	@Test
+	void publicationWorkerTransitionsDueAssignmentsOnceWithSystemAudit() throws Exception {
+		AuthenticatedUser owner = teacher();
+		TeacherTaskInput taskInput = inputWithAssignments(
+				"Scheduled publication acceptance",
+				List.of(new ClassAssignmentInput(
+						0, classroomId, LocalDateTime.now().plusDays(1), LocalDateTime.now().plusDays(2),
+						LateSubmissionPolicy.ALLOW)));
+		long taskId = TASKS.createDraft(owner, taskInput, UUID.randomUUID().toString());
+		activateConfiguredPrompt(owner, taskId);
+		publishDraft(owner, taskId);
+		long assignmentId = findAssignmentId(taskId, classroomId);
+		assertEquals("scheduled", findAssignmentStatus(assignmentId));
+
+		setAssignmentPublishTimeDue(assignmentId);
+		CountDownLatch ready = new CountDownLatch(2);
+		CountDownLatch start = new CountDownLatch(1);
+		try (ExecutorService workers = Executors.newFixedThreadPool(2)) {
+			Future<Integer> first = workers.submit(() -> processWhenSignaled(ready, start));
+			Future<Integer> second = workers.submit(() -> processWhenSignaled(ready, start));
+			assertTrue(ready.await(10, TimeUnit.SECONDS));
+			start.countDown();
+			assertEquals(1, first.get(10, TimeUnit.SECONDS) + second.get(10, TimeUnit.SECONDS));
+		}
+		assertEquals("published", findAssignmentStatus(assignmentId));
+		assertEquals(1, countAssignmentAudits(assignmentId, "publish_scheduled"));
+
+		setAssignmentDueTimePast(assignmentId);
+		TeacherTaskPublicationDao publicationDao = new TeacherTaskPublicationDao();
+		assertEquals(1, publicationDao.processDueAssignments());
+		assertEquals("expired", findAssignmentStatus(assignmentId));
+		assertEquals(1, countAssignmentAudits(assignmentId, "expire_assignment"));
+		assertEquals(0, publicationDao.processDueAssignments());
+		assertEquals(1, countAssignmentAudits(assignmentId, "publish_scheduled"));
+		assertEquals(1, countAssignmentAudits(assignmentId, "expire_assignment"));
+	}
+
+	@Test
+	void publicationWorkerDoesNotExpireBeforeDeadlineAndExpiresAtTheBoundary()
+			throws SQLException, InterruptedException {
+		AuthenticatedUser owner = teacher();
+		TeacherTaskInput taskInput = inputWithAssignments(
+				"Deadline boundary acceptance",
+				List.of(new ClassAssignmentInput(
+						0, classroomId, null, LocalDateTime.now().plusDays(1), LateSubmissionPolicy.ALLOW)));
+		long taskId = TASKS.createDraft(owner, taskInput, UUID.randomUUID().toString());
+		activateConfiguredPrompt(owner, taskId);
+		publishDraft(owner, taskId);
+		long assignmentId = findAssignmentId(taskId, classroomId);
+
+		setAssignmentDueTimeAfter(assignmentId, 2);
+		TeacherTaskPublicationDao publicationDao = new TeacherTaskPublicationDao();
+		assertEquals(0, publicationDao.processDueAssignments());
+		assertEquals("published", findAssignmentStatus(assignmentId));
+
+		awaitAssignmentDeadline(assignmentId);
+		assertEquals(1, publicationDao.processDueAssignments());
+		assertEquals("expired", findAssignmentStatus(assignmentId));
+		assertEquals(1, countAssignmentAudits(assignmentId, "expire_assignment"));
+		assertEquals(0, publicationDao.processDueAssignments());
+		assertEquals(1, countAssignmentAudits(assignmentId, "expire_assignment"));
+	}
+
+	@Test
+	void expiredAllowAssignmentAcceptsOnlyTheInitialSubmission() throws SQLException {
+		AuthenticatedUser owner = teacher();
+		TeacherTaskInput taskInput = inputWithAssignments(
+				"Late first submission acceptance",
+				List.of(new ClassAssignmentInput(
+						0, classroomId, null, LocalDateTime.now().plusDays(1), LateSubmissionPolicy.ALLOW)));
+		long taskId = TASKS.createDraft(owner, taskInput, UUID.randomUUID().toString());
+		activateConfiguredPrompt(owner, taskId);
+		publishDraft(owner, taskId);
+		long assignmentId = findAssignmentId(taskId, classroomId);
+		setAssignmentDueTimePast(assignmentId);
+		assertEquals(1, new TeacherTaskPublicationDao().processDueAssignments());
+		assertEquals("expired", findAssignmentStatus(assignmentId));
+
+		long studentId = insertStudentFixture();
+		StudentEditorDao editorDao = new StudentEditorDao();
+		StudentEditorPage initialPage = editorDao.findEditorPage(studentId, assignmentId).orElseThrow();
+		assertTrue(initialPage.isCanSubmit());
+		EditorSubmissionResult submitted = editorDao.submit(
+				studentId, assignmentId, UUID.randomUUID().toString(), submissionCheck(initialPage, studentId));
+		assertEquals(EditorSubmissionResult.Status.SUBMITTED, submitted.status());
+		assertEquals(1, submitted.revisionNumber());
+
+		StudentEditorPage submittedPage = editorDao.findEditorPage(studentId, assignmentId).orElseThrow();
+		assertFalse(submittedPage.isCanSubmit());
+		assertEquals(EditorSaveResult.Status.READ_ONLY, editorDao.startResubmission(studentId, assignmentId).status());
+		EditorSubmissionResult lateResubmission = editorDao.submit(
+				studentId, assignmentId, UUID.randomUUID().toString(), submissionCheck(submittedPage, studentId));
+		assertEquals(EditorSubmissionResult.Status.NOT_ALLOWED, lateResubmission.status());
+		assertEquals(1, countStudentSubmissions(studentId, assignmentId));
+	}
+
+	@Test
+	void expiredDenyAssignmentDoesNotCreateStudentParticipation() throws SQLException {
+		AuthenticatedUser owner = teacher();
+		TeacherTaskInput taskInput = inputWithAssignments(
+				"Late deny acceptance",
+				List.of(new ClassAssignmentInput(
+						0, classroomId, null, LocalDateTime.now().plusDays(1), LateSubmissionPolicy.DENY)));
+		long taskId = TASKS.createDraft(owner, taskInput, UUID.randomUUID().toString());
+		activateConfiguredPrompt(owner, taskId);
+		publishDraft(owner, taskId);
+		long assignmentId = findAssignmentId(taskId, classroomId);
+		setAssignmentDueTimePast(assignmentId);
+		assertEquals(1, new TeacherTaskPublicationDao().processDueAssignments());
+
+		long studentId = insertStudentFixture();
+		assertTrue(new StudentEditorDao().findEditorPage(studentId, assignmentId).isEmpty());
+		assertEquals(0, countStudentParticipations(studentId));
+	}
+
+	@Test
+	void createsAndPublishesNewRevisionWhilePreservingThePublishedRevisionUntilReplacement() throws SQLException {
+		AuthenticatedUser owner = teacher();
+		TeacherTaskInput sourceInput = inputWithAssignments(
+				"Task revision source",
+				List.of(new ClassAssignmentInput(
+						0, classroomId, null, LocalDateTime.now().plusDays(2), LateSubmissionPolicy.ALLOW)));
+		long sourceTaskId = TASKS.createDraft(owner, sourceInput, UUID.randomUUID().toString());
+		activateConfiguredPrompt(owner, sourceTaskId);
+		publishDraft(owner, sourceTaskId);
+		var source = TASKS.loadPage(owner, sourceTaskId, schoolId).selectedTask();
+		long oldAssignmentId = findAssignmentId(sourceTaskId, classroomId);
+		long studentId = insertStudentFixture();
+		assertTrue(new StudentEditorDao().findEditorPage(studentId, oldAssignmentId).isPresent());
+
+		TeacherTaskInput revisedInput = inputWithAssignments(
+				"Task revision updated",
+				List.of(new ClassAssignmentInput(
+						0, classroomId, null, LocalDateTime.now().plusDays(3), LateSubmissionPolicy.ALLOW)));
+		long revisionTaskId = TASKS.createRevision(
+				owner, sourceTaskId, source.version(), revisedInput, UUID.randomUUID().toString());
+		var revision = TASKS.loadPage(owner, revisionTaskId, schoolId).selectedTask();
+		var original = TASKS.loadPage(owner, sourceTaskId, schoolId).selectedTask();
+
+		assertEquals("requires_update", revision.publicationStatus());
+		assertEquals(source.revisionNumber() + 1, revision.revisionNumber());
+		assertEquals(original.taskCode(), revision.taskCode());
+		assertEquals("published", original.publicationStatus());
+		assertEquals("published", findAssignmentStatus(oldAssignmentId));
+		assertEquals(null, revision.promptStatus());
+		assertEquals("not_published", revision.input().classAssignments().getFirst().assignmentStatus());
+
+		activateConfiguredPrompt(owner, revisionTaskId);
+		TASKS.publishTask(owner, revisionTaskId, revision.version(), revision.input(), UUID.randomUUID().toString());
+
+		assertEquals("requires_update", TASKS.loadPage(owner, sourceTaskId, schoolId)
+				.selectedTask().publicationStatus());
+		assertEquals("published", TASKS.loadPage(owner, revisionTaskId, schoolId)
+				.selectedTask().publicationStatus());
+		assertEquals("archived", findAssignmentStatus(oldAssignmentId));
+		assertEquals("published", findAssignmentStatus(findAssignmentId(revisionTaskId, classroomId)));
+	}
+
+	@Test
+	void refusesRevisionWhenAnyStudentHasStartedThePublishedTask() throws SQLException {
+		AuthenticatedUser owner = teacher();
+		TeacherTaskInput sourceInput = inputWithAssignments(
+				"Started task revision source",
+				List.of(new ClassAssignmentInput(
+						0, classroomId, null, LocalDateTime.now().plusDays(2), LateSubmissionPolicy.ALLOW)));
+		long sourceTaskId = TASKS.createDraft(owner, sourceInput, UUID.randomUUID().toString());
+		activateConfiguredPrompt(owner, sourceTaskId);
+		publishDraft(owner, sourceTaskId);
+		var source = TASKS.loadPage(owner, sourceTaskId, schoolId).selectedTask();
+		long assignmentId = findAssignmentId(sourceTaskId, classroomId);
+		long studentId = insertStudentFixture();
+		assertTrue(new StudentEditorDao().findEditorPage(studentId, assignmentId).isPresent());
+
+		try (Connection connection = Client.createConnection();
+				PreparedStatement statement = connection.prepareStatement("""
+						UPDATE task_participations
+						SET learning_status = 'in_progress', progress_status = 'in_progress'
+						WHERE student_user_id = ? AND task_class_assignment_id = ?
+						""")) {
+			statement.setLong(1, studentId);
+			statement.setLong(2, assignmentId);
+			assertEquals(1, statement.executeUpdate());
+		}
+
+		assertThrows(IllegalArgumentException.class, () -> TASKS.createRevision(
+				owner, sourceTaskId, source.version(), input("Rejected task revision"), UUID.randomUUID().toString()));
+		assertEquals("published", TASKS.loadPage(owner, sourceTaskId, schoolId)
+				.selectedTask().publicationStatus());
+		assertEquals("published", findAssignmentStatus(assignmentId));
+	}
 
 	@BeforeEach
 	void installFixtureOnlyInDedicatedDatabase() throws SQLException, IOException {
@@ -80,7 +419,9 @@ class TeacherTaskDatabaseTest {
 							"docs/rubric/主体的に学習に取り組む態度_ルーブリック_0805.md"))));
 			connection.setAutoCommit(false);
 			try {
-				teacherLoginId = "task-test-" + UUID.randomUUID().toString().replace("-", "");
+				teacherLoginId = "true".equals(System.getenv("TEACHER_TASK_BROWSER_FIXTURE"))
+						? "teacher-demo"
+						: "task-test-" + UUID.randomUUID().toString().replace("-", "");
 				teacherId = insertUser(connection, teacherLoginId, "Synthetic task teacher");
 				fixtureUserIds.add(teacherId);
 				schoolId = insertSchool(connection, "task-test-" + UUID.randomUUID(), "Synthetic task school");
@@ -689,6 +1030,143 @@ class TeacherTaskDatabaseTest {
 	}
 
 	@Test
+	void copiesLearningStartedTaskIntoIndependentDraftWithoutCopyingHistory() throws SQLException {
+		AuthenticatedUser owner = teacher();
+		TeacherTaskInput base = inputWithAssignments(
+				"Independent source task",
+				List.of(new ClassAssignmentInput(
+						0, classroomId, null, null, LateSubmissionPolicy.ALLOW)));
+		TeacherTaskInput sourceInput = new TeacherTaskInput(
+				base.title(), base.theme(), base.difficulty(), base.description(), base.inputConstraints(),
+				base.creationRules(), base.initialCode(), base.features(), base.testCases(),
+				List.of(new HintInput(0, 1,
+						new EditorHint("Source hint", "Keep this hint", "hint()", "print('hint')"))),
+				base.classAssignments(), base.schoolId());
+		long sourceTaskId = TASKS.createDraft(owner, sourceInput, UUID.randomUUID().toString());
+		activateConfiguredPrompt(owner, sourceTaskId);
+		Long sourcePromptVersionValue = findActivePromptVersionId(sourceTaskId);
+		assertNotNull(sourcePromptVersionValue);
+		long sourcePromptVersionId = sourcePromptVersionValue;
+		setActivePromptCopyContent(sourceTaskId, sourcePromptVersionId);
+		publishDraft(owner, sourceTaskId);
+
+		long sourceAssignmentId = findAssignmentId(sourceTaskId, classroomId);
+		long studentId = insertStudentFixture();
+		long participationId;
+		long submissionId;
+		long evaluationId;
+		try (Connection connection = Client.createConnection()) {
+			assertEquals(System.getenv("DB_NAME"), connection.getCatalog());
+			connection.setAutoCommit(false);
+			try {
+				participationId = insertParticipationAndAcceptedSubmission(
+						connection, studentId, sourceAssignmentId);
+				submissionId = findSubmissionId(connection, participationId);
+				try (PreparedStatement statement = connection.prepareStatement("""
+						INSERT INTO code_logs (
+						  participation_id, submission_id, event_type, snapshot_text,
+						  execution_status_at_capture, observed_at, created_at
+						) VALUES (?, ?, 'manual_save', 'source history', 'not_run',
+						  CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+						""")) {
+					statement.setLong(1, participationId);
+					statement.setLong(2, submissionId);
+					assertEquals(1, statement.executeUpdate());
+				}
+				evaluationId = insertSyntheticInitialEvaluation(connection, sourceTaskId, submissionId);
+				connection.commit();
+			} catch (SQLException | RuntimeException | Error failure) {
+				rollback(connection, failure);
+				throw failure;
+			}
+		}
+
+		var sourceBeforeCopy = TASKS.loadPage(owner, sourceTaskId, schoolId).selectedTask();
+		assertTrue(sourceBeforeCopy.learningStarted());
+		String requestId = UUID.randomUUID().toString();
+		long copiedTaskId = TASKS.createIndependentCopy(
+				owner, sourceTaskId, sourceBeforeCopy.version(), requestId);
+		assertEquals(copiedTaskId, TASKS.createIndependentCopy(
+				owner, sourceTaskId, sourceBeforeCopy.version(), requestId));
+
+		var copied = TASKS.loadPage(owner, copiedTaskId, schoolId).selectedTask();
+		assertEquals("draft", copied.publicationStatus());
+		assertEquals(1, copied.revisionNumber());
+		assertEquals(copied.taskCode() + "-v1", copied.taskRevisionCode());
+		assertNotEquals(sourceBeforeCopy.taskCode(), copied.taskCode());
+		assertEquals(sourceInput.schoolId(), copied.input().schoolId());
+		assertEquals(sourceInput.title(), copied.input().title());
+		assertEquals(sourceInput.theme(), copied.input().theme());
+		assertEquals(sourceInput.difficulty(), copied.input().difficulty());
+		assertEquals(sourceInput.description(), copied.input().description());
+		assertEquals(sourceInput.inputConstraints(), copied.input().inputConstraints());
+		assertEquals(sourceInput.creationRules(), copied.input().creationRules());
+		assertEquals(sourceInput.initialCode(), copied.input().initialCode());
+		assertEquals(sourceInput.features(), copied.input().features());
+		assertEquals(sourceInput.testCases().getFirst().getInput(),
+				copied.input().testCases().getFirst().getInput());
+		assertEquals(sourceInput.hints().getFirst().hint().getContent(),
+				copied.input().hints().getFirst().hint().getContent());
+		assertTrue(copied.input().classAssignments().isEmpty());
+		assertFalse(copied.learningStarted());
+		assertEquals(0, countTaskAssignmentRows(copiedTaskId));
+		assertEquals(1, countTaskRubric(copiedTaskId));
+
+		var copiedPrompt = new TeacherPromptControl().loadPage(owner, copiedTaskId, null).selectedVersion();
+		assertNotNull(copiedPrompt);
+		assertTrue(copiedPrompt.promptVersionId() != sourcePromptVersionId);
+		assertEquals("draft", copiedPrompt.promptStatus());
+		assertEquals("gemini-2.5-pro", copiedPrompt.aiModel());
+		assertEquals("Copied common prompt", copiedPrompt.commonPrompt());
+		assertEquals("Copied task-specific instruction", copiedPrompt.additionalInstruction());
+		assertEquals("not_generated", copiedPrompt.fluctuationGenerationStatus());
+		assertEquals("not_generated", copiedPrompt.evaluationExamplesStatus());
+		assertTrue(copiedPrompt.fluctuationItems().isEmpty());
+		assertTrue(copiedPrompt.evaluationExamples().isEmpty());
+		assertEquals(0, countHistoryRows(
+				"prompt_fluctuation_items", "prompt_version_id", copiedPrompt.promptVersionId()));
+		assertEquals(0, countHistoryRows(
+				"evaluation_examples", "prompt_version_id", copiedPrompt.promptVersionId()));
+		assertNull(findActivePromptVersionId(copiedTaskId));
+
+		var sourceAfterCopy = TASKS.loadPage(owner, sourceTaskId, schoolId).selectedTask();
+		assertEquals(sourceBeforeCopy.version(), sourceAfterCopy.version());
+		assertEquals("published", sourceAfterCopy.publicationStatus());
+		assertEquals(sourcePromptVersionId, findActivePromptVersionId(sourceTaskId));
+		assertEquals("published", findAssignmentStatus(sourceAssignmentId));
+		assertEquals(1, countTaskAssignmentRows(sourceTaskId));
+		assertEquals(1, countHistoryRows("task_participations", "participation_id", participationId));
+		assertEquals(1, countHistoryRows("submissions", "submission_id", submissionId));
+		assertEquals(1, countHistoryRows("evaluations", "evaluation_id", evaluationId));
+		assertEquals(1, countHistoryRows("code_logs", "participation_id", participationId));
+		assertEquals(1, countTaskAuditActions(copiedTaskId, "create_independent_task_copy"));
+	}
+
+	@Test
+	void independentCopyRejectsPublishedTaskBeforeLearningStarts() throws SQLException {
+		AuthenticatedUser owner = teacher();
+		long sourceTaskId = TASKS.createDraft(
+				owner,
+				inputWithAssignments(
+						"Not-started source task",
+						List.of(new ClassAssignmentInput(
+								0, classroomId, null, null, LateSubmissionPolicy.ALLOW))),
+				UUID.randomUUID().toString());
+		activateConfiguredPrompt(owner, sourceTaskId);
+		publishDraft(owner, sourceTaskId);
+		var source = TASKS.loadPage(owner, sourceTaskId, schoolId).selectedTask();
+		assertFalse(source.learningStarted());
+		int taskCount = countTasksOwnedByTeacher();
+
+		assertThrows(IllegalArgumentException.class,
+				() -> TASKS.createIndependentCopy(
+						owner, sourceTaskId, source.version(), UUID.randomUUID().toString()));
+		assertEquals(taskCount, countTasksOwnedByTeacher());
+		assertEquals("published", TASKS.loadPage(owner, sourceTaskId, schoolId)
+				.selectedTask().publicationStatus());
+	}
+
+	@Test
 	void taskManagerFromAnotherSchoolCannotDeleteOrRestoreTask() throws SQLException {
 		AuthenticatedUser owner = teacher();
 		long taskId = TASKS.createDraft(owner, input("School boundary task"), UUID.randomUUID().toString());
@@ -763,13 +1241,26 @@ class TeacherTaskDatabaseTest {
 			connection.setAutoCommit(false);
 			try {
 				try (PreparedStatement statement = connection.prepareStatement("""
-						DELETE FROM audit_logs WHERE actor_user_id = ? AND feature_code = 'task-management'
+						DELETE FROM audit_logs WHERE actor_user_id = ?
 						""")) {
 					for (long fixtureUserId : fixtureUserIds) {
 						statement.setLong(1, fixtureUserId);
 						statement.addBatch();
 					}
 					statement.executeBatch();
+				}
+				try (PreparedStatement statement = connection.prepareStatement("""
+						DELETE FROM audit_logs
+						WHERE actor_role = 'system' AND target_type = 'task_class_assignment'
+						  AND target_id IN (
+						    SELECT task_class_assignment_id FROM task_class_assignments
+						    WHERE task_id IN (
+						      SELECT task_id FROM tasks WHERE created_by_user_id = ?
+						    )
+						  )
+						""")) {
+					statement.setLong(1, teacherId);
+					statement.executeUpdate();
 				}
 				try (PreparedStatement statement = connection.prepareStatement("""
 						DELETE FROM audit_logs WHERE actor_user_id = ? AND feature_code = 'teacher-prompt-design'
@@ -837,13 +1328,91 @@ class TeacherTaskDatabaseTest {
 					statement.executeUpdate();
 				}
 				try (PreparedStatement statement = connection.prepareStatement("""
-						DELETE FROM evaluations
-						WHERE reevaluation_job_id IN (
+						DELETE er FROM evaluation_responses er
+						JOIN evaluation_requests eq ON eq.evaluation_request_id = er.evaluation_request_id
+						JOIN evaluations e ON e.evaluation_id = eq.evaluation_id
+						WHERE e.reevaluation_job_id IN (
 						  SELECT reevaluation_job_id FROM reevaluation_jobs
 						  WHERE task_id IN (SELECT task_id FROM tasks WHERE created_by_user_id = ?)
+						) OR e.submission_id IN (
+						  SELECT s.submission_id
+						  FROM submissions s
+						  JOIN task_participations tp ON tp.participation_id = s.participation_id
+						  JOIN task_class_assignments a
+						    ON a.task_class_assignment_id = tp.task_class_assignment_id
+						  WHERE a.task_id IN (
+						    SELECT task_id FROM tasks WHERE created_by_user_id = ?
+						  )
 						)
 						""")) {
 					statement.setLong(1, teacherId);
+					statement.setLong(2, teacherId);
+					statement.executeUpdate();
+				}
+				try (PreparedStatement statement = connection.prepareStatement("""
+						DELETE FROM evaluation_input_snapshots
+						WHERE evaluation_request_id IN (
+						  SELECT eq.evaluation_request_id
+						  FROM evaluation_requests eq
+						  JOIN evaluations e ON e.evaluation_id = eq.evaluation_id
+						  WHERE e.reevaluation_job_id IN (
+						    SELECT reevaluation_job_id FROM reevaluation_jobs
+						    WHERE task_id IN (SELECT task_id FROM tasks WHERE created_by_user_id = ?)
+						  ) OR e.submission_id IN (
+						    SELECT s.submission_id
+						    FROM submissions s
+						    JOIN task_participations tp ON tp.participation_id = s.participation_id
+						    JOIN task_class_assignments a
+						      ON a.task_class_assignment_id = tp.task_class_assignment_id
+						    WHERE a.task_id IN (
+						      SELECT task_id FROM tasks WHERE created_by_user_id = ?
+						    )
+						  )
+						)
+						""")) {
+					statement.setLong(1, teacherId);
+					statement.setLong(2, teacherId);
+					statement.executeUpdate();
+				}
+				try (PreparedStatement statement = connection.prepareStatement("""
+						DELETE eq FROM evaluation_requests eq
+						JOIN evaluations e ON e.evaluation_id = eq.evaluation_id
+						WHERE e.reevaluation_job_id IN (
+						  SELECT reevaluation_job_id FROM reevaluation_jobs
+						  WHERE task_id IN (SELECT task_id FROM tasks WHERE created_by_user_id = ?)
+						) OR e.submission_id IN (
+						  SELECT s.submission_id
+						  FROM submissions s
+						  JOIN task_participations tp ON tp.participation_id = s.participation_id
+						  JOIN task_class_assignments a
+						    ON a.task_class_assignment_id = tp.task_class_assignment_id
+						  WHERE a.task_id IN (
+						    SELECT task_id FROM tasks WHERE created_by_user_id = ?
+						  )
+						)
+						""")) {
+					statement.setLong(1, teacherId);
+					statement.setLong(2, teacherId);
+					statement.executeUpdate();
+				}
+				try (PreparedStatement statement = connection.prepareStatement("""
+						DELETE e FROM evaluations e
+						WHERE e.reevaluation_job_id IN (
+						  SELECT reevaluation_job_id FROM reevaluation_jobs
+						  WHERE task_id IN (SELECT task_id FROM tasks WHERE created_by_user_id = ?)
+						) OR e.submission_id IN (
+						  SELECT s.submission_id
+						  FROM submissions s
+						  JOIN task_participations tp ON tp.participation_id = s.participation_id
+						  JOIN task_class_assignments a
+						    ON a.task_class_assignment_id = tp.task_class_assignment_id
+						  WHERE a.task_id IN (
+						    SELECT task_id FROM tasks WHERE created_by_user_id = ?
+						  )
+						)
+						""")) {
+					statement.setLong(1, teacherId);
+					statement.setLong(2, teacherId);
 					statement.executeUpdate();
 				}
 				try (PreparedStatement statement = connection.prepareStatement("""
@@ -858,6 +1427,43 @@ class TeacherTaskDatabaseTest {
 						JOIN task_class_assignments a
 						  ON a.task_class_assignment_id = tp.task_class_assignment_id
 						SET tp.draft_base_submission_id = NULL
+						WHERE a.task_id IN (
+						  SELECT task_id FROM tasks WHERE created_by_user_id = ?
+						)
+						""")) {
+					statement.setLong(1, teacherId);
+					statement.executeUpdate();
+				}
+				try (PreparedStatement statement = connection.prepareStatement("""
+						DELETE tr FROM code_execution_test_results tr
+						JOIN code_executions ce ON ce.execution_id = tr.execution_id
+						JOIN task_participations tp ON tp.participation_id = ce.participation_id
+						JOIN task_class_assignments a
+						  ON a.task_class_assignment_id = tp.task_class_assignment_id
+						WHERE a.task_id IN (
+						  SELECT task_id FROM tasks WHERE created_by_user_id = ?
+						)
+						""")) {
+					statement.setLong(1, teacherId);
+					statement.executeUpdate();
+				}
+				try (PreparedStatement statement = connection.prepareStatement("""
+						DELETE cl FROM code_logs cl
+						JOIN task_participations tp ON tp.participation_id = cl.participation_id
+						JOIN task_class_assignments a
+						  ON a.task_class_assignment_id = tp.task_class_assignment_id
+						WHERE a.task_id IN (
+						  SELECT task_id FROM tasks WHERE created_by_user_id = ?
+						)
+						""")) {
+					statement.setLong(1, teacherId);
+					statement.executeUpdate();
+				}
+				try (PreparedStatement statement = connection.prepareStatement("""
+						DELETE ce FROM code_executions ce
+						JOIN task_participations tp ON tp.participation_id = ce.participation_id
+						JOIN task_class_assignments a
+						  ON a.task_class_assignment_id = tp.task_class_assignment_id
 						WHERE a.task_id IN (
 						  SELECT task_id FROM tasks WHERE created_by_user_id = ?
 						)
@@ -905,6 +1511,12 @@ class TeacherTaskDatabaseTest {
 				deleteTaskChildren(connection, "task_test_cases");
 				deleteTaskChildren(connection, "task_hints");
 				deleteTaskChildren(connection, "task_class_assignments");
+				try (PreparedStatement statement = connection.prepareStatement("""
+						UPDATE tasks SET supersedes_task_id = NULL WHERE created_by_user_id = ?
+						""")) {
+					statement.setLong(1, teacherId);
+					statement.executeUpdate();
+				}
 				try (PreparedStatement statement = connection.prepareStatement(
 						"DELETE FROM tasks WHERE created_by_user_id = ?")) {
 					statement.setLong(1, teacherId);
@@ -1002,6 +1614,316 @@ class TeacherTaskDatabaseTest {
 						0, classroomId, LocalDateTime.now().plusDays(1), LocalDateTime.now().plusDays(2),
 						LateSubmissionPolicy.ALLOW)),
 				schoolId);
+	}
+
+	private TeacherTaskInput inputWithAssignments(
+			String title, List<ClassAssignmentInput> assignments) {
+		TeacherTaskInput base = input(title);
+		return new TeacherTaskInput(
+				base.title(),
+				base.theme(),
+				base.difficulty(),
+				base.description(),
+				base.inputConstraints(),
+				base.creationRules(),
+				base.initialCode(),
+				base.features(),
+				base.testCases(),
+				base.hints(),
+				assignments,
+				base.schoolId());
+	}
+
+	private void activateConfiguredPrompt(AuthenticatedUser owner, long taskId) throws SQLException {
+		long promptVersionId = new TeacherPromptControl().saveDraft(
+				owner, taskId, null, 0, "gemini-2.5-flash", "Synthetic publication prompt", null);
+		try (Connection connection = Client.createConnection()) {
+			connection.setAutoCommit(false);
+			try (PreparedStatement statement = connection.prepareStatement("""
+					UPDATE prompt_versions
+					SET prompt_status = 'configured', fluctuation_generation_status = 'completed',
+					    evaluation_examples_status = 'completed'
+					WHERE prompt_version_id = ? AND task_id = ?
+					""")) {
+				statement.setLong(1, promptVersionId);
+				statement.setLong(2, taskId);
+				assertEquals(1, statement.executeUpdate());
+			}
+			try (PreparedStatement statement = connection.prepareStatement("""
+					UPDATE tasks SET active_prompt_version_id = ? WHERE task_id = ?
+					""")) {
+				statement.setLong(1, promptVersionId);
+				statement.setLong(2, taskId);
+				assertEquals(1, statement.executeUpdate());
+			}
+			connection.commit();
+		}
+	}
+
+	private void publishDraft(AuthenticatedUser owner, long taskId) throws SQLException {
+		var draft = TASKS.loadPage(owner, taskId, schoolId).selectedTask();
+		TASKS.publishTask(owner, taskId, draft.version(), draft.input(), UUID.randomUUID().toString());
+	}
+
+	private int processWhenSignaled(CountDownLatch ready, CountDownLatch start) throws Exception {
+		ready.countDown();
+		if (!start.await(10, TimeUnit.SECONDS)) {
+			throw new IllegalStateException("Publication workers did not receive their start signal.");
+		}
+		return new TeacherTaskPublicationDao().processDueAssignments();
+	}
+
+	private void setAssignmentPublishTimeDue(long assignmentId) throws SQLException {
+		try (Connection connection = Client.createConnection();
+				PreparedStatement statement = connection.prepareStatement("""
+						UPDATE task_class_assignments
+						SET publish_at = CURRENT_TIMESTAMP - INTERVAL 1 SECOND
+						WHERE task_class_assignment_id = ?
+						""")) {
+			assertEquals(System.getenv("DB_NAME"), connection.getCatalog());
+			statement.setLong(1, assignmentId);
+			assertEquals(1, statement.executeUpdate());
+		}
+	}
+
+	private void setAssignmentDueTimePast(long assignmentId) throws SQLException {
+		try (Connection connection = Client.createConnection();
+				PreparedStatement statement = connection.prepareStatement("""
+						UPDATE task_class_assignments
+						SET due_at = CURRENT_TIMESTAMP - INTERVAL 1 SECOND
+						WHERE task_class_assignment_id = ?
+						""")) {
+			assertEquals(System.getenv("DB_NAME"), connection.getCatalog());
+			statement.setLong(1, assignmentId);
+			assertEquals(1, statement.executeUpdate());
+		}
+	}
+
+	private void setAssignmentDueTimeAfter(long assignmentId, int seconds) throws SQLException {
+		try (Connection connection = Client.createConnection();
+				PreparedStatement statement = connection.prepareStatement("""
+						UPDATE task_class_assignments
+						SET due_at = TIMESTAMPADD(SECOND, ?, CURRENT_TIMESTAMP)
+						WHERE task_class_assignment_id = ?
+						""")) {
+			assertEquals(System.getenv("DB_NAME"), connection.getCatalog());
+			statement.setInt(1, seconds);
+			statement.setLong(2, assignmentId);
+			assertEquals(1, statement.executeUpdate());
+		}
+	}
+
+	private void awaitAssignmentDeadline(long assignmentId) throws SQLException, InterruptedException {
+		long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+		while (System.nanoTime() < deadline) {
+			try (Connection connection = Client.createConnection();
+					PreparedStatement statement = connection.prepareStatement("""
+							SELECT due_at <= CURRENT_TIMESTAMP
+							FROM task_class_assignments WHERE task_class_assignment_id = ?
+							""")) {
+				assertEquals(System.getenv("DB_NAME"), connection.getCatalog());
+				statement.setLong(1, assignmentId);
+				try (ResultSet rows = statement.executeQuery()) {
+					if (!rows.next()) {
+						throw new SQLException("Synthetic assignment deadline was not found.");
+					}
+					if (rows.getBoolean(1)) {
+						return;
+					}
+				}
+			}
+			Thread.sleep(25);
+		}
+		throw new SQLException("Synthetic assignment deadline did not arrive within 10 seconds.");
+	}
+
+	private String findAssignmentStatus(long assignmentId) throws SQLException {
+		try (Connection connection = Client.createConnection();
+				PreparedStatement statement = connection.prepareStatement("""
+						SELECT assignment_status FROM task_class_assignments
+						WHERE task_class_assignment_id = ?
+						""")) {
+			assertEquals(System.getenv("DB_NAME"), connection.getCatalog());
+			statement.setLong(1, assignmentId);
+			try (ResultSet rows = statement.executeQuery()) {
+				if (!rows.next()) {
+					throw new SQLException("Synthetic task assignment was not found.");
+				}
+				return rows.getString(1);
+			}
+		}
+	}
+
+	private int countHistoryRows(String tableName, String idColumn, long id) throws SQLException {
+		try (Connection connection = Client.createConnection();
+				PreparedStatement statement = connection.prepareStatement(
+						"SELECT COUNT(*) FROM " + tableName + " WHERE " + idColumn + " = ?")) {
+			assertEquals(System.getenv("DB_NAME"), connection.getCatalog());
+			statement.setLong(1, id);
+			try (ResultSet rows = statement.executeQuery()) {
+				if (!rows.next()) {
+					throw new SQLException("Synthetic history count query returned no row.");
+				}
+				return rows.getInt(1);
+			}
+		}
+	}
+
+	private int countTaskAssignmentRows(long taskId) throws SQLException {
+		try (Connection connection = Client.createConnection();
+				PreparedStatement statement = connection.prepareStatement(
+						"SELECT COUNT(*) FROM task_class_assignments WHERE task_id = ?")) {
+			assertEquals(System.getenv("DB_NAME"), connection.getCatalog());
+			statement.setLong(1, taskId);
+			try (ResultSet rows = statement.executeQuery()) {
+				if (!rows.next()) {
+					throw new SQLException("Task assignment count query returned no row.");
+				}
+				return rows.getInt(1);
+			}
+		}
+	}
+
+	private int countTaskAuditActions(long taskId, String actionType) throws SQLException {
+		try (Connection connection = Client.createConnection();
+				PreparedStatement statement = connection.prepareStatement("""
+						SELECT COUNT(*) FROM audit_logs
+						WHERE feature_code = 'task-management' AND target_type = 'task'
+						  AND target_id = ? AND action_type = ? AND result_status = 'success'
+						""")) {
+			assertEquals(System.getenv("DB_NAME"), connection.getCatalog());
+			statement.setLong(1, taskId);
+			statement.setString(2, actionType);
+			try (ResultSet rows = statement.executeQuery()) {
+				if (!rows.next()) {
+					throw new SQLException("Task audit count query returned no row.");
+				}
+				return rows.getInt(1);
+			}
+		}
+	}
+
+	private Long findActivePromptVersionId(long taskId) throws SQLException {
+		try (Connection connection = Client.createConnection()) {
+			assertEquals(System.getenv("DB_NAME"), connection.getCatalog());
+			return new TeacherPromptDao().findActivePromptVersionId(connection, taskId);
+		}
+	}
+
+	private void setActivePromptCopyContent(long taskId, long promptVersionId) throws SQLException {
+		try (Connection connection = Client.createConnection()) {
+			assertEquals(System.getenv("DB_NAME"), connection.getCatalog());
+			connection.setAutoCommit(false);
+			try (PreparedStatement statement = connection.prepareStatement("""
+					UPDATE prompt_versions
+					SET common_prompt = 'Copied common prompt',
+					    additional_evaluation_instruction = 'Copied task-specific instruction'
+					WHERE task_id = ? AND prompt_version_id = ?
+					""")) {
+				statement.setLong(1, taskId);
+				statement.setLong(2, promptVersionId);
+				assertEquals(1, statement.executeUpdate());
+			}
+			try (PreparedStatement statement = connection.prepareStatement("""
+					INSERT INTO prompt_fluctuation_items (
+					  prompt_version_id, item_text, teacher_resolution, resolution_status, sort_order
+					) VALUES (?, 'source-only fluctuation', 'source resolution', 'resolved', 1)
+					""")) {
+				statement.setLong(1, promptVersionId);
+				assertEquals(1, statement.executeUpdate());
+			}
+			try (PreparedStatement statement = connection.prepareStatement("""
+					INSERT INTO evaluation_examples (
+					  prompt_version_id, example_input, example_output, example_status, created_at
+					) VALUES (?, CAST(? AS JSON), CAST(? AS JSON), 'active', CURRENT_TIMESTAMP)
+					""")) {
+				statement.setLong(1, promptVersionId);
+				statement.setString(2, "{}");
+				statement.setString(3, "{}");
+				assertEquals(1, statement.executeUpdate());
+			}
+			connection.commit();
+		}
+	}
+
+	private static long findSubmissionId(Connection connection, long participationId) throws SQLException {
+		try (PreparedStatement statement = connection.prepareStatement(
+				"SELECT submission_id FROM submissions WHERE participation_id = ?")) {
+			statement.setLong(1, participationId);
+			try (ResultSet rows = statement.executeQuery()) {
+				if (!rows.next()) {
+					throw new SQLException("Synthetic submission was not found.");
+				}
+				return rows.getLong("submission_id");
+			}
+		}
+	}
+
+	private int countAssignmentAudits(long assignmentId, String actionType) throws SQLException {
+		try (Connection connection = Client.createConnection();
+				PreparedStatement statement = connection.prepareStatement("""
+						SELECT COUNT(*) FROM audit_logs
+						WHERE actor_role = 'system' AND target_type = 'task_class_assignment'
+						  AND target_id = ? AND action_type = ? AND result_status = 'success'
+						""")) {
+			assertEquals(System.getenv("DB_NAME"), connection.getCatalog());
+			statement.setLong(1, assignmentId);
+			statement.setString(2, actionType);
+			try (ResultSet rows = statement.executeQuery()) {
+				if (!rows.next()) {
+					throw new SQLException("Synthetic assignment audit count query returned no row.");
+				}
+				return rows.getInt(1);
+			}
+		}
+	}
+
+	private EditorSubmissionCheck submissionCheck(StudentEditorPage page, long studentId) {
+		List<EditorSubmissionCheckCase> results = page.getTestCases().stream()
+				.map(testCase -> new EditorSubmissionCheckCase(
+						testCase.getTestCaseId(),
+						testCase.getOrder(),
+						testCase.getTitle(),
+						testCase.getInput(),
+						testCase.getExpectedOutput(),
+						testCase.getExpectedOutput(),
+						"",
+						"succeeded",
+						"matched",
+						null,
+						0,
+						1,
+						false,
+						false))
+				.toList();
+		return new EditorSubmissionCheck(
+				studentId,
+				page.getAssignmentId(),
+				page.getParticipationId(),
+				page.getDraftUpdatedAtToken(),
+				page.getCode(),
+				System.currentTimeMillis(),
+				results);
+	}
+
+	private int countStudentSubmissions(long studentId, long assignmentId) throws SQLException {
+		try (Connection connection = Client.createConnection();
+				PreparedStatement statement = connection.prepareStatement("""
+						SELECT COUNT(*)
+						FROM submissions s
+						JOIN task_participations tp ON tp.participation_id = s.participation_id
+						WHERE tp.student_user_id = ? AND tp.task_class_assignment_id = ?
+						""")) {
+			assertEquals(System.getenv("DB_NAME"), connection.getCatalog());
+			statement.setLong(1, studentId);
+			statement.setLong(2, assignmentId);
+			try (ResultSet rows = statement.executeQuery()) {
+				if (!rows.next()) {
+					throw new SQLException("Synthetic student submission count query returned no row.");
+				}
+				return rows.getInt(1);
+			}
+		}
 	}
 
 	private TeacherTaskInput inputWithAllFields(String title, List<Long> classroomIds) {
@@ -1336,6 +2258,46 @@ class TeacherTaskDatabaseTest {
 			try (ResultSet keys = statement.getGeneratedKeys()) {
 				if (!keys.next()) {
 					throw new SQLException("Reevaluation job fixture ID was not generated.");
+				}
+				return keys.getLong(1);
+			}
+		}
+	}
+
+	private static long insertSyntheticInitialEvaluation(
+			Connection connection, long taskId, long submissionId) throws SQLException {
+		long rubricId;
+		long promptVersionId;
+		try (PreparedStatement statement = connection.prepareStatement("""
+				SELECT rubric_id, active_prompt_version_id
+				FROM tasks WHERE task_id = ?
+				""")) {
+			statement.setLong(1, taskId);
+			try (ResultSet rows = statement.executeQuery()) {
+				if (!rows.next()) {
+					throw new SQLException("Synthetic evaluation task was not found.");
+				}
+				rubricId = rows.getLong("rubric_id");
+				promptVersionId = rows.getLong("active_prompt_version_id");
+			}
+		}
+		try (PreparedStatement statement = connection.prepareStatement("""
+				INSERT INTO evaluations (
+				  evaluation_code, submission_id, rubric_id, prompt_version_id,
+				  evaluation_status, evaluation_kind, format_version, locale,
+				  auto_save_count, execution_count, overall_score, created_at, completed_at
+				)
+				VALUES (?, ?, ?, ?, 'completed', 'initial', '1.0.0', 'ja-JP',
+				        0, 0, 3.500, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+				""", Statement.RETURN_GENERATED_KEYS)) {
+			statement.setString(1, UUID.randomUUID().toString());
+			statement.setLong(2, submissionId);
+			statement.setLong(3, rubricId);
+			statement.setLong(4, promptVersionId);
+			statement.executeUpdate();
+			try (ResultSet keys = statement.getGeneratedKeys()) {
+				if (!keys.next()) {
+					throw new SQLException("Synthetic evaluation ID was not generated.");
 				}
 				return keys.getLong(1);
 			}

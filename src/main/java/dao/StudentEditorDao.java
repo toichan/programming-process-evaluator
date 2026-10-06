@@ -36,7 +36,19 @@ public final class StudentEditorDao {
 			JOIN classrooms c ON c.classroom_id = scm.classroom_id AND c.classroom_status = 'active'
 			JOIN schools s ON s.school_id = c.school_id AND s.school_status = 'active'
 			JOIN task_class_assignments ca ON ca.classroom_id = c.classroom_id
-			  AND ca.assignment_status = 'published'
+			  AND (
+			    ca.assignment_status = 'published'
+			    OR (ca.assignment_status = 'expired' AND (
+			      ca.late_submission_policy = 'allow'
+			      OR EXISTS (
+			        SELECT 1
+			        FROM task_participations tp_expired
+			        JOIN submissions s_expired ON s_expired.participation_id = tp_expired.participation_id
+			        WHERE tp_expired.task_class_assignment_id = ca.task_class_assignment_id
+			          AND tp_expired.student_user_id = u.user_id
+			      )
+			    ))
+			  )
 			  AND (ca.publish_at IS NULL OR ca.publish_at <= CURRENT_TIMESTAMP)
 			JOIN tasks t ON t.task_id = ca.task_id
 			  AND t.publication_status = 'published' AND t.deleted_at IS NULL
@@ -214,7 +226,7 @@ public final class StudentEditorDao {
 					connection.commit();
 					return new EditorSubmissionResult(EditorSubmissionResult.Status.CONFLICT, 0, 0);
 				}
-				if (!page.isCanSubmit()) {
+				if (!page.isCanSubmit(currentDatabaseTime(connection))) {
 					connection.commit();
 					return new EditorSubmissionResult(EditorSubmissionResult.Status.NOT_ALLOWED, 0, 0);
 				}
@@ -297,7 +309,8 @@ public final class StudentEditorDao {
 					connection.commit();
 					return new EditorSaveResult(EditorSaveResult.Status.NOT_FOUND, null);
 				}
-				if (!page.isCanStartResubmission() || page.getLatestSubmittedCode() == null) {
+				if (!page.isCanStartResubmission(currentDatabaseTime(connection))
+						|| page.getLatestSubmittedCode() == null) {
 					connection.commit();
 					return new EditorSaveResult(EditorSaveResult.Status.READ_ONLY, page.getDraftUpdatedAt());
 				}
@@ -400,7 +413,8 @@ public final class StudentEditorDao {
 				findFeatures(connection, row.taskId),
 				findTestCases(connection, row.taskId),
 				findHints(connection, row.taskId),
-				findCodeLogs(connection, row.participationId));
+				findCodeLogs(connection, row.participationId),
+				currentDatabaseTime(connection));
 	}
 
 	private static AssignmentRow findAssignment(Connection connection, long studentUserId, long assignmentId)
@@ -801,6 +815,16 @@ public final class StudentEditorDao {
 
 	private static LocalDateTime toLocalDateTime(Timestamp value) {
 		return value == null ? null : value.toLocalDateTime();
+	}
+
+	private static LocalDateTime currentDatabaseTime(Connection connection) throws SQLException {
+		try (PreparedStatement statement = connection.prepareStatement("SELECT CURRENT_TIMESTAMP");
+				ResultSet resultSet = statement.executeQuery()) {
+			if (!resultSet.next()) {
+				throw new SQLException("The database did not return its current timestamp.");
+			}
+			return toLocalDateTime(resultSet.getTimestamp(1));
+		}
 	}
 
 	private static Long getNullableLong(ResultSet resultSet, String column) throws SQLException {

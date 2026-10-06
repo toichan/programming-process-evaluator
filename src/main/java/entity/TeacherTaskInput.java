@@ -150,9 +150,20 @@ public record TeacherTaskInput(
 			long classroomId,
 			LocalDateTime publishAt,
 			LocalDateTime dueAt,
-			LateSubmissionPolicy lateSubmissionPolicy) {
+			LateSubmissionPolicy lateSubmissionPolicy,
+			String assignmentStatus) {
 		public ClassAssignmentInput {
 			Objects.requireNonNull(lateSubmissionPolicy);
+			Objects.requireNonNull(assignmentStatus);
+		}
+
+		public ClassAssignmentInput(
+				long assignmentId,
+				long classroomId,
+				LocalDateTime publishAt,
+				LocalDateTime dueAt,
+				LateSubmissionPolicy lateSubmissionPolicy) {
+			this(assignmentId, classroomId, publishAt, dueAt, lateSubmissionPolicy, "not_published");
 		}
 
 		public long getAssignmentId() {
@@ -173,6 +184,10 @@ public record TeacherTaskInput(
 
 		public LateSubmissionPolicy getLateSubmissionPolicy() {
 			return lateSubmissionPolicy;
+		}
+
+		public String getAssignmentStatus() {
+			return assignmentStatus;
 		}
 	}
 }

@@ -31,7 +31,7 @@
 | 7. Python実行・生徒エディター | 主要実装済み、検証継続 | [生徒エディター計画](./feature-plans/student-editor.md)。対話型runnerは実装済み。ブラウザー・競合・再提出等の残件を同計画で確認 |
 | 8. 評価・コードログ・アンケート | 主要実装済み、実設定・受入保留 | [評価・コードログ・アンケート計画](./feature-plans/student-evaluation-survey.md)。合成データの実API評価→DB保存・再読込を確認済み。アンケート・標準設問・標準ルーブリック閲覧も実装済み。既知バグ修正後の専用合成DB・認証HTTP・ブラウザー検証済み。正式設定とユーザー手動E2Eは教師画面完成後 |
 | 9. 授業演習 | T001〜T051完了 | [授業演習計画](./feature-plans/student-exercise.md)の最新記録を正とする。実DB/HTTP/runner/ブラウザー検証と通常Chromeでの単体.py保存確認まで実施済み。OS標準フォルダ選択・ZIP保存ダイアログおよび全ブラウザー/OS組合せは未確認。教師配信・進捗制御等は後続機能 |
-| 10. 教師の課題編集・公開・改訂 | 下書き編集、必須学校所属、削除/復元は実装・専用DB/browser受入完了。公開・改訂は未完了。プロンプト基本編集/版管理は実装済み、AI実API確認は工程19へ延期 | [教師課題下書き計画](./feature-plans/teacher-task-draft.md)、[S3計画](./feature-plans/teacher-task-s3.md)、[教師プロンプト計画](./feature-plans/teacher-prompt-ai.md)、[課題状態ルール](../state-rules/teacher/task-state-rules.md)。単一学校所属、同校の課題管理権限教師による削除/復元、作成者のみ編集を実装済み。プロジェクト専用Compose DBは再構築・合成デモ投入済み |
+| 10. 教師の課題編集・公開・改訂 | 下書き編集・削除/復元、公開・予約公開・期限処理、学習開始前の同一系列改訂、学習開始後の独立系列コピーを実装。専用DB統合テストと全体build成功。改訂・workerの認証browser/runtime受入、期限境界・履歴保持、worker SLAを確認済み。独立系列コピーの本番UIブラウザー確認と期限延長/対象クラス追加は未完了。プロンプトAI実API確認は工程19へ延期 | [教師課題下書き計画](./feature-plans/teacher-task-draft.md)、[S3計画](./feature-plans/teacher-task-s3.md)、[公開計画](./feature-plans/teacher-task-publication.md)、[公開後改訂計画](./feature-plans/teacher-task-revision.md)、[教師プロンプト計画](./feature-plans/teacher-prompt-ai.md)、[課題状態ルール](../state-rules/teacher/task-state-rules.md)。独立コピーはversion 128の合意仕様に基づき、新しい系列・未公開下書き・未適用プロンプト案として実装し、コピー元の割当/履歴を保持する |
 | 11. 管理者の教師アカウント管理・学校管理 | 教師アカウント管理は未着手。学校管理は実装済み | [機能仕様](../function-specification.md)教師アカウント管理・学校管理、[認証計画](./feature-plans/authentication-and-login.md)、[アカウント状態ルール](../state-rules/admin/account-state-rules.md)。教師アカウント・学校権限・機能権限・監査UIは未実装。パスワード表示の仕様差分を解決してから着手。2タブ統合は明示指示まで保留 |
 | 12. 教師の生徒アカウント管理 | 未着手 | [機能仕様](../function-specification.md)「アカウント情報管理機能」。学校/クラス権限、学校別セキュリティレベル、作成・初期資格情報・リセット・一覧/CSV・監査を対象とする |
 | 13. 授業演習コード配信 | 未着手。現在進行中の配信実装はない | [機能仕様](../function-specification.md)「コード配信機能」、[配信状態ルール](../state-rules/teacher/distribution-state-rules.md)、[演習計画](./feature-plans/student-exercise.md)。配信テンプレート、クラス別予約/配信/停止/再配信、上書き/追加入力、配信履歴を実装する |
@@ -68,7 +68,7 @@
 - 工程9「授業演習」はT001〜T051が完了している。過去の第95〜104版記録にあるT030/T031未完了や「次は演習のこの機能」といった記述は当時点の履歴であり、現在の状態として扱わない。詳細・最終検証の範囲と限界は[授業演習計画](./feature-plans/student-exercise.md)を参照する。
 - **工程10 S1・S2/T014受入完了**: [初回スライス計画](./feature-plans/teacher-task-draft.md)のT001〜T015と、[教師プロンプト計画](./feature-plans/teacher-prompt-ai.md)のS2/T014を参照。再評価job履歴一覧、履歴からの詳細表示、対象生徒別の提出revision・状態・評価点を隔離認証browserで確認済み。専用V1〜V18 DB test、全体JUnit 204件（135 pass / 0 fail / 69 skip）とWAR生成も成功。証跡は[エラーレポート](./error-report.md)と[S2実装チェックポイント](./feature-plans/checkpoints/teacher-prompt-ai/tasks-to-impl.yaml)を参照。共有8080/DBは変更していない。
 - **工程10 S3完了**: [S3計画](./feature-plans/teacher-task-s3.md)に従い、必須の単一学校所属（V19、フォーム〜DAO）と、同一学校の課題管理権限教師による論理削除・下書き復元を実装。編集は作成者に限定し、管理者操作は含めない。空の専用DBとプロジェクト専用Compose DBへV1〜V19を適用し、専用DB統合testと認証browserで削除・復元を確認した。プロジェクト専用Compose DBを再構築し、新しい合成デモを投入済み。migration自体はデータ削除をせず、共有DB/他DBは変更していない。
-- **次の着手**: 工程10の課題公開・改訂の残要件を整理し、次に工程11〜18のうち依存順に沿って実装する。現在、授業演習コード配信の実装は始まっていない。ユーザーの「作業を継続」は既存の実装がある場合の指示だが、現在該当する未完了コード作業はないため、ロードマップどおり工程11（教師アカウント管理）から順に進める。Gemini実API確認は工程19まで延期する。
+- **工程10 公開・学習開始前改訂実装済み、runtime SLA受入一部継続**: 公開・予約公開・期限処理は[教師課題公開計画](./feature-plans/teacher-task-publication.md)、学習開始前の同系列改訂は[公開後改訂計画](./feature-plans/teacher-task-revision.md)を参照する。専用MySQLのV1〜V19 migration/validate、`TeacherTaskDatabaseTest` 23件（22成功、browser fixture 1 skip）、focused JUnit、全体 `gradle build` が成功。学習未着手を確認した改訂作成・prompt/assignment再公開、Editorを開いただけの `not_started` 参加行の許容、学習開始後改訂拒否、再公開までの旧版維持をDBで確認した。隔離認証browserで公開・改訂作成・新prompt保存・改訂再公開を確認し、Chromiumで `task.js` を構文コンパイルした。実workerは再起動直後の期限超過回収と稼働中の次周期処理を確認した。専用runtimeで期限到来後の `published -> expired`、system監査1件、提出/評価/コードログ各1件の保持を確認し、期限前非遷移・境界到来・冪等性もDB統合テスト済み。追加の壁時計計測では期限到来からworker遷移の初回観測まで21.646秒で、60秒以内を確認した。学習開始後の別系列複製、期限延長/対象追加は未確認。共有8080/DBとGemini実APIは使用していない。
 - **機能順序と依存**: 管理者の教師アカウント/学校権限 → 教師の生徒アカウント/クラス基盤 → 授業演習コード配信 → 課題進捗・授業演習コード確認 → 提出確認 → 評価確認 → アンケート結果確認 → AI実API/評価経路の最終確認 → 機能横断検証。工程ごとに専用DB・合成データのテストを完了してから次へ進む。
 - **課題配信と授業演習コード配信の区別**: 課題の公開/改訂は工程10の課題状態操作、授業演習コード配信は工程13の演習フォルダ/ファイルの配布であり、別機能として管理する。
 - **AI稼働確認の延期**: S2の実装と合成providerによるpreview〜confirm/job経路の受入は完了しているが、Gemini実APIとの疎通・実APIによる合成fixture縦断確認・実提出を含む本番相当確認は未実施。ユーザー判断で後続へ延期し、再開指示までは実APIを呼ばず、実提出/コードログを送信しない。未確認項目と再開ゲートは[教師プロンプト計画](./feature-plans/teacher-prompt-ai.md)を参照する。
@@ -387,11 +387,13 @@
 
 ## 10. 教師の課題編集・公開・改訂を完了する
 
-**現在の状態:** 下書き作成/編集、必須の単一学校所属、学校内クラス割当、論理削除/下書き復元は実装・受入済み。課題の公開・予約公開・公開後の改訂/要更新は未完了。プロンプトの基本編集/版管理は実装済みだが、Gemini実API利用は工程19へ延期する。
+**現在の状態:** 下書き作成/編集、必須の単一学校所属、学校内クラス割当、論理削除/下書き復元、公開/予約公開、学習開始前の同系列改訂/再公開、学習開始後の独立系列コピーは実装済み。専用DB統合テスト、改訂の認証browser受入、workerの期限境界・履歴保持・60秒以内の遷移を確認済み。独立コピーの本番UIブラウザー受入と期限延長/対象追加は未完了。プロンプトの基本編集/版管理は実装済みだが、Gemini実API利用は工程19へ延期する。
 
-**参照資料:** [機能仕様](../function-specification.md)「課題編集」、[課題状態ルール](../state-rules/teacher/task-state-rules.md)、[実装契約](./implementation-contract.md)、[テーブル定義](../database-design/table-definitions.md)、[教師課題S3計画](./feature-plans/teacher-task-s3.md)。
+**参照資料:** [機能仕様](../function-specification.md)「課題編集」、[課題状態ルール](../state-rules/teacher/task-state-rules.md)、[実装契約](./implementation-contract.md)、[テーブル定義](../database-design/table-definitions.md)、[教師課題S3計画](./feature-plans/teacher-task-s3.md)、[公開計画](./feature-plans/teacher-task-publication.md)、[公開後改訂計画](./feature-plans/teacher-task-revision.md)。
 
-**作業:** 公開に必要なプロンプト/ルーブリック、クラス別公開日時・提出期限、公開/予約/要更新遷移、改訂時の提出・評価履歴保持を照合する。仕様差分があればコード前に合意し、公開・改訂を小さな機能スライスとして実装する。担当範囲、version競合、監査、予約実行、状態の再読込を検証する。
+**合意済み事項（2026-10-06）:** 課題全体とクラス別割当の公開状態を分離する。アプリ内定期処理を1分間隔で実行し、予約公開・提出期限到来をDB時刻で判定する。遷移は予定時刻/期限から最大約1分以内。期限切れ後も `late_submission_policy=allow` なら未提出者の初回提出のみ許可し、期限後再提出は禁止する。
+
+**作業:** 公開条件（共通標準ルーブリック・現在適用プロンプト版を含む）、クラス別公開日時・提出期限、公開/予約/要更新/期限切れ遷移、改訂時の提出・評価履歴保持を照合する。公開/予約処理と期限判定は実装済みで、期限境界・履歴保持・worker SLAのruntime受入も完了した。同系列改訂は学習開始前のみ作成し、旧版維持・新prompt/assignment設定・再公開を一transactionで処理する。学習開始後の独立系列コピーも、コピー元の割当/履歴を保持する専用DB統合テストまで完了した。次は独立コピーの本番UIブラウザー確認と、期限延長/対象クラス追加の仕様・導線確認を行う。
 
 **完了条件:** 課題状態とクラス別公開状態が仕様どおり永続化され、生徒側アクセス/期限判定と一致すること。
 

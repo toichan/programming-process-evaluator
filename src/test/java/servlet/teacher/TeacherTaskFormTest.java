@@ -39,6 +39,42 @@ class TeacherTaskFormTest {
 	}
 
 	@Test
+	void acceptsPublishActionForNewDraftWithNoExistingVersion() {
+		Map<String, List<String>> values = new java.util.HashMap<>(validCreateValues());
+		values.put("action", List.of("publishTask"));
+
+		TeacherTaskForm form = TeacherTaskForm.parse(values);
+
+		assertEquals("publishTask", form.action());
+		assertEquals(0, form.taskId());
+		assertEquals(0, form.expectedVersion());
+	}
+
+	@Test
+	void acceptsRevisionCreationForAnExistingPublishedTask() {
+		Map<String, List<String>> values = new java.util.HashMap<>(validCreateValues());
+		values.put("action", List.of("createRevision"));
+		values.put("taskId", List.of("42"));
+		values.put("expectedVersion", List.of("3"));
+
+		TeacherTaskForm form = TeacherTaskForm.parse(values);
+
+		assertEquals("createRevision", form.action());
+		assertEquals(42, form.taskId());
+		assertEquals(3, form.expectedVersion());
+	}
+
+	@Test
+	void rejectsRevisionCreationWithoutExistingTaskVersion() {
+		Map<String, List<String>> values = new java.util.HashMap<>(validCreateValues());
+		values.put("action", List.of("createRevision"));
+		values.put("taskId", List.of("0"));
+		values.put("expectedVersion", List.of("0"));
+
+		assertThrows(IllegalArgumentException.class, () -> TeacherTaskForm.parse(values));
+	}
+
+	@Test
 	void rejectsDuplicateScalarFields() {
 		Map<String, List<String>> values = new java.util.HashMap<>(validCreateValues());
 		values.put("taskName", List.of("first", "second"));

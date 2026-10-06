@@ -80,6 +80,7 @@ public final class TeacherTaskDao {
 					taskIds.add(rows.getLong("task_id"));
 				}
 			}
+
 		}
 		List<TeacherTaskDetails> tasks = new ArrayList<>(taskIds.size());
 		for (long taskId : taskIds) {
@@ -128,12 +129,116 @@ public final class TeacherTaskDao {
 		return findTask(connection, null, taskId, forUpdate, "1 = 1", true);
 	}
 
+	public boolean isTaskRevisionOf(
+			Connection connection,
+			long teacherUserId,
+			long revisionTaskId,
+			long sourceTaskId) throws SQLException {
+		try (PreparedStatement statement = connection.prepareStatement("""
+				SELECT 1
+				FROM tasks revision
+				JOIN tasks source ON source.task_code = revision.task_code
+				WHERE revision.task_id = ? AND revision.supersedes_task_id = ?
+				  AND revision.created_by_user_id = ? AND source.created_by_user_id = ?
+				""")) {
+			statement.setLong(1, revisionTaskId);
+			statement.setLong(2, sourceTaskId);
+			statement.setLong(3, teacherUserId);
+			statement.setLong(4, teacherUserId);
+			try (ResultSet rows = statement.executeQuery()) {
+				return rows.next();
+			}
+		}
+	}
+
+	public boolean isIndependentCopyOf(
+			Connection connection,
+			long teacherUserId,
+			long copiedTaskId,
+			long sourceTaskId,
+			String requestId) throws SQLException {
+		requireTeacherId(teacherUserId);
+		requireTaskId(copiedTaskId);
+		requireTaskId(sourceTaskId);
+		try (PreparedStatement statement = connection.prepareStatement("""
+				SELECT 1
+				FROM audit_logs
+				WHERE actor_user_id = ? AND actor_role = 'teacher' AND feature_code = ?
+				  AND target_type = ? AND target_id = ? AND action_type = ?
+				  AND result_status = 'success' AND request_id = ?
+				  AND CAST(JSON_UNQUOTE(JSON_EXTRACT(after_data, '$.source_task_id')) AS UNSIGNED) = ?
+				LIMIT 1
+				""")) {
+			statement.setLong(1, teacherUserId);
+			statement.setString(2, TASK_FEATURE_CODE);
+			statement.setString(3, TASK_TARGET_TYPE);
+			statement.setLong(4, copiedTaskId);
+			statement.setString(5, "create_independent_task_copy");
+			statement.setString(6, requestId);
+			statement.setLong(7, sourceTaskId);
+			try (ResultSet rows = statement.executeQuery()) {
+				return rows.next();
+			}
+		}
+	}
+
 	public Optional<TeacherTaskDetails> findDraft(
 			Connection connection,
 			long teacherUserId,
 			long taskId,
 			boolean forUpdate) throws SQLException {
 		return findTask(connection, teacherUserId, taskId, forUpdate, "t.publication_status = 'draft'");
+	}
+
+	public Optional<TeacherTaskDetails> findTaskForEdit(
+			Connection connection,
+			long teacherUserId,
+			long taskId,
+			boolean forUpdate) throws SQLException {
+		return findTask(connection, teacherUserId, taskId, forUpdate,
+				"t.publication_status IN ('draft','published','requires_update')");
+	}
+
+	public boolean hasStartedLearning(Connection connection, long taskId, boolean forUpdate) throws SQLException {
+		requireTaskId(taskId);
+		String lockClause = forUpdate ? " FOR UPDATE" : "";
+		try (PreparedStatement statement = connection.prepareStatement("""
+				SELECT task_class_assignment_id
+				FROM task_class_assignments
+				WHERE task_id = ? AND assignment_status <> 'archived'
+				ORDER BY task_class_assignment_id
+				""" + lockClause)) {
+			statement.setLong(1, taskId);
+			try (ResultSet rows = statement.executeQuery()) {
+				while (rows.next()) {
+					rows.getLong(1);
+				}
+			}
+		}
+		try (PreparedStatement statement = connection.prepareStatement("""
+				SELECT tp.participation_id
+				FROM task_participations tp
+				JOIN task_class_assignments a
+				  ON a.task_class_assignment_id = tp.task_class_assignment_id
+				WHERE a.task_id = ? AND a.assignment_status <> 'archived'
+				  AND (
+				    tp.learning_status <> 'not_started'
+				    OR tp.progress_status <> 'not_started'
+				    OR tp.save_status <> 'unsaved'
+				    OR tp.evaluation_status <> 'not_started'
+				    OR tp.active_duration_seconds > 0
+				    OR EXISTS (
+				      SELECT 1 FROM submissions s WHERE s.participation_id = tp.participation_id
+				    )
+				  )
+				ORDER BY tp.participation_id
+				LIMIT 1
+				""" + lockClause)) {
+			statement.setLong(1, taskId);
+			try (ResultSet rows = statement.executeQuery()) {
+				return rows.next();
+			}
+		}
 	}
 
 	public Optional<TeacherTaskDetails> findPromptTask(
@@ -174,7 +279,14 @@ public final class TeacherTaskDao {
 				       t.created_at, t.updated_at, t.save_status, t.publication_status,
 				       t.title, t.theme, t.difficulty, t.description, t.input_constraints,
 				       t.creation_rules, t.initial_code,
-				       r.rubric_status, p.prompt_status
+				       r.rubric_status,
+				       COALESCE(p.prompt_status, (
+				         SELECT latest.prompt_status
+				         FROM prompt_versions latest
+				         WHERE latest.task_id = t.task_id
+				         ORDER BY latest.created_at DESC, latest.prompt_version_id DESC
+				         LIMIT 1
+				       )) AS prompt_status
 				FROM tasks t
 				JOIN users creator ON creator.user_id = t.created_by_user_id
 				LEFT JOIN users updater ON updater.user_id = t.updated_by_user_id
@@ -198,6 +310,7 @@ public final class TeacherTaskDao {
 				}
 				long updatedById = rows.getLong("updated_by_user_id");
 				Long nullableUpdatedById = rows.wasNull() ? null : updatedById;
+				boolean learningStarted = hasStartedLearning(connection, taskId, false);
 				TeacherTaskDetails details = new TeacherTaskDetails(
 						rows.getLong("task_id"),
 						rows.getString("task_code"),
@@ -214,6 +327,7 @@ public final class TeacherTaskDao {
 						rows.getString("publication_status"),
 						rows.getString("rubric_status"),
 						rows.getString("prompt_status"),
+						learningStarted,
 						loadInput(connection, taskId,
 								rows.getString("title"),
 								rows.getString("theme"),
@@ -300,6 +414,125 @@ public final class TeacherTaskDao {
 		return taskId;
 	}
 
+	public long insertRevision(
+			Connection connection,
+			long teacherUserId,
+			long sourceTaskId,
+			long expectedVersion,
+			TeacherTaskInput input) throws SQLException {
+		requireWriteTransaction(connection);
+		requireTeacherId(teacherUserId);
+		requireTaskId(sourceTaskId);
+		if (expectedVersion < 1 || input.classAssignments().isEmpty()) {
+			throw new IllegalArgumentException("課題改訂には有効な版と対象クラスが必要です。");
+		}
+		TeacherTaskDetails source = findTask(connection, teacherUserId, sourceTaskId, true,
+				"t.publication_status = 'published'")
+				.orElseThrow(() -> new IllegalArgumentException("公開中の課題が見つかりません。"));
+		if (source.version() != expectedVersion) {
+			throw new IllegalArgumentException("課題が更新されています。再読み込みしてください。");
+		}
+		if (hasStartedLearning(connection, sourceTaskId, true)) {
+			throw new IllegalArgumentException(
+					"学習開始済みの生徒がいるため、同一系列の課題改訂は作成できません。");
+		}
+		try (PreparedStatement statement = connection.prepareStatement("""
+				SELECT task_id
+				FROM tasks
+				WHERE supersedes_task_id = ? AND deleted_at IS NULL
+				  AND publication_status = 'requires_update'
+				LIMIT 1
+				FOR UPDATE
+				""")) {
+			statement.setLong(1, sourceTaskId);
+			try (ResultSet rows = statement.executeQuery()) {
+				if (rows.next()) {
+					throw new IllegalArgumentException("この課題には既に改訂案があります。既存の改訂案を編集してください。");
+				}
+			}
+		}
+
+		String taskCode;
+		int nextRevisionNumber;
+		long schoolId;
+		long rubricId;
+		String rubricVersion;
+		try (PreparedStatement statement = connection.prepareStatement("""
+				SELECT task_code, revision_number, school_id, rubric_id, rubric_version
+				FROM tasks
+				WHERE task_id = ? AND created_by_user_id = ?
+				  AND publication_status = 'published' AND deleted_at IS NULL AND version = ?
+				FOR UPDATE
+				""")) {
+			statement.setLong(1, sourceTaskId);
+			statement.setLong(2, teacherUserId);
+			statement.setLong(3, expectedVersion);
+			try (ResultSet rows = statement.executeQuery()) {
+				if (!rows.next()) {
+					throw new IllegalArgumentException("課題の状態が更新されています。再読み込みしてください。");
+				}
+				taskCode = rows.getString("task_code");
+				schoolId = rows.getLong("school_id");
+				rubricId = rows.getLong("rubric_id");
+				rubricVersion = rows.getString("rubric_version");
+			}
+		}
+		try (PreparedStatement statement = connection.prepareStatement("""
+				SELECT COALESCE(MAX(revision_number), 0) + 1
+				FROM tasks
+				WHERE task_code = ?
+				""")) {
+			statement.setString(1, taskCode);
+			try (ResultSet rows = statement.executeQuery()) {
+				if (!rows.next()) {
+					throw new SQLException("The next task revision number could not be determined.");
+				}
+				nextRevisionNumber = rows.getInt(1);
+			}
+		}
+
+		long revisionTaskId;
+		try (PreparedStatement statement = connection.prepareStatement("""
+				INSERT INTO tasks (
+				  school_id, task_code, task_revision_code, revision_number, supersedes_task_id,
+				  created_by_user_id, updated_by_user_id, rubric_id, rubric_version,
+				  active_prompt_version_id, title, theme, difficulty, language, description,
+				  input_constraints, creation_rules, initial_code, save_status, publication_status,
+				  created_at, version
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, 'Python', ?, ?, ?, ?, 'draft',
+				  'requires_update', CURRENT_TIMESTAMP, 1)
+				""", Statement.RETURN_GENERATED_KEYS)) {
+			statement.setLong(1, schoolId);
+			statement.setString(2, taskCode);
+			statement.setString(3, taskCode + "-v" + nextRevisionNumber);
+			statement.setInt(4, nextRevisionNumber);
+			statement.setLong(5, sourceTaskId);
+			statement.setLong(6, teacherUserId);
+			statement.setLong(7, teacherUserId);
+			statement.setLong(8, rubricId);
+			statement.setString(9, rubricVersion);
+			statement.setString(10, input.title());
+			statement.setString(11, input.theme());
+			statement.setString(12, databaseDifficulty(input.difficulty()));
+			statement.setString(13, input.description());
+			statement.setString(14, input.inputConstraints());
+			statement.setString(15, input.creationRules());
+			statement.setString(16, input.initialCode());
+			statement.executeUpdate();
+			revisionTaskId = generatedId(statement);
+		}
+		insertFeatures(connection, revisionTaskId, input.features());
+		insertTestCases(connection, revisionTaskId, input.testCases());
+		insertHints(connection, revisionTaskId, input.hints());
+		List<ClassAssignmentInput> assignments = input.classAssignments().stream()
+				.map(assignment -> new ClassAssignmentInput(
+						0, assignment.classroomId(), assignment.publishAt(), assignment.dueAt(),
+						assignment.lateSubmissionPolicy()))
+				.toList();
+		insertAssignments(connection, revisionTaskId, assignments);
+		return revisionTaskId;
+	}
+
 	public void archiveTask(
 			Connection connection,
 			long actorUserId,
@@ -335,6 +568,16 @@ public final class TeacherTaskDao {
 		requireTeacherId(actorUserId);
 		requireTaskId(taskId);
 		try (PreparedStatement statement = connection.prepareStatement("""
+				UPDATE task_class_assignments ca
+				JOIN tasks t ON t.task_id = ca.task_id
+				SET ca.assignment_status = 'archived', ca.updated_at = CURRENT_TIMESTAMP
+				WHERE ca.task_id = ? AND t.publication_status = 'archived'
+				  AND ca.assignment_status IN ('scheduled','published','requires_update','expired')
+				""")) {
+			statement.setLong(1, taskId);
+			statement.executeUpdate();
+		}
+		try (PreparedStatement statement = connection.prepareStatement("""
 				UPDATE tasks
 				SET publication_status = 'draft', deleted_at = NULL, deleted_by_user_id = NULL,
 				    updated_by_user_id = ?, version = version + 1, updated_at = CURRENT_TIMESTAMP
@@ -362,7 +605,10 @@ public final class TeacherTaskDao {
 		if (expectedVersion < 1) {
 			throw new IllegalArgumentException("A valid task version is required.");
 		}
-		requireDraftForUpdate(connection, teacherUserId, taskId, expectedVersion);
+		TeacherTaskDetails current = requireEditableForUpdate(connection, teacherUserId, taskId, expectedVersion);
+		if ("requires_update".equals(current.publicationStatus()) && hasStartedLearning(connection, taskId, true)) {
+			throw new IllegalArgumentException("学習開始済みの課題内容は更新できません。");
+		}
 		long rubricId = standardRubricIdProvider.requireActiveId(connection);
 		try (PreparedStatement statement = connection.prepareStatement("""
 				UPDATE tasks
@@ -371,7 +617,7 @@ public final class TeacherTaskDao {
 				    description = ?, input_constraints = ?, creation_rules = ?, initial_code = ?,
 				    save_status = 'draft', version = version + 1, updated_at = CURRENT_TIMESTAMP
 				WHERE task_id = ? AND created_by_user_id = ?
-				  AND publication_status = 'draft' AND deleted_at IS NULL AND version = ?
+				  AND publication_status = ? AND deleted_at IS NULL AND version = ?
 				""")) {
 			statement.setLong(1, teacherUserId);
 			statement.setLong(2, rubricId);
@@ -384,7 +630,8 @@ public final class TeacherTaskDao {
 			statement.setString(9, input.initialCode());
 			statement.setLong(10, taskId);
 			statement.setLong(11, teacherUserId);
-			statement.setLong(12, expectedVersion);
+			statement.setString(12, current.publicationStatus());
+			statement.setLong(13, expectedVersion);
 			if (statement.executeUpdate() != 1) {
 				throw new SQLException("Task draft update lost its version or ownership condition.");
 			}
@@ -393,6 +640,211 @@ public final class TeacherTaskDao {
 		updateTestCases(connection, taskId, input.testCases());
 		updateHints(connection, taskId, input.hints());
 		updateAssignments(connection, taskId, input.classAssignments());
+	}
+
+	public void clearActivePromptVersion(
+			Connection connection,
+			long teacherUserId,
+			long taskId,
+			long expectedVersion) throws SQLException {
+		requireWriteTransaction(connection);
+		requireTeacherId(teacherUserId);
+		requireTaskId(taskId);
+		try (PreparedStatement statement = connection.prepareStatement("""
+				UPDATE tasks
+				SET active_prompt_version_id = NULL
+				WHERE task_id = ? AND created_by_user_id = ?
+				  AND publication_status IN ('draft','requires_update')
+				  AND deleted_at IS NULL AND version = ?
+				""")) {
+			statement.setLong(1, taskId);
+			statement.setLong(2, teacherUserId);
+			statement.setLong(3, expectedVersion);
+			if (statement.executeUpdate() != 1) {
+				throw new SQLException("Task prompt invalidation lost its version or ownership condition.");
+			}
+		}
+	}
+
+	public PublicationResult publishDraft(
+			Connection connection,
+			long teacherUserId,
+			long taskId,
+			long expectedVersion,
+			int expectedAssignmentCount) throws SQLException {
+		requireWriteTransaction(connection);
+		requireTeacherId(teacherUserId);
+		requireTaskId(taskId);
+		if (expectedVersion < 1 || expectedAssignmentCount < 1) {
+			throw new IllegalArgumentException("課題の公開条件が不足しています。");
+		}
+
+		Long supersedesTaskId = null;
+		String currentTaskStatus;
+		try (PreparedStatement statement = connection.prepareStatement("""
+				SELECT publication_status, supersedes_task_id
+				FROM tasks
+				WHERE task_id = ? AND created_by_user_id = ? AND deleted_at IS NULL
+				""")) {
+			statement.setLong(1, taskId);
+			statement.setLong(2, teacherUserId);
+			try (ResultSet rows = statement.executeQuery()) {
+				if (!rows.next()) {
+					throw new IllegalArgumentException("課題が見つからないか、公開できません。");
+				}
+				currentTaskStatus = rows.getString("publication_status");
+				long value = rows.getLong("supersedes_task_id");
+				if (!rows.wasNull()) {
+					supersedesTaskId = value;
+				}
+			}
+		}
+		if (!"draft".equals(currentTaskStatus) && !"requires_update".equals(currentTaskStatus)) {
+			throw new IllegalArgumentException("課題の状態が更新されています。再読み込みしてください。");
+		}
+		if ("requires_update".equals(currentTaskStatus)) {
+			if (supersedesTaskId == null) {
+				throw new IllegalArgumentException("公開元の課題改訂を確認できません。");
+			}
+			findTask(connection, teacherUserId, supersedesTaskId, true,
+					"t.publication_status = 'published'")
+					.orElseThrow(() -> new IllegalArgumentException(
+							"公開元の課題状態が更新されています。再読み込みしてください。"));
+			if (hasStartedLearning(connection, supersedesTaskId, true)) {
+				throw new IllegalArgumentException(
+						"改訂案の作成後に学習を開始した生徒がいるため、再公開できません。既存の課題を維持してください。");
+			}
+		}
+
+		try (PreparedStatement statement = connection.prepareStatement("""
+				SELECT r.rubric_status, p.prompt_status, p.evaluation_examples_status,
+				       t.publication_status, t.supersedes_task_id
+				FROM tasks t
+				LEFT JOIN rubrics r ON r.rubric_id = t.rubric_id
+				LEFT JOIN prompt_versions p
+				  ON p.prompt_version_id = t.active_prompt_version_id AND p.task_id = t.task_id
+				WHERE t.task_id = ? AND t.created_by_user_id = ?
+				  AND t.publication_status IN ('draft','requires_update') AND t.deleted_at IS NULL
+				  AND t.version = ?
+				FOR UPDATE
+				""")) {
+			statement.setLong(1, taskId);
+			statement.setLong(2, teacherUserId);
+			statement.setLong(3, expectedVersion);
+			try (ResultSet rows = statement.executeQuery()) {
+				if (!rows.next()) {
+					throw new IllegalArgumentException("課題の状態が更新されています。再読み込みしてください。");
+				}
+				if (!"active".equals(rows.getString("rubric_status"))
+						|| !List.of("configured", "versioned").contains(rows.getString("prompt_status"))
+						|| !"completed".equals(rows.getString("evaluation_examples_status"))) {
+					throw new IllegalArgumentException(
+							"公開前に有効な標準ルーブリックと、評価例の生成が完了したプロンプト版を設定してください。");
+				}
+				if (!currentTaskStatus.equals(rows.getString("publication_status"))) {
+					throw new IllegalArgumentException("課題の状態が更新されています。再読み込みしてください。");
+				}
+			}
+		}
+
+		int immediateCount = 0;
+		int scheduledCount = 0;
+		Timestamp databaseNow = currentDatabaseTimestamp(connection);
+		try (PreparedStatement statement = connection.prepareStatement("""
+				SELECT task_class_assignment_id, publish_at, due_at
+				FROM task_class_assignments
+				WHERE task_id = ? AND assignment_status = 'not_published'
+				ORDER BY task_class_assignment_id
+				FOR UPDATE
+				""")) {
+			statement.setLong(1, taskId);
+			try (ResultSet rows = statement.executeQuery()) {
+				int assignmentCount = 0;
+				while (rows.next()) {
+					assignmentCount++;
+					Timestamp publishAt = rows.getTimestamp("publish_at");
+					Timestamp dueAt = rows.getTimestamp("due_at");
+					if (dueAt != null && !dueAt.after(databaseNow)) {
+						throw new IllegalArgumentException("提出期限は公開処理時刻より後に設定してください。");
+					}
+					if (publishAt == null || !publishAt.after(databaseNow)) {
+						immediateCount++;
+					} else {
+						scheduledCount++;
+					}
+				}
+				if (assignmentCount != expectedAssignmentCount) {
+					throw new IllegalArgumentException("公開対象のクラス割当を確認できません。課題を再読み込みしてください。");
+				}
+			}
+		}
+
+		try (PreparedStatement statement = connection.prepareStatement("""
+				UPDATE task_class_assignments
+				SET assignment_status = CASE
+				      WHEN publish_at IS NULL OR publish_at <= CURRENT_TIMESTAMP THEN 'published'
+				      ELSE 'scheduled'
+				    END,
+				    updated_at = CURRENT_TIMESTAMP
+				WHERE task_id = ? AND assignment_status = 'not_published'
+				  AND (due_at IS NULL OR due_at > CURRENT_TIMESTAMP)
+				""")) {
+			statement.setLong(1, taskId);
+			if (statement.executeUpdate() != expectedAssignmentCount) {
+				throw new SQLException("Task assignment publication did not update the expected rows.");
+			}
+		}
+		try (PreparedStatement statement = connection.prepareStatement("""
+				UPDATE tasks
+				SET save_status = 'saved', publication_status = 'published', published_at = CURRENT_TIMESTAMP,
+				    updated_by_user_id = ?, version = version + 1, updated_at = CURRENT_TIMESTAMP
+				WHERE task_id = ? AND created_by_user_id = ? AND publication_status = ?
+				  AND deleted_at IS NULL AND version = ?
+				""")) {
+			statement.setLong(1, teacherUserId);
+			statement.setLong(2, taskId);
+			statement.setLong(3, teacherUserId);
+			statement.setString(4, currentTaskStatus);
+			statement.setLong(5, expectedVersion);
+			if (statement.executeUpdate() != 1) {
+				throw new SQLException("Task publication lost its version, ownership, or state condition.");
+			}
+		}
+		if (supersedesTaskId != null) {
+			try (PreparedStatement statement = connection.prepareStatement("""
+					UPDATE task_class_assignments
+					SET assignment_status = 'archived', updated_at = CURRENT_TIMESTAMP
+					WHERE task_id = ? AND assignment_status <> 'archived'
+					""")) {
+				statement.setLong(1, supersedesTaskId);
+				statement.executeUpdate();
+			}
+			try (PreparedStatement statement = connection.prepareStatement("""
+					UPDATE tasks
+					SET publication_status = 'requires_update', updated_by_user_id = ?,
+					    version = version + 1, updated_at = CURRENT_TIMESTAMP
+					WHERE task_id = ? AND created_by_user_id = ?
+					  AND publication_status = 'published' AND deleted_at IS NULL
+					""")) {
+				statement.setLong(1, teacherUserId);
+				statement.setLong(2, supersedesTaskId);
+				statement.setLong(3, teacherUserId);
+				if (statement.executeUpdate() != 1) {
+					throw new SQLException("The previous task revision could not be retired.");
+				}
+			}
+		}
+		return new PublicationResult(immediateCount, scheduledCount, expectedVersion + 1);
+	}
+
+	private static Timestamp currentDatabaseTimestamp(Connection connection) throws SQLException {
+		try (PreparedStatement statement = connection.prepareStatement("SELECT CURRENT_TIMESTAMP");
+				ResultSet rows = statement.executeQuery()) {
+			if (!rows.next()) {
+				throw new SQLException("The database did not return its current timestamp.");
+			}
+			return rows.getTimestamp(1);
+		}
 	}
 
 	public void recordAudit(
@@ -407,7 +859,10 @@ public final class TeacherTaskDao {
 		requireWriteTransaction(connection);
 		requireTeacherId(teacherUserId);
 		requireTaskId(taskId);
-		if (!List.of("create_draft", "update_draft", "delete_task", "restore_task").contains(actionType)) {
+		if (!List.of(
+				"create_draft", "update_draft", "publish_task", "create_task_revision",
+				"create_independent_task_copy", "delete_task", "restore_task")
+				.contains(actionType)) {
 			throw new IllegalArgumentException("Unsupported task audit action.");
 		}
 		if (requestId == null || requestId.isBlank()) {
@@ -443,7 +898,10 @@ public final class TeacherTaskDao {
 			String errorMessage) throws SQLException {
 		requireWriteTransaction(connection);
 		requireTeacherId(teacherUserId);
-		if (!List.of("create_draft", "update_draft", "delete_task", "restore_task").contains(actionType)) {
+		if (!List.of(
+				"create_draft", "update_draft", "publish_task", "create_task_revision",
+				"create_independent_task_copy", "delete_task", "restore_task")
+				.contains(actionType)) {
 			throw new IllegalArgumentException("Unsupported task audit action.");
 		}
 		try (PreparedStatement statement = connection.prepareStatement("""
@@ -472,7 +930,20 @@ public final class TeacherTaskDao {
 			Connection connection,
 			long teacherUserId,
 			String requestId) throws SQLException {
+		return findSuccessfulTaskRequest(connection, teacherUserId, "create_draft", requestId);
+	}
+
+	public Optional<Long> findSuccessfulTaskRequest(
+			Connection connection,
+			long teacherUserId,
+			String actionType,
+			String requestId) throws SQLException {
 		requireTeacherId(teacherUserId);
+		if (!List.of(
+				"create_draft", "publish_task", "create_task_revision",
+				"create_independent_task_copy").contains(actionType)) {
+			throw new IllegalArgumentException("Unsupported task request action.");
+		}
 		if (requestId == null || requestId.isBlank()) {
 			throw new IllegalArgumentException("A request identifier is required for task creation.");
 		}
@@ -480,7 +951,7 @@ public final class TeacherTaskDao {
 				SELECT target_id
 				FROM audit_logs
 				WHERE actor_user_id = ? AND actor_role = 'teacher' AND feature_code = ?
-				  AND target_type = ? AND action_type = 'create_draft'
+				  AND target_type = ? AND action_type = ?
 				  AND result_status = 'success' AND request_id = ? AND target_id IS NOT NULL
 				ORDER BY audit_log_id DESC
 				LIMIT 1
@@ -488,11 +959,18 @@ public final class TeacherTaskDao {
 			statement.setLong(1, teacherUserId);
 			statement.setString(2, TASK_FEATURE_CODE);
 			statement.setString(3, TASK_TARGET_TYPE);
-			statement.setString(4, requestId);
+			statement.setString(4, actionType);
+			statement.setString(5, requestId);
 			try (ResultSet rows = statement.executeQuery()) {
 				return rows.next() ? Optional.of(rows.getLong("target_id")) : Optional.empty();
 			}
 		}
+	}
+
+	public record PublicationResult(
+			int immediatelyPublishedAssignments,
+			int scheduledAssignments,
+			long taskVersion) {
 	}
 
 	public List<TeacherTaskAuditEntry> findAuditEntries(
@@ -501,7 +979,9 @@ public final class TeacherTaskDao {
 			long taskId) throws SQLException {
 		requireTeacherId(teacherUserId);
 		requireTaskId(taskId);
-		if (findDraft(connection, teacherUserId, taskId, false).isEmpty()) {
+		if (findTaskForManagement(connection, taskId, false)
+				.filter(task -> task.createdByUserId() == teacherUserId)
+				.isEmpty()) {
 			return List.of();
 		}
 		List<TeacherTaskAuditEntry> entries = new ArrayList<>();
@@ -537,25 +1017,72 @@ public final class TeacherTaskDao {
 		return List.copyOf(entries);
 	}
 
-	private Optional<TeacherTaskDetails> findTask(
-			Connection connection,
-			long teacherUserId,
-			long taskId,
-			boolean forUpdate) throws SQLException {
-		return findDraft(connection, teacherUserId, taskId, forUpdate);
-	}
-
-	private TeacherTaskDetails requireDraftForUpdate(
+	private TeacherTaskDetails requireEditableForUpdate(
 			Connection connection,
 			long teacherUserId,
 			long taskId,
 			long expectedVersion) throws SQLException {
-		TeacherTaskDetails current = findDraft(connection, teacherUserId, taskId, true)
+		TeacherTaskDetails observed = findTaskForEdit(connection, teacherUserId, taskId, false)
+				.filter(task -> "draft".equals(task.publicationStatus())
+						|| "requires_update".equals(task.publicationStatus()))
+				.orElseThrow(() -> new IllegalArgumentException("課題が見つからないか、編集できません。"));
+		Long sourceTaskId = null;
+		if ("requires_update".equals(observed.publicationStatus())) {
+			sourceTaskId = findSupersededTaskId(connection, taskId);
+			if (sourceTaskId == null
+					|| findTask(connection, teacherUserId, sourceTaskId, true,
+							"t.publication_status = 'published'").isEmpty()
+					|| hasStartedLearning(connection, sourceTaskId, true)) {
+				throw new IllegalArgumentException(
+						"公開元の課題に学習開始済みの生徒がいるか、状態が更新されているため編集できません。");
+			}
+		}
+		TeacherTaskDetails current = findTaskForEdit(connection, teacherUserId, taskId, true)
+				.filter(task -> "draft".equals(task.publicationStatus())
+						|| "requires_update".equals(task.publicationStatus()))
 				.orElseThrow(() -> new IllegalArgumentException("課題が見つからないか、編集できません。"));
 		if (current.version() != expectedVersion) {
 			throw new IllegalArgumentException("課題が更新されています。画面を読み込み直してください。");
 		}
+		if (!current.publicationStatus().equals(observed.publicationStatus())
+				|| ("requires_update".equals(current.publicationStatus())
+						&& !java.util.Objects.equals(sourceTaskId, findSupersededTaskId(connection, taskId)))) {
+			throw new IllegalArgumentException("課題の状態が更新されています。再読み込みしてください。");
+		}
+		if ("requires_update".equals(current.publicationStatus())) {
+			try (PreparedStatement statement = connection.prepareStatement("""
+					SELECT task_id
+					FROM tasks
+					WHERE task_code = ? AND revision_number > ? AND deleted_at IS NULL
+					  AND publication_status IN ('published','requires_update')
+					ORDER BY revision_number
+					LIMIT 1
+					FOR UPDATE
+					""")) {
+				statement.setString(1, current.taskCode());
+				statement.setInt(2, current.revisionNumber());
+				try (ResultSet rows = statement.executeQuery()) {
+					if (rows.next()) {
+						throw new IllegalArgumentException("この課題改訂は既に後続版へ置き換えられています。");
+					}
+				}
+			}
+		}
 		return current;
+	}
+
+	private Long findSupersededTaskId(Connection connection, long taskId) throws SQLException {
+		try (PreparedStatement statement = connection.prepareStatement(
+				"SELECT supersedes_task_id FROM tasks WHERE task_id = ?")) {
+			statement.setLong(1, taskId);
+			try (ResultSet rows = statement.executeQuery()) {
+				if (!rows.next()) {
+					return null;
+				}
+				long value = rows.getLong(1);
+				return rows.wasNull() ? null : value;
+			}
+		}
 	}
 
 	private TeacherTaskInput loadInput(
@@ -628,9 +1155,10 @@ public final class TeacherTaskDao {
 
 		List<ClassAssignmentInput> assignments = new ArrayList<>();
 		try (PreparedStatement statement = connection.prepareStatement("""
-				SELECT task_class_assignment_id, classroom_id, publish_at, due_at, late_submission_policy
+				SELECT task_class_assignment_id, classroom_id, assignment_status, publish_at, due_at,
+				       late_submission_policy
 				FROM task_class_assignments
-				WHERE task_id = ? AND assignment_status = 'not_published'
+				WHERE task_id = ? AND assignment_status <> 'archived'
 				ORDER BY classroom_id, task_class_assignment_id
 				""")) {
 			statement.setLong(1, taskId);
@@ -642,7 +1170,8 @@ public final class TeacherTaskDao {
 							toLocalDateTime(rows.getTimestamp("publish_at")),
 							toLocalDateTime(rows.getTimestamp("due_at")),
 							TeacherTaskInput.LateSubmissionPolicy.fromDatabaseValue(
-									rows.getString("late_submission_policy"))));
+									rows.getString("late_submission_policy")),
+							rows.getString("assignment_status")));
 				}
 			}
 		}

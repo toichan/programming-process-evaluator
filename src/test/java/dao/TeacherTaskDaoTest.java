@@ -27,6 +27,12 @@ class TeacherTaskDaoTest {
 	}
 
 	@Test
+	void rejectsPublishingWithoutAnyTargetAssignmentsBeforeQueryingDatabase() {
+		assertThrows(IllegalArgumentException.class,
+				() -> dao.publishDraft(connection(false, new ArrayList<>()), 1, 41, 1, 0));
+	}
+
+	@Test
 	void rejectsInvalidTeacherBeforeReadingDrafts() {
 		assertThrows(SecurityException.class,
 				() -> dao.findDrafts(connection(false, new ArrayList<>()), 0));

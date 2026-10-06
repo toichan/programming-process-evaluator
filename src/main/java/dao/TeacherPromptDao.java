@@ -379,6 +379,44 @@ public final class TeacherPromptDao {
 		return promptVersionId;
 	}
 
+	public long copyCurrentPromptToDraft(
+			Connection connection,
+			long teacherUserId,
+			long sourceTaskId,
+			long copiedTaskId) throws SQLException {
+		requireWriteTransaction(connection);
+		String commonPrompt;
+		String additionalInstruction;
+		try (PreparedStatement statement = connection.prepareStatement("""
+				SELECT pv.common_prompt, pv.additional_evaluation_instruction
+				FROM tasks source
+				JOIN prompt_versions pv
+				  ON pv.prompt_version_id = source.active_prompt_version_id
+				 AND pv.task_id = source.task_id
+				WHERE source.task_id = ? AND source.publication_status = 'published'
+				  AND source.deleted_at IS NULL AND pv.prompt_status IN ('configured','versioned')
+				FOR UPDATE
+				""")) {
+			statement.setLong(1, sourceTaskId);
+			try (ResultSet rows = statement.executeQuery()) {
+				if (!rows.next()) {
+					throw new IllegalArgumentException("複製元に現在適用中のプロンプトがありません。");
+				}
+				commonPrompt = rows.getString("common_prompt");
+				additionalInstruction = rows.getString("additional_evaluation_instruction");
+			}
+		}
+		return saveDraft(
+				connection,
+				teacherUserId,
+				copiedTaskId,
+				null,
+				0,
+				"gemini-2.5-pro",
+				commonPrompt,
+				additionalInstruction);
+	}
+
 	public long beginGeneration(Connection connection, long teacherUserId, long taskId, long promptVersionId,
 			long expectedRowVersion, String stage) throws SQLException {
 		requireWriteTransaction(connection);

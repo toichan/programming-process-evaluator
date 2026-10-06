@@ -19,7 +19,7 @@
 			<div>
 				<span class="hero-kicker">Task Management</span>
 				<h1 class="section-title mb-2">課題編集</h1>
-				<p class="hero-description mb-0">課題の新規作成と、保存済み下書きの編集を行います。</p>
+				<p class="hero-description mb-0">課題の新規作成、下書き編集、学習開始前の公開課題の改訂を行います。</p>
 			</div>
 			<div class="hero-stats">
 				<div class="stat-card">
@@ -38,7 +38,7 @@
 		</section>
 
 		<c:if test="${teacherTaskSaved}">
-			<div class="alert alert-success" id="taskSaveNotice" role="status">課題の下書きを保存しました。</div>
+			<div class="alert alert-success" id="taskSaveNotice" role="status">課題を保存しました。</div>
 		</c:if>
 		<c:if test="${not empty teacherTaskStateNotice}">
 			<div class="alert alert-success" role="status"><c:out value="${teacherTaskStateNotice}"/></div>
@@ -53,6 +53,8 @@
 					<span class="hero-kicker mb-1 d-inline-block">Create</span>
 					<h2 class="subheading mb-0" id="createSectionHeading">
 						<c:choose>
+							<c:when test="${teacherTaskPublicationStatus == 'published'}">公開課題の改訂案を作成</c:when>
+							<c:when test="${teacherTaskPublicationStatus == 'requires_update'}">改訂案の編集</c:when>
 							<c:when test="${teacherTaskId > 0}">下書きの編集</c:when>
 							<c:otherwise>新規課題の作成</c:otherwise>
 						</c:choose>
@@ -137,14 +139,20 @@
 									<option value="allow" <c:if test="${formLatePolicy == 'allow'}">selected</c:if>>許可する</option>
 									<option value="deny" <c:if test="${formLatePolicy == 'deny'}">selected</c:if>>許可しない</option>
 								</select>
-								<div class="form-text">下書き保存では生徒への公開は行われません。</div>
+								<div class="form-text">
+									<c:choose>
+										<c:when test="${teacherTaskPublicationStatus == 'published'}">改訂案の保存では生徒への公開は行われません。改訂の公開には新しい評価プロンプトの設定が必要です。</c:when>
+										<c:when test="${teacherTaskPublicationStatus == 'requires_update'}">改訂案の保存では生徒への公開は行われません。新しい評価プロンプトを設定してから改訂を公開してください。</c:when>
+										<c:otherwise>下書き保存では生徒への公開は行われません。</c:otherwise>
+									</c:choose>
+								</div>
 							</div>
 							<div class="col-12">
 								<label class="form-label">クラス別の公開期間・提出期限</label>
 								<div id="classScheduleList" class="class-schedule-list" aria-live="polite">
 									<p class="class-schedule-empty mb-0 text-muted">クラスを選択すると、クラスごとの設定欄が表示されます。</p>
 								</div>
-								<div class="form-text">保存した課題は下書きです。公開操作はまだ利用できません。</div>
+								<div class="form-text">公開日時を指定すると予約公開になります。指定しない場合は公開後すぐに生徒へ表示されます。</div>
 							</div>
 							<div class="col-12">
 								<label for="taskNameInput" class="form-label">課題名・授業</label>
@@ -255,9 +263,25 @@
 							</div>
 						</div>
 						<div class="d-flex gap-2 mt-4 justify-content-center flex-wrap">
-							<button class="btn btn-primary" type="button" id="publishTaskButton" disabled
-								title="公開機能は後続工程で実装します。">保存・公開（未対応）</button>
-							<button class="btn btn-outline-secondary" type="submit" id="saveDraftButton">下書き保存</button>
+							<c:choose>
+								<c:when test="${teacherTaskPublicationStatus == 'published'}">
+									<button class="btn btn-primary" type="submit" id="createRevisionButton">改訂案を作成</button>
+								</c:when>
+								<c:otherwise>
+									<button class="btn btn-primary" type="submit" id="publishTaskButton">
+										<c:choose>
+											<c:when test="${teacherTaskPublicationStatus == 'requires_update'}">改訂を公開</c:when>
+											<c:otherwise>保存・公開</c:otherwise>
+										</c:choose>
+									</button>
+									<button class="btn btn-outline-secondary" type="submit" id="saveDraftButton">
+										<c:choose>
+											<c:when test="${teacherTaskPublicationStatus == 'requires_update'}">改訂案を保存</c:when>
+											<c:otherwise>下書き保存</c:otherwise>
+										</c:choose>
+									</button>
+								</c:otherwise>
+							</c:choose>
 						</div>
 					</form>
 				</div>
@@ -301,6 +325,7 @@
 				<strong>現在利用できる操作</strong>
 				<ul class="mb-0 mt-2 small">
 					<li>担当学校の課題を表示します。編集は作成者、削除は同校の課題管理権限を持つ教師が行えます。</li>
+					<li>学習開始済みの公開課題は、課題系列を分けた下書きとして複製できます。対象クラスと公開日時・提出期限は新しい課題で選び直します。</li>
 					<li>削除した課題は下書きへ復元できます。復元だけでは生徒に公開されません。</li>
 					<li>下書き保存だけでは生徒に課題は公開されません。</li>
 				</ul>
@@ -339,6 +364,13 @@
 												<c:if test="${school.schoolId == matchedClass.schoolId}"><c:out value="${school.name}"/> / </c:if>
 											</c:forEach>
 											<c:if test="${not empty matchedClass.gradeName}"><c:out value="${matchedClass.gradeName}"/></c:if><c:out value="${matchedClass.name}"/>
+											<c:choose>
+												<c:when test="${assignment.assignmentStatus == 'scheduled'}"><span class="badge text-bg-info ms-1">公開予約</span></c:when>
+												<c:when test="${assignment.assignmentStatus == 'published'}"><span class="badge text-bg-success ms-1">公開中</span></c:when>
+												<c:when test="${assignment.assignmentStatus == 'expired'}"><span class="badge text-bg-secondary ms-1">期限切れ</span></c:when>
+												<c:when test="${assignment.assignmentStatus == 'requires_update'}"><span class="badge text-bg-warning ms-1">要更新</span></c:when>
+												<c:otherwise><span class="badge text-bg-light ms-1">未公開</span></c:otherwise>
+											</c:choose>
 										</c:if>
 									</c:forEach>
 									<c:if test="${empty task.input.classAssignments}">未割当</c:if>
@@ -350,15 +382,43 @@
 										<c:otherwise><span class="badge text-bg-secondary">下書き</span></c:otherwise>
 									</c:choose>
 								</td>
-								<td><button class="btn btn-sm btn-outline-secondary" type="button" disabled title="後続工程で実装します。">未設定</button></td>
+								<td>
+									<c:choose>
+										<c:when test="${task.publicationStatus == 'requires_update' || task.publicationStatus == 'published' || (task.publicationStatus == 'draft' && task.promptStatus == 'draft')}">
+											<a class="btn btn-sm btn-outline-primary" href="<c:url value='/teacher/prompt'><c:param name='taskId' value='${task.taskId}'/></c:url>">プロンプト設定</a>
+										</c:when>
+										<c:otherwise><button class="btn btn-sm btn-outline-secondary" type="button" disabled title="公開前に設定します。">未設定</button></c:otherwise>
+									</c:choose>
+								</td>
 								<td><code class="history-creator-id"><c:out value="${task.createdByLoginId}"/></code></td>
 								<td><code class="history-creator-id"><c:out value="${task.updatedByLoginId}" default="-"/></code></td>
 								<td><c:out value="${task.updatedAt}"/></td>
 								<td>
 									<div class="d-flex gap-2">
 										<c:if test="${task.createdByUserId == teacherTaskUserId}">
-											<a class="btn btn-sm btn-outline-primary" href="<c:url value='/teacher/task'><c:param name='taskId' value='${task.taskId}'/></c:url>">編集</a>
+											<c:if test="${task.publicationStatus == 'draft' || task.publicationStatus == 'requires_update' || task.publicationStatus == 'published'}">
+												<a class="btn btn-sm btn-outline-primary" href="<c:url value='/teacher/task'><c:param name='taskId' value='${task.taskId}'/></c:url>">
+													<c:choose>
+														<c:when test="${task.publicationStatus == 'published'}">改訂案を作成</c:when>
+														<c:when test="${task.publicationStatus == 'requires_update'}">改訂案を編集</c:when>
+														<c:otherwise>編集</c:otherwise>
+													</c:choose>
+												</a>
+											</c:if>
 											<a class="btn btn-sm btn-outline-secondary" href="<c:url value='/teacher/task'><c:param name='taskId' value='${task.taskId}'/><c:param name='view' value='history'/></c:url>">履歴</a>
+										</c:if>
+										<c:if test="${task.publicationStatus == 'published' && task.learningStarted}">
+											<form class="task-state-form" method="post" action="<c:url value='/teacher/task'/>"
+												data-confirm-title="新しい課題系列を作成しますか？"
+												data-confirm-message="課題内容と現在適用中の共通プロンプト・追加指示だけを複製します。AIモデル、揺らぎ項目、評価例、対象クラス、公開日時、提出期限は引き継ぎません。新しい課題は非公開の下書きとして作成し、元課題と生徒・提出・評価・コードログの履歴は変更しません。"
+												data-confirm-label="新しい課題を作成">
+												<input type="hidden" name="action" value="copyToNewTaskSeries">
+												<input type="hidden" name="csrfToken" value="<c:out value='${csrfToken}'/>">
+												<input type="hidden" name="requestToken" value="<c:out value='${teacherTaskIndependentCopyTokens[task.taskId]}'/>">
+												<input type="hidden" name="taskId" value="<c:out value='${task.taskId}'/>">
+												<input type="hidden" name="expectedVersion" value="<c:out value='${task.version}'/>">
+												<button class="btn btn-sm btn-outline-primary" type="submit">新しい課題として編集</button>
+											</form>
 										</c:if>
 										<form class="task-state-form" method="post" action="<c:url value='/teacher/task'/>"
 											data-confirm-title="課題を削除しますか？" data-confirm-message="課題は一覧から非表示になります。関連する提出・評価・履歴は保持されます。">
@@ -442,16 +502,16 @@
 	<div class="modal-dialog modal-lg modal-dialog-scrollable"><div class="modal-content">
 		<div class="modal-header"><h5 class="modal-title">課題変更履歴</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button></div>
 		<div class="modal-body">
-			<div class="mb-3 text-dark fw-semibold"><c:out value="${selectedTask.input.title}"/></div>
+			<div class="mb-3 text-dark fw-semibold"><c:out value="${teacherTaskHistoryTitle}"/></div>
 			<div class="table-responsive"><table class="table table-sm align-middle mb-0">
 				<thead class="table-light"><tr><th>日時</th><th>実行者</th><th>操作</th><th>結果</th><th>詳細</th></tr></thead>
 				<tbody>
-					<c:forEach items="${teacherTaskPage.auditEntries}" var="entry">
+					<c:forEach items="${teacherTaskAuditEntries}" var="entry">
 						<tr><td><c:out value="${entry.occurredAt}"/></td><td><c:out value="${entry.actorLoginId}"/></td>
 							<td><c:out value="${entry.actionType}"/></td><td><c:out value="${entry.resultStatus}"/></td>
 							<td><c:out value="${entry.detail}"/></td></tr>
 					</c:forEach>
-					<c:if test="${empty teacherTaskPage.auditEntries}"><tr><td colspan="5" class="text-muted">変更履歴はありません。</td></tr></c:if>
+					<c:if test="${empty teacherTaskAuditEntries}"><tr><td colspan="5" class="text-muted">変更履歴はありません。</td></tr></c:if>
 				</tbody>
 			</table></div>
 		</div>

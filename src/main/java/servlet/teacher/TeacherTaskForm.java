@@ -65,14 +65,18 @@ public record TeacherTaskForm(
 			}
 		}
 		String action = requiredScalar(values, "action");
-		if (!"createDraft".equals(action) && !"updateDraft".equals(action)) {
+		if (!"createDraft".equals(action) && !"updateDraft".equals(action)
+				&& !"publishTask".equals(action) && !"createRevision".equals(action)) {
 			throw new IllegalArgumentException("この操作は現在利用できません。下書き保存を選択してください。");
 		}
 		String requestToken = requiredScalar(values, "requestToken");
 		long taskId = number(requiredScalar(values, "taskId"), false);
 		long expectedVersion = number(requiredScalar(values, "expectedVersion"), false);
 		if (("createDraft".equals(action) && (taskId != 0 || expectedVersion != 0))
-				|| ("updateDraft".equals(action) && (taskId == 0 || expectedVersion == 0))) {
+				|| ("publishTask".equals(action)
+						&& ((taskId == 0 && expectedVersion != 0) || (taskId > 0 && expectedVersion == 0)))
+				|| (("updateDraft".equals(action) || "createRevision".equals(action))
+						&& (taskId == 0 || expectedVersion == 0))) {
 			throw new IllegalArgumentException("課題または更新情報が不正です。画面を読み込み直してください。");
 		}
 

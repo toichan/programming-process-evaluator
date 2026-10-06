@@ -50,6 +50,23 @@ class TeacherTaskControlTest {
 	}
 
 	@Test
+	void rejectsAdminBeforeOpeningDatabaseConnectionWhenPublishing() {
+		AtomicBoolean connectionOpened = new AtomicBoolean();
+		TeacherTaskControl control = new TeacherTaskControl(
+				new TeacherPermissionDao(),
+				new TeacherTaskDao(),
+				() -> {
+					connectionOpened.set(true);
+					throw new SQLException("Database must not be reached.");
+				});
+		AuthenticatedUser admin = new AuthenticatedUser(7, "synthetic", "Synthetic", UserType.ADMIN, false, "test");
+
+		assertThrows(SecurityException.class, () -> control.publishTask(
+				admin, 0, 0, emptyInput(), "19db2fd2-1d73-4f51-88d7-222222222222"));
+		assertFalse(connectionOpened.get());
+	}
+
+	@Test
 	void rejectsInvalidUpdateVersionBeforeOpeningDatabaseConnection() {
 		AtomicBoolean connectionOpened = new AtomicBoolean();
 		TeacherTaskControl control = new TeacherTaskControl(
@@ -64,6 +81,60 @@ class TeacherTaskControlTest {
 		assertThrows(IllegalArgumentException.class,
 				() -> control.updateDraft(
 						teacher, 12, 0, emptyInput(), "19db2fd2-1d73-4f51-88d7-222222222222"));
+		assertFalse(connectionOpened.get());
+	}
+
+	@Test
+	void rejectsInvalidRevisionVersionBeforeOpeningDatabaseConnection() {
+		AtomicBoolean connectionOpened = new AtomicBoolean();
+		TeacherTaskControl control = new TeacherTaskControl(
+				new TeacherPermissionDao(),
+				new TeacherTaskDao(),
+				() -> {
+					connectionOpened.set(true);
+					throw new SQLException("Database must not be reached.");
+				});
+		AuthenticatedUser teacher = new AuthenticatedUser(7, "synthetic", "Synthetic", UserType.TEACHER, false, "test");
+
+		assertThrows(IllegalArgumentException.class,
+				() -> control.createRevision(
+						teacher, 12, 0, emptyInput(), "19db2fd2-1d73-4f51-88d7-222222222222"));
+		assertFalse(connectionOpened.get());
+	}
+
+	@Test
+	void rejectsAdminBeforeOpeningDatabaseConnectionWhenCopyingIndependentTask() {
+		AtomicBoolean connectionOpened = new AtomicBoolean();
+		TeacherTaskControl control = new TeacherTaskControl(
+				new TeacherPermissionDao(),
+				new TeacherTaskDao(),
+				() -> {
+					connectionOpened.set(true);
+					throw new SQLException("Database must not be reached.");
+				});
+		AuthenticatedUser admin = new AuthenticatedUser(7, "synthetic", "Synthetic", UserType.ADMIN, false, "test");
+
+		assertThrows(SecurityException.class,
+				() -> control.createIndependentCopy(
+						admin, 12, 1, "19db2fd2-1d73-4f51-88d7-222222222222"));
+		assertFalse(connectionOpened.get());
+	}
+
+	@Test
+	void rejectsInvalidIndependentCopyVersionBeforeOpeningDatabaseConnection() {
+		AtomicBoolean connectionOpened = new AtomicBoolean();
+		TeacherTaskControl control = new TeacherTaskControl(
+				new TeacherPermissionDao(),
+				new TeacherTaskDao(),
+				() -> {
+					connectionOpened.set(true);
+					throw new SQLException("Database must not be reached.");
+				});
+		AuthenticatedUser teacher = new AuthenticatedUser(7, "synthetic", "Synthetic", UserType.TEACHER, false, "test");
+
+		assertThrows(IllegalArgumentException.class,
+				() -> control.createIndependentCopy(
+						teacher, 12, 0, "19db2fd2-1d73-4f51-88d7-222222222222"));
 		assertFalse(connectionOpened.get());
 	}
 

@@ -3,12 +3,14 @@
 let editTargetRow = null;
 let isEditingInCreateForm = false;
 let isOperationalEditMode = false;
+let isIndependentCopyEditing = false;
 let operationalOriginalSchedules = [];
 let previewIoEditors = [];
 let initialCodeEditor = null;
 const feedback = window.PPEFeedback || {};
 const pageFeedback = feedback.createPageFeedback({ title: '課題編集' });
 const CURRENT_TEACHER_ID = 'toida'; // プロトタイプ用プレースホルダー。本実装ではセッション情報から取得する。
+const INDEPENDENT_TASK_DRAFT_STORAGE_KEY = 'teacherIndependentTaskDraftStore';
 
 function syncCompactEditorHeight(editor) {
   if (!editor) {
@@ -142,6 +144,14 @@ function initializeTaskPage() {
   if (taskCreateForm) {
     taskCreateForm.addEventListener('submit', function(event) {
       event.preventDefault();
+      if (isIndependentCopyEditing && editTargetRow.dataset.promptStatus !== '設定済み') {
+        pageFeedback.toast({
+          message: '公開前に、新課題のプロンプト下書きを確認して設定してください。',
+          variant: 'warning',
+          delay: 2600
+        });
+        return;
+      }
       if (isEditingInCreateForm) {
         saveCreateFormEditResult('公開中');
         return;
@@ -154,7 +164,10 @@ function initializeTaskPage() {
 
   const refreshTableButton = document.getElementById('refreshTableButton');
   if (refreshTableButton) {
-    refreshTableButton.addEventListener('click', refreshUpdatedAt);
+    refreshTableButton.addEventListener('click', function() {
+      applyIndependentCopyPromptStatuses();
+      refreshUpdatedAt();
+    });
   }
 
   const filterStatus = document.getElementById('filterStatus');
@@ -163,6 +176,7 @@ function initializeTaskPage() {
   }
 
   bindRowActionButtons();
+  applyIndependentCopyPromptStatuses();
   bindPreviewEvents();
   renderHintLibrary();
   updateSchoolDropdownLabel();
@@ -277,28 +291,33 @@ function bindTaskRowActionButtons(row) {
       }
 
       const learningStarted = row.dataset.learningStarted === 'true';
+      if (learningStarted) {
+        await confirmAndStartIndependentCopy(row);
+        return;
+      }
+
       const ok = await pageFeedback.confirm({
-        title: learningStarted ? '新しい課題として編集しますか？' : '新しい改訂を作成しますか？',
-        message: learningStarted
-          ? '学習開始済みのため、公開中の課題は直接変更できません。'
-          : '公開中の内容を保持したまま、新しい改訂を作成します。',
-        details: learningStarted
-          ? ['既存の提出・評価・コードログを保持します。', '新しい課題コードの下書きを作成します。', '期限延長・対象クラス追加だけなら「運用変更」を使用してください。']
-          : ['現在の公開内容は再公開まで維持します。', '同じ課題コードの要更新改訂を作成します。'],
-        confirmLabel: learningStarted ? '新しい課題を作成' : '新しい改訂を作成',
+        title: '新しい改訂を作成しますか？',
+        message: '公開中の内容を保持したまま、新しい改訂を作成します。',
+        details: ['現在の公開内容は再公開まで維持します。', '同じ課題コードの要更新改訂を作成します。'],
+        confirmLabel: '新しい改訂を作成',
         cancelLabel: '戻る',
         variant: 'warning'
       });
       if (!ok) return;
 
-      const editableRow = learningStarted ? duplicateTaskRow(row, { silent: true }) : createTaskRevisionRow(row);
+      const editableRow = createTaskRevisionRow(row);
       if (editableRow) startCreateFormEditMode(editableRow);
     });
   }
 
   const duplicateButton = row.querySelector('.duplicate-button');
   if (duplicateButton) {
-    duplicateButton.addEventListener('click', function() {
+    duplicateButton.addEventListener('click', async function() {
+      if (row.dataset.status === '公開中' && row.dataset.learningStarted === 'true') {
+        await confirmAndStartIndependentCopy(row);
+        return;
+      }
       duplicateTaskRow(row);
     });
   }
@@ -396,6 +415,27 @@ function bindTaskRowActionButtons(row) {
   }
 
   row.dataset.historyBound = '1';
+}
+
+async function confirmAndStartIndependentCopy(sourceRow) {
+  const ok = await pageFeedback.confirm({
+    title: '新しい課題として複製しますか？',
+    message: '学習開始済みのため、公開中の課題と学習条件は直接変更しません。',
+    details: [
+      '課題内容と保存済みの共通プロンプト・課題ごとの追加指示を、新課題専用の未適用下書きとして複製します。',
+      '新課題の対象クラス・公開日時・提出期限は選び直します。',
+      '元課題と、生徒・提出・評価・コードログ履歴は変更・複製しません。',
+      'プロンプト版履歴と評価履歴は複製しません。複製後、下書きを確認・設定してから公開します。',
+      '期限延長・対象クラス追加だけなら「運用変更」を使用してください。'
+    ],
+    confirmLabel: '新しい課題を編集',
+    cancelLabel: '戻る',
+    variant: 'warning'
+  });
+  if (!ok) return;
+
+  const editableRow = duplicateTaskRow(sourceRow, { silent: true, independentSeries: true });
+  if (editableRow) startCreateFormEditMode(editableRow, { independentCopy: true });
 }
 
 function bindPreviewEvents() {
@@ -954,6 +994,7 @@ function startCreateFormEditMode(row, options) {
   editTargetRow = row;
   isEditingInCreateForm = true;
   isOperationalEditMode = settings.operational === true;
+  isIndependentCopyEditing = settings.independentCopy === true || row.dataset.independentCopy === 'true';
   operationalOriginalSchedules = isOperationalEditMode ? parseJsonArray(row.dataset.classSchedules) : [];
 
   const target = (row.dataset.target || '').split('/').map(function(item) {
@@ -962,7 +1003,7 @@ function startCreateFormEditMode(row, options) {
   const schoolNames = target.length > 0
     ? target[0].split(',').map(function(item) { return item.trim(); }).filter(Boolean)
     : [];
-  const classNames = target.length > 1
+  const classNames = !isIndependentCopyEditing && target.length > 1
     ? target.slice(1).join('/').split(',').map(function(item) { return item.trim(); }).filter(Boolean)
     : [];
 
@@ -974,7 +1015,7 @@ function startCreateFormEditMode(row, options) {
   setValue('taskConstraintInput', row.dataset.constraint || '');
   setValue('taskCreationRulesInput', Array.isArray(parseJsonArray(row.dataset.creationRules)) ? parseJsonArray(row.dataset.creationRules).join('\n') : (row.dataset.creationRules || ''));
   setValue('initialCodeInput', row.dataset.initialCode || '');
-  setValue('lateSubmissionPolicy', row.dataset.lateSubmissionPolicy || '');
+  setValue('lateSubmissionPolicy', isIndependentCopyEditing ? '' : (row.dataset.lateSubmissionPolicy || ''));
 
   document.querySelectorAll('input[name="classTargets"]').forEach(function(el) {
     el.checked = classNames.includes(el.value);
@@ -984,7 +1025,7 @@ function startCreateFormEditMode(row, options) {
     el.checked = schoolNames.includes(el.value);
   });
 
-  refreshClassScheduleRows(parseJsonArray(row.dataset.classSchedules));
+  refreshClassScheduleRows(isIndependentCopyEditing ? [] : parseJsonArray(row.dataset.classSchedules));
 
   const testCases = parseJsonArray(row.dataset.testCases);
   const testCaseList = document.getElementById('testCaseList');
@@ -1032,6 +1073,7 @@ function finishCreateFormEditMode() {
   editTargetRow = null;
   isEditingInCreateForm = false;
   isOperationalEditMode = false;
+  isIndependentCopyEditing = false;
   operationalOriginalSchedules = [];
   applyCreateFormEditModeUi();
 }
@@ -1039,23 +1081,37 @@ function finishCreateFormEditMode() {
 function applyCreateFormEditModeUi() {
   const heading = document.getElementById('createSectionHeading');
   if (heading) {
-    heading.textContent = isOperationalEditMode ? '期限延長・対象クラス追加' : (isEditingInCreateForm ? '既存課題の編集' : '新規課題の作成');
+    heading.textContent = isOperationalEditMode
+      ? '期限延長・対象クラス追加'
+      : (isIndependentCopyEditing ? '複製した新しい課題の編集' : (isEditingInCreateForm ? '既存課題の編集' : '新規課題の作成'));
   }
 
   const publishTaskButton = document.getElementById('publishTaskButton');
   if (publishTaskButton) {
-    publishTaskButton.textContent = isOperationalEditMode ? '運用変更を保存' : (isEditingInCreateForm ? '編集内容を保存（公開）' : '保存・公開');
+    publishTaskButton.textContent = isOperationalEditMode
+      ? '運用変更を保存'
+      : (isIndependentCopyEditing ? '確認して保存・公開' : (isEditingInCreateForm ? '編集内容を保存（公開）' : '保存・公開'));
   }
 
   const saveDraftButton = document.getElementById('saveDraftButton');
   if (saveDraftButton) {
-    saveDraftButton.textContent = isEditingInCreateForm ? '編集内容を保存（下書き）' : '下書き保存';
+    saveDraftButton.textContent = isIndependentCopyEditing
+      ? '新しい課題を下書き保存'
+      : (isEditingInCreateForm ? '編集内容を保存（下書き）' : '下書き保存');
     saveDraftButton.classList.toggle('d-none', isOperationalEditMode);
   }
 
   const cancelEditButton = document.getElementById('cancelEditButton');
   if (cancelEditButton) {
     cancelEditButton.classList.toggle('d-none', !isEditingInCreateForm);
+  }
+
+  const copyNotice = document.getElementById('independentCopyNotice');
+  if (copyNotice) copyNotice.classList.toggle('d-none', !isIndependentCopyEditing);
+
+  const promptLink = document.getElementById('independentCopyPromptLink');
+  if (promptLink && editTargetRow) {
+    promptLink.href = '../prompt/prompt.html?taskId=' + encodeURIComponent(editTargetRow.dataset.taskCode || '');
   }
 }
 
@@ -1390,6 +1446,106 @@ function getCurrentTaskCreatorId() {
   return 't001';
 }
 
+function storeIndependentTaskDraft(sourceRow, taskCode, taskName) {
+  try {
+    const store = readIndependentTaskDraftStore();
+    const sourceTaskCode = sourceRow.dataset.taskCode || '';
+    const sourcePrompt = getLatestStoredTaskPrompt(sourceTaskCode);
+    if (!sourcePrompt) {
+      throw new Error('The source task has no saved prompt version to copy.');
+    }
+    const sourceStep2 = getLatestStoredTaskPromptStep2(sourceTaskCode, sourcePrompt.version);
+    store[taskCode] = {
+      taskName: taskName,
+      difficulty: sourceRow.dataset.level || '',
+      schoolName: (sourceRow.dataset.target || '').split('/')[0].trim(),
+      sourceTaskCode: sourceTaskCode,
+      promptConfigured: false,
+      promptDraft: {
+        model: sourcePrompt.model || '',
+        prompt: sourcePrompt.prompt || '',
+        additionalInstruction: sourceStep2
+          ? (sourceStep2.additionalInstruction || '')
+          : (sourcePrompt.additionalInstruction || ''),
+        sourceStep1Version: sourcePrompt.version,
+        sourceStep2Version: sourceStep2 ? sourceStep2.version : null
+      }
+    };
+    window.localStorage.setItem(INDEPENDENT_TASK_DRAFT_STORAGE_KEY, JSON.stringify(store));
+    return true;
+  } catch (error) {
+    console.error('Could not prepare the independent task draft.', error);
+    pageFeedback.toast({
+      message: error && error.message === 'The source task has no saved prompt version to copy.'
+        ? '複製元の保存済みプロンプトが見つからないため、新しい課題を作成できません。先に複製元のプロンプトを保存してください。'
+        : '新しい課題の下書きを準備できませんでした。ブラウザーの保存領域を確認してください。',
+      variant: 'warning',
+      delay: 2800
+    });
+    return false;
+  }
+}
+
+function getLatestStoredTaskPrompt(taskCode) {
+  const raw = window.localStorage.getItem('teacherPromptVersionStore');
+  if (!raw) return null;
+  const store = JSON.parse(raw);
+  const versions = store && Array.isArray(store[taskCode]) ? store[taskCode] : [];
+  return versions.slice().sort(function(a, b) {
+    return Number(a.version) - Number(b.version);
+  }).pop() || null;
+}
+
+function getLatestStoredTaskPromptStep2(taskCode, step1Version) {
+  const raw = window.localStorage.getItem('teacherPromptStep2VersionStore');
+  if (!raw) return null;
+  const store = JSON.parse(raw);
+  const versions = store && Array.isArray(store[taskCode]) ? store[taskCode] : [];
+  return versions.filter(function(record) {
+    return Number(record.step1Version) === Number(step1Version);
+  }).sort(function(a, b) {
+    return Number(a.version) - Number(b.version);
+  }).pop() || null;
+}
+
+function readIndependentTaskDraftStore() {
+  const raw = window.localStorage.getItem(INDEPENDENT_TASK_DRAFT_STORAGE_KEY);
+  if (!raw) return {};
+  const store = JSON.parse(raw);
+  if (!store || typeof store !== 'object' || Array.isArray(store)) {
+    throw new Error('Independent task draft store must be an object.');
+  }
+  return store;
+}
+
+function applyIndependentCopyPromptStatuses() {
+  try {
+    const store = readIndependentTaskDraftStore();
+    document.querySelectorAll('#taskTable tbody tr').forEach(function(row) {
+      const copy = store[row.dataset.taskCode || ''];
+      if (!copy) return;
+
+      row.dataset.independentCopy = 'true';
+      row.dataset.promptStatus = copy.promptConfigured === true ? '設定済み' : '未適用下書き';
+      const promptLink = row.querySelector('.prompt-status-link');
+      if (promptLink) {
+        promptLink.href = '../prompt/prompt.html?taskId=' + encodeURIComponent(row.dataset.taskCode || '');
+        promptLink.target = '_blank';
+        promptLink.rel = 'noopener';
+        promptLink.textContent = row.dataset.promptStatus;
+        promptLink.classList.toggle('is-unset', copy.promptConfigured !== true);
+      }
+    });
+  } catch (error) {
+    console.error('Could not read independent task draft status.', error);
+    pageFeedback.toast({
+      message: '複製した課題のプロンプト状態を読み込めませんでした。',
+      variant: 'warning',
+      delay: 2800
+    });
+  }
+}
+
 function duplicateTaskRow(sourceRow, options) {
   if (!sourceRow) {
     return null;
@@ -1406,6 +1562,10 @@ function duplicateTaskRow(sourceRow, options) {
   const duplicatedName = (sourceRow.dataset.name || '課題') + '（複製）';
   const updated = buildNowString();
 
+  if (settings.independentSeries === true && !storeIndependentTaskDraft(sourceRow, newTaskCode, duplicatedName)) {
+    return null;
+  }
+
   const newRow = sourceRow.cloneNode(true);
   newRow.dataset.historyBound = '0';
   newRow.dataset.taskId = newTaskId;
@@ -1415,20 +1575,33 @@ function duplicateTaskRow(sourceRow, options) {
   newRow.dataset.derivedFromTaskId = sourceRow.dataset.taskId || '';
   newRow.dataset.name = duplicatedName;
   newRow.dataset.status = '下書き';
-  newRow.dataset.promptStatus = '未設定';
+  newRow.dataset.promptStatus = settings.independentSeries === true ? '未適用下書き' : '未設定';
   newRow.dataset.updated = updated;
   delete newRow.dataset.supersedesTaskId;
   delete newRow.dataset.deletedAt;
   delete newRow.dataset.deletedBy;
 
+  if (settings.independentSeries === true) {
+    newRow.dataset.independentCopy = 'true';
+    newRow.dataset.target = (sourceRow.dataset.target || '').split('/')[0].trim();
+    newRow.dataset.classSchedules = '[]';
+    newRow.dataset.lateSubmissionPolicy = '';
+    delete newRow.dataset.assignmentActive;
+  }
+
   if (newRow.cells[0]) {
     newRow.cells[0].textContent = duplicatedName;
+  }
+  if (settings.independentSeries === true && newRow.cells[2]) {
+    newRow.cells[2].textContent = newRow.dataset.target;
   }
   if (newRow.cells[3]) {
     newRow.cells[3].innerHTML = '<span class="badge text-bg-secondary">下書き</span>';
   }
   if (newRow.cells[4]) {
-    newRow.cells[4].innerHTML = '<a class="prompt-status-link is-unset" href="../prompt/prompt.html?taskId=' + escapeHtml(newTaskId) + '">未設定</a>';
+    const promptStatus = settings.independentSeries === true ? '未適用下書き' : '未設定';
+    newRow.cells[4].innerHTML = '<a class="prompt-status-link is-unset" href="../prompt/prompt.html?taskId='
+      + escapeHtml(newTaskCode) + '" target="_blank" rel="noopener">' + promptStatus + '</a>';
   }
 
   const updatedCell = newRow.querySelector('.updated-at');

@@ -101,6 +101,26 @@ public final class TeacherTaskServlet extends HttpServlet {
 				long taskId = registry.createOrReuse(submittedForm.requestToken(),
 						() -> TASKS.createDraft(user, submittedForm.input(), submittedForm.requestToken()));
 				redirectSaved(response, request, taskId);
+			} else if ("createRevision".equals(form.action())) {
+				long taskId = TASKS.createRevision(
+						user, form.taskId(), form.expectedVersion(), form.input(), form.requestToken());
+				redirectSaved(response, request, taskId);
+			} else if ("publishTask".equals(form.action())) {
+				TeacherTaskForm submittedForm = form;
+				if (submittedForm.taskId() == 0) {
+					TeacherTaskCreateRegistry registry = existingRegistry(request.getSession(false));
+					registry.createOrReuse(submittedForm.requestToken(),
+							() -> TASKS.publishTask(
+									user, 0, 0, submittedForm.input(), submittedForm.requestToken()));
+				} else {
+					TASKS.publishTask(
+							user,
+							submittedForm.taskId(),
+							submittedForm.expectedVersion(),
+							submittedForm.input(),
+							submittedForm.requestToken());
+				}
+				redirectPublished(response, request);
 			} else {
 				TASKS.updateDraft(user, form.taskId(), form.expectedVersion(), form.input(), form.requestToken());
 				redirectSaved(response, request, form.taskId());
@@ -162,7 +182,17 @@ public final class TeacherTaskServlet extends HttpServlet {
 			Long selectedTaskId,
 			Long selectedSchoolId,
 			TeacherTaskForm submittedForm) throws SQLException, ServletException, IOException {
-		var page = TASKS.loadPage(user, selectedTaskId, selectedSchoolId);
+		boolean historyView = "history".equals(request.getParameter("view"));
+		var page = TASKS.loadPage(user, historyView ? null : selectedTaskId, selectedSchoolId);
+		if (historyView && selectedTaskId != null) {
+			request.setAttribute("teacherTaskAuditEntries", TASKS.loadAuditEntries(user, selectedTaskId));
+			String historyTitle = page.tasks().stream()
+					.filter(task -> task.taskId() == selectedTaskId)
+					.map(task -> task.input().title())
+					.findFirst()
+					.orElseThrow(TaskDraftNotFoundException::new);
+			request.setAttribute("teacherTaskHistoryTitle", historyTitle);
+		}
 		request.setAttribute("teacherTaskPage", page);
 		request.setAttribute("teacherNavigationSummary", new TeacherNavigationSummary(true, page.schools()));
 		request.setAttribute("teacherNavigationActiveItem", "task");
@@ -173,14 +203,17 @@ public final class TeacherTaskServlet extends HttpServlet {
 		request.setAttribute("teacherTaskSchoolCount", page.schools().size());
 		request.setAttribute("teacherTaskReusableHintCount", page.reusableHints().size());
 		Map<Long, String> deleteTokens = new HashMap<>();
+		Map<Long, String> independentCopyTokens = new HashMap<>();
 		for (var task : page.tasks()) {
 			deleteTokens.put(task.taskId(), UUID.randomUUID().toString());
+			independentCopyTokens.put(task.taskId(), UUID.randomUUID().toString());
 		}
 		Map<Long, String> restoreTokens = new HashMap<>();
 		for (var task : page.deletedTasks()) {
 			restoreTokens.put(task.taskId(), UUID.randomUUID().toString());
 		}
 		request.setAttribute("teacherTaskDeleteTokens", deleteTokens);
+		request.setAttribute("teacherTaskIndependentCopyTokens", independentCopyTokens);
 		request.setAttribute("teacherTaskRestoreTokens", restoreTokens);
 		request.setAttribute("teacherTaskUser", user);
 		request.setAttribute("teacherTaskUserId", user.userId());
@@ -247,13 +280,18 @@ public final class TeacherTaskServlet extends HttpServlet {
 		request.setAttribute("teacherTaskInput", input);
 		request.setAttribute("teacherTaskId", taskId);
 		request.setAttribute("teacherTaskExpectedVersion", version);
-		request.setAttribute("teacherTaskAction", taskId > 0 ? "updateDraft" : "createDraft");
+		String selectedStatus = selectedTask == null ? null : selectedTask.publicationStatus();
+		request.setAttribute("teacherTaskPublicationStatus", selectedStatus);
+		request.setAttribute("teacherTaskAction", "published".equals(selectedStatus)
+				? "createRevision" : taskId > 0 ? "updateDraft" : "createDraft");
 		request.setAttribute("teacherTaskSelectedClassIds", selectedClassIds);
 		request.setAttribute("teacherTaskSelectedSchoolIds", selectedSchoolIds);
 		request.setAttribute("teacherTaskAssignments", assignments);
 		request.setAttribute("teacherTaskFieldValues", fieldValues(input, rawValues));
 		TeacherTaskCreateRegistry registry = registry(request.getSession(false), true);
-		String createToken = submittedForm != null && "createDraft".equals(submittedForm.action())
+		String createToken = submittedForm != null
+				&& ("createDraft".equals(submittedForm.action())
+						|| "createRevision".equals(submittedForm.action()))
 				? submittedForm.requestToken()
 				: registry.issueToken();
 		request.setAttribute("teacherTaskCreateToken", createToken);
@@ -272,7 +310,19 @@ public final class TeacherTaskServlet extends HttpServlet {
 				response.sendError(HttpServletResponse.SC_FORBIDDEN, "画面を再読み込みしてください。");
 				return;
 			}
-			if ("deleteTask".equals(operation.action())) {
+			if ("copyToNewTaskSeries".equals(operation.action())) {
+				long copiedTaskId = TASKS.createIndependentCopy(
+						user, operation.taskId(), operation.expectedVersion(), operation.requestToken());
+				HttpSession session = request.getSession(false);
+				if (session != null) {
+					session.setAttribute(
+							TASK_STATE_NOTICE_ATTRIBUTE,
+							"新しい課題系列の下書きを作成しました。対象クラス・公開日時・提出期限を選び、プロンプトを確認してください。");
+				}
+				response.sendRedirect(response.encodeRedirectURL(
+						request.getContextPath() + "/teacher/task?taskId=" + copiedTaskId));
+				return;
+			} else if ("deleteTask".equals(operation.action())) {
 				TASKS.deleteTask(user, operation.taskId(), operation.expectedVersion(), operation.requestToken());
 				HttpSession session = request.getSession(false);
 				if (session != null) {
@@ -301,7 +351,9 @@ public final class TeacherTaskServlet extends HttpServlet {
 	}
 
 	private static boolean isTaskStateAction(String action) {
-		return "deleteTask".equals(action) || "restoreTask".equals(action);
+		return "deleteTask".equals(action)
+				|| "restoreTask".equals(action)
+				|| "copyToNewTaskSeries".equals(action);
 	}
 
 	private static TaskStateOperation parseTaskStateOperation(Map<String, List<String>> values) {
@@ -452,6 +504,17 @@ public final class TeacherTaskServlet extends HttpServlet {
 			session.setAttribute(SAVED_NOTICE_ATTRIBUTE, Boolean.TRUE);
 		}
 		response.sendRedirect(response.encodeRedirectURL(request.getContextPath() + "/teacher/task?taskId=" + taskId));
+	}
+
+	private void redirectPublished(HttpServletResponse response, HttpServletRequest request)
+			throws IOException {
+		HttpSession session = request.getSession(false);
+		if (session == null) {
+			getServletContext().log("Task publication succeeded, but its success notice could not be stored.");
+		} else {
+			session.setAttribute(TASK_STATE_NOTICE_ATTRIBUTE, "課題を保存し、公開設定を反映しました。");
+		}
+		response.sendRedirect(response.encodeRedirectURL(request.getContextPath() + "/teacher/task"));
 	}
 
 	static boolean consumeSavedNotice(HttpSession session) {

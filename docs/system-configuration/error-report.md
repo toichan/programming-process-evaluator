@@ -2,6 +2,24 @@
 
 秘密情報・実際の生徒データ・研究データは記載しない。解消後も履歴を保持する。
 
+## 2026-10-06: 公開後課題改訂の隔離DB受入
+
+- 共有DB/8080を避け、使い捨てのlocalhost限定MySQL (`ppe_teacher_task_test_revision_20261007`, tmpfs) を使用した。Gemini実API・実生徒データは使用せず、Flyway V1〜V19の `flywayMigrate flywayValidate` が成功した。schema追加は不要だった。
+- 初回の新DBテスト実行では、新規テストfixtureが有効な公開assignmentを作らずEditor参加状態のassertionに失敗し、もう一方ではself-reference `tasks.supersedes_task_id` を残したままfixture親taskを削除してcleanupが失敗した。テストをassignment付きに修正し、cleanupでテスト所有課題の参照だけを先に解除した後、2つの改訂テスト、`TeacherTaskDatabaseTest` 全体、全体buildを再実行して成功した。
+- `TeacherTaskDatabaseTest` は23 tests / 22 passed / 0 failures / 0 errors / 1 browser-fixture skipped。作成直後の旧task/assignment維持、Editorを開いただけの `not_started` 参加の許容、学習開始後の改訂拒否、新prompt設定後の再公開、旧assignmentのarchiveを検証した。
+- focused form/control/DAO/servlet testsと、同じ専用DB設定での `gradle build` は `BUILD SUCCESSFUL`。`git diff --check` も成功した。
+- 改訂導線の認証browser受入は未実施。`task.js`の `node --check` は `node: command not found` で実行できず、今回変更後のJavaScript parser検証は未確認。依存manifestは変更せずNode.jsも追加導入しなかった。
+- 実workerの周期/再起動後回収、期限境界、提出/評価/ログ履歴の保持、学習開始後の別系列複製、期限延長/対象追加は未確認。検証終了後に専用MySQL containerを停止・削除し、共有コンテナ/DBは変更していない。
+
+## 2026-10-06: 課題公開スライス隔離受入
+
+- 専用Compose project `ppe-task-publication-acceptance` と専用schema `ppe_teacher_task_test_20261006_accept01` のみを使用。共有8080/DBには接続・変更せず、Gemini実API・実生徒データも使用しなかった。
+- `flywayMigrate flywayValidate` はV1〜V19で成功。`TeacherTaskDatabaseTest` は20件すべて成功し、予約割当の公開/期限切れ、2 workerの重複遷移防止とsystem監査、`allow` の期限後初回提出と再提出拒否、`deny` のEditor/participation拒否を確認した。
+- 初回の認証browser操作では「保存・公開」を押しても画面遷移しなかった。原因は、割当の保存日時に秒が含まれる一方で `datetime-local` の既定 `step=60` が分単位であり、`form.checkValidity()` がfalseだったこと。公開/期限日時入力へ `step=1` を指定して秒精度を保持し、fresh assetで再検証した結果、フォームがvalidになり、共通確認ダイアログを経て保存・公開できた。画面の完了通知と一覧の「公開予約」を確認し、専用DBでもtask `published` / assignment `scheduled` / `late_submission_policy=allow` と保存日時を確認した。
+- 配信された `task.js` (17,781 characters) をfresh fetchし、ブラウザーJavaScriptエンジンの `new Function(source)` でparser検証した。`step=1` の設定が公開/期限の2入力にあることも確認。`git diff --check` 成功。
+- 未確認: 実workerの起動直後/60秒周期の実時間動作と再起動後回収、期限境界、既存提出/評価/ログ履歴の不変性。予約日時が未来であったため、browser操作自体は予約状態への遷移を受け入れ、workerの時間経過後遷移はDB統合テストで確認した。
+- 検証後、専用MySQLの `log_bin_trust_function_creators` を `OFF` に復元して確認し、隔離アプリ/runner/DB、専用Gradle/MySQL volume、専用networkのみをCompose project単位で停止・削除した。共有Compose project/volumeは削除対象にしていない。
+
 ## 2026-10-06: S3学校所属・削除/復元の最終受入
 
 - 初回の教師課題browser受入でJSP ELが `AuthenticatedUser` recordの `userId` をJavaBeans propertyとして解決できず、responseが途中で失敗した（`PropertyNotFoundException`、`ERR_INCOMPLETE_CHUNKED_ENCODING`）。`TeacherTaskServlet`から数値の `teacherTaskUserId` request attributeを渡し、JSPの所有者判定をその属性へ変更した。修正後の認証browserで課題一覧全体が描画され、削除・削除済み一覧・下書き復元・通常一覧への再表示まで成功した。
@@ -9,6 +27,26 @@
 - アプリ稼働中のGradle testは共有Gradle cache journal lock timeoutとなった。`app`を停止して同じDB統合テストを再実行し、成功した。強制Javaコンパイルも `gradle compileJava --rerun-tasks --no-daemon` で成功した。
 - 空の使い捨てDBとプロジェクト専用DBのV1〜V19 migration、合成demo seed、教師ログインと通常/削除済み一覧のbrowser受入が成功。プロジェクト専用DBのみを作り直し、volumeや他DBは削除していない。検証後に使い捨てDBを削除し、MySQL `log_bin_trust_function_creators` を0に戻した。デモパスワードはこの記録に含めない。
 - **次**: S3は完了。S4配信の要件・状態遷移・受入条件を既存正本と照合し、仕様判断が必要なら実装前に確認する。画面遷移図/prototypeは必要性が明確でない限り変更しない。
+
+## 2026-10-06: 課題公開実装の初回コンパイル失敗
+
+- 実行時刻: 2026-10-06 06:09 JST。対象: 教師課題の公開処理を追加した後のfocused JUnit command `docker compose exec -T app gradle test --tests 'control.teacher.TeacherTaskControlTest' --tests 'control.teacher.TeacherTaskInputValidatorTest' --tests 'dao.TeacherTaskDaoTest' --tests 'servlet.teacher.TeacherTaskFormTest' --tests 'servlet.teacher.TeacherTaskServletTest' --tests 'entity.StudentEditorPageTest' --no-daemon --console=plain --warning-mode all`。
+- 期待結果: Javaコンパイル後に指定された単体テストが実行される。
+- 実際の結果: `TeacherTaskDao.java`で `PublicationResult` recordの挿入位置が `findSuccessfulTaskRequest` のtryブロック内になり、Java compilerが `illegal start of expression` 等でcompileJavaを停止した。テストは未実行。Gradle 8.10.2の既存WarPluginConvention deprecation warningも出た。
+- 影響範囲: 今回編集中の課題公開実装のみ。DBコマンド・migration・アプリ再起動・外部API呼び出しは行っていない。
+- 対応: recordをDAOクラス直下のnested recordとして移動し、該当する波括弧を修正した。
+- 再検証: 同じfocused commandを再実行し `BUILD SUCCESSFUL`。compileJava/compileTestJavaと6つの指定test selectorを実行し、失敗なし。DBを使うテストselectorは含めていない。
+- 未解決事項: 同じ既存Gradle deprecation warningが出るが、今回変更の原因ではない。
+
+## 2026-10-06: JavaScript構文検証ツール未導入
+
+- 実行時刻: 2026-10-06 06:16 JST。対象: 課題公開確認処理を追加した `src/main/webapp/js/teacher/task/task.js`。
+- 期待結果: JavaScript parserが構文を検証する。
+- 実際の結果: `node --check ...` と代替の `nodejs --check ...` はいずれも `command not found` で実行できなかった。package manifestを変更していないためNode.jsを追加導入していない。
+- 影響範囲: JavaScript単独の構文検証のみ未確認。Gradle側ではJava/JSP関連のfocused testが成功した。
+- 対応・未解決事項: submitter分岐、shared feedback確認後の `requestSubmit`、保存/公開ボタン状態をソース上で確認した。利用可能なJavaScript parserを使った自動構文確認は保留。
+
+- 追補: 公開workerのDAO状態遷移は親課題を先にロックし、その後に割当をロックする順に統一した。`docker compose exec -T app gradle test --tests control.teacher.TeacherTaskPublicationWorkerTest --warning-mode all --no-daemon --console=plain` は `BUILD SUCCESSFUL`。`git diff --check` も成功。最初に誤って存在しない `dao.TeacherTaskPublicationDaoTest` をselector指定した実行は `No tests found` となったため、DAOの専用DB試験が成功したとは扱わない。専用DB・browser受入は未実施。
 
 ## 2026-10-06: T014 再評価履歴表示・隔離受入
 
@@ -561,3 +599,35 @@
 - 操作: 実際の同意記録を変更しないブラウザー検証用フォームで、共通確認ダイアログをキャンセルして再度確定した。
 - 結果: キャンセル後の送信0件、確定後の送信1件・確認済みフラグを確認。ブラウザーはダイアログを閉じる際に、フォーカスが内部に残った要素への`aria-hidden`適用を警告した。
 - 影響・対応: 今回の同意変更専用JavaScriptではなく、既存の共通feedback / Bootstrapモーダルのフォーカス管理に関する警告。機能検証は成功したが、アクセシビリティ確認の残件として記録する。警告解消は未確認。
+
+## 2026-10-06 JST: 課題改訂ブラウザー・worker runtime受入
+
+- 対象: 専用Compose project `ppe-task-revision-acceptance`、schema `ppe_teacher_task_test_revision_20261006`、HTTP port `18082`。合成教師・課題・プロンプトのみ使用し、共有8080/DB、Gemini実API、実生徒データには触れていない。
+- 初回migration失敗: `flywayMigrate flywayValidate` がV11 routine作成時にMySQL error 1419（binary logging下でroutine creator設定が必要）で失敗。専用DBに `SET GLOBAL log_bin_trust_function_creators=1` を設定して同じschemaを再実行したところ、部分適用DDLによりFlyway validationが失敗した。部分適用schemaへのrepairは行わず、専用Compose projectだけのvolumeを削除・再作成し、DB起動直後に同設定を入れてから実行した結果、V1〜V19 migration/validate成功。
+- fixture: `TEACHER_TASK_DB_TEST=true` と `TEACHER_TASK_BROWSER_FIXTURE=true` を渡した `createsRetainedSyntheticTeacherFixtureForIsolatedBrowserAcceptance` は成功。隔離認証browserで合成課題を公開し、改訂案を作成、新しい共通プロンプト版を保存してから改訂を公開した。プロンプトは合成文で保存し、Geminiを呼び出さず専用DB上でconfigured状態を準備した。再公開後は旧task `requires_update` / 旧assignment `archived`、新task `published` / 新assignment `scheduled`。
+- JavaScript: `/js/teacher/task/task.js` を隔離アプリからHTTP 200で取得（18,141 bytes）し、Chromium内 `new Function(source)` で構文コンパイル成功。画面上の公開確認dialog、フォームsubmit、redirectも動作確認した。Node.js CLIは未導入のため `node --check` は未実施。
+- worker runtime: アプリ停止中に期限到来させた予約assignmentを、再起動後のworkerで `scheduled -> published` に回収した。次に隔離DBの合成assignmentを再度scheduledにセットし、アプリ稼働中の次pollでpublishedへ遷移し、system `publish_scheduled`監査の件数増加を確認した。確認ループは最大90秒待機で、正確な壁時計経過時間を記録していないため、60秒以内の厳密な遅延条件を満たした証拠とはしない。
+- 検証手順上の失敗: 最初のDB照合queryが実在しない `assignment_id` 列を指定してMySQL error 1054となった。テーブル定義の `task_class_assignment_id` を使うqueryへ直して状態を確認した。Browserの最初のCodeMirror入力は非表示textareaへの `fill` がtimeoutしたため、表示中editorをクリックしてキーボード入力し、保存成功を確認した。いずれも製品コードの不具合ではない。
+- 後片付け: `docker compose -p ppe-task-revision-acceptance down -v` により当該projectのapp/DB/runner、volume、networkを削除し、port 18082にlistenerがないことを確認。共有container/projectは停止・変更していない。
+- 未確認: 期限切れ境界と実workerでの既存提出/評価/コードログ保持。DB統合テストでの既存状態検証とruntime確認を混同しない。
+
+## 2026-10-06 JST: 課題期限切れ境界・履歴保持runtime受入
+
+- 対象: 専用Compose project `ppe-task-expiry-runtime`、schema `ppe_teacher_task_test_expiry_20261006`、DB port `13318`、HTTP port `18083`。専用合成データだけを使用し、共有DB/8080、実利用者データ、Gemini実APIには触れていない。
+- compile: `docker compose -p ppe-task-expiry-runtime run --rm --no-deps app gradle testClasses --no-daemon --console=plain --warning-mode all` は初回、期限待機helperの `InterruptedException` 宣言漏れで失敗（exit code 1）。テストメソッドに例外宣言を追加し、同コマンドを再実行して成功（exit code 0）。
+- migration: 専用MySQLだけに `SET GLOBAL log_bin_trust_function_creators=1` を適用後、`gradle flywayMigrate flywayValidate --no-daemon --console=plain --warning-mode all` が成功（exit code 0）。FlywayはV1〜V19を適用・検証した。routine内でV19補助procedureが未作成とのMySQL noticeが出たが、migration/validateは成功。
+- DB境界テスト: `TEACHER_TASK_DB_TEST=true` をコンテナにも渡し、`gradle test --tests control.teacher.TeacherTaskDatabaseTest.publicationWorkerDoesNotExpireBeforeDeadlineAndExpiresAtTheBoundary --no-daemon --console=plain --warning-mode all` を実行して成功（exit code 0）。期限前は `published` を維持し、DB時刻の期限到来後に `expired` へ1回だけ遷移し、二重実行では追加遷移・監査を作らないことを確認した。
+- 保持fixture: `TEACHER_TASK_DB_TEST=true` と `TEACHER_TASK_EXPIRY_HISTORY_FIXTURE=true` をコンテナへ明示し、`createsRetainedSyntheticExpiryHistoryFixtureForRuntimeAcceptance` を実行して成功（exit code 0）。期限処理前の合成件数は参加1、提出1、評価1、コードログ1、期限切れ監査0。
+- startup/runtime: `appRun` でTomcat 9.0.118がport 8080（host側port 18083）で起動し、`GET http://127.0.0.1:18083/` はHTTP 302を返した。割当期限をDB現在時刻+8秒へ設定し、稼働中workerの次pollで `published -> expired`、system `expire_assignment`監査1件を確認した。期限切れ後も参加1、提出1、評価1、コードログ1のまま変化しなかった。
+- 受入範囲: workerによる期限処理と合成履歴保持は確認した。稼働中workerの正確な60秒以内の処理遅延は壁時計計測していないため、SLA条件は未確認。アプリログにworkerのSQL/処理失敗は見られなかった。
+- 手順上の失敗: 初回のDB照合コマンドはshell/SQL引用符の誤りでMySQL `Unknown command '\0'`（exit code 1）。文字列をhex literalで指定する照合queryへ切り替え、成功した。製品コードの不具合ではない。
+- 後片付け: 受入記録後、専用Compose projectを停止しvolume/networkを削除する。host port 18083と専用MySQL port 13318のlistenerが残っていないことを確認する。
+
+## 2026-10-06 JST: 課題期限処理60秒以内のruntime計測
+
+- 対象: 新規の専用Compose project `ppe-task-expiry-sla`、schema `ppe_teacher_task_test_expirysla_20261006`、DB port `13319`、HTTP port `18084`。V1〜V19を専用DBへ適用・検証し、合成fixtureだけで実workerを起動した。共有DB/8080、実利用者データ、Gemini実APIは使用していない。
+- 計測方法: workerの起動時初回処理後に合成割当の `due_at` をDB現在時刻から70秒後に設定。MySQLの `NOW(6)` と期限DATETIMEとの差を250ms間隔の状態pollで観測し、状態が `expired` となった最初の観測時に遅延時間を記録した。
+- 結果: 期限 `2026-10-06 02:38:54`（DB時刻）に対し、実workerの `published -> expired` を期限到来から **21.646秒** で初回観測した（60秒以内）。その時点の合成件数はparticipation 1、submission 1、evaluation 1、code_log 1、`expire_assignment`監査1。後続照合でも状態と件数を再確認した。
+- 起動: `GET http://127.0.0.1:18084/` はHTTP 302、Tomcat 9.0.118はport 8080（host 18084）で起動。worker SQL/処理失敗ログは確認されなかった。
+- 注意: 計測結果はこの専用runtimeの実測値であり、最大遅延の一般保証を単一試行のみで証明するものではない。ただし、60秒固定pollの実周期で当該期限を跨いだ確認として受入条件を満たした。
+- 後片付け: 専用Compose projectのapp/DB/runner、volume/networkを削除し、port 18084/13319のlistenerがないことを確認する。

@@ -55,6 +55,15 @@
 
           <div class="row g-4">
             <div class="col-xl-7">
+              <div class="alert alert-info d-none" id="independentCopyNotice" role="status">
+                <strong>新しい課題系列の下書き</strong>
+                <p class="mb-2 mt-1">課題内容と保存済みの共通プロンプト・課題ごとの追加指示を、新課題専用の未適用下書きとして複製しました。対象クラス・公開日時・提出期限は未設定です。プロンプト下書きを確認して新課題へ設定し、内容を確認してから公開してください。</p>
+                <ul class="small mb-2">
+                  <li>元課題と、提出・評価・コードログ履歴は変更・複製されません。</li>
+                  <li>対象クラスと公開条件は新しく選択してください。プロンプトの保存前は公開できません。</li>
+                </ul>
+                <a class="btn btn-sm btn-outline-primary" id="independentCopyPromptLink" href="../prompt/prompt.html" target="_blank" rel="noopener">新課題のプロンプト下書きを確認</a>
+              </div>
               <form id="taskCreateForm" class="task-form">
                 <h3 class="form-section-title">課題情報</h3>
                 <div class="row g-3">
@@ -275,7 +284,7 @@
             <strong>公開中課題の編集ルール</strong>
             <ul class="mb-0 mt-2 small">
               <li>全生徒が未着手：同じ課題系列の新しい改訂として編集します。</li>
-              <li>学習開始済み：学習条件に影響する変更は、新しい課題として複製します。</li>
+              <li>学習開始済み：学習条件に影響する変更は、元課題と履歴を保ったまま新しい課題として複製します。対象クラスは選び直します。</li>
               <li>期限延長と対象クラス追加だけは、既存課題の運用変更として扱えます。</li>
               <li>削除した課題は下書きへ復元できます。復元だけでは公開されません。</li>
             </ul>

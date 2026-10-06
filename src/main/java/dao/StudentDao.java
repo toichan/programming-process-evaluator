@@ -97,7 +97,19 @@ public final class StudentDao {
 			JOIN classrooms c ON c.classroom_id = scm.classroom_id AND c.classroom_status = 'active'
 			JOIN schools s ON s.school_id = c.school_id AND s.school_status = 'active'
 			JOIN task_class_assignments ca ON ca.classroom_id = c.classroom_id
-			  AND ca.assignment_status = 'published'
+			  AND (
+			    ca.assignment_status = 'published'
+			    OR (ca.assignment_status = 'expired' AND (
+			      ca.late_submission_policy = 'allow'
+			      OR EXISTS (
+			        SELECT 1
+			        FROM task_participations tp_expired
+			        JOIN submissions s_expired ON s_expired.participation_id = tp_expired.participation_id
+			        WHERE tp_expired.task_class_assignment_id = ca.task_class_assignment_id
+			          AND tp_expired.student_user_id = scm.student_user_id
+			      )
+			    ))
+			  )
 			  AND (ca.publish_at IS NULL OR ca.publish_at <= CURRENT_TIMESTAMP)
 			JOIN tasks t ON t.task_id = ca.task_id
 			  AND t.publication_status = 'published' AND t.deleted_at IS NULL
