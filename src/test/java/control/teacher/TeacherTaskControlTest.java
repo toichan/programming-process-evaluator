@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.sql.SQLException;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -135,6 +136,46 @@ class TeacherTaskControlTest {
 		assertThrows(IllegalArgumentException.class,
 				() -> control.createIndependentCopy(
 						teacher, 12, 0, "19db2fd2-1d73-4f51-88d7-222222222222"));
+		assertFalse(connectionOpened.get());
+	}
+
+	@Test
+	void rejectsPublishedAssignmentChangeWithInvalidVersionBeforeOpeningDatabase() {
+		AtomicBoolean connectionOpened = new AtomicBoolean();
+		TeacherTaskControl control = new TeacherTaskControl(
+				new TeacherPermissionDao(),
+				new TeacherTaskDao(),
+				() -> {
+					connectionOpened.set(true);
+					throw new SQLException("Database must not be reached.");
+				});
+		AuthenticatedUser teacher = new AuthenticatedUser(
+				7, "synthetic", "Synthetic", UserType.TEACHER, false, "test");
+
+		assertThrows(IllegalArgumentException.class,
+				() -> control.managePublishedTaskAssignment(
+						teacher, 12, 0, 22, 0, null, LocalDateTime.now(), null,
+						"19db2fd2-1d73-4f51-88d7-222222222222"));
+		assertFalse(connectionOpened.get());
+	}
+
+	@Test
+	void rejectsPublishedAssignmentChangeWithoutExactlyOneTargetBeforeOpeningDatabase() {
+		AtomicBoolean connectionOpened = new AtomicBoolean();
+		TeacherTaskControl control = new TeacherTaskControl(
+				new TeacherPermissionDao(),
+				new TeacherTaskDao(),
+				() -> {
+					connectionOpened.set(true);
+					throw new SQLException("Database must not be reached.");
+				});
+		AuthenticatedUser teacher = new AuthenticatedUser(
+				7, "synthetic", "Synthetic", UserType.TEACHER, false, "test");
+
+		assertThrows(IllegalArgumentException.class,
+				() -> control.managePublishedTaskAssignment(
+						teacher, 12, 1, 0, 0, null, null, null,
+						"19db2fd2-1d73-4f51-88d7-222222222222"));
 		assertFalse(connectionOpened.get());
 	}
 

@@ -21,7 +21,7 @@
 						</svg>
 					</div>
 					<div class="rubric-header-copy">
-						<div class="rubric-header-kicker">Evaluation Criteria</div>
+						<div class="rubric-header-kicker">Rubric</div>
 						<h2 class="modal-title h4 mb-1" id="teacherRubricModalLabel">ルーブリック</h2>
 					</div>
 				</div>

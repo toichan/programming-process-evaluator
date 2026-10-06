@@ -12,7 +12,7 @@
 						</svg>
 					</div>
 					<div class="rubric-header-copy">
-						<div class="rubric-header-kicker">標準ルーブリック · 0805</div>
+						<div class="rubric-header-kicker">Rubric</div>
 						<h2 class="modal-title h4 mb-1" id="rubricModalLabel">ルーブリック</h2>
 					</div>
 				</div>

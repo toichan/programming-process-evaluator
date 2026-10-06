@@ -158,17 +158,22 @@
   min-height: 36px;
 }
 
-.task-form-code-mirror .CodeMirror {
+.task-form-code-mirror.CodeMirror {
   font: 500 0.9rem/1.6 "SFMono-Regular", Consolas, monospace;
 }
 
-.task-form-code-mirror.is-python .CodeMirror {
+.task-form-code-mirror.is-python.CodeMirror {
   height: 300px !important;
 }
 
-.task-form-code-mirror.is-python.is-hint-example .CodeMirror,
-.task-form-code-mirror.is-shell .CodeMirror {
+.task-form-code-mirror.is-python.is-hint-example.CodeMirror,
+.task-form-code-mirror.is-shell.CodeMirror {
   height: auto !important;
+}
+
+.task-form-code-mirror.is-shell.CodeMirror,
+.task-form-code-mirror.is-shell .CodeMirror-scroll {
+  min-height: 0;
 }
 
 .task-form-code-mirror .CodeMirror-gutters,
@@ -185,8 +190,8 @@
   padding: 0.2rem 0;
 }
 
-.task-form-code-mirror .CodeMirror pre.CodeMirror-line,
-.task-form-code-mirror .CodeMirror pre.CodeMirror-line-like {
+.task-form-code-mirror pre.CodeMirror-line,
+.task-form-code-mirror pre.CodeMirror-line-like {
   padding: 0 1rem;
 }
 
@@ -213,7 +218,7 @@
 
 .test-case-row {
   display: grid;
-  grid-template-columns: 120px 1fr 1fr auto;
+  grid-template-columns: 1fr 1fr auto;
   gap: 0.5rem;
   align-items: start;
   padding: 0.6rem;
@@ -246,8 +251,19 @@
 
 .preview-io-case pre {
   margin: 0;
+  min-height: 2.5rem;
+  padding: 0.5rem 1rem;
+  border: 1px solid rgba(15, 23, 42, 0.22);
+  border-radius: 0.65rem;
+  background: #0f172a;
+  color: #dbeafe;
+  font: 500 0.88rem/1.6 "SFMono-Regular", Consolas, monospace;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+.preview-io-case .io-case-label:not(:first-child) {
+  margin-top: 0.55rem;
 }
 
 .class-option[hidden] {

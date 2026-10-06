@@ -2,6 +2,9 @@ package servlet.teacher;
 
 import java.io.IOException;
 import java.sql.SQLException;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeParseException;
+import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -23,6 +26,7 @@ import control.teacher.TaskDraftConflictException;
 import control.teacher.TaskDraftNotFoundException;
 import control.teacher.TeacherTaskControl;
 import control.teacher.TeacherTaskCreateRegistry;
+import entity.TeacherClassOption;
 import entity.TeacherNavigationSummary;
 import entity.TeacherTaskInput;
 import entity.UserCredential.UserType;
@@ -82,6 +86,10 @@ public final class TeacherTaskServlet extends HttpServlet {
 				throw new IllegalArgumentException("フォーム形式で送信してください。");
 			}
 			rawValues = TeacherTaskForm.read(request.getInputStream(), MAX_REQUEST_BYTES);
+			if (isPublishedAssignmentAction(first(rawValues, "action"))) {
+				processPublishedAssignmentOperation(request, response, user, rawValues);
+				return;
+			}
 			if (isTaskStateAction(first(rawValues, "action"))) {
 				processTaskStateOperation(request, response, user, rawValues);
 				return;
@@ -200,8 +208,10 @@ public final class TeacherTaskServlet extends HttpServlet {
 		request.setAttribute("teacherTaskStateNotice", consumeTaskStateNotice(request.getSession(false)));
 		request.setAttribute("teacherTaskDraftCount", page.tasks().stream()
 				.filter(task -> "draft".equals(task.publicationStatus())).count());
-		request.setAttribute("teacherTaskSchoolCount", page.schools().size());
-		request.setAttribute("teacherTaskReusableHintCount", page.reusableHints().size());
+		request.setAttribute("teacherTaskPublishedCount", page.tasks().stream()
+				.filter(task -> "published".equals(task.publicationStatus())).count());
+		request.setAttribute("teacherTaskRequiresUpdateCount", page.tasks().stream()
+				.filter(task -> "requires_update".equals(task.publicationStatus())).count());
 		Map<Long, String> deleteTokens = new HashMap<>();
 		Map<Long, String> independentCopyTokens = new HashMap<>();
 		for (var task : page.tasks()) {
@@ -212,9 +222,36 @@ public final class TeacherTaskServlet extends HttpServlet {
 		for (var task : page.deletedTasks()) {
 			restoreTokens.put(task.taskId(), UUID.randomUUID().toString());
 		}
+		Map<Long, String> assignmentDeadlineTokens = new HashMap<>();
+		Map<Long, String> classAssignmentTokens = new HashMap<>();
+		Map<Long, String> assignmentDeadlineValues = new HashMap<>();
+		Map<Long, List<TeacherClassOption>> eligibleClassOptions = new HashMap<>();
+		for (var task : page.tasks()) {
+			if ("published".equals(task.publicationStatus())) {
+				classAssignmentTokens.put(task.taskId(), UUID.randomUUID().toString());
+				Set<Long> assignedClassIds = new HashSet<>(
+						page.assignmentClassHistory().getOrDefault(task.taskId(), Set.of()));
+				for (var assignment : task.input().classAssignments()) {
+					assignedClassIds.add(assignment.classroomId());
+					assignmentDeadlineTokens.put(assignment.assignmentId(), UUID.randomUUID().toString());
+					if (assignment.dueAt() != null) {
+						assignmentDeadlineValues.put(assignment.assignmentId(),
+								assignment.dueAt().format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm")));
+					}
+				}
+				eligibleClassOptions.put(task.taskId(), page.classes().stream()
+						.filter(classroom -> classroom.schoolId() == task.input().schoolId())
+						.filter(classroom -> !assignedClassIds.contains(classroom.classroomId()))
+						.toList());
+			}
+		}
 		request.setAttribute("teacherTaskDeleteTokens", deleteTokens);
 		request.setAttribute("teacherTaskIndependentCopyTokens", independentCopyTokens);
 		request.setAttribute("teacherTaskRestoreTokens", restoreTokens);
+		request.setAttribute("teacherTaskDeadlineTokens", assignmentDeadlineTokens);
+		request.setAttribute("teacherTaskClassAssignmentTokens", classAssignmentTokens);
+		request.setAttribute("teacherTaskDeadlineValues", assignmentDeadlineValues);
+		request.setAttribute("teacherTaskEligibleClassOptions", eligibleClassOptions);
 		request.setAttribute("teacherTaskUser", user);
 		request.setAttribute("teacherTaskUserId", user.userId());
 		request.setAttribute("displayName", user.displayName());
@@ -356,6 +393,116 @@ public final class TeacherTaskServlet extends HttpServlet {
 				|| "copyToNewTaskSeries".equals(action);
 	}
 
+	private void processPublishedAssignmentOperation(
+			HttpServletRequest request,
+			HttpServletResponse response,
+			AuthenticatedUser user,
+			Map<String, List<String>> values) throws IOException {
+		try {
+			PublishedAssignmentOperation operation = parsePublishedAssignmentOperation(values);
+			HttpServletRequest parsedRequest = csrfRequest(request, operation.csrfToken());
+			if (!CsrfTokens.isValid(parsedRequest)) {
+				response.sendError(HttpServletResponse.SC_FORBIDDEN, "画面を再読み込みしてください。");
+				return;
+			}
+			TASKS.managePublishedTaskAssignment(
+					user,
+					operation.taskId(),
+					operation.expectedVersion(),
+					operation.assignmentId(),
+					operation.classroomId(),
+					operation.publishAt(),
+					operation.dueAt(),
+					operation.lateSubmissionPolicy(),
+					operation.requestToken());
+			HttpSession session = request.getSession(false);
+			if (session != null) {
+				session.setAttribute(
+						TASK_STATE_NOTICE_ATTRIBUTE,
+						operation.assignmentId() > 0
+								? "クラス別の提出期限を延長しました。"
+								: "対象クラスを追加しました。");
+			}
+			response.sendRedirect(response.encodeRedirectURL(request.getContextPath() + "/teacher/task"));
+		} catch (TaskDraftConflictException e) {
+			response.sendError(HttpServletResponse.SC_CONFLICT, e.getMessage());
+		} catch (TaskDraftNotFoundException e) {
+			response.sendError(HttpServletResponse.SC_NOT_FOUND);
+		} catch (IllegalArgumentException e) {
+			response.sendError(HttpServletResponse.SC_BAD_REQUEST, e.getMessage());
+		} catch (SecurityException e) {
+			response.sendError(HttpServletResponse.SC_FORBIDDEN);
+		} catch (SQLException e) {
+			getServletContext().log("Published task assignment change failed.", e);
+			response.sendError(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
+		}
+	}
+
+	private static boolean isPublishedAssignmentAction(String action) {
+		return "extendTaskAssignmentDeadline".equals(action)
+				|| "addTaskClassAssignment".equals(action);
+	}
+
+	static PublishedAssignmentOperation parsePublishedAssignmentOperation(
+			Map<String, List<String>> values) {
+		String action = requiredSingle(values, "action");
+		if ("extendTaskAssignmentDeadline".equals(action)) {
+			if (!Set.of("action", "csrfToken", "requestToken", "taskId", "expectedVersion",
+					"assignmentId", "newDueAt").equals(values.keySet())) {
+				throw new IllegalArgumentException("提出期限延長の入力が不正です。");
+			}
+			return new PublishedAssignmentOperation(
+					action,
+					requiredSingle(values, "csrfToken"),
+					requiredSingle(values, "requestToken"),
+					positiveLong(requiredSingle(values, "taskId"), "課題"),
+					positiveLong(requiredSingle(values, "expectedVersion"), "課題更新情報"),
+					positiveLong(requiredSingle(values, "assignmentId"), "クラス割当"),
+					0,
+					null,
+					parsedDateTime(requiredSingle(values, "newDueAt"), false),
+					null);
+		}
+		if ("addTaskClassAssignment".equals(action)) {
+			if (!Set.of("action", "csrfToken", "requestToken", "taskId", "expectedVersion",
+					"classroomId", "publishAt", "dueAt", "lateSubmissionPolicy").equals(values.keySet())) {
+				throw new IllegalArgumentException("対象クラス追加の入力が不正です。");
+			}
+			return new PublishedAssignmentOperation(
+					action,
+					requiredSingle(values, "csrfToken"),
+					requiredSingle(values, "requestToken"),
+					positiveLong(requiredSingle(values, "taskId"), "課題"),
+					positiveLong(requiredSingle(values, "expectedVersion"), "課題更新情報"),
+					0,
+					positiveLong(requiredSingle(values, "classroomId"), "クラス"),
+					parsedDateTime(optionalSingle(values, "publishAt"), true),
+					parsedDateTime(optionalSingle(values, "dueAt"), true),
+					TeacherTaskInput.LateSubmissionPolicy.fromDatabaseValue(
+							requiredSingle(values, "lateSubmissionPolicy")));
+		}
+		throw new IllegalArgumentException("利用できないクラス割当操作です。");
+	}
+
+	private static LocalDateTime parsedDateTime(String value, boolean optional) {
+		if (optional && value.isEmpty()) {
+			return null;
+		}
+		try {
+			return LocalDateTime.parse(value);
+		} catch (DateTimeParseException e) {
+			throw new IllegalArgumentException("日時の形式が正しくありません。", e);
+		}
+	}
+
+	private static String optionalSingle(Map<String, List<String>> values, String name) {
+		List<String> entries = values.get(name);
+		if (entries == null || entries.size() != 1) {
+			throw new IllegalArgumentException("課題操作の入力が不正です。");
+		}
+		return entries.getFirst();
+	}
+
 	private static TaskStateOperation parseTaskStateOperation(Map<String, List<String>> values) {
 		if (!Set.of("action", "csrfToken", "requestToken", "taskId", "expectedVersion").equals(values.keySet())) {
 			throw new IllegalArgumentException("課題操作の入力が不正です。");
@@ -394,6 +541,19 @@ public final class TeacherTaskServlet extends HttpServlet {
 
 	private record TaskStateOperation(
 			String action, String csrfToken, String requestToken, long taskId, long expectedVersion) {
+	}
+
+	record PublishedAssignmentOperation(
+			String action,
+			String csrfToken,
+			String requestToken,
+			long taskId,
+			long expectedVersion,
+			long assignmentId,
+			long classroomId,
+			LocalDateTime publishAt,
+			LocalDateTime dueAt,
+			TeacherTaskInput.LateSubmissionPolicy lateSubmissionPolicy) {
 	}
 
 	private static Map<String, List<String>> rawValues(HttpServletRequest request) {

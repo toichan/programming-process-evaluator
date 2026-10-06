@@ -55,11 +55,24 @@ document.addEventListener('DOMContentLoaded', function() {
     id.name = 'testCaseIds';
     id.value = testCase ? String(testCase.id || 0) : '0';
     row.append(id);
-    row.append(createField('説明', 'input', 'testCaseTitles', testCase ? testCase.title : ''));
-    row.append(createField('入力例', 'textarea', 'testCaseInputs', testCase ? testCase.input : ''));
-    row.append(createField('期待する出力', 'textarea', 'testCaseOutputs', testCase ? testCase.output : ''));
+    const title = document.createElement('input');
+    title.type = 'hidden';
+    title.name = 'testCaseTitles';
+    title.value = testCase ? testCase.title || '' : '';
+    row.append(title);
+    const input = createField('入力', 'textarea', 'testCaseInputs', testCase ? testCase.input : '');
+    input.querySelector('textarea').rows = 1;
+    input.querySelector('textarea').classList.add('code-editor-input', 'test-case-io');
+    row.append(input);
+    const output = createField('出力', 'textarea', 'testCaseOutputs', testCase ? testCase.output : '');
+    output.querySelector('textarea').rows = 1;
+    output.querySelector('textarea').classList.add('code-editor-input', 'test-case-io');
+    row.append(output);
     row.append(createRemoveButton('テストケースを削除'));
     document.getElementById('testCaseList').append(row);
+    row.querySelectorAll('.test-case-io').forEach(function(textarea) {
+      initializeCodeEditor(textarea, 'shell');
+    });
     updatePreview();
   }
 
@@ -268,16 +281,20 @@ document.addEventListener('DOMContentLoaded', function() {
       container.textContent = '未設定';
       return;
     }
-    rows.forEach(function(row, index) {
+    rows.forEach(function(row) {
       const card = document.createElement('div');
-      card.className = 'preview-io-case';
-      const title = document.createElement('strong');
-      title.textContent = row.querySelector('[name="testCaseTitles"]').value || 'テストケース ' + (index + 1);
+      card.className = 'preview-io-case io-case-card';
+      const inputLabel = document.createElement('div');
+      inputLabel.className = 'io-case-label';
+      inputLabel.textContent = '入力';
       const input = document.createElement('pre');
       input.textContent = row.querySelector('[name="testCaseInputs"]').value;
+      const outputLabel = document.createElement('div');
+      outputLabel.className = 'io-case-label';
+      outputLabel.textContent = '出力';
       const output = document.createElement('pre');
       output.textContent = row.querySelector('[name="testCaseOutputs"]').value;
-      card.append(title, input, output);
+      card.append(inputLabel, input, outputLabel, output);
       container.append(card);
     });
   }
@@ -413,6 +430,9 @@ document.addEventListener('DOMContentLoaded', function() {
   if (initialCode) {
     initializeCodeEditor(initialCode, 'python');
   }
+  document.querySelectorAll('#testCaseList .test-case-io').forEach(function(textarea) {
+    initializeCodeEditor(textarea, 'shell');
+  });
   if (formTaskId === 0 && !document.querySelector('#testCaseList .test-case-row')) {
     addTestCaseRow();
     addTestCaseRow();
@@ -427,5 +447,10 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   if (document.getElementById('taskSaveNotice')) {
     feedback.toast({ message: '課題を保存しました。', variant: 'success', delay: 2500 });
+  }
+  const taskStateNotice = document.getElementById('taskStateNotice');
+  if (taskStateNotice) {
+    feedback.toast({ message: taskStateNotice.textContent.trim(), variant: 'success', delay: 2500 });
+    taskStateNotice.hidden = true;
   }
 });

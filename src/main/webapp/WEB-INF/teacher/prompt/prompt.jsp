@@ -21,16 +21,12 @@
 					<div class="stat-value"><c:out value="${promptPage.tasks.size()}"/></div>
 				</div>
 				<div class="stat-card">
-					<div class="stat-label">選択中の版</div>
-					<div class="stat-value stat-value-small">
-						<c:choose><c:when test="${not empty promptVersion}"><c:out value="${promptVersion.version}"/></c:when><c:otherwise>未選択</c:otherwise></c:choose>
-					</div>
+					<div class="stat-label">再評価待ち</div>
+					<div class="stat-value" id="pendingCount"><c:out value="${teacherPromptPendingCount}"/></div>
 				</div>
 				<div class="stat-card">
-					<div class="stat-label">共通標準ルーブリック</div>
-					<div class="stat-value stat-value-small">
-						<c:choose><c:when test="${not empty promptPage.standardRubric}"><c:out value="${promptPage.standardRubric.version}"/></c:when><c:otherwise>課題選択後に表示</c:otherwise></c:choose>
-					</div>
+					<div class="stat-label">最終更新</div>
+					<div class="stat-value stat-value-small" id="lastUpdatedAt"><c:out value="${teacherPromptLastUpdated}"/></div>
 				</div>
 			</div>
 		</section>

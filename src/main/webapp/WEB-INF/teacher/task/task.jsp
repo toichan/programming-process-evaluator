@@ -23,16 +23,16 @@
 			</div>
 			<div class="hero-stats">
 				<div class="stat-card">
+					<div class="stat-label">公開中</div>
+					<div class="stat-value"><c:out value="${teacherTaskPublishedCount}"/></div>
+				</div>
+				<div class="stat-card">
 					<div class="stat-label">下書き</div>
 					<div class="stat-value"><c:out value="${teacherTaskDraftCount}"/></div>
 				</div>
 				<div class="stat-card">
-					<div class="stat-label">担当学校</div>
-					<div class="stat-value"><c:out value="${teacherTaskSchoolCount}"/></div>
-				</div>
-				<div class="stat-card">
-					<div class="stat-label">ヒント候補</div>
-					<div class="stat-value"><c:out value="${teacherTaskReusableHintCount}"/></div>
+					<div class="stat-label">要更新</div>
+					<div class="stat-value"><c:out value="${teacherTaskRequiresUpdateCount}"/></div>
 				</div>
 			</div>
 		</section>
@@ -41,7 +41,7 @@
 			<div class="alert alert-success" id="taskSaveNotice" role="status">課題を保存しました。</div>
 		</c:if>
 		<c:if test="${not empty teacherTaskStateNotice}">
-			<div class="alert alert-success" role="status"><c:out value="${teacherTaskStateNotice}"/></div>
+			<div class="alert alert-success" id="taskStateNotice" role="status"><c:out value="${teacherTaskStateNotice}"/></div>
 		</c:if>
 		<c:if test="${not empty teacherTaskError}">
 			<div class="alert alert-danger" role="alert"><c:out value="${teacherTaskError}"/></div>
@@ -200,9 +200,9 @@
 											<c:forEach items="${teacherTaskInput.testCases}" var="testCase">
 												<div class="test-case-row">
 													<input type="hidden" name="testCaseIds" value="<c:out value='${testCase.testCaseId}'/>">
-													<div class="field-block"><label class="mini-label">説明</label><input class="form-control" name="testCaseTitles" value="<c:out value='${testCase.title}'/>"></div>
-													<div class="field-block"><label class="mini-label">入力例</label><textarea class="form-control" name="testCaseInputs" rows="3"><c:out value="${testCase.input}"/></textarea></div>
-													<div class="field-block"><label class="mini-label">期待する出力</label><textarea class="form-control" name="testCaseOutputs" rows="3"><c:out value="${testCase.expectedOutput}"/></textarea></div>
+													<input type="hidden" name="testCaseTitles" value="<c:out value='${testCase.title}'/>">
+													<div class="field-block"><label class="mini-label">入力</label><textarea class="form-control code-editor-input test-case-io" name="testCaseInputs" rows="1"><c:out value="${testCase.input}"/></textarea></div>
+													<div class="field-block"><label class="mini-label">出力</label><textarea class="form-control code-editor-input test-case-io" name="testCaseOutputs" rows="1"><c:out value="${testCase.expectedOutput}"/></textarea></div>
 													<button class="btn btn-sm btn-outline-danger remove-row" type="button" aria-label="テストケースを削除">削除</button>
 												</div>
 											</c:forEach>
@@ -211,9 +211,9 @@
 											<c:forEach items="${submittedTeacherTaskValues['testCaseInputs']}" var="testInput" varStatus="status">
 												<div class="test-case-row">
 													<input type="hidden" name="testCaseIds" value="<c:out value='${submittedTeacherTaskValues["testCaseIds"][status.index]}' default='0'/>">
-													<div class="field-block"><label class="mini-label">説明</label><input class="form-control" name="testCaseTitles" value="<c:out value='${submittedTeacherTaskValues["testCaseTitles"][status.index]}'/>"></div>
-													<div class="field-block"><label class="mini-label">入力例</label><textarea class="form-control" name="testCaseInputs" rows="3"><c:out value="${testInput}"/></textarea></div>
-													<div class="field-block"><label class="mini-label">期待する出力</label><textarea class="form-control" name="testCaseOutputs" rows="3"><c:out value='${submittedTeacherTaskValues["testCaseOutputs"][status.index]}'/></textarea></div>
+													<input type="hidden" name="testCaseTitles" value="<c:out value='${submittedTeacherTaskValues["testCaseTitles"][status.index]}'/>">
+													<div class="field-block"><label class="mini-label">入力</label><textarea class="form-control code-editor-input test-case-io" name="testCaseInputs" rows="1"><c:out value="${testInput}"/></textarea></div>
+													<div class="field-block"><label class="mini-label">出力</label><textarea class="form-control code-editor-input test-case-io" name="testCaseOutputs" rows="1"><c:out value='${submittedTeacherTaskValues["testCaseOutputs"][status.index]}'/></textarea></div>
 													<button class="btn btn-sm btn-outline-danger remove-row" type="button" aria-label="テストケースを削除">削除</button>
 												</div>
 											</c:forEach>
@@ -321,18 +321,9 @@
 				<div><span class="hero-kicker mb-1 d-inline-block">Tasks</span><h2 class="subheading mb-0">担当学校の課題</h2></div>
 				<a class="btn btn-outline-secondary btn-sm" href="<c:url value='/teacher/task'/>">一覧を更新</a>
 			</div>
-			<div class="alert alert-light border task-edit-policy" id="taskListHelp">
-				<strong>現在利用できる操作</strong>
-				<ul class="mb-0 mt-2 small">
-					<li>担当学校の課題を表示します。編集は作成者、削除は同校の課題管理権限を持つ教師が行えます。</li>
-					<li>学習開始済みの公開課題は、課題系列を分けた下書きとして複製できます。対象クラスと公開日時・提出期限は新しい課題で選び直します。</li>
-					<li>削除した課題は下書きへ復元できます。復元だけでは生徒に公開されません。</li>
-					<li>下書き保存だけでは生徒に課題は公開されません。</li>
-				</ul>
-			</div>
 			<c:if test="${empty teacherTaskPage.tasks}"><p class="text-muted" role="status">表示できる課題はありません。</p></c:if>
 			<div class="table-responsive">
-				<table class="table table-hover align-middle mb-0" id="taskTable" aria-describedby="taskListHelp">
+				<table class="table table-hover align-middle mb-0" id="taskTable">
 					<thead class="table-light"><tr><th>課題名</th><th>所属学校</th><th>難易度</th><th>対象クラス</th><th>状態</th><th>プロンプト</th><th>作成者</th><th>最終更新者</th><th>最終更新日時</th><th>操作</th></tr></thead>
 					<tbody>
 						<c:forEach items="${teacherTaskPage.tasks}" var="task">
@@ -430,6 +421,55 @@
 											<button class="btn btn-sm btn-outline-danger" type="submit">削除</button>
 										</form>
 									</div>
+									<c:if test="${task.publicationStatus == 'published'}">
+										<div class="mt-3">
+											<c:forEach items="${task.input.classAssignments}" var="assignment">
+												<c:if test="${not empty assignment.dueAt && (assignment.assignmentStatus == 'scheduled' || assignment.assignmentStatus == 'published' || assignment.assignmentStatus == 'expired')}">
+													<form method="post" action="<c:url value='/teacher/task'/>" class="mb-2">
+														<input type="hidden" name="action" value="extendTaskAssignmentDeadline">
+														<input type="hidden" name="csrfToken" value="<c:out value='${csrfToken}'/>">
+														<input type="hidden" name="requestToken" value="<c:out value='${teacherTaskDeadlineTokens[assignment.assignmentId]}'/>">
+														<input type="hidden" name="taskId" value="<c:out value='${task.taskId}'/>">
+														<input type="hidden" name="expectedVersion" value="<c:out value='${task.version}'/>">
+														<input type="hidden" name="assignmentId" value="<c:out value='${assignment.assignmentId}'/>">
+														<label class="form-label small mb-1" for="deadline-${assignment.assignmentId}">クラス割当 #<c:out value="${assignment.classroomId}"/> の提出期限</label>
+														<div class="d-flex gap-1">
+															<input class="form-control form-control-sm" id="deadline-${assignment.assignmentId}"
+																type="datetime-local" name="newDueAt" required
+																value="<c:out value='${teacherTaskDeadlineValues[assignment.assignmentId]}'/>">
+															<button class="btn btn-sm btn-outline-primary text-nowrap" type="submit">延長</button>
+														</div>
+													</form>
+												</c:if>
+											</c:forEach>
+											<c:if test="${not empty teacherTaskEligibleClassOptions[task.taskId]}">
+												<form method="post" action="<c:url value='/teacher/task'/>" class="border-top pt-2 mt-2">
+													<input type="hidden" name="action" value="addTaskClassAssignment">
+													<input type="hidden" name="csrfToken" value="<c:out value='${csrfToken}'/>">
+													<input type="hidden" name="requestToken" value="<c:out value='${teacherTaskClassAssignmentTokens[task.taskId]}'/>">
+													<input type="hidden" name="taskId" value="<c:out value='${task.taskId}'/>">
+													<input type="hidden" name="expectedVersion" value="<c:out value='${task.version}'/>">
+													<label class="form-label small mb-1" for="add-class-${task.taskId}">対象クラスを追加</label>
+													<select class="form-select form-select-sm mb-1" id="add-class-${task.taskId}" name="classroomId" required>
+														<option value="">クラスを選択</option>
+														<c:forEach items="${teacherTaskEligibleClassOptions[task.taskId]}" var="classroom">
+															<option value="<c:out value='${classroom.classroomId}'/>"><c:out value="${classroom.gradeName}"/><c:out value="${classroom.name}"/></option>
+														</c:forEach>
+													</select>
+													<label class="form-label small mb-1" for="publish-at-${task.taskId}">公開日時（空欄なら即時公開）</label>
+													<input class="form-control form-control-sm mb-1" id="publish-at-${task.taskId}" type="datetime-local" name="publishAt">
+													<label class="form-label small mb-1" for="due-at-${task.taskId}">提出期限（任意）</label>
+													<input class="form-control form-control-sm mb-1" id="due-at-${task.taskId}" type="datetime-local" name="dueAt">
+													<label class="form-label small mb-1" for="late-policy-${task.taskId}">期限後の提出</label>
+													<select class="form-select form-select-sm mb-2" id="late-policy-${task.taskId}" name="lateSubmissionPolicy" required>
+														<option value="allow">許可</option>
+														<option value="deny">不可</option>
+													</select>
+													<button class="btn btn-sm btn-outline-primary" type="submit">クラスを追加</button>
+												</form>
+											</c:if>
+										</div>
+									</c:if>
 								</td>
 							</tr>
 						</c:forEach>

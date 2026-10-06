@@ -49,7 +49,8 @@
 - [x] 隔離認証ブラウザーで合成課題を公開し、改訂案作成、新しいプロンプト案の保存、改訂再公開まで確認。再公開後、旧課題は `requires_update`、旧割当は `archived`、新課題は `published`、新割当は `scheduled` となった。
 - [x] `task.js` をブラウザー内JavaScriptエンジンで構文コンパイルし、公開確認dialogとフォーム遷移を動作確認。
 - [x] 隔離実アプリ内workerで、起動直後の期限超過予約回収と稼働中の次周期処理を確認。後者は `scheduled -> published` となり、system監査行も記録した。ポーリング待機の上限90秒内に状態変化を確認したが、実経過時間は計測していないため「60秒以内」の厳密なSLA確認とは区別する。
-- [ ] 期限切れ境界、既存提出/評価/コードログ履歴のruntime保持、学習開始後の別課題系列複製、期限延長/対象追加は未確認。共有8080/DB、Gemini実API、実生徒データは使用していない。
+- [x] 学習開始後の独立系列コピーを専用DB統合テストと認証browserで確認。コピー元の公開状態・割当・提出履歴を維持し、新系列は未公開/未割当、promptは別IDの未適用draftとなる。
+- [ ] 期限延長/対象クラス追加は未確認。共有8080/DB、Gemini実API、実生徒データは使用していない。
 
 ### 2026-10-06 隔離runtime受入追補
 
@@ -60,7 +61,15 @@
 - 初回migration時にV11 routine作成がMySQL error 1419となり、部分適用後のFlyway再実行も失敗したため、この専用Compose projectのDB volumeだけを再作成した。専用DBに限り起動時設定後にV1〜V19 migration/validate成功。詳細は[エラーレポート](../error-report.md)を参照。
 - 作業後に専用Compose project/volume/networkを削除し、HTTP port `18082` のlistener不在を確認。共有8080/DBは使用していない。
 
+### 2026-10-06 独立課題系列コピーの認証browser受入
+
+- 現行コードを専用schema `ppe_teacher_task_test_browser20261006` / localhost port `18084` で起動し、合成教師・公開課題・学習参加/提出fixtureを使って確認した。共有8080/DB、Gemini実API、実生徒データは使用していない。
+- 教師ログイン後、学習開始済み公開課題の「新しい課題として編集」を選び、shared feedbackの確認dialogから作成した。作成完了通知と `taskId=2` への遷移を確認し、新課題は `draft`、対象クラスは未割当、active prompt pointerはNULLだった。
+- プロンプト設定画面でコピー元の共通prompt本文を確認。専用DBでは新しいprompt versionが別IDの `draft` として存在し、共通prompt/追加指示の本文だけを引き継ぎ、揺らぎ項目/評価例は未生成だった。コピー元は引き続き `published`、active prompt versionとassignment、参加/提出行が保持された。評価/コードログを含む既存履歴の非変更は専用DB統合テストで確認済み。
+- 専用schemaの初回migrationは通常DBユーザーでV11 routine作成時にMySQL error 1419となり、部分DDL後の `flywayRepair`/再実行は重複constraintで失敗した。対象の使い捨てschemaだけを再作成し、migration時のみ `log_bin_trust_function_creators` を一時変更してV1〜V19を適用後、値を `0` に戻して確認した。詳細は[エラーレポート](../error-report.md)に記録。
+- `TeacherTaskDatabaseTest` の独立コピーfocused test、fixture作成test、`git diff --check` が成功した。
+
 ## 未完了・次の作業
 
-- 学習開始後の別課題系列への複製は、機能仕様書第128版に基づく独立した非公開下書き作成として実装し、専用MySQL統合テストでコピー元の保持・学習開始前の拒否・冪等性を確認した。対象クラス/公開日時は引き継がず、現在適用中のプロンプト本文だけを新課題所有の未適用下書きにする。独立コピーの本番UIブラウザー受入は未確認。
+- 学習開始後の別課題系列への複製は、機能仕様書第128版に基づき、専用MySQL統合テストと現行UIの認証browserで受入済み。対象クラス/公開日時は引き継がず、現在適用中のプロンプト本文だけを新課題所有の未適用下書きにする。
 - 期限切れ境界、提出・評価・コードログ履歴の保持、workerの期限到来から60秒以内の遷移は専用runtimeで確認済み。残る課題管理の次候補は期限延長・対象クラス追加であり、別スライスとして仕様・画面導線と照合してから実施する。

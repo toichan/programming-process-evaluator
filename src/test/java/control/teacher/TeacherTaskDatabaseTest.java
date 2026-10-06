@@ -97,6 +97,39 @@ class TeacherTaskDatabaseTest {
 	}
 
 	@Test
+	void createsRetainedPublishedAssignmentManagementFixtureForBrowserAcceptance() throws SQLException {
+		Assumptions.assumeTrue("true".equals(System.getenv("TEACHER_TASK_ASSIGNMENT_BROWSER_FIXTURE")));
+		assertTrue(System.getenv("DB_NAME").matches("ppe_teacher_task_test_[a-z0-9_]+"));
+		String password = System.getenv("TEACHER_TASK_BROWSER_PASSWORD");
+		assertTrue(password != null && password.length() >= 12,
+				"A throwaway password must be supplied for the browser fixture.");
+		try (Connection connection = Client.createConnection();
+				PreparedStatement statement = connection.prepareStatement(
+						"UPDATE users SET password_hash = ? WHERE user_id = ? AND login_id = 'teacher-demo'")) {
+			assertEquals(System.getenv("DB_NAME"), connection.getCatalog());
+			statement.setString(1, new PasswordHasher().hash(password.toCharArray()));
+			statement.setLong(2, teacherId);
+			assertEquals(1, statement.executeUpdate());
+		}
+
+		AuthenticatedUser owner = teacher();
+		long taskId = TASKS.createDraft(
+				owner,
+				inputWithAssignments(
+						"Published assignment management browser acceptance",
+						List.of(new ClassAssignmentInput(
+								0, classroomId, null, LocalDateTime.now().plusDays(1), LateSubmissionPolicy.ALLOW))),
+				UUID.randomUUID().toString());
+		activateConfiguredPrompt(owner, taskId);
+		publishDraft(owner, taskId);
+		long assignmentId = findAssignmentId(taskId, classroomId);
+		retainFixtureAfterTest = true;
+		System.out.printf("TASK_ASSIGNMENT_BROWSER_FIXTURE loginId=%s taskId=%d assignmentId=%d "
+				+ "classroomId=%d addableClassroomId=%d%n",
+				teacherLoginId, taskId, assignmentId, classroomId, secondClassroomId);
+	}
+
+	@Test
 	void createsRetainedIndependentCopyFixtureForIsolatedBrowserAcceptance() throws SQLException {
 		Assumptions.assumeTrue("true".equals(System.getenv("TEACHER_TASK_BROWSER_FIXTURE")));
 		assertTrue(System.getenv("DB_NAME").matches("ppe_teacher_task_test_[a-z0-9_]+"));
@@ -274,6 +307,117 @@ class TeacherTaskDatabaseTest {
 	}
 
 	@Test
+	void assignmentClassHistoryIncludesArchivedAssignmentsForCandidateFiltering() throws SQLException {
+		AuthenticatedUser owner = teacher();
+		long taskId = TASKS.createDraft(
+				owner,
+				inputWithAssignments(
+						"Archived assignment candidate filtering",
+						List.of(new ClassAssignmentInput(
+								0, classroomId, null, null, LateSubmissionPolicy.ALLOW))),
+				UUID.randomUUID().toString());
+		activateConfiguredPrompt(owner, taskId);
+		publishDraft(owner, taskId);
+
+		try (Connection connection = Client.createConnection();
+				PreparedStatement statement = connection.prepareStatement("""
+						UPDATE task_class_assignments
+						SET assignment_status = 'archived'
+						WHERE task_id = ? AND classroom_id = ?
+						""")) {
+			assertEquals(System.getenv("DB_NAME"), connection.getCatalog());
+			statement.setLong(1, taskId);
+			statement.setLong(2, classroomId);
+			assertEquals(1, statement.executeUpdate());
+		}
+
+		var page = TASKS.loadPage(owner, null, schoolId);
+		assertTrue(page.classes().stream().anyMatch(option -> option.classroomId() == classroomId));
+		assertTrue(page.assignmentClassHistory().get(taskId).contains(classroomId));
+	}
+
+	@Test
+	void extendsExpiredAssignmentAndAddsAClassWithoutChangingExistingHistory() throws SQLException {
+		AuthenticatedUser owner = teacher();
+		long taskId = TASKS.createDraft(
+				owner,
+				inputWithAssignments(
+						"Published assignment management acceptance",
+						List.of(new ClassAssignmentInput(
+								0, classroomId, null, LocalDateTime.now().plusDays(1), LateSubmissionPolicy.ALLOW))),
+				UUID.randomUUID().toString());
+		activateConfiguredPrompt(owner, taskId);
+		publishDraft(owner, taskId);
+		long assignmentId = findAssignmentId(taskId, classroomId);
+		long studentId = insertStudentFixture();
+		long participationId;
+		long submissionId;
+		try (Connection connection = Client.createConnection()) {
+			connection.setAutoCommit(false);
+			try {
+				participationId = insertParticipationAndAcceptedSubmission(connection, studentId, assignmentId);
+				submissionId = findSubmissionId(connection, participationId);
+				connection.commit();
+			} catch (SQLException | RuntimeException | Error failure) {
+				rollback(connection, failure);
+				throw failure;
+			}
+		}
+		LocalDateTime originalPublishAt = findAssignmentPublishAt(assignmentId);
+		assertEquals(1, countHistoryRows("submissions", "submission_id", submissionId));
+
+		setAssignmentDueTimePast(assignmentId);
+		assertEquals(1, new TeacherTaskPublicationDao().processDueAssignments());
+		assertEquals("expired", findAssignmentStatus(assignmentId));
+		LocalDateTime expiredDueAt = findAssignmentDueAt(assignmentId);
+		var expiredTask = TASKS.loadPage(owner, taskId, schoolId).selectedTask();
+		LocalDateTime extendedDueAt = LocalDateTime.now().plusDays(3).withNano(0);
+		String extendRequest = UUID.randomUUID().toString();
+		TASKS.managePublishedTaskAssignment(
+				owner, taskId, expiredTask.version(), assignmentId, 0,
+				null, extendedDueAt, null, extendRequest);
+
+		assertEquals("published", findAssignmentStatus(assignmentId));
+		assertEquals(extendedDueAt, findAssignmentDueAt(assignmentId));
+		assertTrue(findAssignmentDueAt(assignmentId).isAfter(expiredDueAt));
+		assertEquals(originalPublishAt, findAssignmentPublishAt(assignmentId));
+		assertEquals(1, countHistoryRows("submissions", "submission_id", submissionId));
+		assertThrows(TaskDraftConflictException.class, () -> TASKS.managePublishedTaskAssignment(
+				owner, taskId, expiredTask.version(), assignmentId, 0,
+				null, extendedDueAt.plusDays(1), null, UUID.randomUUID().toString()));
+		assertEquals(extendedDueAt, findAssignmentDueAt(assignmentId));
+		assertEquals(1, countTaskAuditActions(taskId, "extend_task_assignment_deadline"));
+
+		var extendedTask = TASKS.loadPage(owner, taskId, schoolId).selectedTask();
+		assertThrows(IllegalArgumentException.class, () -> TASKS.managePublishedTaskAssignment(
+				owner, taskId, extendedTask.version(), assignmentId, 0,
+				null, extendedDueAt.minusDays(1), null, UUID.randomUUID().toString()));
+		String addClassRequest = UUID.randomUUID().toString();
+		TASKS.managePublishedTaskAssignment(
+				owner, taskId, extendedTask.version(), 0, secondClassroomId,
+				null, null, LateSubmissionPolicy.DENY, addClassRequest);
+		long addedAssignmentId = findAssignmentId(taskId, secondClassroomId);
+		assertEquals("published", findAssignmentStatus(addedAssignmentId));
+		assertNull(findAssignmentDueAtOrNull(addedAssignmentId));
+		assertEquals("deny", findAssignmentLatePolicy(addedAssignmentId));
+		assertEquals(1, countTaskAuditActions(taskId, "add_task_class_assignment"));
+
+		assertEquals(2, countTaskAssignmentRows(taskId));
+		long versionAfterAdd = TASKS.loadPage(owner, taskId, schoolId).selectedTask().version();
+		assertThrows(IllegalArgumentException.class, () -> TASKS.managePublishedTaskAssignment(
+				owner, taskId, versionAfterAdd, 0, secondClassroomId,
+				null, null, LateSubmissionPolicy.DENY, UUID.randomUUID().toString()));
+		assertThrows(SecurityException.class, () -> TASKS.managePublishedTaskAssignment(
+				owner, taskId, versionAfterAdd, 0, foreignClassroomId,
+				null, null, LateSubmissionPolicy.DENY, UUID.randomUUID().toString()));
+		TASKS.managePublishedTaskAssignment(
+				owner, taskId, extendedTask.version(), 0, secondClassroomId,
+				null, null, LateSubmissionPolicy.DENY, addClassRequest);
+		assertEquals(versionAfterAdd, TASKS.loadPage(owner, taskId, schoolId).selectedTask().version());
+		assertEquals(2, countTaskAssignmentRows(taskId));
+	}
+
+	@Test
 	void expiredAllowAssignmentAcceptsOnlyTheInitialSubmission() throws SQLException {
 		AuthenticatedUser owner = teacher();
 		TeacherTaskInput taskInput = inputWithAssignments(
@@ -420,6 +564,7 @@ class TeacherTaskDatabaseTest {
 			connection.setAutoCommit(false);
 			try {
 				teacherLoginId = "true".equals(System.getenv("TEACHER_TASK_BROWSER_FIXTURE"))
+						|| "true".equals(System.getenv("TEACHER_TASK_ASSIGNMENT_BROWSER_FIXTURE"))
 						? "teacher-demo"
 						: "task-test-" + UUID.randomUUID().toString().replace("-", "");
 				teacherId = insertUser(connection, teacherLoginId, "Synthetic task teacher");
@@ -1741,6 +1886,58 @@ class TeacherTaskDatabaseTest {
 		try (Connection connection = Client.createConnection();
 				PreparedStatement statement = connection.prepareStatement("""
 						SELECT assignment_status FROM task_class_assignments
+						WHERE task_class_assignment_id = ?
+						""")) {
+			assertEquals(System.getenv("DB_NAME"), connection.getCatalog());
+			statement.setLong(1, assignmentId);
+			try (ResultSet rows = statement.executeQuery()) {
+				if (!rows.next()) {
+					throw new SQLException("Synthetic task assignment was not found.");
+				}
+				return rows.getString(1);
+			}
+		}
+	}
+
+	private LocalDateTime findAssignmentDueAt(long assignmentId) throws SQLException {
+		LocalDateTime dueAt = findAssignmentDateTime(assignmentId, "due_at");
+		if (dueAt == null) {
+			throw new SQLException("Synthetic task assignment has no due date.");
+		}
+		return dueAt;
+	}
+
+	private LocalDateTime findAssignmentDueAtOrNull(long assignmentId) throws SQLException {
+		return findAssignmentDateTime(assignmentId, "due_at");
+	}
+
+	private LocalDateTime findAssignmentPublishAt(long assignmentId) throws SQLException {
+		return findAssignmentDateTime(assignmentId, "publish_at");
+	}
+
+	private LocalDateTime findAssignmentDateTime(long assignmentId, String columnName) throws SQLException {
+		if (!Set.of("due_at", "publish_at").contains(columnName)) {
+			throw new IllegalArgumentException("Unsupported task assignment timestamp column.");
+		}
+		try (Connection connection = Client.createConnection();
+				PreparedStatement statement = connection.prepareStatement(
+						"SELECT " + columnName + " FROM task_class_assignments WHERE task_class_assignment_id = ?")) {
+			assertEquals(System.getenv("DB_NAME"), connection.getCatalog());
+			statement.setLong(1, assignmentId);
+			try (ResultSet rows = statement.executeQuery()) {
+				if (!rows.next()) {
+					throw new SQLException("Synthetic task assignment was not found.");
+				}
+				java.sql.Timestamp value = rows.getTimestamp(1);
+				return value == null ? null : value.toLocalDateTime();
+			}
+		}
+	}
+
+	private String findAssignmentLatePolicy(long assignmentId) throws SQLException {
+		try (Connection connection = Client.createConnection();
+				PreparedStatement statement = connection.prepareStatement("""
+						SELECT late_submission_policy FROM task_class_assignments
 						WHERE task_class_assignment_id = ?
 						""")) {
 			assertEquals(System.getenv("DB_NAME"), connection.getCatalog());

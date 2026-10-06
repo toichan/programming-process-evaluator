@@ -80,6 +80,8 @@ public final class TeacherTaskControl {
 				}
 				List<Long> authorizedSchoolIds = schools.stream().map(TeacherSchoolOption::schoolId).toList();
 				List<TeacherTaskDetails> tasks = taskDao.findManageableTasks(connection, authorizedSchoolIds);
+				var assignmentClassHistory = taskDao.findAssignmentClassHistory(
+						connection, tasks.stream().map(TeacherTaskDetails::taskId).toList());
 				List<TeacherTaskDetails> deletedTasks = taskDao.findDeletedTasks(connection, authorizedSchoolIds);
 				List<TeacherHintOption> reusableHints = taskDao.findReusableHints(connection, user.userId());
 				TeacherTaskDetails selectedTask = null;
@@ -92,7 +94,8 @@ public final class TeacherTaskControl {
 				}
 				connection.commit();
 				return new TeacherTaskPage(
-						tasks, schools, classes, reusableHints, deletedTasks, selectedTask, auditEntries);
+						tasks, schools, classes, reusableHints, deletedTasks, selectedTask, auditEntries,
+						assignmentClassHistory);
 			} catch (SQLException | RuntimeException failure) {
 				rollback(connection, failure);
 				throw failure;
@@ -336,6 +339,162 @@ public final class TeacherTaskControl {
 			throw new IllegalStateException("Independent task copy finished without a result.");
 		}
 		return copiedTaskId;
+	}
+
+	public void managePublishedTaskAssignment(
+			AuthenticatedUser user,
+			long taskId,
+			long expectedVersion,
+			long assignmentId,
+			long classroomId,
+			java.time.LocalDateTime publishAt,
+			java.time.LocalDateTime dueAt,
+			TeacherTaskInput.LateSubmissionPolicy lateSubmissionPolicy,
+			String requestId) throws SQLException {
+		requireTeacher(user);
+		requirePositiveId(taskId, "課題");
+		if (expectedVersion < 1 || (assignmentId > 0) == (classroomId > 0)
+				|| assignmentId < 0 || classroomId < 0) {
+			throw new IllegalArgumentException("課題またはクラス割当の更新情報が不正です。");
+		}
+		String action = assignmentId > 0 ? "extend_task_assignment_deadline" : "add_task_class_assignment";
+		if (assignmentId > 0 && dueAt == null) {
+			throw new IllegalArgumentException("延長後の提出期限を指定してください。");
+		}
+		if (classroomId > 0 && lateSubmissionPolicy == null) {
+			throw new IllegalArgumentException("追加クラスの期限後提出方針を選択してください。");
+		}
+		validateRequestId(requestId);
+
+		Connection connection = null;
+		boolean committed = false;
+		Exception operationFailure = null;
+		try {
+			connection = connectionFactory.open();
+			connection.setAutoCommit(false);
+			permissionDao.requireTaskManagementAccess(connection, user.userId());
+			Optional<Long> prior = taskDao.findSuccessfulTaskRequest(connection, user.userId(), action, requestId);
+			if (prior.isPresent()) {
+				if (prior.get() != taskId) {
+					throw new SecurityException("The task assignment request token belongs to another task.");
+				}
+				connection.commit();
+				committed = true;
+			} else {
+				TeacherTaskDao.PublishedTaskState task = taskDao.lockPublishedTaskState(connection, taskId)
+						.orElseThrow(TaskDraftNotFoundException::new);
+				if (!"published".equals(task.publicationStatus()) || task.deleted()) {
+					throw new IllegalArgumentException("公開中の課題だけクラス割当を変更できます。");
+				}
+				if (task.version() != expectedVersion) {
+					throw new TaskDraftConflictException();
+				}
+				permissionDao.requireAuthorizedSchool(connection, user.userId(), task.schoolId());
+				java.time.LocalDateTime databaseNow = taskDao.databaseCurrentDateTime(connection);
+				String beforeData;
+				String afterData;
+				if (assignmentId > 0) {
+					TeacherTaskDao.AssignmentState assignment = taskDao.lockTaskAssignment(
+							connection, taskId, assignmentId).orElseThrow(TaskDraftNotFoundException::new);
+					permissionDao.requireAuthorizedClass(
+							connection, user.userId(), assignment.classroomId(), task.schoolId());
+					if (!Set.of("scheduled", "published", "expired").contains(assignment.assignmentStatus())) {
+						throw new IllegalArgumentException("このクラス割当の提出期限は変更できません。");
+					}
+					if (assignment.dueAt() == null) {
+						throw new IllegalArgumentException("期限なしのクラス割当には期限延長を適用できません。");
+					}
+					if (!dueAt.isAfter(databaseNow) || !dueAt.isAfter(assignment.dueAt())) {
+						throw new IllegalArgumentException("延長後の提出期限は現在の期限より後に設定してください。");
+					}
+					taskDao.extendAssignmentDeadline(connection, taskId, assignmentId, dueAt);
+					long nextVersion = taskDao.advancePublishedTaskVersion(
+							connection, user.userId(), taskId, expectedVersion);
+					beforeData = "{\"assignment_id\":" + assignmentId
+							+ ",\"assignment_status\":\"" + assignment.assignmentStatus()
+							+ "\",\"due_at\":\"" + assignment.dueAt() + "\",\"task_version\":"
+							+ expectedVersion + "}";
+					afterData = "{\"assignment_id\":" + assignmentId
+							+ ",\"assignment_status\":\""
+							+ ("expired".equals(assignment.assignmentStatus()) ? "published"
+									: assignment.assignmentStatus())
+							+ "\",\"due_at\":\"" + dueAt + "\",\"task_version\":" + nextVersion + "}";
+				} else {
+					permissionDao.requireAuthorizedClass(connection, user.userId(), classroomId, task.schoolId());
+					if (taskDao.hasAnyTaskAssignmentForClass(connection, taskId, classroomId)) {
+						throw new IllegalArgumentException("このクラスは既に課題の割当履歴があります。");
+					}
+					if (publishAt != null && !publishAt.isAfter(databaseNow)) {
+						throw new IllegalArgumentException("公開日時は現在時刻より後を指定してください。");
+					}
+					if (dueAt != null && (!dueAt.isAfter(databaseNow)
+							|| (publishAt != null && !dueAt.isAfter(publishAt)))) {
+						throw new IllegalArgumentException("提出期限は現在時刻と公開日時より後に設定してください。");
+					}
+					String assignmentStatus = publishAt == null ? "published" : "scheduled";
+					long newAssignmentId = taskDao.insertPublishedTaskAssignment(
+							connection, taskId, classroomId, assignmentStatus,
+							publishAt, dueAt, lateSubmissionPolicy);
+					long nextVersion = taskDao.advancePublishedTaskVersion(
+							connection, user.userId(), taskId, expectedVersion);
+					beforeData = "{\"classroom_id\":" + classroomId + ",\"assignment_id\":null,"
+							+ "\"task_version\":" + expectedVersion + "}";
+					afterData = "{\"classroom_id\":" + classroomId + ",\"assignment_id\":"
+							+ newAssignmentId + ",\"assignment_status\":\"" + assignmentStatus
+							+ "\",\"publish_at\":" + nullableDateJson(publishAt)
+							+ ",\"due_at\":" + nullableDateJson(dueAt)
+							+ ",\"late_submission_policy\":\"" + lateSubmissionPolicy.databaseValue()
+							+ "\",\"task_version\":" + nextVersion + "}";
+				}
+				taskDao.recordAudit(
+						connection,
+						user.userId(),
+						taskId,
+						action,
+						requestId,
+						"公開課題のクラス別条件を更新",
+						beforeData,
+						afterData);
+				connection.commit();
+				committed = true;
+			}
+		} catch (SQLException | RuntimeException failure) {
+			operationFailure = failure;
+			if (connection != null) {
+				rollback(connection, failure);
+			}
+		} finally {
+			if (connection != null) {
+				try {
+					connection.close();
+				} catch (SQLException | RuntimeException closeFailure) {
+					if (committed) {
+						LOGGER.log(Level.SEVERE,
+								"Published task assignment change committed, but closing its connection failed.",
+								closeFailure);
+					} else if (operationFailure == null) {
+						operationFailure = closeFailure;
+					} else {
+						operationFailure.addSuppressed(closeFailure);
+						LOGGER.log(Level.SEVERE,
+								"Unable to close the failed published task assignment transaction.", closeFailure);
+					}
+				}
+			}
+		}
+		if (operationFailure != null) {
+			if (!committed) {
+				recordFailureAudit(user.userId(), taskId, action, requestId, operationFailure);
+			}
+			if (operationFailure instanceof SQLException sqlFailure) {
+				throw sqlFailure;
+			}
+			throw (RuntimeException) operationFailure;
+		}
+	}
+
+	private static String nullableDateJson(java.time.LocalDateTime value) {
+		return value == null ? "null" : "\"" + value + "\"";
 	}
 
 	public void deleteTask(

@@ -257,6 +257,12 @@ Geminiへの送信データでは、`student_profiles.student_code` や氏名等
 |created_at|作成日時|DATETIME||NO|||
 |updated_at|更新日時|DATETIME||YES|||
 
+### 公開後の割当管理
+
+- 公開済み課題の期限延長では既存行の `due_at` だけを更新する。NULL（期限なし）は対象外。延長先はDB現在時刻より後とし、期限切れ (`expired`) の割当は延長後に `published` へ戻す。`publish_at`、`late_submission_policy`、参加・提出・評価履歴は変更しない。
+- 対象クラス追加では、公開済み課題と同じ学校に属し、その課題への過去の割当行を持たないクラスに対し、新しいassignment行を追加する。公開日時/提出期限/期限後提出方針は追加クラス用の独立値とし、既存assignmentは変更しない。
+- 延長・追加は課題内容や評価条件を変更しない状態操作として扱い、課題versionと監査履歴を更新する。要求IDは操作監査と冪等再送判定に使用する。
+
 ## task_participations
 
 生徒×クラス別課題の学習・保存・評価状態

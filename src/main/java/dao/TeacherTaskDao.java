@@ -53,6 +53,33 @@ public final class TeacherTaskDao {
 				"t.publication_status IN ('draft','published','requires_update')", false);
 	}
 
+	public Map<Long, Set<Long>> findAssignmentClassHistory(Connection connection, List<Long> taskIds)
+			throws SQLException {
+		List<Long> uniqueTaskIds = taskIds.stream().distinct().toList();
+		if (uniqueTaskIds.isEmpty()) {
+			return Map.of();
+		}
+		Map<Long, Set<Long>> history = new LinkedHashMap<>();
+		uniqueTaskIds.forEach(taskId -> history.put(taskId, new HashSet<>()));
+		String placeholders = String.join(",", java.util.Collections.nCopies(uniqueTaskIds.size(), "?"));
+		try (PreparedStatement statement = connection.prepareStatement("""
+				SELECT task_id, classroom_id
+				FROM task_class_assignments
+				WHERE task_id IN (%s)
+				""".formatted(placeholders))) {
+			for (int index = 0; index < uniqueTaskIds.size(); index++) {
+				statement.setLong(index + 1, uniqueTaskIds.get(index));
+			}
+			try (ResultSet rows = statement.executeQuery()) {
+				while (rows.next()) {
+					history.get(rows.getLong("task_id")).add(rows.getLong("classroom_id"));
+				}
+			}
+		}
+		return history.entrySet().stream().collect(java.util.stream.Collectors.toUnmodifiableMap(
+				Map.Entry::getKey, entry -> Set.copyOf(entry.getValue())));
+	}
+
 	public List<TeacherTaskDetails> findDeletedTasks(
 			Connection connection, List<Long> authorizedSchoolIds) throws SQLException {
 		return findTasksForSchools(connection, authorizedSchoolIds,
@@ -861,7 +888,8 @@ public final class TeacherTaskDao {
 		requireTaskId(taskId);
 		if (!List.of(
 				"create_draft", "update_draft", "publish_task", "create_task_revision",
-				"create_independent_task_copy", "delete_task", "restore_task")
+				"create_independent_task_copy", "delete_task", "restore_task",
+				"extend_task_assignment_deadline", "add_task_class_assignment")
 				.contains(actionType)) {
 			throw new IllegalArgumentException("Unsupported task audit action.");
 		}
@@ -900,7 +928,8 @@ public final class TeacherTaskDao {
 		requireTeacherId(teacherUserId);
 		if (!List.of(
 				"create_draft", "update_draft", "publish_task", "create_task_revision",
-				"create_independent_task_copy", "delete_task", "restore_task")
+				"create_independent_task_copy", "delete_task", "restore_task",
+				"extend_task_assignment_deadline", "add_task_class_assignment")
 				.contains(actionType)) {
 			throw new IllegalArgumentException("Unsupported task audit action.");
 		}
@@ -941,7 +970,8 @@ public final class TeacherTaskDao {
 		requireTeacherId(teacherUserId);
 		if (!List.of(
 				"create_draft", "publish_task", "create_task_revision",
-				"create_independent_task_copy").contains(actionType)) {
+				"create_independent_task_copy", "extend_task_assignment_deadline",
+				"add_task_class_assignment").contains(actionType)) {
 			throw new IllegalArgumentException("Unsupported task request action.");
 		}
 		if (requestId == null || requestId.isBlank()) {
@@ -971,6 +1001,161 @@ public final class TeacherTaskDao {
 			int immediatelyPublishedAssignments,
 			int scheduledAssignments,
 			long taskVersion) {
+	}
+
+	public record PublishedTaskState(long schoolId, String publicationStatus, long version, boolean deleted) {
+	}
+
+	public record AssignmentState(long classroomId, String assignmentStatus, LocalDateTime dueAt) {
+	}
+
+	public Optional<PublishedTaskState> lockPublishedTaskState(Connection connection, long taskId)
+			throws SQLException {
+		requireTaskId(taskId);
+		try (PreparedStatement statement = connection.prepareStatement("""
+				SELECT school_id, publication_status, version, deleted_at
+				FROM tasks WHERE task_id = ? FOR UPDATE
+				""")) {
+			statement.setLong(1, taskId);
+			try (ResultSet rows = statement.executeQuery()) {
+				if (!rows.next()) {
+					return Optional.empty();
+				}
+				return Optional.of(new PublishedTaskState(
+						rows.getLong("school_id"),
+						rows.getString("publication_status"),
+						rows.getLong("version"),
+						rows.getTimestamp("deleted_at") != null));
+			}
+		}
+	}
+
+	public Optional<AssignmentState> lockTaskAssignment(
+			Connection connection, long taskId, long assignmentId) throws SQLException {
+		requireTaskId(taskId);
+		if (assignmentId < 1) {
+			throw new IllegalArgumentException("A valid task assignment is required.");
+		}
+		try (PreparedStatement statement = connection.prepareStatement("""
+				SELECT classroom_id, assignment_status, due_at
+				FROM task_class_assignments
+				WHERE task_id = ? AND task_class_assignment_id = ?
+				FOR UPDATE
+				""")) {
+			statement.setLong(1, taskId);
+			statement.setLong(2, assignmentId);
+			try (ResultSet rows = statement.executeQuery()) {
+				if (!rows.next()) {
+					return Optional.empty();
+				}
+				Timestamp dueAt = rows.getTimestamp("due_at");
+				return Optional.of(new AssignmentState(
+						rows.getLong("classroom_id"),
+						rows.getString("assignment_status"),
+						dueAt == null ? null : dueAt.toLocalDateTime()));
+			}
+		}
+	}
+
+	public boolean hasAnyTaskAssignmentForClass(Connection connection, long taskId, long classroomId)
+			throws SQLException {
+		try (PreparedStatement statement = connection.prepareStatement("""
+				SELECT 1 FROM task_class_assignments
+				WHERE task_id = ? AND classroom_id = ?
+				LIMIT 1
+				""")) {
+			statement.setLong(1, taskId);
+			statement.setLong(2, classroomId);
+			try (ResultSet rows = statement.executeQuery()) {
+				return rows.next();
+			}
+		}
+	}
+
+	public LocalDateTime databaseCurrentDateTime(Connection connection) throws SQLException {
+		try (PreparedStatement statement = connection.prepareStatement("SELECT CURRENT_TIMESTAMP");
+				ResultSet rows = statement.executeQuery()) {
+			if (!rows.next()) {
+				throw new SQLException("The database did not return its current timestamp.");
+			}
+			return rows.getTimestamp(1).toLocalDateTime();
+		}
+	}
+
+	public void extendAssignmentDeadline(
+			Connection connection, long taskId, long assignmentId, LocalDateTime dueAt) throws SQLException {
+		try (PreparedStatement statement = connection.prepareStatement("""
+				UPDATE task_class_assignments
+				SET due_at = ?,
+				    assignment_status = CASE WHEN assignment_status = 'expired' THEN 'published'
+				                             ELSE assignment_status END,
+				    updated_at = CURRENT_TIMESTAMP
+				WHERE task_id = ? AND task_class_assignment_id = ?
+				  AND assignment_status IN ('scheduled','published','expired')
+				""")) {
+			statement.setTimestamp(1, Timestamp.valueOf(dueAt));
+			statement.setLong(2, taskId);
+			statement.setLong(3, assignmentId);
+			if (statement.executeUpdate() != 1) {
+				throw new SQLException("Task assignment deadline update affected an unexpected row count.");
+			}
+		}
+	}
+
+	public long insertPublishedTaskAssignment(
+			Connection connection,
+			long taskId,
+			long classroomId,
+			String assignmentStatus,
+			LocalDateTime publishAt,
+			LocalDateTime dueAt,
+			TeacherTaskInput.LateSubmissionPolicy lateSubmissionPolicy) throws SQLException {
+		if (!Set.of("published", "scheduled").contains(assignmentStatus)) {
+			throw new IllegalArgumentException("Unsupported published task assignment state.");
+		}
+		try (PreparedStatement statement = connection.prepareStatement("""
+				INSERT INTO task_class_assignments (
+				  task_id, classroom_id, assignment_status, publish_at, due_at,
+				  late_submission_policy, resubmission_policy, created_at, updated_at
+				) VALUES (?, ?, ?, ?, ?, ?, 'allow', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+				""", Statement.RETURN_GENERATED_KEYS)) {
+			statement.setLong(1, taskId);
+			statement.setLong(2, classroomId);
+			statement.setString(3, assignmentStatus);
+			statement.setTimestamp(4, toTimestamp(publishAt));
+			statement.setTimestamp(5, toTimestamp(dueAt));
+			statement.setString(6, lateSubmissionPolicy.databaseValue());
+			if (statement.executeUpdate() != 1) {
+				throw new SQLException("Task class assignment was not inserted.");
+			}
+			try (ResultSet keys = statement.getGeneratedKeys()) {
+				if (!keys.next()) {
+					throw new SQLException("The new task class assignment ID was not returned.");
+				}
+				return keys.getLong(1);
+			}
+		}
+	}
+
+	public long advancePublishedTaskVersion(
+			Connection connection, long teacherUserId, long taskId, long expectedVersion) throws SQLException {
+		if (expectedVersion == Long.MAX_VALUE) {
+			throw new IllegalStateException("Task version has reached its maximum value.");
+		}
+		try (PreparedStatement statement = connection.prepareStatement("""
+				UPDATE tasks
+				SET version = version + 1, updated_by_user_id = ?, updated_at = CURRENT_TIMESTAMP
+				WHERE task_id = ? AND publication_status = 'published'
+				  AND deleted_at IS NULL AND version = ?
+				""")) {
+			statement.setLong(1, teacherUserId);
+			statement.setLong(2, taskId);
+			statement.setLong(3, expectedVersion);
+			if (statement.executeUpdate() != 1) {
+				throw new SQLException("Published task version update affected an unexpected row count.");
+			}
+		}
+		return expectedVersion + 1;
 	}
 
 	public List<TeacherTaskAuditEntry> findAuditEntries(

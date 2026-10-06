@@ -2,6 +2,7 @@ package servlet.teacher;
 
 import java.io.IOException;
 import java.sql.SQLException;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -34,6 +35,7 @@ import servlet.auth.CsrfTokens;
 public final class TeacherPromptServlet extends HttpServlet {
 	private static final long serialVersionUID = 1L;
 	private static final int MAX_REQUEST_BYTES = 2 * 1024 * 1024;
+	private static final DateTimeFormatter HERO_DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 	private static final String NOTICE_ATTRIBUTE = TeacherPromptServlet.class.getName() + ".notice";
 	private static final Set<String> ALLOWED_FIELDS = Set.of(
 			"action", "csrfToken", "taskId", "promptVersionId", "expectedRowVersion",
@@ -299,6 +301,16 @@ public final class TeacherPromptServlet extends HttpServlet {
 		TeacherPromptPage page = PROMPTS.loadPage(user, taskId, promptVersionId);
 		TeacherNavigationSummary navigation = NAVIGATION.load(user);
 		request.setAttribute("teacherPromptPage", page);
+		request.setAttribute("teacherPromptPendingCount", page.selectedTask() == null ? "—"
+				: page.reevaluationJobs().stream()
+						.filter(job -> "queued".equals(job.status()) || "in_progress".equals(job.status()))
+						.count());
+		var selectedVersion = page.selectedVersion();
+		var lastUpdated = selectedVersion == null
+				? page.selectedTask() == null ? null : page.selectedTask().updatedAt()
+				: Objects.requireNonNullElse(selectedVersion.updatedAt(), selectedVersion.createdAt());
+		request.setAttribute("teacherPromptLastUpdated",
+				lastUpdated == null ? "—" : HERO_DATE_FORMAT.format(lastUpdated));
 		request.setAttribute("teacherNavigationSummary", navigation);
 		request.setAttribute("teacherNavigationActiveItem", "prompt");
 		request.setAttribute("teacherPromptError", error);

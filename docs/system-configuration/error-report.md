@@ -2,6 +2,26 @@
 
 秘密情報・実際の生徒データ・研究データは記載しない。解消後も履歴を保持する。
 
+## 2026-10-06 14:49 JST: 課題編集テストケースの高さ修正
+
+- 期待結果: 空欄・1行の入力/出力欄は1行分の高さで表示し、改行で伸び、改行を削除すると縮む。
+- 原因: `task.js` はCodeMirrorラッパー自身へ `task-form-code-mirror` と `is-shell` を付与していたが、CSSは `.task-form-code-mirror.is-shell .CodeMirror` という子孫セレクターだった。高さ指定が一致せず、CodeMirror既定の300pxが残った。textareaの `rows="1"` と最小高さの変更だけでは解消しなかった。
+- 対応: ラッパー自身を選ぶ `.task-form-code-mirror.is-shell.CodeMirror` に修正し、同じ構造のフォント/高さ/行スタイルのセレクターも整合させた。プロトタイプ・DBは変更していない。
+- 再検証: 8080で配信されている実CSSと `initializeCodeEditor` をブラウザーの一時DOMで使用した。空欄36px、3行77.48px、1行へ戻すと36pxとなり、伸縮assertionはPASS。一時DOMは削除した。CSS診断と `git diff --check` も成功。認証済み教師画面での操作全体は未確認。
+
+## 2026-10-06: 公開課題の期限延長・対象クラス追加受入
+
+- 専用MySQLでの初回migrationはV11 routine作成時にMySQL error 1419で失敗した。独立課題コピー受入環境で記録済みの手順に従い、この使い捨てCompose projectだけでmigration時に `log_bin_trust_function_creators=1` を設定し、V1〜V19のmigration/validationを完了した。
+- 専用Compose app稼働中の統合test起動は共有Gradle cache journal lock timeoutとなったため、appを起動せず同じ専用DBへtest runnerから接続して成功した。別の再実行ではMySQL設定を0へ戻した後だったため、rollback確認用triggerを作る `rollsBackAllDraftChangesWhenMySqlRejectsHintInsert` が権限エラーとなった。専用DBに限り設定を1へ戻して全suiteを再実行し、31 tests / 27 passed / 0 failures / 4 browser-fixture skippedを確認した。終了後は設定を0へ戻し、専用Compose container・volume・networkを削除した。
+- 専用DB統合testで期限延長、期限切れassignmentの再開、既存提出履歴保持、stale version拒否、追加割当の重複/他校拒否・監査・冪等再送を確認した。追加クラス候補のため、archivedを含む全割当履歴を画面データへ渡す処理と履歴取得testを追加した。履歴データの取得はDB testで確認したが、この候補表示だけを対象とするbrowser再確認は未実施。
+- 合成教師による認証browser受入では期限延長/クラス追加の成功通知と更新後表示、未認証 `/teacher/task` の302 redirectを確認した。Node.js CLIがホストにないため `node --check` は実行できなかった。変更したJavaScriptはbrowserで読み込まれ、機能操作も実行された。
+
+## 2026-10-06: 独立課題系列コピーのbrowser受入環境
+
+- 専用MySQL schemaの初回 `flywayMigrate` は、通常アプリDBユーザーにV11 routine作成権限がなくMySQL error 1419で失敗した。Flywayのrepair後に同じ部分適用schemaへ再実行すると、MySQL DDLが非transactionalなためV11のcheck constraintが重複して停止した。
+- 対応: 作成した使い捨てschemaだけを削除・再作成し、migration時のみMySQL `log_bin_trust_function_creators` を一時的に `1` にしてV1〜V19を適用した。設定を元の `0` に戻し、再確認した。共有アプリDB/schemaは変更していない。
+- 再検証: 専用schemaへのmigration、独立コピーfixture test、現行アプリのport `18084` 起動とHTTP応答が成功。browser受入終了後に専用schema/DB user/app containerを削除し、port listenerがないこととMySQL設定が `0` であることを確認した。
+
 ## 2026-10-06: 公開後課題改訂の隔離DB受入
 
 - 共有DB/8080を避け、使い捨てのlocalhost限定MySQL (`ppe_teacher_task_test_revision_20261007`, tmpfs) を使用した。Gemini実API・実生徒データは使用せず、Flyway V1〜V19の `flywayMigrate flywayValidate` が成功した。schema追加は不要だった。

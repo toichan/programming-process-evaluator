@@ -1,7 +1,9 @@
 package entity;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 public record TeacherTaskPage(
 		List<TeacherTaskDetails> tasks,
@@ -10,7 +12,8 @@ public record TeacherTaskPage(
 		List<TeacherHintOption> reusableHints,
 		List<TeacherTaskDetails> deletedTasks,
 		TeacherTaskDetails selectedTask,
-		List<TeacherTaskAuditEntry> auditEntries) {
+		List<TeacherTaskAuditEntry> auditEntries,
+		Map<Long, Set<Long>> assignmentClassHistory) {
 
 	public TeacherTaskPage {
 		tasks = List.copyOf(Objects.requireNonNull(tasks));
@@ -19,6 +22,9 @@ public record TeacherTaskPage(
 		reusableHints = List.copyOf(Objects.requireNonNull(reusableHints));
 		deletedTasks = List.copyOf(Objects.requireNonNull(deletedTasks));
 		auditEntries = List.copyOf(Objects.requireNonNull(auditEntries));
+		assignmentClassHistory = Objects.requireNonNull(assignmentClassHistory).entrySet().stream()
+				.collect(java.util.stream.Collectors.toUnmodifiableMap(
+						Map.Entry::getKey, entry -> Set.copyOf(entry.getValue())));
 	}
 
 	public List<TeacherTaskDetails> getTasks() {
@@ -47,5 +53,9 @@ public record TeacherTaskPage(
 
 	public List<TeacherTaskAuditEntry> getAuditEntries() {
 		return auditEntries;
+	}
+
+	public Map<Long, Set<Long>> getAssignmentClassHistory() {
+		return assignmentClassHistory;
 	}
 }
