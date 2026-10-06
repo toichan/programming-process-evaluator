@@ -1,0 +1,129 @@
+metadata:
+  generated: "2026-10-04"
+  source_spec: "docs/function-specification.md"
+  target_plan: "docs/system-configuration/feature-plans/teacher-prompt-ai.md"
+  note: "REQ-101〜109は機能仕様にREQ-IDがないため本計画内だけの追跡ID。"
+
+summary:
+  total_requirements: 9
+  covered_requirements: 9
+  missing_requirements: 0
+  coverage_percentage: 100.0
+
+requirements:
+  - req_id: "REQ-101"
+    req_description: "教師が自分の課題を選択しpromptを操作する"
+    priority: "P1"
+    plan_mapping:
+      phase: "Phase 2"
+      phase_name: "課題プロンプトの下書き・履歴"
+      items:
+        - item_id: "2.1"
+          description: "型付きpromptモデル・DAO・状態/認可"
+        - item_id: "2.2"
+          description: "課題別promptの読込・保存"
+  - req_id: "REQ-102"
+    req_description: "課題別共通promptと追加評価指示の保存"
+    priority: "P1"
+    plan_mapping:
+      phase: "Phase 2"
+      phase_name: "課題プロンプトの下書き・履歴"
+      items:
+        - item_id: "2.1"
+          description: "prompt versionのデータ層"
+        - item_id: "2.2"
+          description: "課題別promptの読込・保存"
+        - item_id: "3.2"
+          description: "教師対応と追加指示"
+  - req_id: "REQ-103"
+    req_description: "課題情報とpromptから揺らぎ項目を生成・検証"
+    priority: "P1"
+    plan_mapping:
+      phase: "Phase 3"
+      phase_name: "AI揺らぎ項目・教師対応"
+      items:
+        - item_id: "3.1"
+          description: "揺らぎ項目生成clientと状態遷移"
+  - req_id: "REQ-104"
+    req_description: "揺らぎ項目への教師方針と追加評価指示を保存"
+    priority: "P1"
+    plan_mapping:
+      phase: "Phase 3"
+      phase_name: "AI揺らぎ項目・教師対応"
+      items:
+        - item_id: "3.2"
+          description: "教師対応と課題別指示"
+  - req_id: "REQ-105"
+    req_description: "合成サンプルによる評価例の生成・確認・保存"
+    priority: "P1"
+    plan_mapping:
+      phase: "Phase 4"
+      phase_name: "合成評価例生成・永続化"
+      items:
+        - item_id: "4.1"
+          description: "評価例の合成入力、生成、検証、保存"
+        - item_id: "4.2"
+          description: "評価例とprompt版履歴の表示"
+  - req_id: "REQ-106"
+    req_description: "prompt版、作成者/更新者、監査履歴、不変性"
+    priority: "P1"
+    plan_mapping:
+      phase: "Phase 2"
+      phase_name: "課題プロンプトの下書き・履歴"
+      items:
+        - item_id: "2.1"
+          description: "prompt版の状態・保存・監査"
+        - item_id: "2.2"
+          description: "版履歴表示"
+        - item_id: "3.2"
+          description: "対応記述の履歴保存"
+        - item_id: "4.2"
+          description: "read-only履歴表示"
+  - req_id: "REQ-107"
+    req_description: "プロトタイプ整合とshared feedback"
+    priority: "P1"
+    plan_mapping:
+      phase: "Phase 4"
+      phase_name: "合成評価例生成・永続化"
+      items:
+        - item_id: "4.2"
+          description: "評価例・prompt版履歴の表示"
+        - item_id: "5.2"
+          description: "画面を含む統合受入"
+  - req_id: "REQ-108"
+    req_description: "rubric/active promptの評価queue接続と適用境界"
+    priority: "P1"
+    plan_mapping:
+      phase: "Phase 1/2/5"
+      phase_name: "着手契約・rubric/評価queue統合"
+      items:
+        - item_id: "1.1"
+          description: "合意済み方針を実装契約へ落とし込む"
+        - item_id: "2.1"
+          description: "共通標準rubricの関連付けとpromptデータ層"
+        - item_id: "5.1"
+          description: "共通rubric/active promptと再評価jobの評価queue接続"
+      notes: "D-01〜D-03はユーザー確認済み。プレビュー、通知チャネル、再評価対象固定、初回適用/対象ゼロ件時の既存契約を実装前に照合する。"
+  - req_id: "REQ-109"
+    req_description: "権限、状態、secret、PII、API失敗、transactionの安全性"
+    priority: "P1"
+    plan_mapping:
+      phase: "Phase 5"
+      phase_name: "統合受入"
+      items:
+        - item_id: "5.1"
+          description: "評価queue接続条件とS3境界"
+        - item_id: "5.2"
+          description: "DB/HTTP/ブラウザー受入"
+        - item_id: "1.2"
+          description: "専用DB・Gemini検証条件"
+
+missing_requirements: []
+orphan_plan_items: []
+
+validation:
+  passed: true
+  errors: []
+  warnings:
+    - "評価差分プレビューの仕様/データ源と生徒通知チャネルの既存契約がなければ、該当機能の実装開始前に確認が必要。"
+    - "REQ-IDは機能仕様書に存在しないため、本計画ローカルの追跡ID。"

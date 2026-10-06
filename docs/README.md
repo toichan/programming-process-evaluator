@@ -50,7 +50,7 @@
 
 ### 次工程・後続範囲
 
-次は[ロードマップの工程10](./system-configuration/implementation-roadmap.md)の資料照合・初回スライス計画です。教師専用の機能別計画は未作成です。[AGENTS.mdの引継ぎ](../AGENTS.md)と[計画テンプレート](./system-configuration/feature-plan-template.md)を入口にしてください。工程11〜13、通知/教師ヘッダーの残課題、管理者統合、その他の保留事項はロードマップに保持します。
+次は[ロードマップの工程10](./system-configuration/implementation-roadmap.md)です。[教師課題下書きの初回スライス計画](./system-configuration/feature-plans/teacher-task-draft.md)のS1・T001〜T015は完了しました。専用DBの受入でV1〜V16と権限/状態/競合/rollback、認証済みHTTP回帰、全テスト180件（成功126、失敗0、skip54）とWAR生成を確認済みです。その後、ユーザーの確認用に8080の開発DBもV16とし、合成テスト教師アカウントを追加、教師ホームと課題編集を8080で表示確認しました。認証情報は計画文書やソースに保存していません。次はS2（ルーブリック/プロンプト準備・AI生成）の計画具体化です。詳細は[最終受入レポート](./system-configuration/feature-plans/checkpoints/teacher-task-draft/batch-report-T014-T015.yaml)、8080環境更新の詳細は[エラーレポート](./system-configuration/error-report.md)と[AGENTS.mdの引継ぎ](../AGENTS.md)を参照してください。画面遷移図・プロトタイプは変更していません。正式な評価/アンケートE2E、工程11〜13は後続の保留としてロードマップに保持します。
 
 ## 機能別・補助資料
 

@@ -1,0 +1,69 @@
+<%@ page pageEncoding="UTF-8" %>
+<button type="button" class="teacher-rubric-fab" data-bs-toggle="modal"
+	data-bs-target="#teacherRubricModal" aria-label="ルーブリックを開く">
+	<svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+		<path d="M4 .5A1.5 1.5 0 0 0 2.5 2v12A1.5 1.5 0 0 0 4 15.5h8a1.5 1.5 0 0 0 1.5-1.5V2A1.5 1.5 0 0 0 12.5.5h-8zM4 1.5h8a.5.5 0 0 1 .5.5v12a.5.5 0 0 1-.5.5H4a.5.5 0 0 1-.5-.5V2a.5.5 0 0 1 .5-.5z"/>
+		<path d="M5 4.5h6v1H5v-1zm0 2.5h6v1H5v-1zm0 2.5h4v1H5v-1z"/>
+	</svg>
+	<span>ルーブリック</span>
+</button>
+
+<div class="modal fade rubric-modal" id="teacherRubricModal" tabindex="-1"
+	aria-labelledby="teacherRubricModalLabel" aria-hidden="true">
+	<div class="modal-dialog modal-fullscreen modal-dialog-scrollable">
+		<div class="modal-content">
+			<div class="modal-header">
+				<div class="rubric-header-brand">
+					<div class="rubric-header-icon" aria-hidden="true">
+						<svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor">
+							<path d="M4 .5A1.5 1.5 0 0 0 2.5 2v12A1.5 1.5 0 0 0 4 15.5h8a1.5 1.5 0 0 0 1.5-1.5V2A1.5 1.5 0 0 0 12.5.5h-8zM4 1.5h8a.5.5 0 0 1 .5.5v12a.5.5 0 0 1-.5.5H4a.5.5 0 0 1-.5-.5V2a.5.5 0 0 1 .5-.5z"/>
+							<path d="M5 4.5h6v1H5v-1zm0 2.5h6v1H5v-1zm0 2.5h4v1H5v-1z"/>
+						</svg>
+					</div>
+					<div class="rubric-header-copy">
+						<div class="rubric-header-kicker">Rubric</div>
+						<h2 class="modal-title h4 mb-1" id="teacherRubricModalLabel">ルーブリック</h2>
+					</div>
+				</div>
+				<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
+			</div>
+			<div class="modal-body py-4">
+				<div class="container-fluid">
+					<section class="sample-section rubric-section rubric-thinking mb-4">
+						<h2 class="section-title mb-4">思考力・判断力・表現力 ルーブリック</h2>
+						<div class="table-responsive">
+							<table class="table rubric-table table-bordered align-middle mb-0">
+								<thead><tr>
+									<th style="width: 10rem;">レベル</th><th>文法デバッグ能力</th><th>論理デバッグ能力</th>
+									<th>アルゴリズムの設計と実装</th><th>コードの可読性</th>
+								</tr></thead>
+								<tbody>
+									<tr><th scope="row">レベル5</th><td>エラーメッセージを確認し、原因に応じた修正を行い、文法エラーを解消できる。</td><td>実行結果を確認しながら修正を繰り返し、プログラムを意図どおりに動作させるだけでなく、より簡潔で効率のよいコードに改善できる。</td><td>課題に適した処理の流れを考え、正しく実装するとともに、よりよい方法へ改善できる。</td><td>変数名や関数名をわかりやすく付け、インデントや改行も適切に整えた、読みやすいコードを作成できる。</td></tr>
+									<tr><th scope="row">レベル4</th><td>エラーメッセージを確認し、修正を行うことで、多くの文法エラーを解消できる。</td><td>実行結果を確認しながら修正を行い、プログラムを意図どおりに動作させることができる。</td><td>課題に適した処理の流れを考え、正しく実装できる。</td><td>変数名や関数名を適切に付け、インデントや改行もおおむね整えたコードを作成できる。</td></tr>
+									<tr><th scope="row">レベル3</th><td>エラーメッセージを確認し、修正に取り組むことができる。</td><td>実行結果を確認しながら修正に取り組み、プログラムの一部を意図どおりに動作させることができる。</td><td>基本的な処理の流れを考えて実装できるが、一部に誤りや不足がある。</td><td>変数名やインデントに改善が必要な部分はあるが、コードの内容は理解できる。</td></tr>
+									<tr><th scope="row">レベル2</th><td>エラーメッセージを確認することはあるが、試行錯誤で修正している。</td><td>実行と修正を繰り返しているが、プログラムの一部しか意図どおりに動作しない。</td><td>処理の流れが十分に組み立てられておらず、実装が途中で止まっている部分がある。</td><td>変数名やインデントが統一されておらず、読みにくいコードになっている。</td></tr>
+									<tr><th scope="row">レベル1</th><td>エラーメッセージをほとんど確認せず、文法エラーを解消できない。</td><td>実行と修正を繰り返しても、プログラムを意図どおりに動作させることができない。</td><td>処理の流れを組み立てられず、課題に沿った実装ができていない。</td><td>変数名やインデントがほとんど整っておらず、コードの内容を理解することが難しい。</td></tr>
+								</tbody>
+							</table>
+						</div>
+					</section>
+					<section class="sample-section rubric-section rubric-attitude">
+						<h2 class="section-title mb-4">主体的に学習に取り組む態度 ルーブリック</h2>
+						<div class="table-responsive">
+							<table class="table rubric-table table-bordered align-middle mb-0">
+								<thead><tr><th style="width: 10rem;">レベル</th><th>課題への粘り強さ</th><th>課題解決への意欲</th></tr></thead>
+								<tbody>
+									<tr><th scope="row">レベル5</th><td>課題を達成するまで実行と修正を繰り返し、最後まで粘り強く取り組んでいる。</td><td>実行結果やエラーメッセージをもとに試行錯誤を繰り返し、コードを工夫・改善した結果、よりよいプログラムを作成している。</td></tr>
+									<tr><th scope="row">レベル4</th><td>課題の達成を目指して最後まで粘り強く取り組み、実行と修正を繰り返しているが、課題の達成には至っていない。</td><td>実行結果やエラーメッセージをもとに試行錯誤を繰り返し、コードを工夫・改善しようとしているが、その工夫が十分な結果につながっていない。</td></tr>
+									<tr><th scope="row">レベル3</th><td>課題に取り組み、実行と修正を繰り返している。</td><td>実行結果やエラーメッセージを確認しながら、コードの修正や改善に取り組んでいる。</td></tr>
+									<tr><th scope="row">レベル2</th><td>課題に取り組んでいるが、実行や修正を途中でやめてしまうことが多い。</td><td>実行や修正は行っているが、同じような修正を繰り返すことが多く、改善の工夫があまり見られない。</td></tr>
+									<tr><th scope="row">レベル1</th><td>課題への取組がほとんど見られず、実行や修正をほとんど行っていない。</td><td>実行結果やエラーメッセージをほとんど確認せず、コードの修正や改善がほとんど見られない。</td></tr>
+								</tbody>
+							</table>
+						</div>
+					</section>
+				</div>
+			</div>
+		</div>
+	</div>
+</div>

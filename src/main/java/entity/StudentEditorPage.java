@@ -35,6 +35,7 @@ public final class StudentEditorPage {
 	private final List<EditorTestCase> testCases;
 	private final List<EditorHint> hints;
 	private final List<EditorCodeLog> codeLogs;
+	private final LocalDateTime databaseNow;
 
 	public StudentEditorPage(
 			long assignmentId,
@@ -64,6 +65,43 @@ public final class StudentEditorPage {
 			List<EditorTestCase> testCases,
 			List<EditorHint> hints,
 			List<EditorCodeLog> codeLogs) {
+		this(
+				assignmentId, taskId, participationId, title, theme, difficulty, description, inputConstraints,
+				creationRules, initialCode, code, learningStatus, progressStatus, saveStatus, lateSubmissionPolicy,
+				dueAt, draftUpdatedAt, draftBaseSubmissionId, latestSubmissionId, latestSubmissionRevision,
+				latestSubmissionStatus, latestSubmittedCode, latestSubmittedAt, features, testCases, hints, codeLogs,
+				LocalDateTime.now(Clock.systemUTC()));
+	}
+
+	public StudentEditorPage(
+			long assignmentId,
+			long taskId,
+			long participationId,
+			String title,
+			String theme,
+			String difficulty,
+			String description,
+			String inputConstraints,
+			String creationRules,
+			String initialCode,
+			String code,
+			String learningStatus,
+			String progressStatus,
+			String saveStatus,
+			String lateSubmissionPolicy,
+			LocalDateTime dueAt,
+			LocalDateTime draftUpdatedAt,
+			Long draftBaseSubmissionId,
+			Long latestSubmissionId,
+			Integer latestSubmissionRevision,
+			String latestSubmissionStatus,
+			String latestSubmittedCode,
+			LocalDateTime latestSubmittedAt,
+			List<String> features,
+			List<EditorTestCase> testCases,
+			List<EditorHint> hints,
+			List<EditorCodeLog> codeLogs,
+			LocalDateTime databaseNow) {
 		this.assignmentId = assignmentId;
 		this.taskId = taskId;
 		this.participationId = participationId;
@@ -91,6 +129,7 @@ public final class StudentEditorPage {
 		this.testCases = List.copyOf(testCases);
 		this.hints = List.copyOf(hints);
 		this.codeLogs = List.copyOf(codeLogs);
+		this.databaseNow = databaseNow;
 	}
 
 	public long getAssignmentId() { return assignmentId; }
@@ -140,16 +179,23 @@ public final class StudentEditorPage {
 	}
 
 	public boolean isCanStartResubmission() {
+		return isCanStartResubmission(databaseNow);
+	}
+
+	public boolean isCanStartResubmission(LocalDateTime now) {
 		return isSubmitted()
 				&& !isResubmissionActive()
-				&& (dueAt == null || dueAt.isAfter(LocalDateTime.now(Clock.systemUTC())));
+				&& (dueAt == null || dueAt.isAfter(now));
 	}
 
 	public boolean isCanSubmit() {
+		return isCanSubmit(databaseNow);
+	}
+
+	public boolean isCanSubmit(LocalDateTime now) {
 		if (!isEditable()) {
 			return false;
 		}
-		LocalDateTime now = LocalDateTime.now(Clock.systemUTC());
 		if (isSubmitted()) {
 			return dueAt == null || dueAt.isAfter(now);
 		}

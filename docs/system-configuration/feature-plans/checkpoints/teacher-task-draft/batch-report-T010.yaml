@@ -1,0 +1,94 @@
+batch_id: "B06"
+completed_tasks: ["T010"]
+blocked_tasks: []
+files_changed:
+  T010:
+    - file: "src/main/webapp/WEB-INF/teacher/task/task.jsp"
+      change_type: "modified"
+      description: "Renders server-confirmed save feedback, disables unsupported actions, and displays creator/updater login IDs"
+    - file: "src/main/webapp/js/teacher/task/task.js"
+      change_type: "modified"
+      description: "Uses the server-rendered one-time notice for the success toast instead of a query parameter"
+    - file: "src/main/java/servlet/teacher/TeacherTaskServlet.java"
+      change_type: "modified"
+      description: "Stores a session-scoped success notice after successful persistence and consumes it once after page loading"
+    - file: "src/test/java/servlet/teacher/TeacherTaskServletTest.java"
+      change_type: "created"
+      description: "Tests one-time notice consumption and rejects/removes malformed session state"
+    - file: "docs/system-configuration/feature-plans/teacher-task-draft.md"
+      change_type: "modified"
+      description: "Records T010 hardening, test results, and remaining DB acceptance"
+    - file: "docs/system-configuration/feature-plans/checkpoints/teacher-task-draft/tasks-to-impl.yaml"
+      change_type: "modified"
+      description: "Marks T010 complete and updates totals/traceability"
+    - file: "docs/system-configuration/feature-plans/checkpoints/teacher-task-draft/batch-report-T010.yaml"
+      change_type: "created"
+      description: "Records T010 changes and validation"
+    - file: "docs/system-configuration/implementation-roadmap.md"
+      change_type: "modified"
+      description: "Updates engineering progress and next task"
+    - file: "docs/README.md"
+      change_type: "modified"
+      description: "Updates current progress and next step"
+    - file: "AGENTS.md"
+      change_type: "modified"
+      description: "Updates the teacher handoff"
+    - file: "docs/system-configuration/error-report.md"
+      change_type: "modified"
+      description: "Records the discovered and fixed URL-query success-notice bug"
+upstream_artifacts_consumed:
+  T010:
+    - artifact: "docs/system-configuration/feature-plans/teacher-task-draft.md#Plan 3.3"
+      used_for: "Success feedback, disabled unsupported operations, and audit display requirements"
+    - artifact: "src/main/java/servlet/teacher/TeacherTaskForm.java"
+      used_for: "Accepted create/update draft action contract"
+    - artifact: "src/main/java/dao/TeacherTaskDao.java"
+      used_for: "Server-side draft persistence and audit actor identity"
+evidence_mapping:
+  T010:
+    - upstream: "teacher-task-draft.md#Plan 3.3"
+      output: "TeacherTaskServlet session flash and task.jsp success state"
+      evidence: "TeacherTaskServletTest proves the flash is consumed once; forged notice query parameters are not used"
+    - upstream: "teacher-task-draft.md#Plan 3.3 audit/display requirement"
+      output: "task.jsp creator/updater columns"
+      evidence: "JSP renders createdByLoginId and updatedByLoginId, not numeric user IDs"
+    - upstream: "prototype-only behavior removal"
+      output: "production task.jsp/task.js"
+      evidence: "Search found no localStorage, fixed sample IDs, demo row creation, or query-based success notice"
+traceability:
+  - requirement: "REQ-002"
+    plan_item: "3.3"
+    task: "T010"
+    files: ["src/main/webapp/WEB-INF/teacher/task/task.jsp", "src/main/webapp/js/teacher/task/task.js", "src/main/java/servlet/teacher/TeacherTaskServlet.java"]
+    status: "partial"
+  - requirement: "REQ-006"
+    plan_item: "3.3"
+    task: "T010"
+    files: ["src/main/webapp/WEB-INF/teacher/task/task.jsp"]
+    status: "partial"
+  - requirement: "REQ-008"
+    plan_item: "3.3"
+    task: "T010"
+    files: ["src/main/webapp/WEB-INF/teacher/task/task.jsp", "src/main/java/servlet/teacher/TeacherTaskServlet.java"]
+    status: "partial"
+protocol_violation: false
+errors: []
+warnings:
+  - "No localStorage, fixed sample task IDs, client-created saved rows, or query-parameter success notice remains in the production task page."
+  - "The full suite contained 165 tests: 111 passed, 0 failed, and 54 skipped. The shared version-15 DB was not changed; authenticated DB save/reload was later verified under T014."
+test_results:
+  T010:
+    command: "docker compose exec -T app gradle test war --rerun-tasks --no-daemon --console=plain --warning-mode all"
+    passed: 111
+    failed: 0
+    skipped: 54
+    failures: []
+  focused_notice_test:
+    command: "docker compose exec -T app gradle compileJava test --tests 'servlet.teacher.TeacherTaskServletTest' --no-daemon --console=plain --warning-mode all"
+    passed: 2
+    failed: 0
+    skipped: 0
+    failures: []
+  diff_check:
+    command: "git diff --check"
+    result: "passed"

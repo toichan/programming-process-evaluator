@@ -1,0 +1,428 @@
+batch_id: "S2-B02"
+required_endpoints: []
+completed_tasks: ["T001", "T002", "T003", "T004", "T005", "T006", "T007", "T008", "T009", "T010", "T011", "T012", "T013", "T014", "T015", "T016", "T017", "T018", "T019", "T020"]
+blocked_tasks: []
+files_changed:
+  T014:
+    - file: "src/main/java/entity/ReevaluationJobHistory.java"
+      change_type: "created"
+      description: "Typed prompt-page reevaluation job history data."
+    - file: "src/main/java/entity/ReevaluationJobTargetResult.java"
+      change_type: "created"
+      description: "Typed per-student reevaluation result data."
+    - file: "src/main/java/entity/TeacherPromptPage.java"
+      change_type: "modified"
+      description: "Expose reevaluation job history on the prompt page."
+    - file: "src/main/java/dao/TeacherPromptDao.java"
+      change_type: "modified"
+      description: "Load the authorized task's reevaluation job history."
+    - file: "src/main/java/control/teacher/TeacherPromptControl.java"
+      change_type: "modified"
+      description: "Connect job history reads to the authorized prompt page."
+    - file: "src/main/java/entity/ReevaluationJobStatus.java"
+      change_type: "modified"
+      description: "Expose per-target result data to JSP EL."
+    - file: "src/main/java/dao/ReevaluationJobDao.java"
+      change_type: "modified"
+      description: "Load target submission revision, status, safe failure reason, and scores."
+    - file: "src/main/webapp/WEB-INF/teacher/prompt/prompt.jsp"
+      change_type: "modified"
+      description: "Render job history and per-student results in the existing prompt page."
+    - file: "src/test/java/control/teacher/TeacherTaskDatabaseTest.java"
+      change_type: "modified"
+      description: "Verify DB history/results and consistent synthetic job counts."
+    - file: "src/test/java/entity/ReevaluationJobStatusTest.java"
+      change_type: "modified"
+      description: "Verify JSP EL-compatible result properties."
+  T017:
+    - file: "src/main/resources/db/migration/V18__support_reevaluation_preview_staging.sql"
+      change_type: "created"
+      description: "Preview, participant target, and durable job target staging."
+    - file: "src/main/java/control/teacher/ReevaluationPreviewControl.java"
+      change_type: "created"
+      description: "Authorization, target snapshot/fingerprint validation, and atomic confirmation."
+    - file: "src/main/java/control/evaluation/ReevaluationPreviewWorker.java"
+      change_type: "created"
+      description: "Mockable prediction generation, validation, and failed-target retry."
+    - file: "src/main/java/dao/ReevaluationPreviewDao.java"
+      change_type: "created"
+      description: "Preview persistence, state transitions, and expiry cleanup."
+    - file: "src/main/java/control/evaluation/EvaluationInputBuilder.java"
+      change_type: "created"
+      description: "Shared anonymized evaluation-input construction."
+  T018:
+    - file: "src/main/java/control/evaluation/ReevaluationJobWorker.java"
+      change_type: "created"
+      description: "Materialize confirmed provider responses into append-only evaluations."
+    - file: "src/main/java/dao/ReevaluationJobDao.java"
+      change_type: "created"
+      description: "Claim job targets and track progress/results."
+    - file: "src/main/java/dao/EvaluationWorkerDao.java"
+      change_type: "modified"
+      description: "Reuse transaction-scoped evaluation result persistence."
+    - file: "src/main/java/servlet/teacher/TeacherPromptServlet.java"
+      change_type: "modified"
+      description: "Connect preview actions, confirmed job route, and job status load."
+    - file: "src/main/webapp/WEB-INF/teacher/prompt/prompt.jsp"
+      change_type: "modified"
+      description: "Show job state, progress, successful and failed counts."
+    - file: "src/main/webapp/js/teacher/prompt/prompt.js"
+      change_type: "modified"
+      description: "Poll queued/in-progress jobs while the page is visible."
+  T004:
+    - file: "src/main/java/entity/TeacherPromptVersion.java"
+      change_type: "created"
+      description: "Typed prompt version and related workflow state."
+    - file: "src/main/java/entity/TeacherPromptPage.java"
+      change_type: "created"
+      description: "Page DTO."
+    - file: "src/main/java/entity/TeacherPromptAuditEntry.java"
+      change_type: "created"
+      description: "Audit DTO."
+  T005:
+    - file: "src/main/java/dao/TeacherPromptDao.java"
+      change_type: "created"
+      description: "Prompt, fluctuation, example, audit, version, and rubric persistence."
+    - file: "docs/database-design/table-definitions.md"
+      change_type: "modified"
+      description: "S2 schema documentation."
+  T006:
+    - file: "src/main/resources/db/migration/V17__support_teacher_prompt_workflow.sql"
+      change_type: "created"
+      description: "Prompt concurrency/update metadata and draft-rubric backfill."
+  T007:
+    - file: "src/main/java/control/teacher/TeacherPromptControl.java"
+      change_type: "created"
+      description: "Prompt authorization, state handling, and workflow orchestration."
+    - file: "src/main/java/dao/TeacherTaskDao.java"
+      change_type: "modified"
+      description: "Associate the active shared standard rubric for new tasks; correct SQL placeholder alignment."
+    - file: "src/main/java/dao/StandardRubricDao.java"
+      change_type: "modified"
+      description: "Connection-scoped rubric lookup."
+    - file: "src/main/java/entity/StandardRubric.java"
+      change_type: "modified"
+      description: "Bean accessors."
+  T008:
+    - file: "src/main/java/servlet/teacher/TeacherPromptServlet.java"
+      change_type: "created"
+      description: "Authenticated page route, bounded form handling, CSRF, action dispatch, notices, and explicit errors."
+  T009:
+    - file: "src/main/java/control/teacher/TeacherPromptAiClient.java"
+      change_type: "created"
+      description: "Gemini structured requests, bounded retry, validation, and model allowlist."
+  T010:
+    - file: "src/main/java/control/teacher/TeacherPromptControl.java"
+      change_type: "modified"
+      description: "Generation state transitions and API call boundaries."
+    - file: "src/main/java/dao/TeacherPromptDao.java"
+      change_type: "modified"
+      description: "Persist generation outcomes and audit."
+  T011:
+    - file: "src/main/java/control/teacher/TeacherPromptControl.java"
+      change_type: "modified"
+      description: "Validate and persist teacher resolution."
+    - file: "src/main/java/dao/TeacherPromptDao.java"
+      change_type: "modified"
+      description: "Persist resolutions and additional instructions."
+  T012:
+    - file: "src/main/java/control/teacher/TeacherPromptExampleFactory.java"
+      change_type: "created"
+      description: "Synthetic-only scenario input generation."
+  T013:
+    - file: "src/main/java/control/teacher/TeacherPromptAiClient.java"
+      change_type: "modified"
+      description: "Validate rubric-aligned synthetic evaluation examples."
+    - file: "src/main/java/control/teacher/TeacherPromptControl.java"
+      change_type: "modified"
+      description: "Evaluation-example workflow/state validation."
+    - file: "src/main/java/dao/TeacherPromptDao.java"
+      change_type: "modified"
+      description: "Persist validated examples."
+  T015:
+    - file: "src/main/webapp/WEB-INF/teacher/prompt/prompt.jsp"
+      change_type: "created"
+      description: "Production prompt workflow page."
+    - file: "src/main/webapp/css/teacher/prompt/prompt.css"
+      change_type: "created"
+      description: "Production prompt styling."
+    - file: "src/main/webapp/js/teacher/prompt/prompt.js"
+      change_type: "created"
+      description: "Production page interactions."
+  T016:
+    - file: "src/main/webapp/WEB-INF/teacher/shared/navigation.jspf"
+      change_type: "modified"
+      description: "Permission-gated prompt navigation."
+    - file: "src/main/webapp/WEB-INF/template/page-end.jspf"
+      change_type: "modified"
+      description: "Conditional Markdown mode include."
+    - file: "src/main/webapp/WEB-INF/teacher/prompt/prompt.jsp"
+      change_type: "modified"
+      description: "Keep unresolved whole-class reevaluation action disabled with an explanation."
+  T019:
+    - file: "src/test/java/control/teacher/TeacherPromptControlTest.java"
+      change_type: "created"
+      description: "Prompt control validation and state tests."
+    - file: "src/test/java/control/teacher/TeacherPromptAiClientTest.java"
+      change_type: "created"
+      description: "AI schema/retry/model/synthetic-data tests."
+    - file: "src/test/java/control/teacher/TeacherTaskDatabaseTest.java"
+      change_type: "modified"
+      description: "Prompt persistence/rubric/version DB test and prompt-aware fixture cleanup."
+    - file: "src/test/java/servlet/teacher/TeacherPromptServletTest.java"
+      change_type: "created"
+      description: "Unauthenticated GET/POST rejection and no form parsing before POST authentication."
+    - file: "src/test/java/dao/TeacherTaskDaoTest.java"
+      change_type: "modified"
+      description: "Shared-rubric association assertions."
+  T030:
+    - file: "src/test/java/servlet/teacher/TeacherPromptServletTest.java"
+      change_type: "modified"
+      description: "Reject non-teacher job status GET, malformed job IDs, and missing task ID."
+    - file: "src/test/java/control/teacher/TeacherTaskDatabaseTest.java"
+      change_type: "modified"
+      description: "Verify reevaluation status/progress counts and task/job/owner access boundaries in V18 DB."
+    - file: "src/main/java/entity/ReevaluationJobStatus.java"
+      change_type: "modified"
+      description: "Expose JSP EL-compatible JavaBean getters for record properties used in the job progress panel."
+    - file: "src/test/java/entity/ReevaluationJobStatusTest.java"
+      change_type: "created"
+      description: "Verify JavaBeans introspection exposes the job progress properties required by JSP EL."
+  T031:
+    - file: "src/main/java/control/evaluation/ReevaluationPreviewWorker.java"
+      change_type: "modified"
+      description: "Expose required provider injection constructor for deterministic synthetic-provider acceptance."
+    - file: "src/main/java/entity/ReevaluationPreview.java"
+      change_type: "modified"
+      description: "Expose JSP EL-compatible JavaBean properties for preview and target records."
+    - file: "src/test/java/control/teacher/TeacherTaskDatabaseTest.java"
+      change_type: "modified"
+      description: "Generate and confirm preview using a synthetic provider; retain fixture only in the explicitly named disposable schema."
+    - file: "src/test/java/entity/ReevaluationPreviewTest.java"
+      change_type: "created"
+      description: "Verify bean introspection exposes JSP preview/target properties."
+    - file: "AGENTS.md"
+      change_type: "modified"
+      description: "Record completed T031 acceptance boundaries and the next T014 scope."
+    - file: "docs/system-configuration/feature-plans/teacher-prompt-ai.md"
+      change_type: "modified"
+      description: "Record completed synthetic preview display, confirmation redirect, and job status acceptance."
+    - file: "docs/system-configuration/feature-plans/checkpoints/teacher-prompt-ai/tasks-to-impl.yaml"
+      change_type: "modified"
+      description: "Update T019/T014 status and final V18/browser acceptance evidence."
+    - file: "docs/system-configuration/implementation-roadmap.md"
+      change_type: "modified"
+      description: "Update the current milestone, final test/browser evidence, and next-step mode."
+    - file: "docs/system-configuration/error-report.md"
+      change_type: "modified"
+      description: "Record T030/T031 test results, the JSP runtime issue/fix, and remaining acceptance boundary."
+    - file: "docs/system-configuration/feature-plans/checkpoints/teacher-prompt-ai/batch-report.yaml"
+      change_type: "modified"
+      description: "Record T030/T031 HTTP/browser evidence, startup/toolchain/lock retries, and final cleanup."
+  T020:
+    - file: "docs/system-configuration/error-report.md"
+      change_type: "modified"
+      description: "Record exact migration, DB-test, full-suite, WAR, and outstanding acceptance results."
+    - file: "docs/system-configuration/feature-plans/teacher-prompt-ai.md"
+      change_type: "modified"
+      description: "Reflect completed task items."
+    - file: "docs/system-configuration/feature-plans/checkpoints/teacher-prompt-ai/tasks-to-impl.yaml"
+      change_type: "created"
+      description: "Task-to-implementation traceability checkpoint."
+    - file: "docs/system-configuration/feature-plans/checkpoints/teacher-prompt-ai/batch-report.yaml"
+      change_type: "created"
+      description: "Structured batch result."
+upstream_artifacts_consumed:
+  T001:
+    - artifact: "docs/system-configuration/implementation-contract.md"
+      used_for: "Check existing implementation boundaries and status."
+    - artifact: "docs/system-configuration/feature-plans/teacher-prompt-ai.md"
+      used_for: "Confirmed decisions D-01 to D-03 and reevaluation gate."
+  T005:
+    - artifact: "docs/database-design/table-definitions.md"
+      used_for: "Prompt/rubric persistence schema."
+    - artifact: "docs/state-rules/teacher/prompt-state-rules.md"
+      used_for: "Prompt states and apply boundaries."
+  T015:
+    - artifact: "screen-flow-diagram/webapp/WEB-INF/teacher/prompt/prompt.html"
+      used_for: "Preserve production page layout, text, controls, and step order."
+    - artifact: "screen-flow-diagram/webapp/css/teacher/prompt/prompt.css"
+      used_for: "Reference styling; prototype files left unchanged."
+  T009:
+    - artifact: "src/main/java/control/evaluation/GeminiEvaluationClient.java"
+      used_for: "Reuse existing server-side Gemini transport and configuration approach."
+evidence_mapping:
+  T001:
+    - upstream: "docs/system-configuration/feature-plans/teacher-prompt-ai.md#S2着手前に残る実装契約照合"
+      output: "src/main/webapp/WEB-INF/teacher/prompt/prompt.jsp"
+      evidence: "Whole-class reevaluation button remains disabled; the page states the unresolved contracts."
+  T005:
+    - upstream: "docs/database-design/table-definitions.md#prompt_versions"
+      output: "src/main/java/dao/TeacherPromptDao.java"
+      evidence: "Isolated TeacherTaskDatabaseTest passes prompt save/reload and optimistic version conflict."
+  T006:
+    - upstream: "docs/database-design/table-definitions.md#S2-schema"
+      output: "src/main/resources/db/migration/V17__support_teacher_prompt_workflow.sql"
+      evidence: "flywayMigrate and flywayValidate pass on the disposable MySQL schema."
+  T007:
+    - upstream: "docs/system-configuration/feature-plans/teacher-prompt-ai.md#D-01"
+      output: "src/main/java/dao/TeacherTaskDao.java"
+      evidence: "New task creation DB integration passes with active shared standard rubric."
+  T015:
+    - upstream: "screen-flow-diagram/webapp/WEB-INF/teacher/prompt/prompt.html"
+      output: "src/main/webapp/WEB-INF/teacher/prompt/prompt.jsp"
+      evidence: "Production JSP retains the Step 1-3/history structure; prototype tree was not edited."
+traceability:
+  - requirement: "REQ-101"
+    plan_item: "2.1,2.2"
+    task: "T004,T005,T007,T008,T019"
+    files: ["src/main/java/control/teacher/TeacherPromptControl.java", "src/main/java/servlet/teacher/TeacherPromptServlet.java"]
+    status: "partial"
+  - requirement: "REQ-102"
+    plan_item: "2.1,2.2,3.2"
+    task: "T004,T005,T007,T008,T011,T019"
+    files: ["src/main/java/dao/TeacherPromptDao.java", "src/main/java/entity/TeacherPromptVersion.java"]
+    status: "partial"
+  - requirement: "REQ-103"
+    plan_item: "3.1"
+    task: "T009,T010,T019"
+    files: ["src/main/java/control/teacher/TeacherPromptAiClient.java", "src/main/java/control/teacher/TeacherPromptControl.java"]
+    status: "partial"
+  - requirement: "REQ-104"
+    plan_item: "3.2"
+    task: "T011,T019"
+    files: ["src/main/java/control/teacher/TeacherPromptControl.java", "src/main/java/dao/TeacherPromptDao.java"]
+    status: "partial"
+  - requirement: "REQ-105"
+    plan_item: "4.1,4.2"
+    task: "T012,T013,T014,T015,T019"
+    files: ["src/main/java/control/teacher/TeacherPromptExampleFactory.java", "src/main/webapp/WEB-INF/teacher/prompt/prompt.jsp"]
+    status: "partial"
+  - requirement: "REQ-106"
+    plan_item: "2.1,2.2,3.2,4.2"
+    task: "T004,T005,T008,T011,T014,T015"
+    files: ["src/main/java/dao/TeacherPromptDao.java", "src/main/java/entity/TeacherPromptAuditEntry.java"]
+    status: "partial"
+  - requirement: "REQ-107"
+    plan_item: "4.2,5.2"
+    task: "T008,T015,T016,T020"
+    files: ["src/main/webapp/WEB-INF/teacher/prompt/prompt.jsp", "src/main/webapp/js/teacher/prompt/prompt.js"]
+    status: "partial"
+  - requirement: "REQ-108"
+    plan_item: "1.1,2.1,5.1,5.3,5.4"
+    task: "T001,T005,T006,T007,T014,T016,T017,T018,T019"
+    files: ["src/main/java/dao/TeacherTaskDao.java", "src/main/resources/db/migration/V17__support_teacher_prompt_workflow.sql", "src/main/resources/db/migration/V18__support_reevaluation_preview_staging.sql", "src/main/java/control/evaluation/ReevaluationJobWorker.java"]
+    status: "partial"
+  - requirement: "REQ-109"
+    plan_item: "1.1,1.2,2.1,2.2,3.1,3.2,4.1,5.1,5.2"
+    task: "T001,T002,T003,T005,T006,T007,T008,T009,T010,T011,T012,T013,T017,T018,T019,T020"
+    files: ["src/main/java/servlet/teacher/TeacherPromptServlet.java", "src/main/java/control/teacher/TeacherPromptAiClient.java", "docs/system-configuration/error-report.md"]
+    status: "partial"
+protocol_violation: false
+errors: []
+warnings:
+  - severity: MEDIUM
+    message: "The shared 8080 app and DB were not changed; T014 and T017/T018 are not deployed there."
+  - severity: MEDIUM
+    message: "Gemini live API smoke was not run; no live Gemini request or real submission was used."
+test_results:
+  T017:
+    command: "gradle flywayMigrate flywayValidate --no-daemon --console=plain; gradle test --tests control.evaluation.EvaluationDatabaseTest --rerun-tasks --no-daemon --console=plain with EVALUATION_DB_TEST=true and dedicated schema"
+    passed: 6
+    failed: 0
+    skipped: 1
+    failures: []
+  T018:
+    command: "gradle test --tests control.evaluation.EvaluationDatabaseTest --rerun-tasks --no-daemon --console=plain with EVALUATION_DB_TEST=true and dedicated schema; gradle test war --no-daemon --console=plain"
+    passed: 131
+    failed: 0
+    skipped: 67
+    failures: []
+  T019:
+    command: "JAVA_HOME=/Users/t.toida/.jdk/jdk-21.0.10/jdk-21.0.10+7/Contents/Home gradle test war --no-daemon --console=plain"
+    passed: 131
+    failed: 0
+    skipped: 67
+    failures: []
+  T020:
+    command: "gradle test --tests control.teacher.TeacherTaskDatabaseTest --rerun-tasks --no-daemon --console=plain with TEACHER_TASK_DB_TEST=true and dedicated ppe_teacher_task_test_reeval01 schema"
+    passed: 12
+    failed: 0
+    skipped: 0
+    failures: []
+  T030:
+    command: "gradle test --tests servlet.teacher.TeacherPromptServletTest; gradle test --tests entity.ReevaluationJobStatusTest; gradle test --tests control.teacher.TeacherTaskDatabaseTest --rerun-tasks --no-daemon --console=plain with TEACHER_TASK_DB_TEST=true on disposable V18 schema; gradle test --tests control.evaluation.EvaluationDatabaseTest --rerun-tasks --no-daemon --console=plain with EVALUATION_DB_TEST=true on separate disposable V18 schema"
+    passed: 26
+    failed: 0
+    skipped: 1
+    failures: []
+  T031:
+    command: "docker exec -w /programming-process-evaluator [isolated Java 21 app container; V18 disposable DB, TEACHER_TASK_DB_TEST=true] gradle test war --no-daemon --console=plain"
+    passed: 149
+    failed: 0
+    skipped: 55
+    failures: []
+    status: "completed; synthetic preview target rendering, confirmation redirect/job ID, completed job status, full test suite, and WAR accepted"
+  T014:
+    command: "gradle flywayMigrate flywayValidate --no-daemon --console=plain; gradle test --tests control.teacher.TeacherTaskDatabaseTest.reevaluationJobStatusIsScopedToTeacherAndTaskAndReportsProgress --no-daemon --console=plain with TEACHER_TASK_DB_TEST=true on dedicated ppe_teacher_task_test_t014; gradle test war --no-daemon --console=plain"
+    passed: 1
+    failed: 0
+    skipped: 0
+    failures: []
+    status: "completed; full suite: 204 tests (135 passed, 0 failed, 69 skipped); WAR generated"
+endpoint_probes:
+  - method: GET
+    path: /teacher/account/login
+    status: 200
+    result: PASS on isolated T031 app
+  - method: GET
+    path: /teacher/prompt?taskId=1&promptVersionId=1&jobId=1
+    status: 200
+    result: PASS; queued status, counts, and progress rendered; 2 poll requests in 4.2 seconds
+  - method: GET
+    path: /teacher/prompt?taskId=1&promptVersionId=1&jobId=3
+    status: 200
+    result: PASS; in_progress status rendered; 2 poll requests in 4.2 seconds
+  - method: GET
+    path: /teacher/prompt?taskId=1&promptVersionId=1&jobId=2
+    status: 200
+    result: PASS; completed status rendered; no poll requests in 4.2 seconds
+  - method: GET
+    path: /teacher/prompt?taskId=1&jobId=not-a-number
+    status: 400
+    result: PASS; malformed job ID rejected
+  - method: GET
+    path: /teacher/prompt?jobId=2
+    status: 400
+    result: PASS; task ID required
+  - method: GET
+    path: /teacher/prompt?taskId=3&promptVersionId=3&previewCode=<synthetic-preview>
+    status: 200
+    result: PASS; authenticated browser rendered one target with synthetic 4/5 and 3/5 predictions and reasons
+browser_acceptance:
+  environment: "Disposable V18 schema ppe_teacher_task_test_t031 and isolated current-source Tomcat on port 18082."
+  preview: "PASS; JSP rendered one synthetic target, scores 4/5 and 3/5, and synthetic reasons."
+  confirmation: "PASS; shared-feedback confirmation modal led to redirect /teacher/prompt?taskId=3&promptVersionId=3&jobId=9; page showed completed, 1/1 successful, 0 failed."
+  provider_boundary: "Job materialization consumed the stored synthetic provider response and did not call Gemini again."
+  cleanup: "Removed dedicated app/DB containers and browser-only network; browser returned to about:blank."
+  safety: "No Gemini live API, real submission, personal/research data, shared 8080/DB, or prototype changes."
+  T014_history:
+    environment: "Disposable V1-V18 MySQL schema ppe_teacher_task_test_t014 and isolated current-source Tomcat on port 18083."
+    login: "PASS; synthetic teacher authenticated against the dedicated schema."
+    history: "PASS; queued, in_progress, completed, and failed jobs rendered with actor, prompt version, counts, and progress."
+    detail: "PASS; history link showed completed job 1/1, 0 failed, 100%; one synthetic target rendered submission revision 1, overall 3.500, thinking 4/5, attitude 3/5."
+    cleanup: "Dedicated app/DB containers, network, and Gradle cache volume removed; browser returned to about:blank."
+    safety: "No Gemini live API, real submission, personal/research data, shared 8080/DB, or prototype changes."
+next_batch:
+  tasks: ["S3-scope"]
+  objective: "Define the first S3 publication/revision/deletion/restoration feature slice from existing requirements, state rules, screen flows, DAO behavior, and acceptance criteria."
+  required_boundaries:
+    - "Verify the browser page is served by the intended disposable isolated app/schema before interacting; a retained page at localhost:18081 is not proof of current deployment or DB identity."
+    - "Do not connect to or migrate shared 8080/shared DB; do not use real student or research data."
+    - "Do not call Gemini live or submit real student data. Use synthetic fixtures and mock-backed unit/DB tests for any generation and materialization."
+    - "Do not alter the screen-flow diagram or prototype."
+  acceptance:
+    - "Trace S3 publication, revision, deletion, and restoration behavior to the current specification and state rules."
+    - "Identify owner/role boundaries, screen-flow entry points, and dependencies on S1/S2 data without changing the prototype."
+    - "Define the smallest S3 implementation slice with testable acceptance criteria and record unresolved choices before code changes."
+  report: "T014 history implementation, dedicated DB/browser acceptance, test results, and cleanup are recorded in the feature plan and error report. Next batch should scope S3 before implementation."

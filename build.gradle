@@ -75,3 +75,10 @@ tasks.register('registerStandardRubric', JavaExec) {
     classpath = sourceSets.main.runtimeClasspath
     mainClass = 'control.student.StandardRubricBootstrap'
 }
+
+tasks.register('seedDemoData', JavaExec) {
+    group = 'application'
+    description = 'Create one-time synthetic teacher, school, class, and task data in the local Compose database.'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'control.dev.DemoDataBootstrap'
+}

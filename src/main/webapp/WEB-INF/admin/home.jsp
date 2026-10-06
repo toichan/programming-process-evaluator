@@ -1,0 +1,29 @@
+<%@ page contentType="text/html; charset=UTF-8" pageEncoding="UTF-8" session="false" %>
+<%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
+<c:set var="screenPageTitle" value="管理者ホーム"/>
+<%@ include file="/WEB-INF/template/page-start.jspf" %>
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
+	<div>
+		<h1 class="h3 mb-1">管理者ホーム</h1>
+		<p class="text-secondary mb-0">利用する管理機能を選択してください。</p>
+	</div>
+	<form method="post" action="<c:url value='/auth/logout'/>">
+		<input type="hidden" name="csrfToken" value="<c:out value='${csrfToken}'/>">
+		<button class="btn btn-outline-secondary" type="submit">ログアウト</button>
+	</form>
+</div>
+<section class="card">
+	<div class="card-body">
+		<p class="mb-0">ようこそ、<c:out value="${displayName}"/> さん。</p>
+		<nav class="mt-4" aria-label="管理機能">
+			<h2 class="h5">管理メニュー</h2>
+			<a class="list-group-item list-group-item-action border rounded p-3 d-flex align-items-center justify-content-between gap-3"
+				href="<c:url value='/admin/schools'/>">
+				<span><span class="fw-bold d-block">学校管理</span>
+					<span class="text-secondary small">学校情報・セキュリティレベルの登録と確認</span></span>
+				<span aria-hidden="true">&rarr;</span>
+			</a>
+		</nav>
+	</div>
+</section>
+<%@ include file="/WEB-INF/template/page-end.jspf" %>

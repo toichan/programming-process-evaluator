@@ -51,9 +51,11 @@ class TeacherFeaturePermission {
 
 class Task {
   + taskId: Long <<PK>>
+  + schoolId: Long <<FK>>
   + taskCode: String
   + taskRevisionCode: String <<UK>>
   + revisionNumber: Integer
+  + version: Long
   + supersedesTaskId: Long <<FK>>
   + createdByUserId: Long <<FK>>
   + updatedByUserId: Long <<FK>>
@@ -212,6 +214,7 @@ User "1" -- "0..*" TeacherSchoolPermission
 School "1" -- "0..*" TeacherSchoolPermission
 User "1" -- "0..*" TeacherFeaturePermission
 School "1" -- "0..*" Classroom
+School "1" -- "0..*" Task : 所属校
 User "1" -- "0..*" Task : 作成/更新
 Task "1" -- "0..*" TaskClassAssignment
 Task "0..1" <-- "0..*" Task : supersedes
@@ -231,7 +234,8 @@ Classroom "1" -- "0..*" DistributionTarget
 Distribution "1" -- "0..*" DistributionHistory
 
 note right of TaskClassAssignment
-  課題は複数の学校/クラスに割り当てられる。
+  課題本体は単一の学校に所属し、
+  この割当先クラスもその学校内に限る。
   公開日時・提出期限・期限後提出可否は
   クラス単位で保存する。
 end note

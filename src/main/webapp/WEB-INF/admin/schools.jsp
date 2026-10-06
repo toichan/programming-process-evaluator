@@ -6,7 +6,7 @@
 <%@ include file="/WEB-INF/template/page-start.jspf" %>
 <nav aria-label="パンくず">
 	<ol class="breadcrumb">
-		<li class="breadcrumb-item"><a href="<c:url value='/teacher/home'/>">管理者ホーム</a></li>
+		<li class="breadcrumb-item"><a href="<c:url value='/admin/home'/>">管理者ホーム</a></li>
 		<c:choose>
 			<c:when test="${empty selectedSchool}"><li class="breadcrumb-item active" aria-current="page">学校管理</li></c:when>
 			<c:otherwise>
@@ -16,7 +16,7 @@
 		</c:choose>
 	</ol>
 </nav>
-<a class="d-inline-block mb-3" href="<c:url value='/teacher/home'/>"><span aria-hidden="true">&larr; </span>管理者ホームに戻る</a>
+<a class="d-inline-block mb-3" href="<c:url value='/admin/home'/>"><span aria-hidden="true">&larr; </span>管理者ホームに戻る</a>
 <div class="admin-hero mb-4">
 	<div>
 		<span class="hero-kicker">Admin Console</span>

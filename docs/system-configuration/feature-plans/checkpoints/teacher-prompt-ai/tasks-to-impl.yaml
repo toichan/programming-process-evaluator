@@ -1,0 +1,674 @@
+metadata:
+  generated: "2026-10-05"
+  source_tasks: "docs/system-configuration/feature-plans/teacher-prompt-ai.md#Task-Breakdown"
+  last_updated: "2026-10-05"
+
+# Summary counts cover parent tasks T001-T020; child implementation/acceptance steps T021-T031 are tracked in the plan.
+summary:
+  total_tasks: 20
+  completed_tasks: 19
+  in_progress_tasks: 1
+  pending_tasks: 0
+  blocked_tasks: 0
+  completion_percentage: 95.0
+
+tasks:
+  - task_id: "T001"
+    description: "Verify existing preview, notification, snapshot, and initial-application contracts."
+    status: "completed"
+    implementation:
+      files_changed: []
+    verification:
+      build_passed: true
+      test_results:
+        command: "Contract and schema inspection; no application code changed."
+        passed: 0
+        failed: 0
+        skipped: 0
+        failures: []
+      notes: "Initial repository review found the missing preview/snapshot implementation contracts. The user-confirmed contract was later recorded in the plan and implemented in T017/T018; live Gemini and job UI browser acceptance remain outstanding."
+    upstream_trace:
+      plan_item: "1.1"
+      requirements: ["REQ-108", "REQ-109"]
+      full_trace: "REQ-108,REQ-109 → Plan 1.1 → T001 → confirm contract before implementation; implementation later tracked under T017/T018"
+  - task_id: "T002"
+    description: "Establish fail-closed S2 validation on an isolated synthetic MySQL database."
+    status: "completed"
+    implementation:
+      files_changed: []
+    verification:
+      build_passed: true
+      test_results:
+        command: "Dedicated Compose database migration and TeacherTaskDatabaseTest run."
+        passed: 11
+        failed: 0
+        skipped: 0
+        failures: []
+      notes: "Only project ppe-s2-validation-20261005 and schema ppe_teacher_task_test_s2_20261005 were used; shared development DB remained untouched."
+    upstream_trace:
+      plan_item: "1.2"
+      requirements: ["REQ-109"]
+      full_trace: "REQ-109 → Plan 1.2 → T002 → isolated migration/DB validation"
+  - task_id: "T003"
+    description: "Inspect existing Gemini integration and configuration without calling the external API."
+    status: "completed"
+    implementation:
+      files_changed: []
+    verification:
+      build_passed: true
+      test_results:
+        command: "Source/config inspection; no external API call."
+        passed: 0
+        failed: 0
+        skipped: 0
+        failures: []
+      notes: "AI requests were verified through mock tests only; no Gemini API call was made."
+    upstream_trace:
+      plan_item: "1.2"
+      requirements: ["REQ-109"]
+      full_trace: "REQ-109 → Plan 1.2 → T003 → Gemini boundary"
+  - task_id: "T004"
+    description: "Add typed prompt version, page, and audit DTOs."
+    status: "completed"
+    implementation:
+      files_changed:
+        - file: "src/main/java/entity/TeacherPromptVersion.java"
+          changes:
+            - change_type: "created"
+              description: "Typed prompt version, fluctuation, and evaluation-example state."
+        - file: "src/main/java/entity/TeacherPromptPage.java"
+          changes:
+            - change_type: "created"
+              description: "JSP-facing page and workflow DTO."
+        - file: "src/main/java/entity/TeacherPromptAuditEntry.java"
+          changes:
+            - change_type: "created"
+              description: "Typed audit-history entry."
+    verification:
+      build_passed: true
+      test_results:
+        command: "JAVA_HOME=/Users/t.toida/.jdk/jdk-21.0.10/jdk-21.0.10+7/Contents/Home gradle test war --no-daemon --console=plain"
+        passed: 127
+        failed: 0
+        skipped: 65
+        failures: []
+      notes: "The suite passed; DB-gated tests were separately exercised against the isolated DB."
+    upstream_trace:
+      plan_item: "2.1"
+      requirements: ["REQ-101", "REQ-102", "REQ-106"]
+      full_trace: "REQ-101,REQ-102,REQ-106 → Plan 2.1 → T004 → typed prompt DTOs"
+  - task_id: "T005"
+    description: "Persist prompt versions, state, resolutions, examples, audit, and rubric association."
+    status: "completed"
+    implementation:
+      files_changed:
+        - file: "src/main/java/dao/TeacherPromptDao.java"
+          changes:
+            - change_type: "created"
+              description: "Prompt CRUD, generation state, audit, versioning, and task-rubric operations."
+        - file: "src/main/java/dao/StandardRubricDao.java"
+          changes:
+            - change_type: "modified"
+              description: "Expose connection-scoped standard-rubric lookup."
+        - file: "src/main/java/entity/StandardRubric.java"
+          changes:
+            - change_type: "modified"
+              description: "Expose bean accessors used by the prompt JSP."
+        - file: "docs/database-design/table-definitions.md"
+          changes:
+            - change_type: "modified"
+              description: "Document S2 persistence changes."
+    verification:
+      build_passed: true
+      test_results:
+        command: "Isolated TeacherTaskDatabaseTest and full Gradle test/WAR build."
+        passed: 11
+        failed: 0
+        skipped: 0
+        failures: []
+      notes: "Optimistic prompt version conflict and shared-rubric association passed in the DB fixture."
+    upstream_trace:
+      plan_item: "2.1"
+      requirements: ["REQ-101", "REQ-102", "REQ-106", "REQ-108"]
+      full_trace: "REQ-101,102,106,108 → Plan 2.1 → T005 → TeacherPromptDao"
+  - task_id: "T006"
+    description: "Add only the schema changes required for prompt concurrency and shared-rubric assignment."
+    status: "completed"
+    implementation:
+      files_changed:
+        - file: "src/main/resources/db/migration/V17__support_teacher_prompt_workflow.sql"
+          changes:
+            - change_type: "created"
+              description: "Prompt update metadata/optimistic version and draft-task rubric backfill."
+        - file: "docs/database-design/table-definitions.md"
+          changes:
+            - change_type: "modified"
+              description: "Document migration-backed schema."
+    verification:
+      build_passed: true
+      test_results:
+        command: "DB_PORT=3307 DB_NAME=ppe_teacher_task_test_s2_20261005 docker compose -p ppe-s2-validation-20261005 run --rm --no-deps app gradle flywayMigrate flywayValidate --no-daemon --console=plain"
+        passed: 1
+        failed: 0
+        skipped: 0
+        failures: []
+      notes: "Migrations V1-V17 and Flyway validation passed on the clean disposable schema. No reevaluation snapshot/job schema was invented."
+    upstream_trace:
+      plan_item: "2.1"
+      requirements: ["REQ-108", "REQ-109"]
+      full_trace: "REQ-108,109 → Plan 2.1/5.1 → T006 → V17"
+  - task_id: "T007"
+    description: "Connect prompt authorization, draft-only state, and standard-rubric linking."
+    status: "completed"
+    implementation:
+      files_changed:
+        - file: "src/main/java/control/teacher/TeacherPromptControl.java"
+          changes:
+            - change_type: "created"
+              description: "Authorization, state validation, prompt orchestration, and rubric enforcement."
+        - file: "src/main/java/dao/TeacherTaskDao.java"
+          changes:
+            - change_type: "modified"
+              description: "Assign active shared rubric on new task creation; correct INSERT binding verified by DB test."
+        - file: "src/main/java/dao/StandardRubricDao.java"
+          changes:
+            - change_type: "modified"
+              description: "Support connection-scoped rubric lookup."
+    verification:
+      build_passed: true
+      test_results:
+        command: "DB_PORT=3307 DB_NAME=ppe_teacher_task_test_s2_20261005 docker compose -p ppe-s2-validation-20261005 run --rm --no-deps -e TEACHER_TASK_DB_TEST=true app gradle test --tests control.teacher.TeacherTaskDatabaseTest --rerun-tasks --no-daemon --console=plain"
+        passed: 11
+        failed: 0
+        skipped: 0
+        failures: []
+      notes: "The DB-gated test caught and verified a correction to the task INSERT placeholder/column alignment."
+    upstream_trace:
+      plan_item: "2.1,2.2"
+      requirements: ["REQ-101", "REQ-102", "REQ-108", "REQ-109"]
+      full_trace: "REQ-101,102,108,109 → Plan 2.1/2.2 → T007 → prompt/task authorization and rubric"
+  - task_id: "T008"
+    description: "Implement the authenticated /teacher/prompt route and bounded, CSRF-checked form actions."
+    status: "completed"
+    implementation:
+      files_changed:
+        - file: "src/main/java/servlet/teacher/TeacherPromptServlet.java"
+          changes:
+            - change_type: "created"
+              description: "GET/POST route, form validation, action dispatch, notices, and explicit error handling."
+    verification:
+      build_passed: true
+      test_results:
+        command: "JAVA_HOME=/Users/t.toida/.jdk/jdk-21.0.10/jdk-21.0.10+7/Contents/Home gradle test war --no-daemon --console=plain"
+        passed: 127
+        failed: 0
+        skipped: 65
+        failures: []
+      notes: "Compilation and automated suite pass. The isolated authenticated browser acceptance confirmed GET/JSP rendering after the separate initial route fixes; the acceptance found and fixed a missing JSP editability request attribute."
+    upstream_trace:
+      plan_item: "2.2"
+      requirements: ["REQ-101", "REQ-102", "REQ-106", "REQ-107", "REQ-109"]
+      full_trace: "REQ-101,102,106,107,109 → Plan 2.2 → T008 → TeacherPromptServlet"
+  - task_id: "T009"
+    description: "Implement the server-side Gemini client and structured response validation."
+    status: "completed"
+    implementation:
+      files_changed:
+        - file: "src/main/java/control/teacher/TeacherPromptAiClient.java"
+          changes:
+            - change_type: "created"
+              description: "Bounded retries, model allowlist, structured output validation, and synthetic-only examples."
+    verification:
+      build_passed: true
+      test_results:
+        command: "Full Gradle test suite; TeacherPromptAiClientTest is included."
+        passed: 125
+        failed: 0
+        skipped: 65
+        failures: []
+      notes: "Mock tests only; Gemini API was not called."
+    upstream_trace:
+      plan_item: "3.1"
+      requirements: ["REQ-103", "REQ-109"]
+      full_trace: "REQ-103,109 → Plan 3.1 → T009 → AI client/schema tests"
+  - task_id: "T010"
+    description: "Connect fluctuation generation state, transaction boundaries, response validation, and failure audit."
+    status: "completed"
+    implementation:
+      files_changed:
+        - file: "src/main/java/control/teacher/TeacherPromptControl.java"
+          changes:
+            - change_type: "modified"
+              description: "Generation and failure-state orchestration."
+        - file: "src/main/java/dao/TeacherPromptDao.java"
+          changes:
+            - change_type: "modified"
+              description: "Persist generation lifecycle and audit."
+    verification:
+      build_passed: true
+      test_results:
+        command: "Full Gradle test suite; TeacherPromptControlTest is included."
+        passed: 125
+        failed: 0
+        skipped: 65
+        failures: []
+      notes: "Mocked provider and failure/state tests pass."
+    upstream_trace:
+      plan_item: "3.1"
+      requirements: ["REQ-103", "REQ-109"]
+      full_trace: "REQ-103,109 → Plan 3.1 → T010 → control/DAO state handling"
+  - task_id: "T011"
+    description: "Persist teacher resolution choices and additional evaluation instructions."
+    status: "completed"
+    implementation:
+      files_changed:
+        - file: "src/main/java/control/teacher/TeacherPromptControl.java"
+          changes:
+            - change_type: "modified"
+              description: "Validate resolution state and persist teacher decisions."
+        - file: "src/main/java/dao/TeacherPromptDao.java"
+          changes:
+            - change_type: "modified"
+              description: "Persist resolution items and additional prompt instructions."
+    verification:
+      build_passed: true
+      test_results:
+        command: "Full Gradle test suite; TeacherPromptControlTest is included."
+        passed: 125
+        failed: 0
+        skipped: 65
+        failures: []
+      notes: "Automated tests pass; DB integration verifies prompt draft persistence/versioning."
+    upstream_trace:
+      plan_item: "3.2"
+      requirements: ["REQ-102", "REQ-104", "REQ-106", "REQ-109"]
+      full_trace: "REQ-102,104,106,109 → Plan 3.2 → T011 → resolution persistence"
+  - task_id: "T012"
+    description: "Create synthetic-only task-specific evaluation-example inputs."
+    status: "completed"
+    implementation:
+      files_changed:
+        - file: "src/main/java/control/teacher/TeacherPromptExampleFactory.java"
+          changes:
+            - change_type: "created"
+              description: "Synthetic scenario descriptors; no student submissions or logs are read."
+    verification:
+      build_passed: true
+      test_results:
+        command: "Full Gradle test suite; TeacherPromptAiClientTest is included."
+        passed: 125
+        failed: 0
+        skipped: 65
+        failures: []
+      notes: "Synthetic-input assertions pass."
+    upstream_trace:
+      plan_item: "4.1"
+      requirements: ["REQ-105", "REQ-109"]
+      full_trace: "REQ-105,109 → Plan 4.1 → T012 → synthetic evaluation input"
+  - task_id: "T013"
+    description: "Generate, validate, and persist evaluation examples with retryable failure state."
+    status: "completed"
+    implementation:
+      files_changed:
+        - file: "src/main/java/control/teacher/TeacherPromptControl.java"
+          changes:
+            - change_type: "modified"
+              description: "Evaluation-example workflow and readiness gates."
+        - file: "src/main/java/control/teacher/TeacherPromptAiClient.java"
+          changes:
+            - change_type: "modified"
+              description: "Validate rubric-aligned structured responses."
+        - file: "src/main/java/dao/TeacherPromptDao.java"
+          changes:
+            - change_type: "modified"
+              description: "Persist validated examples and generation status."
+    verification:
+      build_passed: true
+      test_results:
+        command: "Full Gradle test suite; TeacherPromptAiClientTest and TeacherPromptControlTest are included."
+        passed: 125
+        failed: 0
+        skipped: 65
+        failures: []
+      notes: "No live AI generation or student data was used."
+    upstream_trace:
+      plan_item: "4.1"
+      requirements: ["REQ-105", "REQ-109"]
+      full_trace: "REQ-105,109 → Plan 4.1 → T013 → schema validation and persistence"
+  - task_id: "T014"
+    description: "Load prompt examples, version history, and reevaluation job/result history."
+    status: "completed"
+    implementation:
+      files_changed:
+        - file: "src/main/java/entity/TeacherPromptPage.java"
+          changes:
+            - change_type: "modified"
+              description: "Expose reevaluation job history on the prompt page."
+        - file: "src/main/java/dao/TeacherPromptDao.java"
+          changes:
+            - change_type: "modified"
+              description: "Load authorized task reevaluation job history."
+        - file: "src/main/java/control/teacher/TeacherPromptControl.java"
+          changes:
+            - change_type: "modified"
+              description: "Connect the job history read to the authorized prompt page load."
+        - file: "src/main/java/dao/ReevaluationJobDao.java"
+          changes:
+            - change_type: "modified"
+              description: "Load per-student submission revision, status, safe failure detail, and score dimensions."
+        - file: "src/main/java/entity/ReevaluationJobStatus.java"
+          changes:
+            - change_type: "modified"
+              description: "Expose target results through JSP EL-compatible JavaBean properties."
+        - file: "src/main/java/entity/ReevaluationJobHistory.java"
+          changes:
+            - change_type: "created"
+              description: "Typed job history row data."
+        - file: "src/main/java/entity/ReevaluationJobTargetResult.java"
+          changes:
+            - change_type: "created"
+              description: "Typed per-student result row data."
+        - file: "src/main/webapp/WEB-INF/teacher/prompt/prompt.jsp"
+          changes:
+            - change_type: "modified"
+              description: "Render job history and per-student results in the existing prompt page."
+        - file: "src/test/java/control/teacher/TeacherTaskDatabaseTest.java"
+          changes:
+            - change_type: "modified"
+              description: "Verify isolated DB job history/results and consistent synthetic aggregates."
+        - file: "src/test/java/entity/ReevaluationJobStatusTest.java"
+          changes:
+            - change_type: "modified"
+              description: "Verify JSP EL-compatible target result properties."
+    verification:
+      build_passed: true
+      test_results:
+        command: "gradle test --tests control.teacher.TeacherTaskDatabaseTest.reevaluationJobStatusIsScopedToTeacherAndTaskAndReportsProgress --no-daemon --console=plain with TEACHER_TASK_DB_TEST=true and dedicated ppe_teacher_task_test_t014; then gradle test war --no-daemon --console=plain"
+        passed: 1
+        failed: 0
+        skipped: 0
+        failures: []
+      full_suite:
+        command: "JAVA_HOME=<Java 21> GRADLE_USER_HOME=/tmp/gradle-t014 gradle test war --no-daemon --console=plain"
+        passed: 135
+        failed: 0
+        skipped: 69
+      browser_acceptance: "PASS; authenticated isolated browser rendered four job states and navigated from the completed history row to its one synthetic target with revision 1, overall 3.500, thinking 4/5, and attitude 3/5."
+      notes: "V1-V18 migration/validation and the targeted DB test succeeded on a disposable MySQL schema. The full suite had 204 tests (135 passed, 0 failed, 69 skipped); WAR generation succeeded. Gemini live API, real submission, shared 8080/DB, and prototype changes were not used."
+    upstream_trace:
+      plan_item: "4.2,5.1"
+      requirements: ["REQ-105", "REQ-106", "REQ-108"]
+      full_trace: "REQ-105,106,108 → Plan 4.2/5.1 → T014 → prompt version/example history and reevaluation job/per-student result history displayed and accepted"
+  - task_id: "T015"
+    description: "Implement the production prompt page matching prototype Step 1-3/history while removing fake persistence/success."
+    status: "completed"
+    implementation:
+      files_changed:
+        - file: "src/main/webapp/WEB-INF/teacher/prompt/prompt.jsp"
+          changes:
+            - change_type: "created"
+              description: "Production JSP for prompt design, generation states, evaluation examples, and history."
+        - file: "src/main/webapp/css/teacher/prompt/prompt.css"
+          changes:
+            - change_type: "created"
+              description: "Production styling based on prototype with production responsive adjustments."
+        - file: "src/main/webapp/js/teacher/prompt/prompt.js"
+          changes:
+            - change_type: "created"
+              description: "Production interactions and shared-feedback integration."
+    verification:
+      build_passed: true
+      test_results:
+        command: "JAVA_HOME=/Users/t.toida/.jdk/jdk-21.0.10/jdk-21.0.10+7/Contents/Home gradle test war --no-daemon --console=plain"
+        passed: 125
+        failed: 0
+        skipped: 65
+        failures: []
+      notes: "JSP/assets compiled into the WAR; authenticated Step 1 screen/save/reload and desktop/narrow-width rendering passed in the isolated browser. Prototype files were not modified."
+    upstream_trace:
+      plan_item: "4.2"
+      requirements: ["REQ-105", "REQ-106", "REQ-107"]
+      full_trace: "REQ-105,106,107 → Plan 4.2 → T015 → production prompt page"
+  - task_id: "T016"
+    description: "Wire route, shared feedback, and disable unresolved reevaluation action without success-shaped behavior."
+    status: "completed"
+    implementation:
+      files_changed:
+        - file: "src/main/java/servlet/teacher/TeacherPromptServlet.java"
+          changes:
+            - change_type: "modified"
+              description: "Route and page model wiring."
+        - file: "src/main/webapp/WEB-INF/template/page-end.jspf"
+          changes:
+            - change_type: "modified"
+              description: "Conditionally load Markdown mode for the prompt page."
+        - file: "src/main/webapp/WEB-INF/teacher/shared/navigation.jspf"
+          changes:
+            - change_type: "modified"
+              description: "Add permission-gated prompt navigation."
+        - file: "src/main/webapp/WEB-INF/teacher/prompt/prompt.jsp"
+          changes:
+            - change_type: "modified"
+              description: "Keep '設定して再評価する' disabled and explain unresolved contracts."
+    verification:
+      build_passed: true
+      test_results:
+        command: "JAVA_HOME=/Users/t.toida/.jdk/jdk-21.0.10/jdk-21.0.10+7/Contents/Home gradle test war --no-daemon --console=plain"
+        passed: 125
+        failed: 0
+        skipped: 65
+        failures: []
+      notes: "No preview, confirmation, job progress, or notification success is fabricated; the prototype remains untouched. Seven local shared/prompt CSS/JS assets returned HTTP 200 on the isolated app."
+    upstream_trace:
+      plan_item: "4.2,5.1"
+      requirements: ["REQ-107", "REQ-108", "REQ-109"]
+      full_trace: "REQ-107,108,109 → Plan 4.2/5.1 → T016 → route/feedback plus explicit reevaluation gate"
+  - task_id: "T017"
+    description: "Implement reevaluation preview staging, prediction/retry, fingerprint validation, and atomic explicit confirmation."
+    status: "completed"
+    implementation:
+      files_changed:
+        - file: "src/main/resources/db/migration/V18__support_reevaluation_preview_staging.sql"
+          changes:
+            - change_type: "created"
+              description: "Add preview, preview-target, and job-target staging tables."
+        - file: "src/main/java/control/teacher/ReevaluationPreviewControl.java"
+          changes:
+            - change_type: "created"
+              description: "Enforce teacher/task authorization, snapshot validation, stale detection, and atomic confirmation."
+        - file: "src/main/java/dao/ReevaluationPreviewDao.java"
+          changes:
+            - change_type: "created"
+              description: "Persist preview snapshots, target states, retries, and expiry cleanup."
+        - file: "src/main/java/control/evaluation/ReevaluationPreviewWorker.java"
+          changes:
+            - change_type: "created"
+              description: "Generate validated predictions through the existing provider with failed-target-only retry."
+        - file: "src/main/java/control/evaluation/EvaluationInputBuilder.java"
+          changes:
+            - change_type: "created"
+              description: "Share the existing anonymized evaluation payload builder with reevaluation previews."
+        - file: "src/main/java/servlet/teacher/TeacherPromptServlet.java"
+          changes:
+            - change_type: "modified"
+              description: "Connect preview actions and redirect to the confirmed job."
+    verification:
+      build_passed: true
+      test_results:
+        command: "gradle test --tests control.evaluation.EvaluationDatabaseTest --rerun-tasks --no-daemon --console=plain with EVALUATION_DB_TEST=true and the isolated ppe_evaluation_test_reeval01 schema"
+        passed: 6
+        failed: 0
+        skipped: 1
+        failures: []
+      notes: "The skipped case is the opt-in billable Gemini live smoke test. V1-V18 migration/validate and reevaluation DB tests passed in dedicated schemas; the full Gradle/WAR suite passed. Authenticated HTTP/browser acceptance of the new job screen remains unverified."
+    upstream_trace:
+      plan_item: "5.1,5.3,5.4"
+      requirements: ["REQ-108", "REQ-109"]
+      full_trace: "REQ-108,109 → Plan 5.1/5.3/5.4 → T017 → V18 preview, mock prediction/retry, fingerprint validation, atomic confirmation"
+  - task_id: "T018"
+    description: "Materialize confirmed preview responses into append-only reevaluation history and display job progress."
+    status: "completed"
+    implementation:
+      files_changed:
+        - file: "src/main/java/dao/ReevaluationJobDao.java"
+          changes:
+            - change_type: "created"
+              description: "Claim fixed job targets, load status/progress, and persist materialization outcomes."
+        - file: "src/main/java/control/evaluation/ReevaluationJobWorker.java"
+          changes:
+            - change_type: "created"
+              description: "Reuse validated preview responses to append ordinary evaluation history without a second provider call."
+        - file: "src/main/java/dao/EvaluationWorkerDao.java"
+          changes:
+            - change_type: "modified"
+              description: "Share transaction-scoped result materialization with reevaluation jobs."
+        - file: "src/main/java/lib/mysql/DataSourceLifecycleListener.java"
+          changes:
+            - change_type: "modified"
+              description: "Start and stop the reevaluation job worker with the application lifecycle."
+        - file: "src/main/java/servlet/teacher/TeacherPromptServlet.java"
+          changes:
+            - change_type: "modified"
+              description: "Load authorized job status for the prompt page."
+        - file: "src/main/webapp/WEB-INF/teacher/prompt/prompt.jsp"
+          changes:
+            - change_type: "modified"
+              description: "Display job status, successful/failed counts, and progress."
+        - file: "src/main/webapp/js/teacher/prompt/prompt.js"
+          changes:
+            - change_type: "modified"
+              description: "Poll queued/in-progress job status while the page remains visible."
+    verification:
+      build_passed: true
+      test_results:
+        command: "gradle test --tests control.evaluation.EvaluationDatabaseTest --rerun-tasks --no-daemon --console=plain with EVALUATION_DB_TEST=true and the isolated ppe_evaluation_test_reeval01 schema"
+        passed: 6
+        failed: 0
+        skipped: 1
+        failures: []
+      notes: "materializesConfirmedPreviewWithoutCallingProviderOrChangingPriorEvaluation passed through the job target claim path. Mock/unit tests and full Gradle/WAR suite passed. Job progress HTTP/browser acceptance remains unverified; no live Gemini request was made."
+    upstream_trace:
+      plan_item: "5.1,5.4"
+      requirements: ["REQ-108", "REQ-109"]
+      full_trace: "REQ-108,109 → Plan 5.1/5.4 → T018 → stored-response materialization, append-only history, worker progress"
+  - task_id: "T019"
+    description: "Complete prompt auth/state/AI, isolated database persistence, and job status route owner-boundary tests."
+    status: "completed"
+    implementation:
+      files_changed:
+        - file: "src/test/java/control/teacher/TeacherPromptControlTest.java"
+          changes:
+            - change_type: "created"
+              description: "Control authorization, state, and generation tests."
+        - file: "src/test/java/control/teacher/TeacherPromptAiClientTest.java"
+          changes:
+            - change_type: "created"
+              description: "AI schema, retry, allowlist, and synthetic-input tests."
+        - file: "src/test/java/control/teacher/TeacherTaskDatabaseTest.java"
+          changes:
+            - change_type: "modified"
+              description: "Prompt/rubric/optimistic-version DB test and isolated fixture cleanup."
+        - file: "src/test/java/servlet/teacher/TeacherPromptServletTest.java"
+          changes:
+            - change_type: "created"
+              description: "Reject unauthenticated GET/POST and verify POST does not read form input before authentication."
+        - file: "src/test/java/dao/TeacherTaskDaoTest.java"
+          changes:
+            - change_type: "modified"
+              description: "Shared-rubric behavior assertions."
+    verification:
+      build_passed: true
+      test_results:
+        command: "docker exec -w /programming-process-evaluator [isolated Java 21 app container; V18 disposable DB and TEACHER_TASK_DB_TEST=true] gradle test war --no-daemon --console=plain"
+        passed: 149
+        failed: 0
+        skipped: 55
+        failures: []
+      notes: "TeacherPromptServletTest covers unauthenticated GET/POST rejection, jobId GET role/input validation, and first-draft editability. Disposable V18 schema tests cover job state/progress counts and task/job/owner boundaries; EvaluationDatabaseTest passed with the billable live Gemini smoke skipped. T030/T031 authenticated HTTP/browser acceptance passed, including preview rendering and confirmation redirect. Full suite: 204 tests, 149 passed, 0 failed, 55 skipped; WAR generated."
+    upstream_trace:
+      plan_item: "2.1,3.1,3.2,4.1,4.2,5.1"
+      requirements: ["REQ-101", "REQ-102", "REQ-103", "REQ-104", "REQ-105", "REQ-106", "REQ-107", "REQ-108", "REQ-109"]
+      full_trace: "REQ-101..109 → Plan 2.1/3.1/3.2/4.1/4.2/5.1 → T019 → unit, isolated DB, and T030/T031 HTTP/browser coverage"
+  - task_id: "T020"
+    description: "Run full build and isolated DB acceptance, then document results and remaining gaps."
+    status: "completed"
+    implementation:
+      files_changed:
+        - file: "docs/system-configuration/error-report.md"
+          changes:
+            - change_type: "modified"
+              description: "Record migration failures/recovery, DB integration corrections, passing results, and unverified acceptance."
+        - file: "docs/system-configuration/feature-plans/teacher-prompt-ai.md"
+          changes:
+            - change_type: "modified"
+              description: "Mark completed task items and preserve incomplete/blocked work as unchecked."
+        - file: "docs/system-configuration/feature-plans/checkpoints/teacher-prompt-ai/tasks-to-impl.yaml"
+          changes:
+            - change_type: "modified"
+              description: "Update implementation and isolated browser acceptance status."
+        - file: "docs/system-configuration/feature-plans/checkpoints/teacher-prompt-ai/batch-report.yaml"
+          changes:
+            - change_type: "created"
+              description: "Structured implementation batch report."
+        - file: "src/main/java/servlet/teacher/TeacherPromptServlet.java"
+          changes:
+            - change_type: "modified"
+              description: "Expose prompt editability to the JSP for first-draft creation."
+        - file: "src/test/java/servlet/teacher/TeacherPromptServletTest.java"
+          changes:
+            - change_type: "modified"
+              description: "Cover editability when a task has no saved prompt version."
+    verification:
+      build_passed: true
+      test_results:
+        command: "DB_PORT=3308 DB_NAME=ppe_teacher_ui_acceptance_20261005 APP_PORT=18081 PROJECT_NAME=programming-process-evaluator docker compose -p ppe-s2-ui-acceptance-20261005 run --rm --no-deps app gradle clean test war --no-daemon --console=plain"
+        passed: 129
+        failed: 0
+        skipped: 65
+        failures: []
+      notes: "Clean Gradle test/WAR passed. Separate isolated schema applied/validated V1-V17, and browser login/task selection/rubric/render/save/redirect/reload/ownership checks passed. active_prompt_version_id stayed NULL, evaluations stayed 0, and reevaluation remained disabled. Gemini live API not called; shared 8080 not changed."
+    upstream_trace:
+      plan_item: "5.2"
+      requirements: ["REQ-101", "REQ-102", "REQ-103", "REQ-104", "REQ-105", "REQ-106", "REQ-107", "REQ-108", "REQ-109"]
+      full_trace: "REQ-101..109 → Plan 5.2 → T020 → clean build, isolated DB/browser evidence; contract-gated work remains"
+
+pending_tasks: []
+
+untracked_changes: []
+
+traceability_chain:
+  - chain_id: "TRACE-REQ-101-107"
+    requirement: "REQ-101, REQ-102, REQ-103, REQ-104, REQ-105, REQ-106, REQ-107"
+    plan_phase: "Phase-2 through Phase-4"
+    plan_item: "2.1, 2.2, 3.1, 3.2, 4.1, 4.2"
+    tasks: ["T004", "T005", "T007", "T008", "T009", "T010", "T011", "T012", "T013", "T014", "T015", "T016", "T019", "T020"]
+    files:
+      - "src/main/java/control/teacher/TeacherPromptControl.java"
+      - "src/main/java/control/teacher/TeacherPromptAiClient.java"
+      - "src/main/java/dao/TeacherPromptDao.java"
+      - "src/main/java/servlet/teacher/TeacherPromptServlet.java"
+      - "src/main/webapp/WEB-INF/teacher/prompt/prompt.jsp"
+    status: "partial"
+  - chain_id: "TRACE-REQ-108-109"
+    requirement: "REQ-108, REQ-109"
+    plan_phase: "Phase-1, Phase-2, Phase-5"
+    plan_item: "1.1, 1.2, 2.1, 5.1, 5.2"
+    tasks: ["T001", "T002", "T003", "T005", "T006", "T007", "T014", "T016", "T017", "T018", "T019", "T020"]
+    files:
+      - "src/main/resources/db/migration/V17__support_teacher_prompt_workflow.sql"
+      - "src/main/java/dao/TeacherTaskDao.java"
+      - "docs/system-configuration/error-report.md"
+    status: "partial"
+
+validation:
+  passed: false
+  errors: []
+  warnings:
+    - "Authenticated Step 1 browser acceptance passed only on the dedicated ppe-s2-ui-acceptance-20261005 app at port 18081; this did not deploy the source fix to shared 8080."
+    - "Latest full Gradle/WAR run: 198 tests, 131 passed, 0 failed, 67 skipped; DB-gated cases were run separately in isolated schemas."
+    - "Dedicated DB results: EvaluationDatabaseTest 6 passed/0 failed/1 skipped (billable Gemini smoke test); TeacherTaskDatabaseTest 12 passed/0 failed/0 skipped. V1-V18 Flyway migrate/validate passed."
+    - "Job progress HTTP/browser acceptance remains unverified; prompt-page browser acceptance does not cover the new job UI."
+    - "Gemini live API was not called; only mock-based prediction/materialization tests passed."
+    - "The shared 8080 service was not restarted and does not represent this source change."
+    - "The screen-flow prototype was not modified."
+  blocking_issues: []

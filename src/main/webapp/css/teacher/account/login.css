@@ -1,0 +1,167 @@
+/* Teacher login page styles */
+
+body {
+	background: linear-gradient(135deg, #f0f4ff 0%, #faf9f7 100%);
+}
+
+.login-hero-section {
+	max-width: 760px;
+	padding: 0;
+}
+
+.hero-card {
+	border: 1px solid rgba(79, 70, 229, 0.12);
+	background: linear-gradient(180deg, rgba(79, 70, 229, 0.12), rgba(255, 255, 255, 0.96));
+	box-shadow: 0 32px 80px rgba(79, 70, 229, 0.06);
+}
+
+.hero-brand .navbar-brand {
+	justify-content: center;
+}
+
+.hero-brand svg {
+	color: #4f46e5;
+}
+
+.hero-brand .brand-text {
+	color: var(--bs-gray-900);
+	font-weight: 700;
+	line-height: 1.1;
+}
+
+.hero-brand .brand-text .brand-line {
+	background: linear-gradient(135deg, #4f46e5, #7c3aed);
+	background-clip: text;
+	font-size: 3rem;
+	-webkit-background-clip: text;
+	-webkit-text-fill-color: transparent;
+}
+
+.role-info {
+	margin-bottom: 1.5rem !important;
+	border: 1px solid rgba(79, 70, 229, 0.2) !important;
+	border-radius: 0.75rem;
+	background-color: rgba(79, 70, 229, 0.08) !important;
+}
+
+.role-info svg {
+	color: #4f46e5;
+}
+
+.role-info p {
+	margin-bottom: 0;
+	color: var(--bs-gray-700);
+	font-size: 0.95rem;
+}
+
+.role-info a {
+	color: #4f46e5;
+	font-weight: 500;
+}
+
+.role-info a:hover {
+	text-decoration: underline;
+}
+
+.login-panel {
+	border: 1px solid rgba(15, 23, 42, 0.08);
+	background: rgba(255, 255, 255, 0.98);
+}
+
+.login-form {
+	display: flex;
+	flex-direction: column;
+	gap: 1rem;
+}
+
+.login-form .btn {
+	border: none;
+	border-radius: 0.85rem;
+	background: linear-gradient(135deg, #4f46e5, #7c3aed);
+}
+
+.login-form .btn:hover {
+	background: linear-gradient(135deg, #4338ca, #6d28d9);
+}
+
+.login-form .btn:focus-visible {
+	outline: 2px solid rgba(79, 70, 229, 0.35);
+	outline-offset: 2px;
+}
+
+.password-field {
+	position: relative;
+}
+
+.password-field .form-control {
+	padding-right: 3.5rem;
+}
+
+.password-toggle {
+	position: absolute;
+	top: 50%;
+	right: 0.85rem;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 2.25rem;
+	height: 2.25rem;
+	border: 0;
+	padding: 0;
+	background: transparent;
+	color: var(--bs-gray-600);
+	transform: translateY(-50%);
+}
+
+.password-toggle:hover {
+	color: #4f46e5;
+}
+
+.password-toggle:focus-visible {
+	border-radius: 999px;
+	outline: 2px solid rgba(79, 70, 229, 0.35);
+	outline-offset: 2px;
+}
+
+.password-toggle-hide {
+	display: none;
+}
+
+.password-toggle.is-visible .password-toggle-show {
+	display: none;
+}
+
+.password-toggle.is-visible .password-toggle-hide {
+	display: block;
+}
+
+.sample-card h1 {
+	margin-bottom: 1.5rem;
+	color: var(--bs-gray-900);
+}
+
+.btn-link {
+	color: #4f46e5;
+}
+
+.btn-link:hover {
+	text-decoration: underline;
+}
+
+@media (max-width: 768px) {
+	.hero-brand .navbar-brand {
+		flex-direction: column;
+		padding-top: 2.5rem !important;
+		padding-bottom: 1.5rem !important;
+	}
+
+	.hero-brand .navbar-brand > svg {
+		width: 3.5rem;
+		height: 3.5rem;
+		margin: 0 0 0.75rem !important;
+	}
+
+	.hero-brand .brand-text .brand-line {
+		font-size: clamp(1.45rem, 8vw, 2rem);
+	}
+}

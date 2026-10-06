@@ -243,9 +243,6 @@
 								<c:otherwise>
 									<c:forEach var="testCase" items="${editorPage.testCases}">
 										<div class="case-card io-case-card">
-											<c:if test="${not empty testCase.title}">
-												<div class="info-label"><c:out value="${testCase.title}"/></div>
-											</c:if>
 											<div class="io-case-label mt-2">入力</div>
 											<textarea class="io-case-source" spellcheck="false"><c:out value="${testCase.input}"/></textarea>
 											<div class="io-case-label mt-3">出力</div>

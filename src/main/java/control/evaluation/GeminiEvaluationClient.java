@@ -39,15 +39,32 @@ public final class GeminiEvaluationClient implements EvaluationProvider {
 		this.apiBaseUri = apiBaseUri;
 	}
 
+	public JsonObject generateStructuredOutput(
+			String modelId,
+			String systemInstruction,
+			String input,
+			JsonObject outputSchema) throws EvaluationProviderException {
+		if (systemInstruction == null || systemInstruction.isBlank()
+				|| input == null || input.isBlank() || outputSchema == null) {
+			throw new IllegalArgumentException("Structured generation requires an instruction, input, and schema.");
+		}
+		JsonObject requestBody = new JsonObject();
+		requestBody.addProperty("model", modelId);
+		requestBody.addProperty("system_instruction", systemInstruction);
+		requestBody.addProperty("input", input);
+		JsonObject responseFormat = new JsonObject();
+		responseFormat.addProperty("type", "text");
+		responseFormat.addProperty("mime_type", "application/json");
+		responseFormat.add("schema", outputSchema.deepCopy());
+		requestBody.add("response_format", responseFormat);
+		JsonObject generationConfig = new JsonObject();
+		generationConfig.addProperty("max_output_tokens", 4096);
+		requestBody.add("generation_config", generationConfig);
+		return send(requestBody, modelId);
+	}
+
 	@Override
 	public JsonObject generate(String modelId, JsonObject payload) throws EvaluationProviderException {
-		if (apiKey == null) {
-			throw new EvaluationProviderException("GEMINI_API_KEY is not configured.", false);
-		}
-		if (modelId == null || !MODEL_ID.matcher(modelId).matches()) {
-			throw new EvaluationProviderException("The configured Gemini model identifier is invalid.", false);
-		}
-
 		JsonObject requestBody = new JsonObject();
 		requestBody.addProperty("model", modelId);
 		requestBody.addProperty("system_instruction",
@@ -69,7 +86,16 @@ public final class GeminiEvaluationClient implements EvaluationProvider {
 		JsonObject generationConfig = new JsonObject();
 		generationConfig.addProperty("max_output_tokens", 4096);
 		requestBody.add("generation_config", generationConfig);
+		return send(requestBody, modelId);
+	}
 
+	private JsonObject send(JsonObject requestBody, String modelId) throws EvaluationProviderException {
+		if (apiKey == null) {
+			throw new EvaluationProviderException("GEMINI_API_KEY is not configured.", false);
+		}
+		if (modelId == null || !MODEL_ID.matcher(modelId).matches()) {
+			throw new EvaluationProviderException("The configured Gemini model identifier is invalid.", false);
+		}
 		URI uri = apiBaseUri.resolve("v1beta/interactions");
 		HttpRequest request = HttpRequest.newBuilder(uri)
 				.timeout(Duration.ofSeconds(60))

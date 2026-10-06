@@ -16,6 +16,34 @@ import entity.StandardRubric.Level;
 import lib.mysql.Client;
 
 public final class StandardRubricDao {
+	public long requireActiveId(Connection connection) throws SQLException {
+		try {
+			if (find(connection).isEmpty()) {
+				throw new SQLException("The active standard rubric is not registered.");
+			}
+		} catch (IllegalArgumentException invalidRubric) {
+			throw new SQLException("The active standard rubric is invalid.", invalidRubric);
+		}
+		try (PreparedStatement statement = connection.prepareStatement("""
+				SELECT rubric_id
+				FROM rubrics
+				WHERE title = ? AND version = ? AND rubric_status = 'active'
+				""")) {
+			statement.setString(1, StandardRubric.TITLE);
+			statement.setString(2, StandardRubric.VERSION);
+			try (ResultSet result = statement.executeQuery()) {
+				if (!result.next()) {
+					throw new SQLException("The validated standard rubric disappeared during lookup.");
+				}
+				long rubricId = result.getLong("rubric_id");
+				if (result.next()) {
+					throw new SQLException("Multiple active standard rubric rows were found.");
+				}
+				return rubricId;
+			}
+		}
+	}
+
 	public Optional<StandardRubric> find() throws SQLException {
 		try (Connection connection = Client.createConnection()) {
 			connection.setAutoCommit(false);
@@ -30,7 +58,7 @@ public final class StandardRubricDao {
 		}
 	}
 
-	private Optional<StandardRubric> find(Connection connection) throws SQLException {
+	public Optional<StandardRubric> find(Connection connection) throws SQLException {
 		try (PreparedStatement statement = connection.prepareStatement("""
 				SELECT rubric_id FROM rubrics WHERE title = ? AND version = ? AND rubric_status = 'active'
 				""")) {

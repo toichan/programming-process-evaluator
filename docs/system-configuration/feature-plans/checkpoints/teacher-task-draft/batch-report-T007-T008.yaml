@@ -1,0 +1,138 @@
+batch_id: "B04"
+completed_tasks: ["T007", "T008"]
+blocked_tasks: []
+files_changed:
+  T007:
+    - file: "src/main/java/control/teacher/TeacherTaskInputValidator.java"
+      change_type: "created"
+      description: "Validates task fields against required values, database capacities, encoding, dates, and child identifiers"
+    - file: "src/main/java/control/teacher/TeacherTaskCreateRegistry.java"
+      change_type: "created"
+      description: "Provides session-scoped, synchronized create-token handling and successful task ID reuse"
+    - file: "src/main/java/control/teacher/TeacherTaskControl.java"
+      change_type: "modified"
+      description: "Integrates normalized input validation and uncertain-commit create recovery"
+    - file: "src/main/java/dao/TeacherTaskDao.java"
+      change_type: "modified"
+      description: "Recovers a created task from its successful request-token audit record"
+    - file: "src/test/java/control/teacher/TeacherTaskInputValidatorTest.java"
+      change_type: "created"
+      description: "Tests field limits, normalization, malformed input, dates, and duplicate identifiers"
+    - file: "src/test/java/control/teacher/TeacherTaskCreateRegistryTest.java"
+      change_type: "created"
+      description: "Tests token reuse, concurrent requests, expiration, and retry behavior"
+  T008:
+    - file: "src/main/java/servlet/teacher/TeacherTaskForm.java"
+      change_type: "created"
+      description: "Parses bounded strict UTF-8 form bodies and validates scalar/repeated field contracts"
+    - file: "src/main/java/servlet/teacher/TeacherTaskServlet.java"
+      change_type: "created"
+      description: "Connects authenticated teacher GET/POST, CSRF, save actions, PRG, status handling, and error input retention"
+    - file: "src/test/java/servlet/teacher/TeacherTaskFormTest.java"
+      change_type: "created"
+      description: "Tests form decoding, repeated field shapes, accepted inputs, and invalid input rejection"
+  progress_documents:
+    - file: "docs/system-configuration/feature-plans/teacher-task-draft.md"
+      change_type: "modified"
+      description: "Records T007/T008 implementation scope and validation boundary"
+    - file: "docs/system-configuration/feature-plans/checkpoints/teacher-task-draft/tasks-to-impl.yaml"
+      change_type: "modified"
+      description: "Marks T007/T008 complete and updates task counts and traceability"
+    - file: "docs/system-configuration/feature-plans/checkpoints/teacher-task-draft/batch-report-T007-T008.yaml"
+      change_type: "created"
+      description: "Records implementation, traceability, tests, and remaining runtime/database checks"
+    - file: "docs/system-configuration/implementation-roadmap.md"
+      change_type: "modified"
+      description: "Updates工程10 progress and next task"
+    - file: "docs/README.md"
+      change_type: "modified"
+      description: "Updates the next-engineering-step index"
+    - file: "AGENTS.md"
+      change_type: "modified"
+      description: "Updates teacher handoff and retains prototype-preservation constraint"
+    - file: "docs/system-configuration/error-report.md"
+      change_type: "modified"
+      description: "Records and resolves implementation-time compile/test failures"
+upstream_artifacts_consumed:
+  T007:
+    - artifact: "docs/system-configuration/feature-plans/teacher-task-draft.md#Plan 3.1"
+      used_for: "Input validation, persistence constraints, create idempotency, and REQ traceability"
+    - artifact: "docs/database-design/table-definitions.md"
+      used_for: "Database column types and storage capacities"
+    - artifact: "src/main/resources/db/migration/V16__support_teacher_task_drafts.sql"
+      used_for: "Task version and draft persistence schema"
+  T008:
+    - artifact: "docs/system-configuration/feature-plans/teacher-task-draft.md#Plan 3.2"
+      used_for: "Servlet actions, UTF-8, CSRF, response behavior, and input retention"
+    - artifact: "src/main/java/servlet/auth/AuthFilter.java"
+      used_for: "Authenticated user and role contract"
+    - artifact: "src/main/java/servlet/auth/CsrfTokenManager.java"
+      used_for: "Existing CSRF token handling"
+    - artifact: "src/main/java/control/teacher/TeacherTaskControl.java"
+      used_for: "Teacher task read/save operations and role enforcement"
+evidence_mapping:
+  T007:
+    - upstream: "teacher-task-draft.md#Plan 3.1"
+      output: "TeacherTaskInputValidator and TeacherTaskCreateRegistry"
+      evidence: "TeacherTaskInputValidatorTest and TeacherTaskCreateRegistryTest; final focused batch test command passed"
+    - upstream: "table-definitions.md#task storage constraints"
+      output: "TeacherTaskInputValidator"
+      evidence: "Boundary and malformed-input tests passed"
+  T008:
+    - upstream: "teacher-task-draft.md#Plan 3.2"
+      output: "TeacherTaskForm and TeacherTaskServlet"
+      evidence: "TeacherTaskFormTest and final focused batch test command passed"
+    - upstream: "existing authentication and CSRF contracts"
+      output: "TeacherTaskServlet"
+      evidence: "Forced production Java compilation passed; HTTP/JSP runtime verification is pending T009/T013/T014"
+traceability:
+  - requirement: "REQ-001"
+    plan_item: "3.1/3.2"
+    task: "T007/T008"
+    files: ["src/main/java/control/teacher/TeacherTaskInputValidator.java", "src/main/java/control/teacher/TeacherTaskCreateRegistry.java", "src/main/java/servlet/teacher/TeacherTaskServlet.java"]
+    status: "partial"
+  - requirement: "REQ-002"
+    plan_item: "3.1/3.2"
+    task: "T007/T008"
+    files: ["src/main/java/control/teacher/TeacherTaskInputValidator.java", "src/main/java/servlet/teacher/TeacherTaskForm.java", "src/main/java/servlet/teacher/TeacherTaskServlet.java"]
+    status: "partial"
+  - requirement: "REQ-003"
+    plan_item: "3.1/3.2"
+    task: "T007/T008"
+    files: ["src/main/java/control/teacher/TeacherTaskInputValidator.java", "src/main/java/servlet/teacher/TeacherTaskForm.java"]
+    status: "partial"
+  - requirement: "REQ-005"
+    plan_item: "3.1/3.2"
+    task: "T007/T008"
+    files: ["src/main/java/control/teacher/TeacherTaskInputValidator.java", "src/main/java/control/teacher/TeacherTaskCreateRegistry.java", "src/main/java/servlet/teacher/TeacherTaskServlet.java"]
+    status: "partial"
+  - requirement: "REQ-008"
+    plan_item: "3.2"
+    task: "T008"
+    files: ["src/main/java/servlet/teacher/TeacherTaskForm.java", "src/main/java/servlet/teacher/TeacherTaskServlet.java"]
+    status: "partial"
+protocol_violation: false
+errors: []
+warnings:
+  - "No API endpoint contract script was found. /teacher/task is a server-rendered page route rather than a REST API; it was not runtime-probed because its JSP is scheduled in T009."
+  - "The new Servlet has not been exercised over authenticated HTTP; end-to-end JSP, DB persistence, and authorization behavior remain for T009/T013/T014."
+  - "Shared development DB remains at schema version 15. V16 and MySQL DAO/authorization/audit behavior were not applied or verified; use only an isolated synthetic teacher DB in T013/T014."
+test_results:
+  T007:
+    command: "docker compose exec -T app gradle test --tests 'servlet.teacher.TeacherTaskFormTest' --tests 'control.teacher.TeacherTaskInputValidatorTest' --tests 'control.teacher.TeacherTaskCreateRegistryTest' --tests 'control.teacher.TeacherTaskControlTest' --tests 'dao.TeacherTaskDaoTest' --tests 'dao.TeacherPermissionDaoTest' --tests 'entity.TeacherTaskInputTest' --no-daemon --console=plain --warning-mode all"
+    passed: 27
+    failed: 0
+    skipped: 0
+    failures: []
+  T008:
+    command: "docker compose exec -T app gradle test --tests 'servlet.teacher.TeacherTaskFormTest' --tests 'control.teacher.TeacherTaskInputValidatorTest' --tests 'control.teacher.TeacherTaskCreateRegistryTest' --tests 'control.teacher.TeacherTaskControlTest' --tests 'dao.TeacherTaskDaoTest' --tests 'dao.TeacherPermissionDaoTest' --tests 'entity.TeacherTaskInputTest' --no-daemon --console=plain --warning-mode all"
+    passed: 27
+    failed: 0
+    skipped: 0
+    failures: []
+  production_compile:
+    command: "docker compose exec -T app gradle compileJava --rerun-tasks --no-daemon --console=plain --warning-mode all"
+    result: "passed"
+  diff_check:
+    command: "git diff --check"
+    result: "passed"

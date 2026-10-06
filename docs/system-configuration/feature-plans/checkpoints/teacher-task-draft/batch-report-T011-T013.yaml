@@ -1,0 +1,172 @@
+batch_id: "B07"
+completed_tasks: ["T011", "T012", "T013"]
+in_progress_tasks: ["T014"]
+blocked_tasks: []
+required_endpoints: []
+files_changed:
+  T011:
+    - file: "src/main/java/control/teacher/TeacherNavigationControl.java"
+      change_type: "created"
+      description: "Loads authorized teacher navigation data"
+    - file: "src/main/java/entity/TeacherNavigationSummary.java"
+      change_type: "created"
+      description: "Carries teacher identity, school and feature permission to the view"
+    - file: "src/main/java/dao/TeacherPermissionDao.java"
+      change_type: "modified"
+      description: "Provides active school and task-management navigation data"
+    - file: "src/main/webapp/WEB-INF/teacher/shared/navigation.jspf"
+      change_type: "created"
+      description: "Renders teacher navigation and authorized task entry point"
+    - file: "src/main/webapp/css/teacher/shared/components.css"
+      change_type: "created"
+      description: "Styles the responsive teacher navigation"
+    - file: "src/main/webapp/js/teacher/shared/navigation.js"
+      change_type: "created"
+      description: "Implements menu toggle, Escape handling and focus restoration"
+  T012:
+    - file: "src/main/webapp/WEB-INF/template/page-start.jspf"
+      change_type: "modified"
+      description: "Adds teacher-only navigation and asset loading"
+    - file: "src/main/webapp/WEB-INF/template/page-end.jspf"
+      change_type: "modified"
+      description: "Adds teacher-only footer and navigation script"
+    - file: "src/main/java/servlet/auth/AuthHomeServlet.java"
+      change_type: "modified"
+      description: "Loads teacher navigation authorization for the home page"
+    - file: "src/main/webapp/WEB-INF/teacher/home.jsp"
+      change_type: "modified"
+      description: "Adds the authorized task editing entry point"
+    - file: "src/main/java/servlet/teacher/TeacherTaskServlet.java"
+      change_type: "modified"
+      description: "Uses the authentication filter request attribute and preserves form state on errors"
+  T013:
+    - file: "src/test/java/control/teacher/TeacherTaskDatabaseTest.java"
+      change_type: "created"
+      description: "Adds fail-closed isolated database tests for save, reload, version, audit and permission boundaries"
+    - file: "src/test/java/dao/TeacherPermissionDaoTest.java"
+      change_type: "modified"
+      description: "Covers navigation permission data"
+    - file: "src/test/java/servlet/teacher/TeacherTaskServletTest.java"
+      change_type: "modified"
+      description: "Covers authentication attribute integration and one-time notices"
+  T014:
+    - file: "src/main/java/dao/TeacherTaskDao.java"
+      change_type: "modified"
+      description: "Fixes hint INSERT parameter binding uncovered by the full child-item update acceptance case"
+    - file: "src/test/java/control/teacher/TeacherTaskDatabaseTest.java"
+      change_type: "modified"
+      description: "Expands isolated acceptance coverage for multi-class updates, concurrency, rollback, student visibility and authorization boundaries"
+    - file: "src/test/java/control/teacher/TeacherTaskControlTest.java"
+      change_type: "modified"
+      description: "Verifies student roles are rejected before opening a database connection"
+    - file: "docs/system-configuration/feature-plans/teacher-task-draft.md"
+      change_type: "modified"
+      description: "Records completed and remaining browser/acceptance scenarios"
+    - file: "docs/system-configuration/error-report.md"
+      change_type: "modified"
+      description: "Records HTTP/JSP defects found and resolved during acceptance"
+    - file: "docs/system-configuration/feature-plans/checkpoints/teacher-task-draft/tasks-to-impl.yaml"
+      change_type: "modified"
+      description: "Updates task statuses, test counts and remaining T014 acceptance"
+    - file: "docs/system-configuration/feature-plans/checkpoints/teacher-task-draft/batch-report-T011-T013.yaml"
+      change_type: "created"
+      description: "Records T011-T013 completion and partial T014 evidence"
+    - file: "docs/system-configuration/implementation-roadmap.md"
+      change_type: "modified"
+      description: "Updates engineering status and next acceptance work"
+    - file: "docs/README.md"
+      change_type: "modified"
+      description: "Updates project handoff and current teacher-slice status"
+    - file: "AGENTS.md"
+      change_type: "modified"
+      description: "Updates teacher handoff to remaining T014 work"
+upstream_artifacts_consumed:
+  T011:
+    - artifact: "docs/system-configuration/feature-plans/teacher-task-draft.md#Plan 3.4"
+      used_for: "Teacher navigation identity, permission and shared feedback requirements"
+    - artifact: "screen-flow-diagram/webapp/WEB-INF/template/template.html"
+      used_for: "Existing teacher navigation design and responsive behavior"
+  T012:
+    - artifact: "docs/system-configuration/feature-plans/teacher-task-draft.md#Plan 3.4"
+      used_for: "Teacher-only template and authorized home entry point"
+  T013:
+    - artifact: "docs/system-configuration/feature-plans/teacher-task-draft.md#Plan 4.1"
+      used_for: "Isolated DB and input-validation acceptance requirements"
+  T014:
+    - artifact: "docs/system-configuration/feature-plans/teacher-task-draft.md#Plan 4.1"
+      used_for: "Authenticated browser, save/reload and permission/state acceptance"
+evidence_mapping:
+  T011:
+    - upstream: "teacher-task-draft.md#Plan 3.4"
+      output: "Teacher navigation fragment, styles and script"
+      evidence: "Browser verified active school/permission display, task entry point, mobile toggle, Escape and focus restoration"
+  T012:
+    - upstream: "teacher-task-draft.md#Plan 3.4"
+      output: "Teacher home and role-specific common template"
+      evidence: "Authenticated browser rendered teacher home and task JSP; existing student/admin template branches were retained"
+  T013:
+    - upstream: "teacher-task-draft.md#Plan 4.1"
+      output: "TeacherTaskDatabaseTest and isolated migration run"
+      evidence: "Disposable MySQL applied Flyway V1-V16; dedicated DB tests passed 2/2 and cleaned their generated rows"
+  T014:
+    - upstream: "authenticated teacher save/reload scenario"
+      output: "Draft form persisted and rendered after PRG/reload"
+      evidence: "Browser confirmed title, description, class assignment and test input persisted; one-time success notice did not reappear after reload"
+traceability:
+  - requirement: "REQ-001"
+    plan_item: "3.4/4.1"
+    tasks: ["T011", "T012", "T013", "T014"]
+    status: "partial"
+  - requirement: "REQ-002"
+    plan_item: "3.4/4.1"
+    tasks: ["T012", "T013", "T014"]
+    status: "partial"
+  - requirement: "REQ-005"
+    plan_item: "4.1"
+    tasks: ["T013", "T014"]
+    status: "partial"
+  - requirement: "REQ-008"
+    plan_item: "3.4/4.1"
+    tasks: ["T011", "T012", "T013", "T014"]
+    status: "partial"
+protocol_violation: false
+errors: []
+warnings:
+  - "Full-suite JUnit XML contained 178 tests: 124 passed, 0 failed, and 54 skipped. Skipped tests are not acceptance evidence."
+  - "A disposable MySQL environment applied V1-V16 and was removed afterward. Shared development DB remained at schema version 15."
+  - "T014 remains in progress: the full endpoint/action authorization matrix and existing-page HTTP regression remain unverified."
+test_results:
+  full_suite:
+    command: "docker compose exec -T app gradle test war --rerun-tasks --no-daemon --console=plain --warning-mode all (disposable DB environment overrides applied)"
+    passed: 124
+    failed: 0
+    skipped: 54
+    failures: []
+  isolated_database:
+    command: "docker compose exec -T app gradle test --tests 'control.teacher.TeacherTaskDatabaseTest' --no-daemon --console=plain --warning-mode all (TEACHER_TASK_DB_TEST=true and disposable DB environment overrides applied)"
+    passed: 8
+    failed: 0
+    skipped: 0
+    failures: []
+runtime_verification:
+  migration:
+    disposable_database_versions: ["V1", "V2", "V3", "V4", "V5", "V6", "V7", "V8", "V9", "V10", "V11", "V12", "V13", "V14", "V15", "V16"]
+    shared_database_version: 15
+    disposable_database_removed: true
+    test_user: "Database-scoped user for application tests; migration used the disposable instance owner"
+  browser:
+    result: "passed for scenarios exercised"
+    checks:
+      - "Authenticated teacher home and task JSP rendered"
+      - "Draft save redirected and showed a one-time success notice"
+      - "Saved task values remained after reload"
+      - "Mobile navigation toggled, Escape closed it, and focus returned to the toggle"
+      - "Unauthenticated GET /student/home returned 302 to /student/account/login"
+      - "Unauthenticated GET /admin/schools and /teacher/home returned 302 to /teacher/account/login"
+      - "GET /student/account/login returned 200"
+      - "Authenticated existing-page rendering and the full endpoint/action authorization matrix remain unverified"
+validation:
+  passed: true
+  errors: []
+  warnings:
+    - "T014 is partial, not complete; T015 remains pending until the acceptance matrix is complete."

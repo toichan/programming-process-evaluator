@@ -10,6 +10,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.Set;
 import java.util.UUID;
 
 import org.junit.jupiter.api.AfterEach;
@@ -17,10 +18,12 @@ import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 
 import dao.EvaluationQueueDao;
 import dao.EvaluationWorkerDao;
+import dao.ReevaluationJobDao;
 import lib.mysql.Client;
 
 class EvaluationDatabaseTest {
@@ -240,6 +243,125 @@ class EvaluationDatabaseTest {
 	}
 
 	@Test
+	void materializesConfirmedPreviewWithoutCallingProviderOrChangingPriorEvaluation() throws SQLException {
+		long jobId;
+		long jobTargetId;
+		JsonObject payload = new JsonObject();
+		JsonObject metadata = new JsonObject();
+		metadata.addProperty("request_id", UUID.randomUUID().toString());
+		metadata.addProperty("model_id", "gemini-3.7-flash");
+		metadata.addProperty("prompt_version", "1");
+		metadata.addProperty("rubric_version", "1");
+		metadata.addProperty("consent_status", "unconfirmed");
+		metadata.addProperty("anonymized_subject_id", "RS-synthetic-preview");
+		payload.add("metadata", metadata);
+		payload.add("task", new JsonObject());
+		payload.add("rubric", new JsonObject());
+		JsonObject submission = new JsonObject();
+		submission.addProperty("submitted_at", java.time.LocalDateTime.now().toString());
+		submission.addProperty("submitted_code", "print(input())");
+		payload.add("submission", submission);
+		JsonArray logs = new JsonArray();
+		JsonObject log = new JsonObject();
+		log.addProperty("log_id", logId);
+		log.addProperty("event_type", "manual_save");
+		log.addProperty("observed_at", java.time.LocalDateTime.now().toString());
+		logs.add(log);
+		payload.add("timeline_logs", logs);
+		payload.add("prompt_evaluation_settings", new JsonObject());
+		JsonObject rawResponse = new JsonObject();
+		rawResponse.addProperty("provider", "synthetic");
+		JsonObject validatedResult;
+		try {
+			validatedResult = EvaluationResponseValidator.parseAndValidate(
+					validProvider().extractOutputText(rawResponse), Set.of(logId), Set.of());
+		} catch (EvaluationProviderException impossible) {
+			throw new SQLException("The synthetic provider output could not be prepared.", impossible);
+		}
+
+		try (Connection connection = Client.createConnection()) {
+			update(connection, "UPDATE submissions SET submission_status = 'accepted' WHERE submission_id = ?",
+					submissionId);
+			jobId = insert(connection, """
+					INSERT INTO reevaluation_jobs (
+					  task_id, prompt_version_id, requested_by_user_id, reevaluation_status,
+					  target_count, completed_count, progress_percent, result_summary
+					)
+					VALUES (?, ?, ?, 'queued', 1, 0, 0, JSON_OBJECT('failed_count', 0))
+					""", taskId, promptId, userId);
+			jobTargetId = insert(connection, """
+					INSERT INTO reevaluation_job_targets (
+					  reevaluation_job_id, participation_id, submission_id, target_status,
+					  evaluation_payload, provider_response, validated_result,
+					  materialization_attempts, created_at, updated_at
+					)
+					VALUES (?, ?, ?, 'queued', ?, ?, ?, 0, CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6))
+					""", jobId, participationId, submissionId,
+					payload.toString(), rawResponse.toString(), validatedResult.toString());
+		}
+
+		ReevaluationJobDao.JobWorkItem workItem = new ReevaluationJobDao().claimNextTarget().orElseThrow();
+		assertEquals(jobTargetId, workItem.targetId());
+		new EvaluationWorkerDao().materializeReevaluationTarget(workItem);
+
+		try (Connection connection = Client.createConnection()) {
+			assertEquals("completed", text(connection,
+					"SELECT reevaluation_status FROM reevaluation_jobs WHERE reevaluation_job_id = ?", jobId));
+			assertEquals("completed", text(connection,
+					"SELECT target_status FROM reevaluation_job_targets WHERE reevaluation_job_target_id = ?",
+					jobTargetId));
+			assertEquals("completed", text(connection, """
+					SELECT evaluation_status FROM evaluations
+					WHERE reevaluation_job_id = ?
+					""", jobId));
+			assertEquals("reevaluation", text(connection,
+					"SELECT evaluation_kind FROM evaluations WHERE reevaluation_job_id = ?", jobId));
+			assertEquals("teacher", text(connection, """
+					SELECT actor_role FROM evaluation_requests r
+					JOIN evaluations e ON e.evaluation_id = r.evaluation_id
+					WHERE e.reevaluation_job_id = ?
+					""", jobId));
+			assertEquals("succeeded", text(connection, """
+					SELECT request_status FROM evaluation_requests r
+					JOIN evaluations e ON e.evaluation_id = r.evaluation_id
+					WHERE e.reevaluation_job_id = ?
+					""", jobId));
+			assertEquals(1, count(connection, """
+					SELECT COUNT(*) FROM evaluation_responses r
+					JOIN evaluation_requests q ON q.evaluation_request_id = r.evaluation_request_id
+					JOIN evaluations e ON e.evaluation_id = q.evaluation_id
+					WHERE e.reevaluation_job_id = ? AND r.response_status = 'validated'
+					""", jobId));
+			assertEquals(1, count(connection, """
+					SELECT COUNT(*) FROM evaluation_input_snapshots s
+					JOIN evaluation_requests q ON q.evaluation_request_id = s.evaluation_request_id
+					JOIN evaluations e ON e.evaluation_id = q.evaluation_id
+					WHERE e.reevaluation_job_id = ?
+					""", jobId));
+			assertEquals(2, count(connection, """
+					SELECT COUNT(*) FROM evaluation_dimension_results d
+					JOIN evaluations e ON e.evaluation_id = d.evaluation_id
+					WHERE e.reevaluation_job_id = ?
+					""", jobId));
+			assertEquals(1, count(connection, """
+					SELECT COUNT(*) FROM evaluation_evidence ev
+					JOIN evaluation_reasons r ON r.evaluation_reason_id = ev.evaluation_reason_id
+					JOIN evaluations e ON e.evaluation_id = r.evaluation_id
+					WHERE e.reevaluation_job_id = ?
+					""", jobId));
+			assertEquals(1, count(connection, """
+					SELECT COUNT(*) FROM reevaluation_job_targets
+					WHERE reevaluation_job_target_id = ? AND evaluation_payload IS NULL
+					  AND provider_response IS NULL AND validated_result IS NULL AND evaluation_id IS NOT NULL
+					""", jobTargetId));
+			assertEquals("not_started", text(connection, """
+					SELECT evaluation_status FROM evaluations
+					WHERE reevaluation_job_id IS NULL AND submission_id = ?
+					""", submissionId));
+		}
+	}
+
+	@Test
 	void savesLiveGeminiResultOnlyWhenExplicitlyEnabled() throws SQLException {
 		Assumptions.assumeTrue(Boolean.parseBoolean(System.getenv("GEMINI_API_SMOKE_TEST")),
 				"Enable GEMINI_API_SMOKE_TEST to make up to three billable synthetic requests.");
@@ -292,6 +414,11 @@ class EvaluationDatabaseTest {
 			connection.setAutoCommit(false);
 			try {
 				update(connection, """
+						DELETE jt FROM reevaluation_job_targets jt
+						JOIN reevaluation_jobs j ON j.reevaluation_job_id = jt.reevaluation_job_id
+						WHERE j.task_id = ?
+						""", taskId);
+				update(connection, """
 						DELETE ev FROM evaluation_evidence ev
 						JOIN evaluation_reasons r ON r.evaluation_reason_id = ev.evaluation_reason_id
 						JOIN evaluations e ON e.evaluation_id = r.evaluation_id WHERE e.submission_id = ?
@@ -322,6 +449,7 @@ class EvaluationDatabaseTest {
 						ON e.evaluation_id = r.evaluation_id WHERE e.submission_id = ?
 						""", submissionId);
 				update(connection, "DELETE FROM evaluations WHERE submission_id = ?", submissionId);
+				update(connection, "DELETE FROM reevaluation_jobs WHERE task_id = ?", taskId);
 				update(connection, "DELETE FROM code_logs WHERE participation_id = ?", participationId);
 				update(connection, "UPDATE task_participations SET draft_base_submission_id = NULL WHERE participation_id = ?",
 						participationId);
@@ -370,10 +498,13 @@ class EvaluationDatabaseTest {
 		}
 	}
 
-	private static int count(Connection connection, String sql) throws SQLException {
-		try (Statement statement = connection.createStatement(); ResultSet rows = statement.executeQuery(sql)) {
+	private static int count(Connection connection, String sql, Object... parameters) throws SQLException {
+		try (PreparedStatement statement = connection.prepareStatement(sql)) {
+			bind(statement, parameters);
+			try (ResultSet rows = statement.executeQuery()) {
 			assertTrue(rows.next());
 			return rows.getInt(1);
+			}
 		}
 	}
 

@@ -19,6 +19,17 @@ class StudentEditorPageTest {
 	}
 
 	@Test
+	void firstSubmissionPolicyUsesTheDatabaseClockAndNeverAllowsLateResubmission() {
+		LocalDateTime dueAt = LocalDateTime.of(2026, 10, 5, 12, 0);
+		LocalDateTime databaseNow = LocalDateTime.of(2026, 10, 6, 12, 0);
+
+		assertTrue(page(dueAt, "allow", null, null, "not_started").isCanSubmit(databaseNow));
+		assertFalse(page(dueAt, "deny", null, null, "not_started").isCanSubmit(databaseNow));
+		assertFalse(page(dueAt, "allow", 13L, 13L, "in_progress").isCanSubmit(databaseNow));
+		assertFalse(page(dueAt, "allow", 13L, null, "completed").isCanStartResubmission(databaseNow));
+	}
+
+	@Test
 	void resubmissionIsAllowedRegardlessOfAssignmentPolicyBeforeDeadline() {
 		LocalDateTime futureDue = LocalDateTime.now(Clock.systemUTC()).plusDays(1);
 		StudentEditorPage submitted = page(futureDue, "deny", 13L, null, "completed");

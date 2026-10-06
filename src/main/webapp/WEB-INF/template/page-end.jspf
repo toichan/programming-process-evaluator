@@ -1,13 +1,21 @@
-	</main>
 	<c:choose>
 		<c:when test="${screenDesign == 'student'}">
+			</main>
 			<footer class="bg-light py-4 mt-5 border-top">
 				<div class="container text-center">
 					<p class="text-muted mb-0">&copy; 2026 Takumi Toida. All rights reserved.</p>
 				</div>
 			</footer>
 		</c:when>
+		<c:when test="${screenDesign == 'teacher'}">
+			</main>
+			</div>
+			</div>
+		</c:when>
+		<c:when test="${screenDesign == 'teacher-login'}">
+		</c:when>
 		<c:otherwise>
+			</main>
 			<footer class="border-top bg-white">
 				<div class="container py-3 text-secondary small">
 					Programming Process Evaluator
@@ -18,6 +26,9 @@
 	<c:if test="${screenDesign == 'student'}">
 		<%@ include file="/WEB-INF/student/shared/rubric.jspf" %>
 	</c:if>
+	<c:if test="${screenDesign == 'teacher'}">
+		<%@ include file="/WEB-INF/teacher/shared/rubric.jspf" %>
+	</c:if>
 	<c:if test="${studentHelpGuideAvailable}">
 		<%@ include file="/WEB-INF/student/shared/help.jspf" %>
 	</c:if>
@@ -25,6 +36,17 @@
 		integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI"
 		crossorigin="anonymous" defer></script>
 	<script src="${pageContext.request.contextPath}/js/shared/feedback.js" defer></script>
+	<c:if test="${screenDesign == 'teacher' and screenUsesCodeMirror}">
+		<script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/lib/codemirror.js" defer></script>
+		<script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/mode/python/python.js" defer></script>
+		<script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/mode/shell/shell.js" defer></script>
+	</c:if>
+	<c:if test="${screenDesign == 'teacher' and screenUsesMarkdown}">
+		<script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/mode/markdown/markdown.js" defer></script>
+	</c:if>
+	<c:if test="${screenDesign == 'teacher'}">
+		<script src="${pageContext.request.contextPath}/js/teacher/shared/navigation.js" defer></script>
+	</c:if>
 	<c:if test="${screenDesign == 'student'}">
 		<script src="${pageContext.request.contextPath}/js/student/shared/rubric.js?v=106" defer></script>
 		<script src="${pageContext.request.contextPath}/js/student/shared/help-modals.js?v=107" defer></script>

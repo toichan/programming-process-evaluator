@@ -18,12 +18,13 @@
 |:--|:--|
 |復元可能な論理削除|users、tasks、student_exercises、student_exercise_entries|
 |無効化・アーカイブ|schools、classrooms、student_class_memberships、teacher_school_permissions、teacher_feature_permissions、task_features、task_class_assignments、task_test_cases、task_hints、rubrics、rubric_dimensions、rubric_criteria、criterion_levels、distribution_templates、distribution_template_files、consent_document_versions、surveys、survey_questions、survey_question_options|
-|追記型・通常削除不可|password_reset_records、credential_history、task_participations、task_activity_sessions、submissions、code_logs、code_executions、code_execution_test_results、prompt_versions、prompt_fluctuation_items、evaluation_examples、evaluations、evaluation_scores、evaluation_dimension_results、evaluation_reasons、evaluation_reason_details、evaluation_evidence、evaluation_feedback、reevaluation_jobs、distributions、distribution_targets、distribution_histories、consent_records、survey_responses、survey_answers、evaluation_requests、evaluation_responses、evaluation_input_snapshots、login_history、audit_logs、application_error_logs、research_subject_identifiers|
+|期限付き一時データ|reevaluation_previews、reevaluation_preview_targets|preview作成から30分、またはconfirmed/cancelled/stale/expired状態への遷移後、worker cleanupで削除する。V18に限り親previewから子targetへのON DELETE CASCADEを使用|
+|追記型・通常削除不可|password_reset_records、credential_history、task_participations、task_activity_sessions、submissions、code_logs、code_executions、code_execution_test_results、prompt_versions、prompt_fluctuation_items、evaluation_examples、evaluations、evaluation_scores、evaluation_dimension_results、evaluation_reasons、evaluation_evidence、evaluation_feedback、reevaluation_jobs、reevaluation_job_targets、distributions、distribution_targets、distribution_histories、consent_records、survey_responses、survey_answers、evaluation_requests、evaluation_responses、evaluation_input_snapshots、login_history、audit_logs、application_error_logs、research_subject_identifiers|
 
 共通ルール:
 
 - 通常の一覧・検索・業務処理では、論理削除・無効・アーカイブ状態を明示的に除外する。削除済み一覧は権限を持つ利用者だけが参照できる。
-- 親レコードの論理削除を理由に子レコードを連鎖物理削除しない。外部キーへ `ON DELETE CASCADE` を設定しない。
+- 親レコードの論理削除を理由に子レコードを連鎖物理削除しない。外部キーへ `ON DELETE CASCADE` を設定しない。ただしV18の期限付きpreview stagingは子targetが親previewなしに存続できないため、上記の限定したTTL cleanup用途に限りCASCADEを許容する。
 - 論理削除・復元は業務行の状態更新と `audit_logs` の記録を同一トランザクションで行う。
 - 一意制約は論理削除後の識別子再利用方針を個別に決める。ログインID、課題コード、外部IDなど履歴参照に使う識別子は原則再利用しない。
 - 物理削除または匿名化を行う管理手順では、対象範囲、理由、実行者、実行日時、関連データへの影響を監査記録へ残す。
@@ -189,11 +190,12 @@ Geminiへの送信データでは、`student_profiles.student_code` や氏名等
 
 ## tasks
 
-課題本体。学校/クラス対象は task_class_assignments で管理する。
+課題本体。課題は単一の所属学校を必須とし、学校IDを正本として保持する。クラス別の対象・公開条件は `task_class_assignments` で管理し、割当クラスは課題所属校の範囲内とする。
 
 |フィールド名|和名|型|主キー|NULL|その他制約|備考|
 |:--|:--|:--|:--|:--|:--|:--|
 |task_id|課題ID|BIGINT|〇|NO|PRIMARY_KEY, AUTO_INCREMENT||
+|school_id|所属学校ID|BIGINT||NO|FOREIGN_KEY|schools.school_id。課題は必ず1校に所属し、クラス割当の有無から推定しない。V19で追加|
 |task_code|課題系列コード|VARCHAR(64)||NO||format/exportで使うTASK-xxx形式。同じ課題の改訂で共通|
 |task_revision_code|課題改訂コード|VARCHAR(80)||NO|UNIQUE|TASK-xxx-vN形式|
 |revision_number|改訂番号|INT||NO||系列内で1から採番|
@@ -218,8 +220,11 @@ Geminiへの送信データでは、`student_profiles.student_code` や氏名等
 |published_at|公開日時|DATETIME||YES|||
 |deleted_at|削除日時|DATETIME||YES|||
 |deleted_by_user_id|削除実行者ユーザID|BIGINT||YES|FOREIGN_KEY|users.user_id|
+|version|保存バージョン|BIGINT||NO|DEFAULT 1, CHECK >= 1|課題下書き更新の楽観ロックに使用。改訂番号とは別。V16で追加|
 
 一意制約: `(task_code, revision_number)`
+
+課題所属校は作成時に必須であり、課題改訂や論理削除・復元でも変更しない。`task_class_assignments.classroom_id` が指すクラスは `tasks.school_id` と同じ学校に属さなければならず、Controlで検証する。
 
 公開中課題の編集では既存行を上書きせず、同じ `task_code` の新しい `revision_number` と `task_revision_code` を作成する。再公開まではクラス割当が直前の公開改訂を参照する。再公開時は旧割当を `archived` にし、新しい課題改訂を参照する割当行を作成する。旧割当行の `task_id` は変更しない。学習開始後に学習条件・評価条件を変更する場合は、同じ系列の改訂ではなく、新しい `task_code` の課題として複製する。
 
@@ -251,6 +256,12 @@ Geminiへの送信データでは、`student_profiles.student_code` や氏名等
 |resubmission_policy|再提出方針|ENUM('allow','deny')||NO||旧設定。機能仕様書第70版以降は参照・更新せず、期限内の再提出可否にも使用しない。互換性維持のためDB列は現時点で保持|
 |created_at|作成日時|DATETIME||NO|||
 |updated_at|更新日時|DATETIME||YES|||
+
+### 公開後の割当管理
+
+- 公開済み課題の期限延長では既存行の `due_at` だけを更新する。NULL（期限なし）は対象外。延長先はDB現在時刻より後とし、期限切れ (`expired`) の割当は延長後に `published` へ戻す。`publish_at`、`late_submission_policy`、参加・提出・評価履歴は変更しない。
+- 対象クラス追加では、公開済み課題と同じ学校に属し、その課題への過去の割当行を持たないクラスに対し、新しいassignment行を追加する。公開日時/提出期限/期限後提出方針は追加クラス用の独立値とし、既存assignmentは変更しない。
+- 延長・追加は課題内容や評価条件を変更しない状態操作として扱い、課題versionと監査履歴を更新する。要求IDは操作監査と冪等再送判定に使用する。
 
 ## task_participations
 
@@ -472,6 +483,9 @@ T012最終確認（2026-10-03）: runnerの各出力は捕捉生バイト/表示
 
 課題ごとのプロンプト設定・版・生成段階状態
 
+- V17で`updated_by_user_id`、`updated_at`、`row_version`を追加する。未適用下書きの更新者と楽観ロック版を保存し、設定済み/版管理済みの内容は上書きしない。
+- V17は標準ルーブリックが既にDBへ登録されている場合、未削除draft課題で`rubric_id`がNULLの行へ共通標準版を関連付ける。登録前にmigrationされたDBでは、教師prompt操作時にトランザクション内で不足分を関連付ける。
+
 |フィールド名|和名|型|主キー|NULL|その他制約|備考|
 |:--|:--|:--|:--|:--|:--|:--|
 |prompt_version_id|プロンプト版ID|BIGINT|〇|NO|PRIMARY_KEY, AUTO_INCREMENT||
@@ -484,7 +498,10 @@ T012最終確認（2026-10-03）: runnerの各出力は捕捉生バイト/表示
 |fluctuation_generation_status|揺らぎ項目生成状態|ENUM('not_generated','in_progress','completed','failed')||NO|||
 |evaluation_examples_status|評価例生成状態|ENUM('not_generated','in_progress','completed','failed')||NO|||
 |created_by_user_id|作成者ユーザID|BIGINT||NO|FOREIGN_KEY|users.user_id|
+|updated_by_user_id|更新者ユーザID|BIGINT||YES|FOREIGN_KEY|users.user_id|
 |created_at|作成日時|DATETIME||NO|||
+|updated_at|更新日時|DATETIME||YES|||
+|row_version|更新競合検出版|BIGINT||NO||V17追加。初期値1|
 
 ## prompt_fluctuation_items
 
@@ -635,6 +652,85 @@ AIが抽出した揺らぎ項目と教師の対応記述
 ## reevaluation_jobs
 
 教師が起動する課題単位の一括再評価
+
+対象件数は、再評価用の最新確定提出が存在する参加者数とする。課題参加者全員をpreviewに表示し、提出なしは対象外とする。`accepted`/`locked`の最新提出だけを対象とし、古い提出へfallbackしない。最新提出が受付処理中（`submitted`）の場合は「提出受付中・確定不可」として表示し、preview全体の確定を止める。preview開始/確定時は参加者行をlockし、提出処理との競合を防ぐ。
+
+preview生成時に参加者集合、対象提出、課題内容、rubric版、prompt版、各AI入力を固定する。確定要求時には現在の参加者/提出/課題・評価条件とpreview snapshotのfingerprintを再比較し、差異があればpreviewをstaleとして対象データを破棄し、新しいpreviewの生成を要求する。previewと子targetの有効期限はpreview作成から30分。確定・取消・期限切れではpreview子データを削除し、確認済みのpreviewを確定した場合は、同じトランザクション内でjob targetへ必要データを移送してからpreview子データを消去する。
+
+確定前previewは通常の`evaluation_requests`（`evaluation_id`必須）、`evaluation_responses`、`evaluation_input_snapshots`とは分離する。確定前に通常の`evaluations`行を作成せず、既存評価テーブルの意味を変更しない。全対象者のGemini予測が成功するまで確定不可とし、失敗targetのみを既存評価APIの再試行規則で再試行する。対象0件の場合はpreview用AI呼出し、active prompt切替、評価履歴、jobを作成せず「再評価対象なし」を表示する。
+
+### reevaluation_previews
+
+V18 migrationで追加するpreview単位の一時親レコード。ユーザーごとの所有権、課題/設定版、参加者集合snapshot、有効期限と状態を管理する。教師/学校権限は各操作時に再検証する。
+
+|フィールド名|和名|型|主キー|NULL|その他制約|備考|
+|:--|:--|:--|:--|:--|:--|:--|
+|reevaluation_preview_id|再評価preview ID|BIGINT|〇|NO|PRIMARY_KEY, AUTO_INCREMENT||
+|preview_code|preview外部ID|CHAR(36)||NO|UNIQUE|ランダムUUID。全操作で教師認証・所有/学校権限を別途検証|
+|task_id|課題ID|BIGINT||NO|FOREIGN_KEY|tasks.task_id|
+|prompt_version_id|適用予定prompt版ID|BIGINT||NO|FOREIGN_KEY|prompt_versions.prompt_version_id|
+|rubric_id|評価rubric ID|BIGINT||NO|FOREIGN_KEY|rubrics.rubric_id|
+|requested_by_user_id|要求教師ユーザID|BIGINT||NO|FOREIGN_KEY|users.user_id|
+|task_version|課題version|BIGINT||NO||preview生成時のtasks.version|
+|prompt_row_version|prompt行version|BIGINT||NO||preview生成時のprompt_versions.row_version|
+|current_prompt_version_id|生成時の現在適用prompt版ID|BIGINT||YES|FOREIGN_KEY|初回適用ではNULL|
+|participant_count|参加者数|INT||NO||previewに表示する全参加者数|
+|target_count|再評価対象数|INT||NO||accepted/lockedの最新提出がある参加者数。0ならpreviewを作らずno-targetsを返す|
+|scope_fingerprint|参加者/提出集合hash|BINARY(32)||NO||ソート済みparticipation/submission/status列のSHA-256|
+|configuration_fingerprint|課題/評価条件hash|BINARY(32)||NO||課題内容、rubric/prompt/evaluation settingsの正規化JSON SHA-256|
+|preview_status|preview状態|ENUM('generating','retryable','ready','confirmed','cancelled','stale','expired')||NO||readyは全target成功時のみ|
+|created_at|作成日時|DATETIME(6)||NO|||
+|expires_at|有効期限|DATETIME(6)||NO|INDEX|created_at + 30分。confirmed/cancelled/stale/expiredの一時親はcleanupで削除|
+|updated_at|更新日時|DATETIME(6)||NO||状態更新日時|
+|row_version|更新競合検出版|BIGINT||NO|DEFAULT 1|CAS/楽観ロックに使用|
+
+### reevaluation_preview_targets
+
+1 preview内の参加者ごとに1行。全参加者の表示用状態と、評価対象者の匿名化済み入力・Gemini応答を分けて保持する。親削除時は子も削除する。
+
+|フィールド名|和名|型|主キー|NULL|その他制約|備考|
+|:--|:--|:--|:--|:--|:--|:--|
+|reevaluation_preview_target_id|preview対象ID|BIGINT|〇|NO|PRIMARY_KEY, AUTO_INCREMENT||
+|reevaluation_preview_id|再評価preview ID|BIGINT||NO|FOREIGN_KEY, ON DELETE CASCADE|reevaluation_previews.reevaluation_preview_id|
+|participation_id|学習参加ID|BIGINT||NO|FOREIGN_KEY, UNIQUE(reevaluation_preview_id, participation_id)||
+|submission_id|提出ID|BIGINT||YES|FOREIGN_KEY|対象の場合はpreview時点のaccepted/locked最新提出|
+|revision_number|提出版番号|INT||YES||submission_idに対応する不変版番号|
+|target_status|対象状態|ENUM('excluded_no_submission','excluded_submission_processing','pending','in_progress','succeeded','failed')||NO||提出なし/受付中は除外表示。pending以降は再評価対象|
+|evaluation_payload|匿名化評価入力|JSON||YES||外部送信した入力の完全snapshot。評価例ではなく提出を含む|
+|input_fingerprint|評価入力hash|BINARY(32)||YES||canonical evaluation_payloadのSHA-256|
+|request_id|AI要求ID|CHAR(36)||YES||最新attemptの要求追跡ID|
+|provider_response|Gemini応答原文|JSON||YES||成功時のprovider envelope。安全なログには複製しない|
+|validated_result|検証済み評価結果|JSON||YES||EvaluationResponseValidatorの正規化出力|
+|retry_count|AI再試行回数|INT||NO|DEFAULT 0|既存EvaluationWorkerと同じ最大3attempt/回、失敗targetのみ再試行|
+|safe_error_code|安全なエラーコード|VARCHAR(64)||YES||provider body/secret/提出本文を含めない|
+|safe_error_message|安全なエラー表示|TEXT||YES||教師向け表示用。例外詳細は出さない|
+|created_at|作成日時|DATETIME(6)||NO|||
+|updated_at|更新日時|DATETIME(6)||NO|||
+
+### reevaluation_job_targets
+
+preview確定から再評価workerが通常評価履歴へ結果を移すまで、jobごとの固定対象と評価済みpayload/responseを耐久保持する。`reevaluation_jobs`は集約状態を維持し、この子行が対象ごとの進捗と処理再開点を持つ。評価保存成功後はpayload/response/result列をNULLにし、正本を`evaluation_requests`/`evaluation_responses`/`evaluation_input_snapshots`/`evaluations`へ一本化する。
+
+|フィールド名|和名|型|主キー|NULL|その他制約|備考|
+|:--|:--|:--|:--|:--|:--|:--|
+|reevaluation_job_target_id|再評価job対象ID|BIGINT|〇|NO|PRIMARY_KEY, AUTO_INCREMENT||
+|reevaluation_job_id|再評価job ID|BIGINT||NO|FOREIGN_KEY, UNIQUE(reevaluation_job_id, participation_id)|reevaluation_jobs.reevaluation_job_id|
+|participation_id|学習参加ID|BIGINT||NO|FOREIGN_KEY|||
+|submission_id|提出ID|BIGINT||NO|FOREIGN_KEY|previewで固定した提出ID|
+|target_status|job対象状態|ENUM('queued','in_progress','completed','failed')||NO|||
+|evaluation_id|生成評価ID|BIGINT||YES|FOREIGN_KEY|評価履歴の作成後に設定|
+|evaluation_payload|匿名化評価入力|JSON||YES||preview時の評価入力。完了時にNULL化|
+|provider_response|Gemini応答原文|JSON||YES||preview時の応答。完了時にNULL化|
+|validated_result|検証済み評価結果|JSON||YES||preview時の結果。完了時にNULL化|
+|materialization_attempts|評価保存試行回数|INT||NO|DEFAULT 0|外部APIは再呼出しせず、DB保存だけを再試行|
+|safe_error_code|安全なエラーコード|VARCHAR(64)||YES|||
+|created_at|作成日時|DATETIME(6)||NO|||
+|updated_at|更新日時|DATETIME(6)||NO|||
+|completed_at|完了日時|DATETIME(6)||YES|||
+
+確定transactionは、教師/学校権限、preview owner/status/期限、課題・prompt/rubric version、参加者集合/提出fingerprintを再検証し、active prompt切替、`reevaluation_jobs`作成、全対象の`reevaluation_job_targets`へのsnapshot/応答コピー、監査記録、previewをconfirmed化する操作を不可分に行う。事前検証に失敗した場合はpreviewをstaleにし、active版/job/evaluationは変更しない。確定後workerはjob targetごとの保存済み結果を用い、Geminiを呼び直さない。評価履歴の作成とjob target完了・一時payload削除は同じtransaction内で行い、旧評価は上書きしない。`completed_count`は成功件数、`progress_percent`は完了または失敗したtargetを含む終端処理件数率とする。
+
+これらのpreview/job target定義は [V18 migration](../../src/main/resources/db/migration/V18__support_reevaluation_preview_staging.sql) として実装済み。V1〜V18のmigration/validateを専用MySQL schemaで確認している。previewは期限cleanup対象であり、job targetは通常評価履歴へのmaterialization完了後に一時payloadをNULL化する。
 
 |フィールド名|和名|型|主キー|NULL|その他制約|備考|
 |:--|:--|:--|:--|:--|:--|:--|

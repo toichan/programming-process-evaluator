@@ -147,10 +147,18 @@ public final class LoginServlet extends HttpServlet {
 
 	private static void redirectAuthenticatedUser(HttpServletRequest request, HttpServletResponse response,
 			AuthenticatedUser user) throws IOException {
-		String destination = user.passwordChangeRequired()
-				? "/student/account/change-password"
-				: user.userType() == UserType.STUDENT ? "/student/home" : "/teacher/home";
-		response.sendRedirect(request.getContextPath() + destination);
+		response.sendRedirect(request.getContextPath() + destinationFor(user));
+	}
+
+	static String destinationFor(AuthenticatedUser user) {
+		if (user.passwordChangeRequired()) {
+			return "/student/account/change-password";
+		}
+		return switch (user.userType()) {
+			case STUDENT -> "/student/home";
+			case ADMIN -> "/admin/home";
+			case TEACHER -> "/teacher/task";
+		};
 	}
 
 	private static void disableCaching(HttpServletResponse response) {
