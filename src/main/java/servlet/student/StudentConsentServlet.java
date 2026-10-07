@@ -16,7 +16,9 @@ import entity.ConsentSaveResult;
 import entity.StudentConsentPage;
 import servlet.auth.CsrfTokens;
 
-@WebServlet("/student/survey/consent")
+import servlet.auth.ApplicationUrls;
+
+@WebServlet(ApplicationUrls.STUDENT_CONSENT)
 public final class StudentConsentServlet extends HttpServlet {
 	private static final long serialVersionUID = 1L;
 	private static final String NOTICE_ATTRIBUTE = "studentHomeNotice";

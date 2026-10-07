@@ -2,6 +2,20 @@
 
 秘密情報・実際の生徒データ・研究データは記載しない。解消後も履歴を保持する。
 
+## 2026-10-08: 公開URLの横断整理と受入
+
+- [方針](./url-routing-policy.md)と機能仕様第148版に従い、24 Servlet・JSPの業務リンク/フォーム/endpoint、ログイン/強制変更/戻り先を確認し、本人情報と他者管理を区別した。旧URL7種は認証・ロール・セッション版・強制変更制限の後にGET/HEAD302、POST等307で誘導する。プロトタイプ、内部JSP/CSS/JS配置、課題/APIの既存系列は維持した。
+- TDDの初回`ApplicationUrlContractTest` / `LoginServletTest`は11件中6成功/5失敗、exit1。旧mapping・JSPの旧リンク・旧landing/強制変更先を検出した意図した赤テスト。修正後の対象認証/アカウントテストと全体回帰は成功した。
+- 専用schemaへのapp権限による`flywayMigrate`はV11でMySQL1419（trigger作成にSUPERが必要）となりexit1。自作の空の専用schemaだけを再作成し、DB所有者で正本のV1〜V23 SQLを順に適用した。共有DBや`log_bin_trust_function_creators`等のglobal設定を変更していない。この直接SQL適用をFlyway CLI成功とは扱わない。
+- 専用containerをinternal DB networkだけで起動した時はpublishされたportがなくcurl exit7。自作containerだけを既存outbound/application networkへ接続し、18082のlogin200を確認。別containerからのGradle検証は共有journal cacheのPID/lockによりexit1。lockを削除せず、専用アプリcontainer内で検証を実行して解消した。
+- 初回の実HTTP5件は4成功/1失敗、exit1。生徒hostから教師URLへの要求は従来契約どおり教師hostのloginへ302となるが、テストが誤って403を期待していた。host違いの302と、教師hostに生徒sessionを提示した時の403を分けてassertし、専用schemaを再作成して再実行。最終5件は全成功/失敗0、exit0。teacher reset/強制変更/失効、旧student password POST307→正規処理→状態/版/資格情報DB再読込、任意変更302→正規account、旧consent POST保存・再読込、不正CSRF403を確認した。
+- 実HTTPの正確な実行: `docker exec -e GEMINI_API_SMOKE_TEST=false -e URL_ROUTING_HTTP_TEST=true -e URL_ROUTING_HTTP_BASE=http://ppe-url-routing-runtime:8080 ppe-url-routing-runtime gradle --project-cache-dir=/tmp/ppe-url-test-project-cache --init-script /tmp/ppe-url-routing.init.gradle test --tests servlet.auth.ApplicationUrlRuntimeTest --no-daemon --console=plain` → 成功。専用DB/空users/専用アプリURIをtest側で検証する。init scriptは`jdk.httpclient.allowRestrictedHeaders=host`、並列無効、buildをcontainerの`/tmp`へ分離するだけで、認可やDB処理をmockしない。
+- 全体回帰の正確な実行: `docker exec -e GEMINI_API_SMOKE_TEST=false -e URL_ROUTING_HTTP_TEST=false ppe-url-routing-runtime gradle --project-cache-dir=/tmp/ppe-url-test-project-cache --init-script /tmp/ppe-url-routing.init.gradle test war --no-daemon --console=plain` → 成功、343件中223成功/120ゲートskip/失敗0、WAR成功。専用アプリのGeminiキーは空、実APIゲート無効。外部Gemini要求は0。
+- 統合ブラウザーで教師login→students・JSの一覧/検索JSON、旧URLのクエリ保持、本人情報/password、生徒login→ナビ研究同意・回答再表示・旧account/passwordから正規画面、管理者login→teachersと学校tabの実DB表示を確認。教師password下部リンクと一部管理者clickは可視/安定待ちでtimeoutし、統合toolのAPIRequestContextは`Storage.getCookies`未対応で失敗した。DOMでhref/可視寸法を確認し、直接GET・実HTTP、native form submit/DOM tab clickで対象画面を確認した。ポインタclick/CLI認証E2Eの全面合格とは扱わず、この制約を保持する。
+- エディター診断では既存Gson参照に依存解決エラーが残るが、追加URLクラス・filter/login/rootと追加テストの診断は正常。Gson依存・既存importは変更せず、実際のGradleコンパイル・全体回帰・実JSON/画面読込は成功している。エディターclasspathの復旧は今回のURL修正対象外。
+- 8080反映: `docker exec programming-process-evaluator-app-live gradle --project-cache-dir=/tmp/ppe-url-live-project-cache war --no-daemon --console=plain --warning-mode all` → 成功。`docker restart --timeout 195 programming-process-evaluator-app-live` → 成功。両login200、teacher/student hostのroot302先、bare role/新旧保護URLの認証redirect、実classの新URL定数を確認した。Gradle9向け既存WarPluginConvention非推奨警告は保持。
+- 自作専用containerはSIGTERM終了（exit143、テスト結果とは別）後に削除、専用schema/grantは0、一時秘密設定も削除。課題10/11のmetadata hashは前後一致、無関係18081のlogin200。共有利用者のpassword・課題・DB状態、APIキー/model/envは変更していない。
+
 ## 2026-10-08 06:41〜07:00 JST: Gemini失敗の原因切り分け
 
 - 同じ登録済みキー・3.7 Flash・合成入力で、応答schemaなしの短いInteractions要求、74bytesの最小schema付き要求、教師の揺らぎ生成を各1回比較した。短い要求も60秒上限でtimeout、最小schema付きも60,006msでtimeout、教師要求は503/高需要（49,171ms、入力6,449bytes/schema509bytes）。教師だけの入力サイズ・画面・DB処理を共通の失敗原因とは扱えない。最初の4テストはmetadata取得1成功/生成3失敗、exit 1。

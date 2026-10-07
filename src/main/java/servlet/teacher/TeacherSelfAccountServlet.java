@@ -21,7 +21,9 @@ import entity.TeacherAccountInput;
 import entity.UserCredential.UserType;
 import servlet.auth.CsrfTokens;
 
-@WebServlet({ "/teacher/account/profile", "/teacher/account/password" })
+import servlet.auth.ApplicationUrls;
+
+@WebServlet({ ApplicationUrls.TEACHER_ACCOUNT, ApplicationUrls.TEACHER_PASSWORD })
 public final class TeacherSelfAccountServlet extends HttpServlet {
 	private static final long serialVersionUID = 1L;
 	private final TeacherSelfAccountControl accounts = new TeacherSelfAccountControl();

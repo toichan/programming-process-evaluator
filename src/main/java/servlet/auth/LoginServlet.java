@@ -178,15 +178,22 @@ public final class LoginServlet extends HttpServlet {
 		String destination = destinationFor(user);
 		if (user.userType() == UserType.TEACHER && !user.passwordChangeRequired()) {
 			Object landing = request.getSession(false).getAttribute("teacherLandingPath");
-			if (landing instanceof String path && java.util.List.of("/teacher/task", "/teacher/prompt", "/teacher/account/account", "/teacher/home").contains(path)) {
-				destination = path;
-			}
+			destination = teacherLandingFor(landing);
 		}
 		response.sendRedirect(request.getContextPath() + destination);
 	}
 
+	static String teacherLandingFor(Object landing) {
+		if (landing instanceof String path) {
+			String canonical = ApplicationUrls.canonicalPath(path);
+			if (java.util.List.of("/teacher/task", "/teacher/prompt", ApplicationUrls.TEACHER_STUDENTS, "/teacher/home")
+					.contains(canonical)) return canonical;
+		}
+		return "/teacher/home";
+	}
+
 	static String teacherDestinationFor(entity.TeacherNavigationSummary permissions) {
-		if (permissions.accountManagementEnabled()) return "/teacher/account/account";
+		if (permissions.accountManagementEnabled()) return ApplicationUrls.TEACHER_STUDENTS;
 		if (permissions.taskManagementEnabled()) return "/teacher/task";
 		if (permissions.promptDesignEnabled()) return "/teacher/prompt";
 		return "/teacher/home";
@@ -195,7 +202,7 @@ public final class LoginServlet extends HttpServlet {
 	static String destinationFor(AuthenticatedUser user) {
 		if (user.passwordChangeRequired()) {
 			return user.userType() == UserType.TEACHER
-					? "/teacher/account/password" : "/student/account/change-password";
+					? ApplicationUrls.TEACHER_PASSWORD : ApplicationUrls.STUDENT_PASSWORD;
 		}
 		return switch (user.userType()) {
 			case STUDENT -> "/student/home";

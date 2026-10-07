@@ -56,7 +56,7 @@
 								<c:choose><c:when test="${passwordChangeRequired}">
 									<button class="btn btn-outline-secondary" type="button" disabled aria-describedby="passwordReturnNotice">アカウント情報へ戻る</button>
 									<p id="passwordReturnNotice" class="password-return-notice">パスワード変更が完了するまで戻れません。</p>
-								</c:when><c:otherwise><a class="btn btn-outline-secondary" href="<c:url value='/teacher/account/profile'/>">アカウント情報へ戻る</a></c:otherwise></c:choose>
+								</c:when><c:otherwise><a class="btn btn-outline-secondary" href="<c:url value='/teacher/account'/>">アカウント情報へ戻る</a></c:otherwise></c:choose>
 							</div>
 							<button id="savePasswordButton" class="btn btn-primary" type="submit">パスワードを変更する</button>
 						</div>

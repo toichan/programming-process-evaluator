@@ -5,7 +5,7 @@
 <c:set var="screenStylesheet" value="/css/teacher/account/account.css"/>
 <c:set var="screenScript" value="/js/teacher/account/account.js"/>
 <%@ include file="/WEB-INF/template/page-start.jspf" %>
-<div id="studentAccountConsole" class="page-content py-5" data-endpoint="<c:url value='/teacher/account/account'/>" data-csrf="<c:out value='${csrfToken}'/>">
+<div id="studentAccountConsole" class="page-content py-5" data-endpoint="<c:url value='/teacher/students'/>" data-csrf="<c:out value='${csrfToken}'/>">
 	<div class="container-fluid px-4">
 		<section class="history-hero mb-4">
 			<div><span class="hero-kicker">Account Management</span><h1 class="section-title">生徒アカウント管理</h1>
@@ -23,7 +23,7 @@
 				<div class="action-buttons">
 					<button id="bulkDeleteButton" class="btn btn-outline-danger btn-sm" type="button" disabled>選択削除</button>
 					<button id="createAccountButton" class="btn btn-primary" type="button" disabled>＋ 新規作成</button>
-					<a id="exportAccounts" class="btn btn-primary btn-sm disabled" aria-disabled="true" href="<c:url value='/teacher/account/account?view=csv'/>">CSVエクスポート</a>
+					<a id="exportAccounts" class="btn btn-primary btn-sm disabled" aria-disabled="true" href="<c:url value='/teacher/students?view=csv'/>">CSVエクスポート</a>
 				</div>
 			</div>
 			<form id="accountFilters" class="filter-grid" role="search">

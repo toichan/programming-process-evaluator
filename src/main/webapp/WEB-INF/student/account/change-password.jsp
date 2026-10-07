@@ -45,7 +45,7 @@
 					<span class="d-none" data-auth-error="<c:out value='${passwordChangeError}'/>"></span>
 				</c:if>
 				<form id="passwordChangeForm" class="password-form" method="post"
-					action="<c:url value='/student/account/change-password'/>">
+					action="<c:url value='/student/account/password'/>">
 					<input type="hidden" name="csrfToken" value="<c:out value='${csrfToken}'/>">
 					<div class="field-block">
 						<div class="field-header-row">
@@ -96,7 +96,7 @@
 									<button class="btn btn-outline-secondary" type="button" disabled aria-describedby="passwordReturnNotice">アカウント情報へ戻る</button>
 									<p id="passwordReturnNotice" class="password-return-notice">パスワード変更が完了するまで戻れません。</p>
 								</c:when>
-								<c:otherwise><a class="btn btn-outline-secondary" href="<c:url value='/student/account/account'/>">アカウント情報へ戻る</a></c:otherwise>
+								<c:otherwise><a class="btn btn-outline-secondary" href="<c:url value='/student/account'/>">アカウント情報へ戻る</a></c:otherwise>
 							</c:choose>
 						</div>
 						<button id="savePasswordButton" class="btn btn-primary" type="submit">パスワードを更新</button>

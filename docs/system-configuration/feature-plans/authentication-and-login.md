@@ -14,7 +14,9 @@
 | T-SELF-004 | 第135版UI追記 | 生徒一覧セル/操作の1行表示と一覧内横スクロール。教師共通メニューの権限なし選択を共通feedbackで通知。権限あり未実装は準備中と区別 |
 | T-SELF-005 | 全要件 | 対象テスト/WAR、DBの発行→初回変更→通常変更→再設定、失敗時不変、旧版/停止/他者/CSRF境界、全旧セッション失効、8080と375pxで確認 |
 
-API契約: GET `/teacher/account/profile` とGET/POST `/teacher/account/password`。認証済みの利用中教師本人だけを対象とし、業務権限を要求しない。他者の`userId`指定は400。POSTは現在/新規/確認パスワード、`version`、`csrfToken`、共通確認の`changeConfirmed=yes`を要求する。成功は現在sessionを破棄して教師ログインへ303、匿名sessionに一度限りの成功通知を保存する。不正入力400、ロール/CSRF403、古い版409、DB失敗503。入力・履歴に新旧パスワードやハッシュを残さない。
+API契約: GET `/teacher/account` とGET/POST `/teacher/account/password`。認証済みの利用中教師本人だけを対象とし、業務権限を要求しない。他者の`userId`指定は400。POSTは現在/新規/確認パスワード、`version`、`csrfToken`、共通確認の`changeConfirmed=yes`を要求する。成功は現在sessionを破棄して教師ログインへ303、匿名sessionに一度限りの成功通知を保存する。不正入力400、ロール/CSRF403、古い版409、DB失敗503。入力・履歴に新旧パスワードやハッシュを残さない。
+
+2026-10-08の[URL整理](../url-routing-policy.md)で本人情報・生徒管理・生徒password・同意・管理画面の正規URLを整理した。教師landingと強制変更先も新URLへ統一し、旧URLは認証・状態制限後に誘導する。ポータルrootはhostに応じたloginへ、bare role入口は認証してhomeへ誘導する。以下の過去のURL・コマンドは実行当時の履歴として保持する。
 
 ### 工程12aの完了記録（2026-10-07）
 

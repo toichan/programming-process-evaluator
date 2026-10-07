@@ -15,7 +15,7 @@
 	<c:if test="${studentHome.consentStatus == 'UNCONFIRMED'}">
 		<div class="alert alert-warning d-flex flex-wrap align-items-center justify-content-between gap-2" role="status">
 			<span>研究協力への同意確認が未回答です。課題を行う前に回答してください。</span>
-			<a class="btn btn-sm btn-outline-dark" href="<c:url value='/student/survey/consent'/>">回答する</a>
+			<a class="btn btn-sm btn-outline-dark" href="<c:url value='/student/consent'/>">回答する</a>
 		</div>
 	</c:if>
 	<c:if test="${studentHome.consentStatus == 'DECLINED'}">

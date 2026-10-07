@@ -24,6 +24,6 @@ public final class AdminHomeServlet extends HttpServlet {
 			return;
 		}
 
-		response.sendRedirect(request.getContextPath() + "/admin/management");
+		response.sendRedirect(request.getContextPath() + servlet.auth.ApplicationUrls.ADMIN_TEACHERS);
 	}
 }

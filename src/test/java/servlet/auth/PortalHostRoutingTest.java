@@ -58,4 +58,22 @@ class PortalHostRoutingTest {
 		assertThrows(IllegalStateException.class,
 				() -> new PortalHostRouting("same.ppeval.net", "same.ppeval.net"));
 	}
+
+	@Test
+	void rootLoginUsesTheConfiguredHostAndRetainsTheStudentDefault() {
+		assertEquals("/teacher/account/login", routing.loginPathForHost("TEACHER.PPEVAL.NET."));
+		assertEquals("/student/account/login", routing.loginPathForHost("student.ppeval.net"));
+		assertEquals("/student/account/login", routing.loginPathForHost("localhost"));
+		assertEquals("/student/account/login", routing.loginPathForHost("teacher.ppeval.net.evil.example"));
+	}
+
+	@Test
+	void barePortalRootsAndLegacyUrlsStillRespectHostSeparation() {
+		assertEquals(Optional.of("https://teacher.ppeval.net/app/teacher/account/login"),
+				routing.redirectLocation("student.ppeval.net", 443, "/admin", "/app"));
+		assertEquals(Optional.of("https://teacher.ppeval.net/app/teacher/account/login"),
+				routing.redirectLocation("student.ppeval.net", 443, "/teacher/account/account", "/app"));
+		assertEquals(Optional.of("https://student.ppeval.net/app/student/account/login"),
+				routing.redirectLocation("teacher.ppeval.net", 443, "/student/", "/app"));
+	}
 }

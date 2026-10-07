@@ -37,16 +37,17 @@ public final class AuthenticationFilter implements Filter {
 			throws IOException, ServletException {
 		HttpServletRequest request = (HttpServletRequest) servletRequest;
 		HttpServletResponse response = (HttpServletResponse) servletResponse;
-		String path = request.getRequestURI().substring(request.getContextPath().length());
+		String requestedPath = request.getRequestURI().substring(request.getContextPath().length());
+		String path = ApplicationUrls.canonicalPath(requestedPath);
 		java.util.Optional<String> portalRedirect = portalHostRouting.redirectLocation(
 				request.getServerName(), request.getServerPort(), path, request.getContextPath());
 		if (portalRedirect.isPresent()) {
 			response.sendRedirect(portalRedirect.get());
 			return;
 		}
-		boolean studentArea = path.startsWith("/student/") && !path.equals("/student/account/login");
-		boolean staffArea = path.startsWith("/teacher/") && !path.equals("/teacher/account/login");
-		boolean adminArea = path.startsWith("/admin/");
+		boolean studentArea = ApplicationUrls.isPortalPath(path, "/student") && !path.equals("/student/account/login");
+		boolean staffArea = ApplicationUrls.isPortalPath(path, "/teacher") && !path.equals("/teacher/account/login");
+		boolean adminArea = ApplicationUrls.isPortalPath(path, "/admin");
 		boolean authenticatedArea = studentArea || staffArea || adminArea || path.equals("/auth/logout");
 		if (!authenticatedArea) {
 			chain.doFilter(request, response);
@@ -59,7 +60,9 @@ public final class AuthenticationFilter implements Filter {
 		Object sessionUser = session == null ? null : session.getAttribute(USER_ATTRIBUTE);
 		if (!(sessionUser instanceof AuthenticatedUser user)) {
 			response.sendRedirect(request.getContextPath()
-					+ (staffArea || adminArea ? "/teacher/account/login" : "/student/account/login"));
+					+ (staffArea || adminArea ? "/teacher/account/login"
+							: studentArea ? "/student/account/login"
+							: portalHostRouting.loginPathForHost(request.getServerName())));
 			return;
 		}
 
@@ -72,7 +75,7 @@ public final class AuthenticationFilter implements Filter {
 		}
 
 		String passwordChangePath = user.userType() == UserType.TEACHER
-				? "/teacher/account/password" : "/student/account/change-password";
+				? ApplicationUrls.TEACHER_PASSWORD : ApplicationUrls.STUDENT_PASSWORD;
 		if (user.userType() == UserType.STUDENT) {
 			try {
 				if (!new control.auth.StudentSessionControl().isCurrent(user, session.getAttribute("studentAccountVersion"))) {
@@ -105,6 +108,8 @@ public final class AuthenticationFilter implements Filter {
 			response.sendRedirect(request.getContextPath() + passwordChangePath);
 			return;
 		}
+
+		if (ApplicationUrls.redirectLegacy(request, response, requestedPath)) return;
 
 		request.setAttribute("authenticatedUser", user);
 		if (user.userType() == UserType.STUDENT) {

@@ -22,7 +22,9 @@ import entity.UserCredential.UserType;
 import lib.web.CsvCells;
 import servlet.auth.CsrfTokens;
 
-@WebServlet({"/teacher/account/account", "/teacher/accounts"})
+import servlet.auth.ApplicationUrls;
+
+@WebServlet(ApplicationUrls.TEACHER_STUDENTS)
 public final class StudentAccountManagementServlet extends HttpServlet {
 	private static final long serialVersionUID = 1L;
 	private static final StudentAccountManagementControl CONTROL = new StudentAccountManagementControl();

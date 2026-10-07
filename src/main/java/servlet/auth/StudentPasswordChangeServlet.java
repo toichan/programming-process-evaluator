@@ -18,7 +18,7 @@ import control.auth.RequestMetadata;
 import control.auth.PasswordPolicy;
 import entity.UserCredential.UserType;
 
-@WebServlet("/student/account/change-password")
+@WebServlet(ApplicationUrls.STUDENT_PASSWORD)
 public final class StudentPasswordChangeServlet extends HttpServlet {
 	private static final long serialVersionUID = 1L;
 	private static final String USER_ATTRIBUTE = AuthenticatedUser.class.getName();
@@ -91,7 +91,7 @@ public final class StudentPasswordChangeServlet extends HttpServlet {
 					CsrfTokens.rotate(session);
 					session.setAttribute("passwordChangeNotice", Boolean.TRUE);
 					String destination = user.passwordChangeRequired()
-							? "/student/home" : "/student/account/account";
+							? "/student/home" : ApplicationUrls.STUDENT_ACCOUNT;
 					response.sendRedirect(request.getContextPath() + destination);
 				}
 				case CURRENT_PASSWORD_INVALID ->

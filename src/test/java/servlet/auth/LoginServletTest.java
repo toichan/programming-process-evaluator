@@ -17,11 +17,11 @@ class LoginServletTest {
 
 	@Test
 	void teachersPrioritizeAuthorizedStudentAccountManagement() {
-		assertEquals("/teacher/account/account", LoginServlet.teacherDestinationFor(
+		assertEquals("/teacher/students", LoginServlet.teacherDestinationFor(
 				new entity.TeacherNavigationSummary(true, true, true, java.util.List.of())));
-		assertEquals("/teacher/account/account", LoginServlet.teacherDestinationFor(
+		assertEquals("/teacher/students", LoginServlet.teacherDestinationFor(
 				new entity.TeacherNavigationSummary(false, true, true, java.util.List.of())));
-		assertEquals("/teacher/account/account", LoginServlet.teacherDestinationFor(
+		assertEquals("/teacher/students", LoginServlet.teacherDestinationFor(
 				new entity.TeacherNavigationSummary(false, false, true, java.util.List.of())));
 	}
 
@@ -30,6 +30,18 @@ class LoginServletTest {
 		AuthenticatedUser teacher = new AuthenticatedUser(1, "teacher", "Synthetic", UserType.TEACHER, false, "test");
 
 		assertEquals("/teacher/home", LoginServlet.destinationFor(teacher));
+	}
+
+	@Test
+	void savedTeacherLandingsAreCanonicalizedAndStillRestrictedToTheAllowList() {
+		assertEquals("/teacher/students", LoginServlet.teacherLandingFor("/teacher/account/account"));
+		assertEquals("/teacher/students", LoginServlet.teacherLandingFor("/teacher/accounts"));
+		assertEquals("/teacher/students", LoginServlet.teacherLandingFor("/teacher/students"));
+		assertEquals("/teacher/task", LoginServlet.teacherLandingFor("/teacher/task"));
+		assertEquals("/teacher/prompt", LoginServlet.teacherLandingFor("/teacher/prompt"));
+		assertEquals("/teacher/home", LoginServlet.teacherLandingFor("/admin/teachers"));
+		assertEquals("/teacher/home", LoginServlet.teacherLandingFor("https://evil.example"));
+		assertEquals("/teacher/home", LoginServlet.teacherLandingFor(null));
 	}
 
 	@Test
@@ -50,7 +62,7 @@ class LoginServletTest {
 	void requiredPasswordChangesTakePrecedenceOverTheUserTypeLandingPage() {
 		AuthenticatedUser student = new AuthenticatedUser(4, "student", "Synthetic", UserType.STUDENT, true, "test");
 
-		assertEquals("/student/account/change-password", LoginServlet.destinationFor(student));
+		assertEquals("/student/account/password", LoginServlet.destinationFor(student));
 	}
 
 	@Test

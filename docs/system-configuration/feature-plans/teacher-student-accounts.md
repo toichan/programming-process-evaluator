@@ -21,7 +21,9 @@
 |確認/詳細|対象ID・学校権限、確認時CSRF|資格情報・ログイン/資格情報/操作履歴|本人PWは非表示、確認監査|
 |再設定/状態/一括削除|対象ID・期待版・CSRF・確認|状態と版更新、ロック解除、履歴/監査|成功後一覧再読込、古い版/権限外は全体rollback|
 
-GET `/teacher/account/account`は画面、`view=list`はfilter済みJSON、`view=detail&userId=...`は履歴、`view=csv`はCSV。POSTは`create/reset/unlock/suspend/activate/delete/reveal`、`changeConfirmed=yes`とCSRF必須。選択削除は繰り返し`userId/version`を同じ順で渡す。再設定はレベル2のみ。
+GET `/teacher/students`は画面、`view=list`はfilter済みJSON、`view=detail&userId=...`は履歴、`view=csv`はCSV。POSTは`create/reset/unlock/suspend/activate/delete/reveal`、`changeConfirmed=yes`とCSRF必須。選択削除は繰り返し`userId/version`を同じ順で渡す。再設定はレベル2のみ。
+
+2026-10-08の[URL整理](../url-routing-policy.md)により、公開入口は`/teacher/students`へ統一した。旧`/teacher/account/account` / `/teacher/accounts`は認証後にGET302/POST307で誘導する。以下の完了記録・コマンドの旧URLは当時の検証履歴であり、現在の正規URLではない。
 
 2026-10-07の追加指示により、教師ログイン後は生徒管理権限があればこの画面を最優先とする。権限なしの場合だけ課題編集 → プロンプト設計 → 教師メニューへfallbackする。共通メニューと直接URL/APIの認可は維持する。
 追加修正の検証コマンド・6件成功と8080の認証/メニュー/CSV再確認は[認証計画](./authentication-and-login.md#生徒管理実装後の教師初期画面2026-10-07)を参照する。資格情報の暗号化・復号と本人変更後の除去方針は変更していない。

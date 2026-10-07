@@ -4,7 +4,7 @@ import java.util.Locale;
 import java.util.Optional;
 import java.util.regex.Pattern;
 
-final class PortalHostRouting {
+public final class PortalHostRouting {
 	private static final Pattern DNS_HOST = Pattern.compile(
 			"(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.)*[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?");
 	private static final String STUDENT_LOGIN_PATH = "/student/account/login";
@@ -21,7 +21,7 @@ final class PortalHostRouting {
 		}
 	}
 
-	static PortalHostRouting fromEnvironment() {
+	public static PortalHostRouting fromEnvironment() {
 		return new PortalHostRouting(
 				configuredHost("STUDENT_PORTAL_HOST", "student.ppeval.net"),
 				configuredHost("TEACHER_PORTAL_HOST", "teacher.ppeval.net"));
@@ -30,10 +30,10 @@ final class PortalHostRouting {
 	Optional<String> redirectLocation(String requestHost, int requestPort, String path, String contextPath) {
 		String expectedHost;
 		String loginPath;
-		if (isPortalPath(path, "/student")) {
+		if (ApplicationUrls.isPortalPath(path, "/student")) {
 			expectedHost = studentHost;
 			loginPath = STUDENT_LOGIN_PATH;
-		} else if (isPortalPath(path, "/teacher") || isPortalPath(path, "/admin")) {
+		} else if (ApplicationUrls.isPortalPath(path, "/teacher") || ApplicationUrls.isPortalPath(path, "/admin")) {
 			expectedHost = teacherHost;
 			loginPath = TEACHER_LOGIN_PATH;
 		} else {
@@ -48,8 +48,9 @@ final class PortalHostRouting {
 		return Optional.of(scheme + "://" + expectedHost + port + contextPath + loginPath);
 	}
 
-	private static boolean isPortalPath(String path, String portalPath) {
-		return path.equals(portalPath) || path.startsWith(portalPath + "/");
+	public String loginPathForHost(String requestHost) {
+		return teacherHost.equals(normalizeRequestHost(requestHost))
+				? TEACHER_LOGIN_PATH : STUDENT_LOGIN_PATH;
 	}
 
 	private static String configuredHost(String name, String defaultValue) {

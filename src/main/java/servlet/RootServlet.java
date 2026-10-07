@@ -7,13 +7,20 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
-@WebServlet("")
+import servlet.auth.PortalHostRouting;
+
+@WebServlet({ "", "/student", "/student/", "/teacher", "/teacher/", "/admin", "/admin/" })
 public final class RootServlet extends HttpServlet {
 	private static final long serialVersionUID = 1L;
 
 	@Override
 	protected void doGet(HttpServletRequest request, HttpServletResponse response) throws IOException {
-		response.sendRedirect(response.encodeRedirectURL(
-				request.getContextPath() + "/student/account/login"));
+		String destination = switch (request.getServletPath()) {
+			case "/student", "/student/" -> "/student/home";
+			case "/teacher", "/teacher/" -> "/teacher/home";
+			case "/admin", "/admin/" -> "/admin/home";
+			default -> PortalHostRouting.fromEnvironment().loginPathForHost(request.getServerName());
+		};
+		response.sendRedirect(response.encodeRedirectURL(request.getContextPath() + destination));
 	}
 }

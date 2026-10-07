@@ -80,7 +80,8 @@
 - 工程8「評価・アンケート」全体の実設定・ユーザー手動E2Eは、教師向け画面完成後、設定が可能になってから再開する。今回の既知バグに必要な専用合成DB・認証HTTP・回答保存確認だけを先行し、T006全体やその他の未確認事項を完了扱いにしない。
 - 工程7「生徒エディター」の30秒スナップショット、同時編集競合、重複提出の冪等性、提出後の再提出確定は[エディター計画](./feature-plans/student-editor.md)の未確認事項として保持する。教師側の課題編集・配信・提出閲覧との接続に影響する項目は、そのスライスの回帰確認へ組み込む。
 - 生徒/教師ID統一とパスワード変更UX・更新後遷移・認証情報履歴の保存は本実装へ反映済み。根拠・検証・未確認事項は[生徒ホーム等の計画](./feature-plans/student-home-consent-account.md)を参照する。
-- 管理者の2タブ統合・モーダル中心UIは既存デザインに沿って本実装へ接続済み。`/admin/home`は`/admin/management`へリダイレクトし、旧`/admin/schools`は互換維持する。プロトタイプは変更していない。
+- 管理者の2タブ統合・モーダル中心UIは既存デザインに沿って本実装へ接続済み。`/admin/home`は`/admin/teachers`へリダイレクトし、`/admin/schools`の独立APIは維持する。プロトタイプは変更していない。
+- **公開URLの横断整理（2026-10-08）**: [URL整理方針](./url-routing-policy.md)に従い、24 Servletのmappingと全JSP業務URLを確認。本人account・教師のstudents・管理者のteachers・生徒password/consentを正規化し、旧URL7種は認証後にGET/HEAD302、POST等307で誘導する。全体JUnit343件（223成功/120ゲートskip/失敗0）とWAR、専用合成MySQL/実アプリの認証HTTP5件、教師/生徒/管理者の画面・JSON読込を確認した。8080へ反映して両login200、host別rootと保護URLの認証redirect、実class定数を確認済み。専用DB/grant/containerは削除し、課題10/11のmetadata hashと18081の稼働を保持。全ブラウザー・CLIのポインタ操作保証は対象外とし、統合ブラウザーの一部click timeoutと代替確認は[エラーレポート](./error-report.md)に記録した。
 
 ### 新セッションでの工程10の準備
 

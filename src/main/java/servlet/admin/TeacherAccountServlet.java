@@ -27,7 +27,9 @@ import entity.TeacherAccountInput;
 import entity.UserCredential.UserType;
 import servlet.auth.CsrfTokens;
 
-@WebServlet({"/admin/management", "/admin/teachers"})
+import servlet.auth.ApplicationUrls;
+
+@WebServlet(ApplicationUrls.ADMIN_TEACHERS)
 public final class TeacherAccountServlet extends HttpServlet {
 	private static final long serialVersionUID = 1L;
 	private static final TeacherAccountControl TEACHERS = new TeacherAccountControl();

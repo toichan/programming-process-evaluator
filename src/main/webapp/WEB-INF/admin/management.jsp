@@ -5,7 +5,7 @@
 <c:set var="screenStylesheet" value="/css/admin/management.css"/>
 <c:set var="screenScript" value="/js/admin/management.js"/>
 <%@ include file="/WEB-INF/template/page-start.jspf" %>
-<div id="adminConsole" data-endpoint="<c:url value='/admin/management'/>" data-csrf="<c:out value='${csrfToken}'/>">
+<div id="adminConsole" data-endpoint="<c:url value='/admin/teachers'/>" data-csrf="<c:out value='${csrfToken}'/>">
 	<section class="admin-hero mb-4">
 		<div><span class="hero-kicker">Admin Console</span><h1 class="section-title mb-2">管理者画面</h1>
 			<p class="hero-description mb-0">教師アカウントと学校情報を管理します。</p></div>
@@ -30,8 +30,8 @@
 					<div class="action-buttons">
 						<button class="btn btn-primary btn-sm" type="button" id="createTeacherButton">新規作成</button>
 						<button class="btn btn-outline-secondary btn-sm" type="button" data-history="operations">操作履歴を確認</button>
-						<a class="btn btn-outline-secondary btn-sm" href="<c:url value='/admin/management'/>">更新</a>
-						<a class="btn btn-primary btn-sm" href="<c:url value='/admin/management'><c:param name='view' value='csv'/><c:param name='q' value='${param.q}'/></c:url>">CSVエクスポート</a>
+						<a class="btn btn-outline-secondary btn-sm" href="<c:url value='/admin/teachers'/>">更新</a>
+						<a class="btn btn-primary btn-sm" href="<c:url value='/admin/teachers'><c:param name='view' value='csv'/><c:param name='q' value='${param.q}'/></c:url>">CSVエクスポート</a>
 					</div>
 				</div>
 				<form method="get" class="mb-3 d-flex align-items-end gap-2">
