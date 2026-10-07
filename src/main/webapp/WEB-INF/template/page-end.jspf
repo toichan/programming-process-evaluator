@@ -45,6 +45,9 @@
 		<script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/mode/python/python.js" defer></script>
 		<script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/mode/shell/shell.js" defer></script>
 	</c:if>
+	<c:if test="${screenDesign == 'teacher' and screenUsesCodeEditor}">
+		<script src="${pageContext.request.contextPath}/js/student/shared/code-editor.js" defer></script>
+	</c:if>
 	<c:if test="${screenDesign == 'teacher' and screenUsesMarkdown}">
 		<script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/mode/markdown/markdown.js" defer></script>
 	</c:if>

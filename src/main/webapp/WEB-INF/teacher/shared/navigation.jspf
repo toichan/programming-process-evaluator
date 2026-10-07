@@ -25,7 +25,7 @@
 				<svg class="sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
 					<path d="M9 11H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2zm2-7h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V9h14v11z"/>
 				</svg>
-				<span>課題進捗確認機能</span>
+				<span>課題進捗確認</span>
 			</button>
 		</li>
 		<li class="sidebar-menu-item is-unavailable">
@@ -37,13 +37,27 @@
 				<span>授業演習コード確認</span>
 			</button>
 		</li>
-		<li class="sidebar-menu-item is-unavailable">
-			<button type="button" class="sidebar-menu-link" aria-disabled="true" data-feature-allowed="${teacherNavigationSummary.features.contains('code-distribution')}">
-				<svg class="sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-					<path d="M3 5a2 2 0 0 1 2-2h5.17a2 2 0 0 1 1.41.59l.83.82A2 2 0 0 0 13.83 5H19a2 2 0 0 1 2 2v2H3V5zm0 5h18v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-9zm9 2l-4 4h3v3h2v-3h3l-4-4z"/>
-				</svg>
-				<span>コード配信</span>
-			</button>
+		<li class="sidebar-menu-item${teacherNavigationActiveItem == 'distribution' ? ' active' : ''}">
+			<c:choose>
+				<c:when test="${teacherNavigationSummary.features.contains('code-distribution')}">
+					<a class="sidebar-menu-link" href="<c:url value='/teacher/distribution'/>"
+						aria-current="${teacherNavigationActiveItem == 'distribution' ? 'page' : 'false'}">
+						<svg class="sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+							<path d="M3 5a2 2 0 0 1 2-2h5.17a2 2 0 0 1 1.41.59l.83.82A2 2 0 0 0 13.83 5H19a2 2 0 0 1 2 2v2H3V5zm0 5h18v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-9zm9 2l-4 4h3v3h2v-3h3l-4-4z"/>
+						</svg>
+						<span>コード配信</span>
+					</a>
+				</c:when>
+				<c:otherwise>
+					<button type="button" class="sidebar-menu-link is-disabled" aria-disabled="true"
+						data-feature-allowed="false" title="コード配信権限がありません">
+						<svg class="sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+							<path d="M3 5a2 2 0 0 1 2-2h5.17a2 2 0 0 1 1.41.59l.83.82A2 2 0 0 0 13.83 5H19a2 2 0 0 1 2 2v2H3V5zm0 5h18v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-9zm9 2l-4 4h3v3h2v-3h3l-4-4z"/>
+						</svg>
+						<span>コード配信</span>
+					</button>
+				</c:otherwise>
+			</c:choose>
 		</li>
 		<li class="sidebar-menu-item is-unavailable">
 			<button type="button" class="sidebar-menu-link" aria-disabled="true" data-feature-allowed="${teacherNavigationSummary.features.contains('submission-review')}">

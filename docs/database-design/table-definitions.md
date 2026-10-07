@@ -774,7 +774,8 @@ preview確定から再評価workerが通常評価履歴へ結果を移すまで�
 |root_path|ルートパス|VARCHAR(500)||YES|||
 |save_status|保存状態|ENUM('draft','saved')||NO|||
 |template_status|テンプレート状態|ENUM('active','archived')||NO|||
-|overwrite_policy|再配信時の上書き方針|ENUM('overwrite','append')||NO|||
+|overwrite_policy|再配信時の互換方針|ENUM('append')||NO||配信は常に別フォルダへ追加し、既存コードを上書きしない|
+|template_version|テンプレート更新版|INT||NO|DEFAULT 0|編集競合の検出|
 |created_at|作成日時|DATETIME||NO|||
 |updated_at|更新日時|DATETIME||YES|||
 
@@ -803,6 +804,9 @@ preview確定から再評価workerが通常評価履歴へ結果を移すまで�
 |distribution_template_id|配信テンプレートID|BIGINT||NO|FOREIGN_KEY|distribution_templates.distribution_template_id|
 |executed_by_user_id|実行者ユーザID|BIGINT||NO|FOREIGN_KEY|users.user_id|
 |distribution_status|全体配信状態|ENUM('draft','scheduled','in_progress','completed','stopped')||NO||「未配信/下書き」は draft|
+|template_name_snapshot|配信時テンプレート名|VARCHAR(255)||NO||配信実行作成時の不変スナップショット|
+|root_path_snapshot|配信時ルート名|VARCHAR(500)||NO||配信実行作成時の不変スナップショット|
+|request_token|配信要求トークン|CHAR(36)||YES|UNIQUE(executed_by_user_id, request_token)|二重送信時の配信実行作成を冪等にする|
 |created_at|作成日時|DATETIME||NO|||
 |completed_at|完了日時|DATETIME||YES|||
 
@@ -814,11 +818,24 @@ preview確定から再評価workerが通常評価履歴へ結果を移すまで�
 |:--|:--|:--|:--|:--|:--|:--|
 |distribution_target_id|配信対象ID|BIGINT|〇|NO|PRIMARY_KEY, AUTO_INCREMENT||
 |distribution_id|配信ID|BIGINT||NO|FOREIGN_KEY|distributions.distribution_id|
-|classroom_id|クラスID|BIGINT||NO|FOREIGN_KEY|classrooms.classroom_id|
+|classroom_id|クラスID|BIGINT||NO|FOREIGN_KEY, UNIQUE(distribution_id, classroom_id)|classrooms.classroom_id。同一配信内の同一クラス重複を防ぐ|
 |target_status|クラス別配信状態|ENUM('not_distributed','scheduled','distributed','stopped')||NO|||
 |scheduled_at|配信予定日時|DATETIME||YES||NULLは即時配信|
 |distributed_at|実配信日時|DATETIME||YES|||
 |execution_result|実行結果|TEXT||YES|||
+
+## distribution_snapshot_files
+
+配信実行時点のテンプレート項目スナップショット。後からテンプレートが変更されても、予約済み/過去の配信内容は変わらない。
+
+|フィールド名|和名|型|主キー|NULL|その他制約|備考|
+|:--|:--|:--|:--|:--|:--|:--|
+|distribution_snapshot_file_id|配信スナップショット項目ID|BIGINT|〇|NO|PRIMARY_KEY, AUTO_INCREMENT||
+|distribution_id|配信ID|BIGINT||NO|FOREIGN_KEY|distributions.distribution_id|
+|path|相対パス|VARCHAR(1000)||NO|UNIQUE(distribution_id, path)|||
+|path_hash|パス照合ハッシュ|BINARY(32)||NO|UNIQUE(distribution_id, path_hash)|MySQL照合順序に基づく生成列|
+|entry_type|項目種別|ENUM('folder','file')||NO|||
+|initial_content|初期内容|LONGTEXT||YES||ファイルのみ|
 
 ## distribution_histories
 
@@ -846,7 +863,7 @@ preview確定から再評価workerが通常評価履歴へ結果を移すまで�
 |version|領域版番号|BIGINT||NO|DEFAULT 0, CHECK >= 0|作成/保存/ごみ箱/復元の競合判定。V12で追加・ローカル適用済み|
 |merged_into_exercise_id|統合先生徒演習ID|BIGINT||YES|FOREIGN_KEY, INDEX(student_user_id, merged_into_exercise_id)|V14。未統合/通常ルートはNULL。統合済み元領域から同一生徒の現行ルートを参照し、元領域は物理削除・状態書換えしない|
 |student_user_id|生徒ユーザID|BIGINT||NO|FOREIGN_KEY|student_profiles.user_id|
-|distribution_target_id|配信対象ID|BIGINT||YES|FOREIGN_KEY|distribution_targets.distribution_target_id。生徒作成領域ではNULL|
+|distribution_target_id|配信対象ID|BIGINT||YES|FOREIGN_KEY, UNIQUE(distribution_target_id, student_user_id)|生徒作成領域ではNULL。同一配信対象・生徒の演習領域は1件とし、再試行を冪等にする|
 |exercise_origin|演習作成元|ENUM('distribution','student_created')||NO|||
 |scope_name|演習名/範囲|VARCHAR(255)||NO||例: 授業演習 / ウォームアップ|
 |exercise_status|演習状態|ENUM('not_started','in_progress','temporarily_saved','completed','expired','needs_review','archived')||NO||archivedは演習領域の論理削除|
@@ -1148,7 +1165,7 @@ AIへ渡した匿名化済み入力の再現用スナップショット
 |ルーブリック状態/段階|rubrics.rubric_status, criterion_levels.level_value|評価段階の説明も行で保存|
 |評価状態/再評価状態|evaluations.evaluation_status, reevaluation_jobs.reevaluation_status|旧評価結果は上書きしない|
 |配信全体/クラス別状態|distributions.distribution_status, distribution_targets.target_status|予約/実配信日時も分離保存|
-|テンプレート保存/有効/上書き方針|distribution_templates.save_status, template_status, overwrite_policy|フォルダ/ファイルは別行|
+|テンプレート保存/有効/再配信互換方針|distribution_templates.save_status, template_status, overwrite_policy|再配信は別フォルダへ追加し、既存ファイルを上書きしない|
 |授業演習領域/ファイル状態|student_exercises.exercise_status, save_status; student_exercise_entries.entry_status|演習全体とツリー内項目の状態を分離|
 |取り組み時間|task_activity_sessions.active_duration_seconds|セッション合計から集計|
 |演習領域/ツリー|student_exercises.scope_name, exercise_origin; student_exercise_entries.parent_entry_id, entry_type, path, current_content, entry_status|空フォルダ、階層、最終保存内容、ごみ箱を保持|

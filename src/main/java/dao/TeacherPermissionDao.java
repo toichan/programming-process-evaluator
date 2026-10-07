@@ -47,6 +47,46 @@ public final class TeacherPermissionDao {
 		requireFeatureAccess(connection, teacherUserId, "account-management");
 	}
 
+	public void requireCodeDistributionAccess(Connection connection, long teacherUserId) throws SQLException {
+		requireFeatureAccess(connection, teacherUserId, "code-distribution");
+	}
+
+	public List<TeacherSchoolOption> findDistributionAuthorizedSchools(Connection connection, long teacherUserId)
+			throws SQLException {
+		requireCodeDistributionAccess(connection, teacherUserId);
+		return selectAuthorizedSchools(connection, teacherUserId);
+	}
+
+	public void requireDistributionAuthorizedClass(
+			Connection connection, long teacherUserId, long classroomId, long schoolId) throws SQLException {
+		requireAuthorizedClass(connection, teacherUserId, classroomId, schoolId, "code-distribution");
+	}
+
+	public List<TeacherClassOption> findDistributionAuthorizedClasses(
+			Connection connection, long teacherUserId, long schoolId) throws SQLException {
+		requireAuthorizedSchool(connection, teacherUserId, schoolId, "code-distribution");
+		String sql = """
+				SELECT c.classroom_id, c.school_id, c.name, c.grade_name
+				FROM classrooms c
+				JOIN schools s ON s.school_id = c.school_id
+				WHERE c.school_id = ? AND c.classroom_status = 'active'
+				  AND s.school_status = 'active'
+				ORDER BY c.grade_name, c.name, c.classroom_id
+				FOR UPDATE
+				""";
+		List<TeacherClassOption> classes = new ArrayList<>();
+		try (PreparedStatement statement = connection.prepareStatement(sql)) {
+			statement.setLong(1, schoolId);
+			try (ResultSet rows = statement.executeQuery()) {
+				while (rows.next()) {
+					classes.add(new TeacherClassOption(rows.getLong("classroom_id"), rows.getLong("school_id"),
+							rows.getString("name"), rows.getString("grade_name")));
+				}
+			}
+		}
+		return List.copyOf(classes);
+	}
+
 	public List<TeacherSchoolOption> findAccountAuthorizedSchools(Connection connection, long teacherUserId) throws SQLException {
 		requireAccountManagementAccess(connection, teacherUserId);
 		return selectAuthorizedSchools(connection, teacherUserId);
