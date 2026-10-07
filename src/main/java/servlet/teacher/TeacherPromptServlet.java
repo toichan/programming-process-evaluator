@@ -19,6 +19,7 @@ import javax.servlet.http.HttpSession;
 
 import control.auth.AuthenticatedUser;
 import control.evaluation.EvaluationProviderException;
+import control.evaluation.GeminiModelCatalog;
 import control.teacher.TeacherNavigationControl;
 import control.teacher.TeacherPromptControl;
 import control.teacher.ReevaluationPreviewControl;
@@ -186,7 +187,7 @@ public final class TeacherPromptServlet extends HttpServlet {
 				requireVersion(promptVersionId);
 				TeacherPromptVersion source = reloadSelectedVersion(user, taskId, promptVersionId);
 				yield PROMPTS.saveDraft(user, taskId, null, 0,
-						source.aiModel(), source.commonPrompt(), source.additionalInstruction());
+						GeminiModelCatalog.DEFAULT_MODEL, source.commonPrompt(), source.additionalInstruction());
 			}
 			case "generateFluctuations" -> {
 				long savedId = saveDraft(user, taskId, promptVersionId, expectedRowVersion, values);
@@ -320,8 +321,11 @@ public final class TeacherPromptServlet extends HttpServlet {
 		TeacherPromptVersion selected = page.selectedVersion();
 		Long effectiveVersionId = effectiveVersionId(promptVersionId, selected);
 		request.setAttribute("teacherPromptVersionId", effectiveVersionId == null ? "" : effectiveVersionId);
-		request.setAttribute("teacherPromptModel",
-				submittedValue(submittedValues, "aiModel", selected == null ? "gemini-2.5-pro" : selected.aiModel()));
+		String model = submittedValue(submittedValues, "aiModel",
+				selected == null ? GeminiModelCatalog.DEFAULT_MODEL : selected.aiModel());
+		request.setAttribute("teacherPromptModel", model);
+		request.setAttribute("teacherPromptModels", GeminiModelCatalog.selectableModels());
+		request.setAttribute("teacherPromptLegacyModel", !GeminiModelCatalog.isSelectable(model));
 		request.setAttribute("teacherPromptText",
 				submittedValue(submittedValues, "commonPrompt", selected == null ? "" : selected.commonPrompt()));
 		request.setAttribute("teacherPromptAdditionalInstruction",
@@ -369,8 +373,7 @@ public final class TeacherPromptServlet extends HttpServlet {
 	static boolean isEditableDraft(boolean hasSelectedTask, TeacherPromptVersion selected) {
 		return hasSelectedTask
 				&& (selected == null || "draft".equals(selected.promptStatus()))
-				&& (selected == null || !"in_progress".equals(selected.fluctuationGenerationStatus()))
-				&& (selected == null || !"in_progress".equals(selected.evaluationExamplesStatus()));
+				&& (selected == null || !selected.hasActiveGeneration() || selected.isGenerationStale());
 	}
 
 	private static List<FluctuationItem> resolutions(Map<String, List<String>> values) {

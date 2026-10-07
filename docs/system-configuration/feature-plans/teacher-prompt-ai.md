@@ -1,6 +1,6 @@
 # 教師プロンプト設計・AI生成 S2 実装計画
 
-作成日: 2026-10-04 JST。更新: 2026-10-06 JST。状態: **S2/T014実装・合成データによる専用DB/ブラウザー受入完了。Gemini実APIを使った稼働確認はユーザー判断で後続へ延期。実提出・Gemini実APIによる本番相当確認・共有8080/DBへの反映は未実施。画面遷移図とprototypeは未変更。**
+作成日: 2026-10-04 JST。更新: 2026-10-08 JST。状態: **S2/T014実装・合成provider受入完了。本人承認の3.1 Pro Preview高思考を新規既定として、教師実API縦断2run・通常評価の実API/DB・認証browserの生成/保存/再表示を確認し、8080へ反映済み。1要求180秒・1工程12分・最大3試行、中断復旧15分。採点品質校正・本番運用条件・実提出を使う検証は未完了。画面遷移図とprototypeは未変更。**
 
 本計画は工程10 S2のみを扱う。教師課題下書きS1は[教師課題下書き計画](./teacher-task-draft.md)に記録する。S3（公開・改訂・削除/復元）、S4（演習コード配信）、工程11（教師の進捗・提出・評価・CSV）は対象外。
 
@@ -439,3 +439,163 @@ T014は完了。次はS3「公開・改訂・削除/復元」の着手条件と�
 **次に行うこと:** AI稼働確認は保留のまま、S4配信の既存仕様・状態ルール・DB定義を照合し、実装前の対象範囲と受入条件を整理する。
 
 **推奨AIモード: 対話型** — AI実API利用・費用・実データ送信の判断が必要な再開時は、実行前にユーザーと確認する。
+
+## 工程19 再開バッチ（2026-10-08）
+
+ユーザーの再開指示と個別回答により、モデルはGemini 3.7 Flash、GeminiへのInteraction保存は `store:false` とする。旧版/旧評価は保持し、暗黙のモデル切替を行わない。その後の「外部呼び出しも行なって。APIキーもenvにすでに登録」の指示により合成データでの外部呼出しを開始した。実生徒データ送信は承認・実行していない。以下のT-AI-001/002記録は外部呼出し前の履歴である。
+
+| Task | 要件・対象 | 受入条件 | 状態 |
+|---|---|---|---|
+| T-AI-001 | REQ-102/103/105/106/109: モデル定義共通化。Control/AI client/Servlet/JSP/コピーDAO/smoke test | 新規・独立コピーは3.7 Flash、旧モデルは表示保持、旧モデルでの教師生成を明示拒否、旧版不変 | 実装・DB/browser確認済み |
+| T-AI-002 | REQ-109: Gemini共通clientのstore指定 | 通常評価・教師生成の両HTTP要求にstore:false。キーはヘッダーのみ | 実装・ローカルHTTP契約test確認済み |
+| T-AI-003 | REQ-103/105/108/109: 再試行の共通化 | Retry-After、待機、総期限、中断、恒久エラー非retryを自動検証 | 実装・最終回帰済み |
+| T-AI-004 | REQ-108/109: 停止・再起動復旧 | 処理中残存を解消し、二重保存・旧履歴変更を防ぐ | 通常評価/preview/教師生成をDB検証済み。認証browserの復旧操作は未確認 |
+| T-AI-005 | REQ-103/105/108/109: 合成実API縦断 | 隔離合成データで生成→評価→preview→確定→再読込 | 本人承認のPro高思考で教師縦断2run・通常評価・認証画面の実生成/保存/再表示を確認済み。8080反映済み。品質/本番ゲートは別 |
+| T-AI-006 | REQ-109: 運用診断・上限 | 秘密/入力本文を漏らさない診断と費用/同時要求制御、結果・限界を記録 | HTTP状態/応答時間/待機時間診断を実装。月額費用・契約quotaは運用判断未確定 |
+
+今回の変更にDB schema変更は不要。既存の版・active参照・評価行を自動更新しない。モデル変更は既存の下書き保存で生成状態をリセットし、教師の再生成を必要とする。独立コピーは従来どおり未生成の新しい下書きであり、モデルの既定値だけを新しい定義に合わせる。
+
+検証は対象単体テスト/WAR、合成専用DBでの保存・コピー・旧版保持、認証ブラウザーで新規/旧版モデル表示・保存・再読込を行う。AI生成ボタンは押さず、Gemini実APIを呼び出さない。既存のAPI revisionは今回の公開資料だけでは変更せず、後続の実契約確認へ残す。
+
+### T-AI-001/002 受入記録
+
+- TDD初回14件中6件の失敗により、3.7拒否・旧モデル許可・store未指定を再現した。修正後、単体/Servlet 22件と専用DB 4件の計26件が成功（失敗/エラー/skip0）、WAR成功。
+- 最終コマンド: `docker compose run --rm --no-deps -e DB_NAME=ppe_teacher_task_test_ai_20261008 -e TEACHER_TASK_DB_TEST=true -e GRADLE_USER_HOME=/home/gradle/.gradle/student-validation-home app gradle --offline --project-cache-dir=/tmp/ppe-ai-model-test-cache test --tests '*GeminiEvaluationClientTest' --tests '*GeminiModelCatalogTest' --tests '*TeacherPromptAiClientTest' --tests '*TeacherPromptControlTest' --tests '*TeacherPromptServletTest' --tests '*TeacherTaskDatabaseTest.legacyPromptDraftRequiresExplicitModelChangeBeforeGeneration' --tests '*TeacherTaskDatabaseTest.publishedTaskAllowsASeparatePromptDraftWithoutChangingTheActiveVersion' --tests '*TeacherTaskDatabaseTest.copiesLearningStartedTaskIntoIndependentDraftWithoutCopyingHistory' --tests '*TeacherTaskDatabaseTest.promptDraftUsesSharedRubricAndOptimisticVersioning' war --no-daemon --console=plain`。
+- 専用DBは現行schemaとFlyway履歴だけを複製し、実利用者・業務データは複製していない。合成fixtureを使い、旧適用版の2.5 Pro保持、旧下書きの生成拒否で状態が変わらないこと、モデル変更で生成状態がリセットされること、独立コピーの3.7既定値を確認。空DBからの新規migration成功とは扱わない。users/tasks各0を確認後に専用schema/grantを除去した。
+- 8080を再起動し、ユーザー本人による教師再ログイン後に、新規モデル3.7表示、合成下書きの保存POST302、旧モデルの表示と変更案内、3.7への明示変更・保存・reloadによる再読込を確認。今回作成した課題12/プロンプト1だけを検証対象とし、課題12はUIから論理削除した。既存課題10および進捗デモ課題11は維持した。
+- store:falseの検証はローカルHTTP serverによる要求契約testであり、外部Gemini側の保持動作・生成可否を検証したとは扱わない。実API呼出し、費用発生、実生徒データ送信は今回行っていない。
+- エディターには既存のGson型解決エラーが残るが、実Gradle compile/test/WARは成功。次はT-AI-003の共通retry処理。費用/要求数の実行承認はT-AI-005の着手前に確認する。
+
+### T-AI-003〜006 受入記録
+
+- 共通policyで最大3試行、総時間240秒、次の60秒要求枠の確保、Retry-After秒/HTTP日時、上限付き指数待機/jitter、待機中断と遅延起床を検証。通常評価・preview・教師生成が同じpolicyを使う。
+- 通常評価の5分中断復旧は監査付きfailed、古いworkerの遅延書込みを拒否。明示retryで新しい履歴を追加し、旧failed履歴を保持する。previewの5分中断もfailed/明示retryとし、再起動だけで課金要求を繰り返さない。教師の15分中断は、フォームが先に同じ入力を保存する経路でも復旧できるよう補完。生成中の別更新と古い行版の完了を拒否する。合成providerで両教師生成フォームとpreviewのretry/confirmをDB検証した。
+- 教師生成のrubric payloadに標準版の尺度値・ラベル・説明を追加。旧モデルの適用版から新しい下書きを複製する導線も既定3.7とし、旧適用版は変更しない。
+- 外部実API計8要求: 200が1、503が6、timeoutが1。通常評価は実API結果をschema検証し、2観点・理由・response・input snapshotをDBへ保存、再読込成功。教師縦断は上限付きの2実行で揺らぎ生成が503/timeoutとなり、後段の実評価例/実preview/確定には到達せず未完了。未承認モデルfallbackや無制限再送はしない。
+- 初回評価DB fixtureの必須school_id欠落を修正。教師DB全範囲47件の試行では41成功/5明示gate skip/1失敗（binary logging環境での既存の故障注入trigger作成がSUPER権限不足）。共有MySQLの権限/グローバル設定を弱めず、今回の対象を選んで最終確認した。全体DB suite成功とは扱わない。
+
+最終コマンドと結果（キー/パスワード値は含まない）:
+
+```sh
+# 通常評価の実API＋DB。8成功/0失敗/0skip（実API1要求）。
+docker compose run --rm --no-deps -e DB_NAME=ppe_evaluation_test_ai_20261008 -e EVALUATION_DB_TEST=true -e GEMINI_API_SMOKE_TEST=true -e GEMINI_API_DIAGNOSTICS=true -e GRADLE_USER_HOME=/home/gradle/.gradle/student-validation-home app gradle --offline --project-cache-dir=/tmp/ppe-ai-db-live-cache test --tests '*EvaluationDatabaseTest' --no-daemon --console=plain --rerun-tasks
+
+# 教師の実API縦断。2実行とも失敗（各最大3要求で揺らぎ生成が503/timeout）。
+docker compose run --rm --no-deps -e DB_NAME=ppe_teacher_task_test_ai_live_20261008 -e TEACHER_TASK_DB_TEST=true -e GEMINI_API_SMOKE_TEST=true -e GEMINI_API_DIAGNOSTICS=true -e GRADLE_USER_HOME=/home/gradle/.gradle/student-validation-home app gradle --offline --project-cache-dir=/tmp/ppe-ai-teacher-live-cache test --tests '*TeacherTaskDatabaseTest.liveGeminiGeneratesTeacherArtifactsAndMaterializesPreviewWithoutAnotherCall' --no-daemon --console=plain --rerun-tasks
+
+# 教師最終回帰。19成功/0失敗/0skip、外部要求なし。
+docker compose run --rm --no-deps -e DB_NAME=ppe_teacher_task_test_ai_live_20261008 -e TEACHER_TASK_DB_TEST=true -e GRADLE_USER_HOME=/home/gradle/.gradle/student-validation-home app gradle --offline --project-cache-dir=/tmp/ppe-ai-teacher-regression-cache test --tests '*TeacherTaskDatabaseTest.staleGenerationCanBeRetriedAfterTheFormSavesUnchangedInput' --tests '*TeacherTaskDatabaseTest.syntheticProviderGeneratesPreviewThatCanBeConfirmed' --tests '*TeacherTaskDatabaseTest.legacyPromptDraftRequiresExplicitModelChangeBeforeGeneration' --tests '*TeacherTaskDatabaseTest.publishedTaskAllowsASeparatePromptDraftWithoutChangingTheActiveVersion' --tests '*TeacherTaskDatabaseTest.copiesLearningStartedTaskIntoIndependentDraftWithoutCopyingHistory' --tests '*TeacherTaskDatabaseTest.promptDraftUsesSharedRubricAndOptimisticVersioning' --tests '*TeacherPromptAiClientTest' --tests '*TeacherPromptControlTest' --tests '*TeacherPromptServletTest' --no-daemon --console=plain
+
+# 評価最終回帰＋WAR。40成功/0失敗/2skip（実APIゲート）、外部要求なし。
+docker compose run --rm --no-deps -e DB_NAME=ppe_evaluation_test_ai_20261008 -e EVALUATION_DB_TEST=true -e GRADLE_USER_HOME=/home/gradle/.gradle/student-validation-home app gradle --offline --project-cache-dir=/tmp/ppe-ai-final-cache test --tests 'control.evaluation.*' --tests '*TeacherPromptServletTest' war --no-daemon --console=plain --rerun-tasks
+```
+
+- 2専用DBは現行schema/Flyway履歴だけを複製、合成fixtureのみを投入した（空DB migration試験とは区別）。清掃後users/tasks残存0を確認し、両schema/grantを削除、残存各0を確認した。現行課題10・進捗デモ11、他の18081環境は変更していない。
+- `docker restart programming-process-evaluator-app-live`を実行し、教師/生徒ログイン各HTTP200を確認。ブラウザーの教師promptアクセスはログインへredirect（再起動によるセッション失効）となった。今回の認証後生成/中断復旧操作は未確認。パスワード変更や既存利用者の代行ログインはしていない。
+- HTTP状態/model/応答時間、retry待機/試行番号だけを診断ログへ出し、入力・キーは出さない。実データ送信、月額費用停止/通知値・契約quota・同時要求数の本番運用決定は未確定であり、本番全体を受入済みとは扱わない。
+
+### 追加の実API・認証ブラウザー確認（2026-10-08 06:18〜06:36 JST）
+
+- 教師実API縦断を専用schemaで1件再実行したが、初段の揺らぎ生成で503が3回（14,225/9,038/16,992ms）。`Retry-After: 30`に従って各30秒待機し、上限で失敗した。JUnitは0成功/1失敗/0skip、exit 1。教師実API縦断は累計3実行とも失敗、外部要求の累計は11回（200:1、503:9、timeout:1）。後段の実評価例・実preview・確定の成功は確認できていない。未承認モデルへ切り替えず、追加の自動再送も行わない。
+- ユーザー本人の再ログイン後、8080の教師画面から合成課題13/プロンプト2を作成した。明示したlive schemaとUTF-8 clientで検証対象のID・固有タイトルを照合してから状態を変更した。既存課題10・進捗デモ11には操作していない。
+- 保存POST302→reloadで合成プロンプト・3.7モデルの維持を確認。生成中は保存/生成ボタンがdisabled、直接の保存POSTも409で行版不変。15分超の中断状態では編集可能となり、共通プロンプト保存POST302でfailedへ復旧し、reload・DB・`recover_generation`監査を確認した。
+- 評価例段階は、AI出力とは明示的に区別した合成の揺らぎ/教師対応fixtureを当該課題だけに投入した。中断した評価例生成に対する「教師対応を保存」POST302→reloadで評価例failed、揺らぎcompleted、教師対応の維持、明示再試行ボタン有効を確認。最終行版6、適用版NULL、公開状態draftのまま。ブラウザー検証から外部APIは呼んでいない。
+- 未認証GETはログインへ302（fetch追従後200）、不正CSRF POSTは403。本人の認証cookieは消去せず、パスワード変更/代行ログインも行っていない。共有feedbackの評価例生成確認→キャンセルも確認した。
+- 生成中のtextareaはreadonlyだったが、CodeMirrorが引き継がず編集可能だった。`readOnly: promptInput.readOnly`を設定し、生成中readonly=true・中断下書きreadonly=falseと、保存拒否/復旧を再確認した。配信JSの構文検証・editor diagnostics・WARは成功。ブラウザーcacheに旧JSが残ったため、検証時は当該資産のcacheを回避して新規初期化を確認した。
+- ブラウザー用の5フローのassertionコードをsession artifactへ保存し、統合ブラウザーで実行した。独立したCLI/CIのPlaywright suite実行ではない。初回のredirect/reload競合、formの`action`名によるURL取得の誤り、表示アニメーション中のモーダル閉じ待ちは、確認手順を修正/再実行した。これらをアプリ成功の証拠や新たなサーバー障害として混同しない。
+- 課題13を共有feedback確認後にUIから論理削除（POST302、削除済み一覧あり）。DBはarchived/deleted、残るin_progressは0。課題10/11のタイトル・公開状態・適用版・更新日時のhashは検証前後一致。専用schemaのusers/tasks各0を確認後、そのschema/grantだけを除去し、残存各0を確認した。18081環境は維持した。
+
+```sh
+# 追加の教師実API縦断: 0成功/1失敗/0skip、exit 1、503×3。
+docker compose run --rm --no-deps -e DB_NAME=ppe_teacher_task_test_ai_next_20261008 -e TEACHER_TASK_DB_TEST=true -e GEMINI_API_SMOKE_TEST=true -e GEMINI_API_DIAGNOSTICS=true -e GRADLE_USER_HOME=/home/gradle/.gradle/student-validation-home app gradle --offline --project-cache-dir=/tmp/ppe-ai-next-live-cache test --tests '*TeacherTaskDatabaseTest.liveGeminiGeneratesTeacherArtifactsAndMaterializesPreviewWithoutAnotherCall' --no-daemon --console=plain --rerun-tasks
+
+# 最終UI修正のWAR: 成功、exit 0。外部要求なし。Javaテスト再実行なし。
+docker compose run --rm --no-deps -e GRADLE_USER_HOME=/home/gradle/.gradle/student-validation-home app gradle --offline --project-cache-dir=/tmp/ppe-ai-ui-war-cache war --no-daemon --console=plain
+
+# 差分の空白検査: 成功、exit 0。
+git diff --check
+```
+
+- 最終readinessはteacher/studentのログイン各200。明示的な再起動はこの追加確認では行わず、既存8080が配信する修正JSと教師認証の維持を最終確認した。教師実APIの失敗が残るため、工程19全体の受入判定はFAIL/未完了。
+
+### 原因切り分け記録（2026-10-08 06:41〜07:00 JST）
+
+目的はGoogle側の失敗と教師機能固有の失敗を区別することで、成功済みの画面受入を繰り返したり、既定モデルを変更したりするバッチではない。新設の診断テストは[通常最小要求](../../../src/test/java/control/evaluation/GeminiMinimalApiDiagnosticTest.java)、[最小構造化出力/再確認](../../../src/test/java/control/evaluation/GeminiStructuredApiDiagnosticTest.java)、[教師要求](../../../src/test/java/control/teacher/TeacherPromptApiDiagnosticTest.java)、[標準API](../../../src/test/java/control/evaluation/GeminiClassicApiDiagnosticTest.java)、[別モデル比較](../../../src/test/java/control/evaluation/GeminiModelComparisonDiagnosticTest.java)。共通helperで生成要求数を制限し、通常のGradle testでは外部要求をskipする。
+
+| 要求 | 結果 | 条件・解釈 |
+|---|---|---|
+| 3.7 model metadata GET | 200、118ms | 正しいmodel名/versionと標準生成対応を確認 |
+| 3.7 Interactions、schemaなし | 60秒上限でtimeout | 入力29bytes。教師入力の大きさだけの問題ではない |
+| 3.7 Interactions、最小schema | timeout、60,006ms | 同じ入力、schema74bytes、通常のclient/revision/store:false |
+| 3.7 教師揺らぎ生成 | 503/高需要、49,171ms | 入力6,449bytes/schema509bytes、標準rubric、1試行だけ |
+| 3.7 標準generateContent | 503/高需要、47,448ms | 同じキー/短い合成入力、Interactions以外でも失敗 |
+| 承認された3.8最小schema比較 | 200、2,953ms | モデル以外の入力/transport/schemaは同じ。JSON検証/保存/再読込成功 |
+| 直後の3.7最小schema再確認 | 200、8,765ms | 時間帯の差を確認。JSON検証/保存/再読込成功 |
+
+- 直接の失敗はproviderが高需要として返す503と生成応答待ち。最小要求/別APIでも失敗するので、教師の画面・DB・長い入力だけを原因にはできない。3.7の再確認が成功したため、同モデルが永久に使用不能、3.8だけが使える、課金やAPIキーが無効といった結論にもできない。Google内部の容量/割当の詳細までは特定していない。
+- 本人申告は課金設定済みproject。Googleの[公開status](https://aistudio.google.com/status)はAll Systems Operationalだったが、個別model/projectの可用性とは区別する。[公式model文書](https://ai.google.dev/gemini-api/docs/models/gemini-3.7-flash)、[エラー説明](https://ai.google.dev/gemini-api/docs/api-errors)とも照合した。consoleのquota/priority/残高やproject紐付けは未実査。
+- 追加生成POST6回（200:2/503:2/timeout:2）、metadata GET1回。生成POST累計17回（200:3/503:11/timeout:3）。3.8は本人が許可した診断1回だけで、アプリのモデルcatalog/既存prompt/envに反映していない。標準APIの診断はInteractionを作らずstore指定を持たない。通常のアプリ/診断Interactions要求はstore:falseを維持した。Google規約等の保持条件を無効化したと主張しない。
+- 初回の実診断4件は1成功/3失敗、標準API1件は失敗（各exit1）。別モデル比較と直後再確認はそれぞれ1成功/失敗0（各exit0）。最終外部無効回帰は8成功/7明示skip/失敗0、exit0で、これを実診断の失敗の帳消しには使わない。
+- ビルド出力は専用containerの`/tmp/ppe-ai-cause-build`へ隔離。DBの読み書き・8080の再起動・利用者/課題変更なし。測定JSON、成功した合成JSON、レポートはsession artifactへ保存。最初の失敗した素の要求は初版helperで測定JSONを作る前にtimeoutしたため、実行出力を根拠とする。JUnit XMLは初期実行で後続runに更新されたものと、最終run別ディレクトリを区別する。
+
+実コマンド（秘密値は含めない。init script/outputはsession artifactをbind mount）:
+
+```sh
+# 最初の比較: 1成功/3失敗、exit1。生成3要求＋metadata GET1。
+docker compose run --rm --no-deps -v '/Users/t.toida/.copilot/session-state/5685a010-300c-4f6a-95c7-64f82e98f797/files:/ppe-ai-session' -e GEMINI_API_DIAGNOSTIC_TEST=true -e GEMINI_API_SMOKE_TEST=true -e GEMINI_API_DIAGNOSTICS=true -e GRADLE_USER_HOME=/home/gradle/.gradle/student-validation-home app gradle --offline --init-script=/ppe-ai-session/gemini-diagnostic.init.gradle --project-cache-dir=/tmp/ppe-ai-cause-project-cache test --tests '*GeminiMinimalApiDiagnosticTest' --tests '*GeminiStructuredApiDiagnosticTest' --tests '*TeacherPromptApiDiagnosticTest' --no-daemon --console=plain
+
+# 標準API: 0成功/1失敗、exit1。生成1要求。
+docker compose run --rm --no-deps -v '/Users/t.toida/.copilot/session-state/5685a010-300c-4f6a-95c7-64f82e98f797/files:/ppe-ai-session' -e GEMINI_API_DIAGNOSTIC_TEST=true -e GEMINI_API_SMOKE_TEST=true -e GEMINI_API_DIAGNOSTICS=true -e GRADLE_USER_HOME=/home/gradle/.gradle/student-validation-home app gradle --offline --init-script=/ppe-ai-session/gemini-diagnostic.init.gradle --project-cache-dir=/tmp/ppe-ai-cause-project-cache test --tests '*GeminiClassicApiDiagnosticTest' --no-daemon --console=plain
+
+# 明示承認された3.8比較: 1成功、exit0。生成1要求。
+docker compose run --rm --no-deps -v '/Users/t.toida/.copilot/session-state/5685a010-300c-4f6a-95c7-64f82e98f797/files:/ppe-ai-session' -e GEMINI_API_DIAGNOSTIC_TEST=true -e GEMINI_API_MODEL_COMPARISON_TEST=true -e GEMINI_API_SMOKE_TEST=true -e GEMINI_API_DIAGNOSTICS=true -e GRADLE_USER_HOME=/home/gradle/.gradle/student-validation-home app gradle --offline --init-script=/ppe-ai-session/gemini-diagnostic.init.gradle --project-cache-dir=/tmp/ppe-ai-cause-project-cache test --tests '*GeminiModelComparisonDiagnosticTest' --no-daemon --console=plain
+
+# 直後の3.7再確認: 1成功、exit0。生成1要求。
+docker compose run --rm --no-deps -v '/Users/t.toida/.copilot/session-state/5685a010-300c-4f6a-95c7-64f82e98f797/files:/ppe-ai-session' -e GEMINI_API_DIAGNOSTIC_TEST=true -e GEMINI_API_PRIMARY_RECHECK_TEST=true -e GEMINI_API_SMOKE_TEST=true -e GEMINI_API_DIAGNOSTICS=true -e GRADLE_USER_HOME=/home/gradle/.gradle/student-validation-home app gradle --offline --init-script=/ppe-ai-session/gemini-diagnostic.init.gradle --project-cache-dir=/tmp/ppe-ai-cause-project-cache test --tests '*GeminiStructuredApiDiagnosticTest.rechecksPrimaryModelAfterTheSeparatelyApprovedComparison' --no-daemon --console=plain
+
+# 最終のゲート/transport回帰: 8成功/7skip/失敗0、exit0。外部要求なし。
+docker compose run --rm --no-deps -v '/Users/t.toida/.copilot/session-state/5685a010-300c-4f6a-95c7-64f82e98f797/files:/ppe-ai-session' -e PPE_AI_DIAGNOSTIC_RUN=final-gated -e GEMINI_API_DIAGNOSTIC_TEST=false -e GEMINI_API_MODEL_COMPARISON_TEST=false -e GEMINI_API_PRIMARY_RECHECK_TEST=false -e GEMINI_API_SMOKE_TEST=false -e GEMINI_API_DIAGNOSTICS=false -e GRADLE_USER_HOME=/home/gradle/.gradle/student-validation-home app gradle --offline --init-script=/ppe-ai-session/gemini-diagnostic.init.gradle --project-cache-dir=/tmp/ppe-ai-cause-project-cache test --tests '*Gemini*DiagnosticTest' --tests '*TeacherPromptApiDiagnosticTest' --tests '*GeminiEvaluationClientTest' --no-daemon --console=plain
+```
+
+次の受入は、現行3.7のまま費用上限を設けて教師の本フローを段階的に再確認する。失敗が続く場合はGoogleへ時刻/モデル/HTTP状態/最小再現条件を添えて照会し、代替モデルのアプリ採用は別途明示承認・仕様/履歴の整合確認を行う。今回の調査だけで教師縦断や本番運用を完了にしない。
+
+## 代替モデル採用と運用受入（2026-10-08 07:05以降）
+
+ユーザーは3.7への固定を解除し、別モデル採用を含めて運用できるまでの調査を承認した。初期候補として最小要求が成功した3.8を新規既定へ変更して検証したが、以下の縦断失敗により採用完了にはしなかった。最終既定は後述の本人承認済みPro Preview。3.7の明示選択と既存履歴を保持し、自動fallbackは行わない。
+
+- 対象: T-AI-001/005/006、REQ-103/105/106/108/109。
+- モデルcatalog・旧モデル案内・新規/コピーの既定値・関連仕様を整合させる。既存版を一括更新せず、変更した下書きは再生成する。
+- 専用DBと隔離build outputで、教師の揺らぎ→評価例→preview→明示確定→履歴再読込、および通常評価を実APIで検証する。実生徒のコードや個人情報は使用しない。
+- 初回の上限は教師縦断9要求、通常評価3要求、認証browserの合成生成6要求。段階が失敗したら次段階へ進めず、同じ失敗を無制限に再送しない。
+- ローカル回帰と実APIの成否を別集計する。画面には採用モデルと既存版の実モデルを表示し、store:false、共通標準rubric、上限付きretryを維持する。
+
+最初の3.8縦断は揺らぎ200、評価例503→200、preview503×3で失敗（6要求、exit1）。次候補は3.5 Flash-Lite、必要なら2.5 Proの最小構造化要求を各1回で確認する。候補が利用可能なら、そのモデルを記録した専用fixtureで同じ縦断を検証し、最小成功だけでは採用完了にしない。次候補の受入上限も教師9・通常評価3・browser6要求とし、段階失敗時は打ち切る。
+
+### Pro高思考の最終受入（2026-10-08）
+
+- Liteは最小要求と教師縦断が成功したが、採点能力を証明した結果ではない。本人の品質優先指示で既定採用を撤回し、1要求180秒・1工程12分・最大3試行を承認した。2.5 Proは最小要求が404（新規利用者には利用不可）、モデル一覧GETは200。3.1 Pro Previewは最小要求200で、その後の高思考縦断も成功。Previewの提供条件変更リスクを伝え、本人が既定採用・通常評価/画面検証を明示承認した。
+- transport・教師生成・通常評価・previewに共通の時間/retry境界を適用。正常な12分処理を旧5分復旧で失敗にしないよう15分へ拡張し、worker停止時の待機も185秒へ整合。provider障害は30〜60秒/60〜120秒のjitterとRetry-After以上の待機。形式不正は従来の短いbackoff。deadline、割込み、保存障害と外部障害の区別は維持する。
+- 教師縦断1回目は3要求すべて200（49,501/27,759/41,074ms）。保持fixture runは揺らぎ200/61,674ms、評価例503/33,795ms→33,907ms待機→200/129,782ms、preview200/157,433ms、全体7分4秒で確定/DB再読込まで成功。60秒では失敗する要求が180秒内で実際に成功した。
+- 通常評価は200/61,200msでschema検証、2観点の評価・理由、入力snapshot/応答のDB保存・再読込まで成功。合成入力だけを用い、実在する生徒の提出/コードログは送信していない。
+- 認証browserは専用port18082・専用DBを使用。適用版5/完了job3/2評価例のreadonly再表示、別のPro下書き作成・保存/再読込、共通feedbackからの実揺らぎ生成200/25,543ms、教師対応保存・実評価例生成200/49,060ms・設定済みへの保存/再表示を確認。未認証はlogin redirect、不正CSRFは403。新しい設定済み版13を作っても旧適用版5は不変。評価例の4理由も非空。統合browserの3フローは確認済みだが、独立CLI suiteのexit codeはないためCI E2E合格とは区別する。
+- 教師の最終回帰XMLは38件＝34成功/4候補診断gate skip/失敗0、評価の最終回帰XMLは47件＝35成功/12外部gate skip/失敗0（各exit0）。合計はrun間の共通テスト重複を含む。教師側の過去の集計41件というメモではなく、保存XMLの38件を正とする。通常回帰ではdiagnostics=falseとし、秘密情報非表示のassertを緩めていない。
+- WARは隔離buildと8080用buildの両方で成功。07:59 JSTに`programming-process-evaluator-app-live`だけを再起動し、teacher/student login各200・runningを確認した。新しい既定は新規/コピー版に適用し、既存版を一括書換えしない。既存下書きでProを使う場合は画面でモデル変更・保存・再生成する。
+- 今回の生成POSTは25（200:19/503:5/404:1/timeout:0）。内訳は3.8:6、Lite:7、2.5 Pro:1、3.1 Pro:11。原因切り分け直後からの累計は42（200:22/503:16/404:1/timeout:3）。metadata/model-list GET計2は生成に含めない。browserの追加は許可した上限6内の2要求のみ。mock応答、起動前cache lock失敗、未確定の確認dialogは外部要求に数えない。
+- 残ゲート: 人間による標準rubricとの採点品質校正、実生徒データ送信・同意/契約条件、予算/quota/同時要求数、Preview更新時の再受入、大人数queueとpreview30分TTLの負荷検証。合成成功を本番公開・300人同時実行・長期SLA保証にはしない。
+
+実行コマンドと結果（session bind mountのinit scriptはbuild outputとJUnit XMLをrun別へ隔離）:
+
+```sh
+# 最終評価回帰: 35成功/12skip/失敗0、exit0。実API呼出しなし。
+docker compose run --rm --no-deps -v '/Users/t.toida/.copilot/session-state/5685a010-300c-4f6a-95c7-64f82e98f797/files:/ppe-ai-session' -e PPE_AI_OPERATION_RUN=final-evaluation-regression -e DB_NAME=ppe_evaluation_test_ai_oper_20261008 -e EVALUATION_DB_TEST=true -e GEMINI_API_SMOKE_TEST=false -e GEMINI_API_DIAGNOSTICS=false -e GEMINI_API_DIAGNOSTIC_TEST=false -e GEMINI_API_OPERATION_TEST=false -e GRADLE_USER_HOME=/home/gradle/.gradle/student-validation-home app gradle --offline --init-script=/ppe-ai-session/gemini-operation.init.gradle --project-cache-dir=/tmp/ppe-ai-operation-cache test --tests 'control.evaluation.*Test' --no-daemon --console=plain
+
+# 8080用WAR: 成功、exit0。
+docker exec programming-process-evaluator-app-live gradle --offline --project-cache-dir=/tmp/ppe-ai-live-build-cache war --no-daemon --console=plain
+
+# 当該appのみ再起動: 成功、exit0。教師/生徒login各200。
+docker restart --time 195 programming-process-evaluator-app-live
+```
+
+実API runのJUnitは`teacher-live-pro-high` / `pro-browser-fixture` / `normal-evaluation-pro-high-retry`で各1成功・exit0。教師の外部無効回帰/WARは`final-local-teacher`、評価回帰は`final-evaluation-regression`。browserスニペット3本と実API測定はsession artifactに保持し、[エラーレポート](../error-report.md)に途中のprovider・テスト/手順失敗を残す。独立CLI browser runnerやcanonical Gradle/CIへのbrowser組込は未実施。
+
+後片付け: 専用18082 appは停止しlistenerを除去。stdin保持用pipelineは195秒の停止猶予後にexit137で終了した（受入テスト失敗ではなく後片付け時の強制停止）。停止後、合成教師DBはusers2/tasks1、通常評価DBはusers0/tasks0を確認し、今回作成した2schemaとそのschemaへの`app`権限だけを除去した。残schema/grant各0、課題10/11の主要metadata hash不変、共有8080と無関係の18081環境の稼働を再確認。sessionの測定/JUnit/報告を保持し、生成DDLの一時ファイルは削除した。

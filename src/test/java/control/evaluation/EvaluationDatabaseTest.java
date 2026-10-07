@@ -80,21 +80,21 @@ class EvaluationDatabaseTest {
 						""", rubricId, code, code, "thinking_expression".equals(code) ? 1 : 2);
 			}
 			taskId = insert(connection, """
-					INSERT INTO tasks (task_code, task_revision_code, revision_number,
+					INSERT INTO tasks (task_code, task_revision_code, revision_number, school_id,
 					  created_by_user_id, rubric_id, title, language, description,
 					  save_status, publication_status, created_at)
-					VALUES (?, ?, 1, ?, ?, 'Synthetic echo exercise', 'python',
+					VALUES (?, ?, 1, ?, ?, ?, 'Synthetic echo exercise', 'python',
 					  'Print the input integer. This fixture contains no real student data.',
 					  'saved', 'published', CURRENT_TIMESTAMP)
-					""", token, token + "-v1", userId, rubricId);
+					""", token, token + "-v1", schoolId, userId, rubricId);
 			promptId = insert(connection, """
 					INSERT INTO prompt_versions (task_id, version, ai_model, common_prompt,
 					  prompt_status, fluctuation_generation_status, evaluation_examples_status,
 					  created_by_user_id, created_at)
-					VALUES (?, '1', 'gemini-3.7-flash',
+					VALUES (?, '1', ?,
 					  'Evaluate only the synthetic evidence. Give concise reasons in Japanese.',
 					  'configured', 'completed', 'completed', ?, CURRENT_TIMESTAMP)
-					""", taskId, userId);
+					""", taskId, GeminiModelCatalog.DEFAULT_MODEL, userId);
 			update(connection, "UPDATE tasks SET active_prompt_version_id = ? WHERE task_id = ?",
 					promptId, taskId);
 			assignmentId = insert(connection, """
@@ -123,6 +123,48 @@ class EvaluationDatabaseTest {
 					VALUES (?, ?, 'manual_save', 'print(input())', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 					""", participationId, submissionId);
 			assertTrue(EvaluationQueueDao.enqueueIfConfigured(connection, taskId, submissionId, userId));
+		}
+	}
+
+	@Test
+	void recoversInterruptedEvaluationWithoutCallingProviderOrLosingHistory() throws SQLException {
+		EvaluationWorkerDao repository = new EvaluationWorkerDao();
+		var job = repository.claimNext().orElseThrow();
+		try (Connection connection = Client.createConnection()) {
+			update(connection, """
+					UPDATE evaluation_requests
+					SET requested_at = DATE_SUB(CURRENT_TIMESTAMP(6), INTERVAL 6 MINUTE)
+					WHERE evaluation_request_id = ?
+					""", job.requestId());
+		}
+		assertTrue(repository.claimNext().isEmpty());
+		try (Connection connection = Client.createConnection()) {
+			assertEquals("in_progress", text(connection,
+					"SELECT request_status FROM evaluation_requests WHERE evaluation_request_id = ?", job.requestId()));
+			update(connection, """
+					UPDATE evaluation_requests
+					SET requested_at = DATE_SUB(CURRENT_TIMESTAMP(6), INTERVAL 16 MINUTE)
+					WHERE evaluation_request_id = ?
+					""", job.requestId());
+		}
+		assertTrue(repository.claimNext().isEmpty());
+		assertThrows(SQLException.class, () -> repository.fail(job, "Late worker failure", 2));
+		try (Connection connection = Client.createConnection()) {
+			assertEquals("failed", text(connection,
+					"SELECT evaluation_status FROM evaluations WHERE evaluation_id = ?", job.evaluationId()));
+			assertEquals("failed", text(connection,
+					"SELECT request_status FROM evaluation_requests WHERE evaluation_request_id = ?", job.requestId()));
+			assertEquals("failed", text(connection,
+					"SELECT evaluation_status FROM task_participations WHERE participation_id = ?", participationId));
+			assertEquals(1, count(connection, "SELECT COUNT(*) FROM audit_logs WHERE error_code='worker_interrupted'"));
+			assertEquals(0, count(connection, "SELECT COUNT(*) FROM evaluation_responses"));
+		}
+		assertTrue(EvaluationQueueDao.retryFailedEvaluation(userId, assignmentId, submissionId));
+		assertTrue(new EvaluationWorker(repository, validProvider()).processNext());
+		try (Connection connection = Client.createConnection()) {
+			assertEquals("failed", text(connection,
+					"SELECT evaluation_status FROM evaluations WHERE evaluation_id = ?", job.evaluationId()));
+			assertEquals(2, count(connection, "SELECT COUNT(*) FROM evaluations"));
 		}
 	}
 
@@ -383,7 +425,7 @@ class EvaluationDatabaseTest {
 		return new EvaluationProvider() {
 			@Override
 			public JsonObject generate(String modelId, JsonObject payload) {
-				assertEquals("gemini-3.7-flash", modelId);
+				assertEquals(GeminiModelCatalog.DEFAULT_MODEL, modelId);
 				assertTrue(payload.getAsJsonObject("metadata").get("anonymized_subject_id")
 						.getAsString().startsWith("RS-"));
 				assertFalse(payload.toString().contains("Synthetic fixture student"));

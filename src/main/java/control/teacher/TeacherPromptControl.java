@@ -10,6 +10,7 @@ import com.google.gson.JsonObject;
 
 import control.auth.AuthenticatedUser;
 import control.evaluation.EvaluationProviderException;
+import control.evaluation.GeminiModelCatalog;
 import dao.StandardRubricDao;
 import dao.TeacherPermissionDao;
 import dao.TeacherPromptDao;
@@ -292,6 +293,7 @@ public final class TeacherPromptControl {
 				if (!"draft".equals(version.promptStatus())) {
 					throw new TeacherPromptDao.PromptVersionConflictException();
 				}
+				GeminiModelCatalog.requireSelectable(version.aiModel());
 				if ("examples".equals(stage)
 						&& (!"completed".equals(version.fluctuationGenerationStatus())
 								|| version.fluctuationItems().isEmpty()
@@ -398,9 +400,8 @@ public final class TeacherPromptControl {
 	}
 
 	private static void validatePrompt(String modelId, String commonPrompt, String additionalInstruction) {
-		if (modelId == null
-				|| !List.of("gemini-2.5-pro", "gemini-2.5-flash").contains(modelId)
-				|| commonPrompt == null || commonPrompt.isBlank() || commonPrompt.length() > MAX_COMMON_PROMPT_LENGTH
+		GeminiModelCatalog.requireSelectable(modelId);
+		if (commonPrompt == null || commonPrompt.isBlank() || commonPrompt.length() > MAX_COMMON_PROMPT_LENGTH
 				|| additionalInstruction != null
 						&& additionalInstruction.length() > MAX_ADDITIONAL_INSTRUCTION_LENGTH) {
 			throw new IllegalArgumentException("プロンプトとAIモデルの入力を確認してください。");

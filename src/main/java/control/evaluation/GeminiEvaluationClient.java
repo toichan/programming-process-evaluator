@@ -96,17 +96,23 @@ public final class GeminiEvaluationClient implements EvaluationProvider {
 		if (modelId == null || !MODEL_ID.matcher(modelId).matches()) {
 			throw new EvaluationProviderException("The configured Gemini model identifier is invalid.", false);
 		}
+		requestBody.addProperty("store", false);
+		requestBody.getAsJsonObject("generation_config").addProperty("thinking_level", "high");
 		URI uri = apiBaseUri.resolve("v1beta/interactions");
 		HttpRequest request = HttpRequest.newBuilder(uri)
-				.timeout(Duration.ofSeconds(60))
+				.timeout(EvaluationRetryPolicy.REQUEST_TIMEOUT)
 				.header("Content-Type", "application/json")
 				.header("x-goog-api-key", apiKey)
 				.header("Api-Revision", API_REVISION)
 				.POST(HttpRequest.BodyPublishers.ofString(requestBody.toString(), StandardCharsets.UTF_8))
 				.build();
 		try {
+			long started = System.nanoTime();
 			HttpResponse<String> response = httpClient.send(request,
 					HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+			java.util.logging.Logger.getLogger(GeminiEvaluationClient.class.getName()).info(
+					"Gemini request completed: model=" + modelId + ", status=" + response.statusCode()
+							+ ", elapsedMs=" + (System.nanoTime() - started) / 1_000_000);
 			if (response.body().getBytes(StandardCharsets.UTF_8).length > MAX_RESPONSE_BYTES) {
 				throw new EvaluationProviderException("Gemini returned an oversized response.", true);
 			}
@@ -117,7 +123,9 @@ public final class GeminiEvaluationClient implements EvaluationProvider {
 						"Gemini request failed with HTTP status " + response.statusCode()
 								+ (providerStatus == null ? "" : " (" + providerStatus + ")")
 								+ (diagnosticMessage == null ? "." : ": " + diagnosticMessage),
-						isRetryableStatus(response.statusCode()), response.statusCode());
+						isRetryableStatus(response.statusCode()), response.statusCode())
+						.withRetryAfter(EvaluationRetryPolicy.parseRetryAfter(
+								response.headers().firstValue("Retry-After").orElse(null), java.time.Instant.now()));
 			}
 			try {
 				return JsonParser.parseString(response.body()).getAsJsonObject();

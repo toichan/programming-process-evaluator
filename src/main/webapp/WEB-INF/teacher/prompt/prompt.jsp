@@ -159,9 +159,18 @@
 					<label for="modelSelect" class="form-label">AIモデル</label>
 					<select class="form-select" id="modelSelect" form="promptDraftForm" name="aiModel"
 						<c:if test="${not teacherPromptEditableDraft}">disabled</c:if>>
-						<option value="gemini-2.5-pro" <c:if test="${teacherPromptModel == 'gemini-2.5-pro'}">selected</c:if>>Gemini 2.5 Pro</option>
-						<option value="gemini-2.5-flash" <c:if test="${teacherPromptModel == 'gemini-2.5-flash'}">selected</c:if>>Gemini 2.5 Flash</option>
+						<c:if test="${teacherPromptLegacyModel}">
+							<option value="<c:out value='${teacherPromptModel}'/>" selected>
+								<c:out value="${teacherPromptModel}"/>（旧モデル）
+							</option>
+						</c:if>
+						<c:forEach items="${teacherPromptModels}" var="model">
+							<option value="<c:out value='${model.key}'/>" <c:if test="${teacherPromptModel == model.key}">selected</c:if>><c:out value="${model.value}"/></option>
+						</c:forEach>
 					</select>
+					<c:if test="${teacherPromptLegacyModel}">
+						<p class="form-text">保存済みのモデルを表示しています。AI生成には選択可能なAIモデルへ変更して下書きを保存してください。適用済みの版は新しい下書きで変更してください。</p>
+					</c:if>
 				</div>
 				<div class="col-lg-4">
 					<label for="versionSelect" class="form-label">バージョン</label>

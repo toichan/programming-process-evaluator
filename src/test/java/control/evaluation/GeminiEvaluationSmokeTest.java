@@ -12,7 +12,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 
 class GeminiEvaluationSmokeTest {
-	private static final String SMOKE_TEST_MODEL = "gemini-3.7-flash";
+	private static final String SMOKE_TEST_MODEL = GeminiModelCatalog.DEFAULT_MODEL;
 
 	@Test
 	void evaluatesSyntheticPayloadAgainstGeminiOnlyWhenExplicitlyEnabled() throws Exception {

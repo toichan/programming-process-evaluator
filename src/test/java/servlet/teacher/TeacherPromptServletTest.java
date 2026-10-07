@@ -7,6 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.lang.reflect.Proxy;
 import java.util.Map;
+import java.util.List;
+import java.time.LocalDateTime;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -17,6 +19,7 @@ import org.junit.jupiter.api.Test;
 
 import control.auth.AuthenticatedUser;
 import entity.UserCredential.UserType;
+import entity.TeacherPromptVersion;
 
 class TeacherPromptServletTest {
 	@Test
@@ -29,6 +32,21 @@ class TeacherPromptServletTest {
 	void allowsCreatingTheFirstPromptDraftForASelectedTask() {
 		assertTrue(TeacherPromptServlet.isEditableDraft(true, null));
 		assertFalse(TeacherPromptServlet.isEditableDraft(false, null));
+	}
+
+	@Test
+	void allowsExplicitRecoveryOfStaleGenerationButNotAnActiveGeneration() {
+		LocalDateTime now = LocalDateTime.now();
+		assertFalse(TeacherPromptServlet.isEditableDraft(true, generation(now, "draft")));
+		assertTrue(TeacherPromptServlet.isEditableDraft(true, generation(now.minusMinutes(16), "draft")));
+		assertFalse(TeacherPromptServlet.isEditableDraft(true, generation(now.minusMinutes(16), "configured")));
+		assertFalse(TeacherPromptServlet.isEditableDraft(true, generation(null, "draft")));
+	}
+
+	private static TeacherPromptVersion generation(LocalDateTime updatedAt, String status) {
+		return new TeacherPromptVersion(1, 1, "1", "gemini-3.7-flash", "synthetic", null,
+				status, "in_progress", "not_started", 1, "synthetic", LocalDateTime.now(),
+				null, updatedAt, List.of(), List.of());
 	}
 
 	@Test

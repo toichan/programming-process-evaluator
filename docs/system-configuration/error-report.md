@@ -2,6 +2,43 @@
 
 秘密情報・実際の生徒データ・研究データは記載しない。解消後も履歴を保持する。
 
+## 2026-10-08 06:41〜07:00 JST: Gemini失敗の原因切り分け
+
+- 同じ登録済みキー・3.7 Flash・合成入力で、応答schemaなしの短いInteractions要求、74bytesの最小schema付き要求、教師の揺らぎ生成を各1回比較した。短い要求も60秒上限でtimeout、最小schema付きも60,006msでtimeout、教師要求は503/高需要（49,171ms、入力6,449bytes/schema509bytes）。教師だけの入力サイズ・画面・DB処理を共通の失敗原因とは扱えない。最初の4テストはmetadata取得1成功/生成3失敗、exit 1。
+- 同じキーでモデルmetadata GETは200（118ms）。モデル名`models/gemini-3.7-flash`、version `3.7-flash-08-2026`、標準generateContent対応を確認した。公式モデル文書にも3.7 Flashが存在する。APIキーやモデル名の取り違えを主因とする根拠はない。
+- 同じモデル・短い合成入力で標準generateContentも1回確認し、503/高需要（47,448ms、1テスト失敗、exit 1）。Interactions固有の保存指定・JSON schema・Api-Revisionだけの問題ではない。標準APIはInteractionを作成しないため診断要求にstoreパラメータはなく、アプリのInteractions要求はstore:falseのまま維持した。
+- 本人回答で現行検証キーのプロジェクトは課金設定済み。「無料枠だから」と断定しない。Googleの公開statusはAll Systems Operationalだが、特定モデル/プロジェクトの個別要求の成功保証とは区別する。キーの紐付け・契約quota・残高・実際のpriorityのconsole実査は未実施。
+- 本人が「アプリ設定は変えず3.8 Flashへ1回だけ比較」を承認。同じキー・endpoint・revision・29bytes入力・74bytes schema・store:falseを用い、モデルだけを3.8へ変えた最小要求が200（2,953ms）、JSON検証とファイル保存/再読込に成功（1テスト成功、exit 0）。
+- 時間帯による差を確認するため、直後の3.7最小schema要求を1回再確認し、200（8,765ms）、同じJSON検証・保存/再読込に成功（1テスト成功、exit 0）。3.7が永久に使用不能、または3.8だけが動くとは結論しない。今回の直接の失敗はGoogleが高需要として返した503と生成応答待ちであり、容量/可用性が時間帯で揺れることを確認した。Google内部の具体的な容量不足理由まではAPI応答から特定できない。教師の完全な実API縦断は依然未完了。
+- 今回追加は生成POST6回（200:2、503:2、timeout:2）、metadata GET1回。生成POSTの累計は17回（200:3、503:11、timeout:3）。APIを無制限に再送せず、比較・再確認後に追加生成を停止した。実生徒データは使用していない。
+- 診断テストは明示flagでゲートし、別モデル比較/直後再確認には追加flagを要求する。最終の外部無効回帰は8成功/7明示skip/0失敗、exit 0。実APIで失敗した実行を、このローカル回帰成功で帳消しにはしない。
+- Gradleの出力を専用containerの`/tmp`へ隔離し、既存8080のclass出力・DB・利用者・課題・モデル設定・envを変更せず、再起動もしていない。測定JSON・合成成功出力・原因切り分けレポートはsession artifactへ保存。正確な実行条件は[AI計画の原因切り分け記録](./feature-plans/teacher-prompt-ai.md#原因切り分け記録2026-10-08-06410700-jst)を参照する。
+
+## 2026-10-08 06:18〜06:36 JST: AI追加確認・生成中エディター修正
+
+- 教師実API縦断の追加1件は、揺らぎ生成の3試行すべて503（14,225/9,038/16,992ms、Retry-Afterによる30秒待機を2回）。JUnit 0成功/1失敗/0skip、exit 1。外部累計11要求（200:1、503:9、timeout:1）。教師縦断の後段は未到達であり、モデル高需要の失敗を成功扱いしない。
+- 認証ブラウザーで、合成課題13だけを用いた保存/reload、生成中保存拒否409と行版保持、揺らぎ/評価例の15分超中断→フォーム保存→failed/reload/監査、未認証ログイン遷移、不正CSRF403、共有feedback確認/キャンセルを検証した。合成の評価例復旧fixtureはAI実生成の証拠とは扱わない。外部APIの追加UI呼出しなし。
+- 生成中のCodeMirrorが元textareaのreadonlyを継承せず編集可能だった。初回assertionで再現し、readonlyの明示設定後に生成中true/中断下書きfalseと保存拒否/復旧を確認。配信JSの構文/editor検査、WARとdiff checkは成功。既存機能の編集不可仕様の修正で、公開済みプロンプトの変更ではない。
+- 初回のブラウザー試験は、同一URLへのPOST redirect完了前のreloadでERR_ABORTED。navigationを先に待つ手順へ修正して成功。不正CSRF検証で`form.action`が同名の入力項目に隠され誤ったURLへ送信され400となったため、`getAttribute('action')`に修正して403を確認した。モーダルの表示アニメーション中の閉じ待ちtimeoutは、表示後にキャンセルを再実行して解消。新しいJSの配信確認とブラウザーcache上の旧JSの実行は区別した。
+- 清掃前の監査照会で存在しない`reason`列を使用し失敗したため、実schemaの`detail`/`target_type`/`target_id`で再照会し復旧監査3件を確認した。SQL照会失敗をDB受入成功に数えない。
+- 合成課題13はUIから論理削除し、archived/deleted・処理中0をDB確認。既存課題10/11の主要metadata hashは不変。専用schemaのusers/tasks各0を確認し、そのschema/grantだけを削除して残存0を確認した。検証の正確なコマンド・境界は[追加受入記録](./feature-plans/teacher-prompt-ai.md#追加の実api認証ブラウザー確認2026-10-08-06180636-jst)を参照する。
+
+## 2026-10-08 05:48以降 JST: AI信頼性・実API縦断
+
+- 最初の合成smoke1回は503（モデル高需要）で失敗した。共通retryを実装後、通常評価の合成実APIは200（21,586ms）で成功し、DB request成功、2観点の評価、検証済みresponse、input snapshotの保存・再読込を確認した。
+- 現行schemaに対する評価DB fixtureの最初の8件は課題の必須`school_id`未設定で失敗した。fixtureを現行schemaへ合わせて再実行し、8件成功/失敗・skip0となった。失敗した最初のDB実行では外部呼出しに到達していない。
+- 教師実API縦断テストの最初のコンパイルでprovider wrapperのthrows宣言不足が発生し修正。外部呼出しまで進んだ1回目は揺らぎ生成の3試行がすべて503（4,802/8,297/5,904ms）。2回目も2試行503（2,790/40,058ms）、3試行目は60秒HTTP timeout。いずれも高需要と明示された応答であり、schemaが原因とは断定しない。上限付き再試行後に生成失敗を記録し、成功扱いにはしない。
+- 上記までの外部要求は計8回（200:1、503:6、timeout:1）。入力は専用DB上の合成課題/提出/ログのみ。教師の揺らぎ→評価例→preview→確定の実API受入は未完了。自動的な無制限再送や未承認モデルへのfallbackは行わない。
+- 教師生成のrubric payloadが観点名だけだったため、DB登録済み標準rubricの尺度値・ラベル・記述も送るよう補完し、契約テストに追加した。通常評価は従来から尺度記述を送っている。
+
+## 2026-10-08 05:36〜05:46 JST: AI再開・モデル/保存設定の整合
+
+- TDD初回14件中6件失敗。3.7 Flashが教師clientで拒否される、旧2.5モデルがControl/clientで許可される、通常/教師生成のHTTP要求にstoreがない差分を再現した。共通モデル定義とstore:falseを実装後、専用DB4件を含む26件が成功（失敗/エラー/skip0）、WAR成功。正確な最終コマンドは[AI再開受入記録](./feature-plans/teacher-prompt-ai.md#t-ai-001002-受入記録)を参照する。
+- 汎用runTestsはJavaテストを検出しなかったため既存Gradleを使用した。エディターのGson型未解決は継続するが、実Gradleコンパイル成功とは区別する。
+- 8080再起動後のreadiness確認で実在しない `/auth/teacher/login` を使い、待機が失敗した。正しい `/teacher/account/login` はHTTP200であり、Tomcat起動も確認。再ログイン後の画面保存・reload受入は成功した。過去のGradle lockエラーが累積container logに含まれたが、今回の再起動は成功した。
+- 共有確認ボタンの誤ったselectorによるtimeoutは、実際のdialogのボタンで解消。今回生成した合成課題12/プロンプト1だけを検証し、課題12はUIから論理削除。既存課題10・進捗デモ11は未削除のまま保持した。
+- 専用schemaは現行schema/Flyway履歴だけを複製し、合成DB4件を実行した。空DB migrationの再検証ではない。fixture残存0を確認して専用schema/grantを削除。外部生成APIは呼び出しておらず、実モデル可用性・外部保持の実確認・retry改善は後続に残す。
+
 ## 2026-10-07 18:46以降 JST: 個別初期パスワード検証
 
 - 全体のGradle `test war --rerun-tasks --no-daemon --warning-mode all`は成功。生徒資格情報のDBテストは専用Compose projectで2件成功した。
@@ -727,3 +764,17 @@
 - 起動: `GET http://127.0.0.1:18084/` はHTTP 302、Tomcat 9.0.118はport 8080（host 18084）で起動。worker SQL/処理失敗ログは確認されなかった。
 - 注意: 計測結果はこの専用runtimeの実測値であり、最大遅延の一般保証を単一試行のみで証明するものではない。ただし、60秒固定pollの実周期で当該期限を跨いだ確認として受入条件を満たした。
 - 後片付け: 専用Compose projectのapp/DB/runner、volume/networkを削除し、port 18084/13319のlistenerがないことを確認する。
+
+## 2026-10-08 JST: Gemini代替モデル・Pro高思考の運用受入
+
+- 最終結果: 本人承認のGemini 3.1 Pro Preview高思考で教師実API縦断2run、通常評価、認証browserの実生成・保存/再読込が成功。1要求180秒・1工程12分・最大3試行、中断復旧15分へ整合し、8080用WAR/当該appの再起動とteacher/student login各200を確認。詳細コマンドと測定は[教師プロンプト計画](./feature-plans/teacher-prompt-ai.md#pro高思考の最終受入2026-10-08)。
+- provider失敗: 初期候補3.8の教師縦断は6要求（200×2/503×4）でpreview未完了、exit1。2.5 Proは最小要求404「新規利用者には利用不可」で再送せず。Proの保持fixture runでも評価例の初回503があったが、承認済みの長い待機/再送内で成功した。過去の3.7高需要/timeoutを最終成功で消さない。
+- TDD初回: Pro既定assert、時間上限assertはそれぞれ意図したred後に修正。Lite縦断初回はAPI3件成功後、確定状態をconfiguredと期待したtestとcleanupのFK不足で失敗した。期待をversioned/active/model再読込へ修正し、fixtureに属する評価理由/evidence等も削除して再run成功。Liteの疎通成功を採点品質保証とせず、品質優先の指示で既定採用を撤回。
+- 診断/通常回帰の混在: 2.5 Pro診断runは404に加えて、diagnostics=trueで実行した秘密情報非表示の通常単体assert2件が失敗した。診断用文言を通常結果と混ぜた検証条件の問題として分離し、diagnostics=falseの最終評価回帰は35成功/12gate skip/失敗0、exit0。privacyのassertや秘匿処理は弱めていない。
+- Gradle競合: 通常評価初回は共用validation-homeのjournal lockで起動前失敗、外部要求0。直列再runは1成功・exit0。browser serverはprivate Gradle homeコピーと専用build/project cacheへ隔離した。
+- server起動: 初回18082起動はGrettyのstdin EOFで即終了し、コマンドexit0でもreadiness失敗。stdinを開いて保持する起動へ修正し、running/login200を確認。起動コマンドのexit0だけを稼働成功にしない。
+- browser手順: 最初の古いref入力timeout後は現在DOMの合成教師欄から認証成功。新規版フローの初回は実行コンテキストに`URL`がなく失敗、次は既存shared feedbackの無名dialog/「実行する」buttonと不一致でtimeout。selectorsを実DOMへ整合して再run成功。いずれも生成前なので追加API要求0。評価例フローは生成/保存成功後、状態badgeも含むsection全文の一致assertが設定済み遷移で失敗した。生成結果/理由だけを比較し、保存済み版のreloadと旧適用版不変を再確認して成功、再生成は行っていない。
+- SQL照合手順: 存在しないjob/task/prompt/preview列の照合queryはMySQL 1054で失敗した。`SHOW COLUMNS`で実列を確認し、`reevaluation_status` / `prompt_status` / `evaluation_examples_status` / `target_status`を使用してDB状態を再確認した。製品処理の500や保存失敗とは区別する。
+- 最終教師回帰は保存XMLで34成功/4skip/失敗0（38件、exit0）。以前のメモの41件集計は誤りで、XMLを正とする。評価回帰47件と共通テストが重複するので、独立テスト数として合算しない。既存のGradle非推奨/SLF4J notice、エディターのGson解決問題は実Gradle compile/WAR成功と区別した。
+- 生成POSTは今回25（200:19/503:5/404:1）、直前の原因調査を含む累計42（200:22/503:16/404:1/timeout:3）。GET計2は別。実生徒データ・APIキー値・実利用者passwordを出力していない。課題10/11の主要metadata hashは不変。大人数負荷・品質校正・本番予算/quota・実データ送信は未検証/別承認。
+- 後片付け: 18082専用appを停止した際、stdin保持pipelineが停止猶予195秒後にexit137となった。受入中のAPI/DB失敗ではなく、隔離server終了時の結果として記録する。listener除去後、今回作成した2schema/そのgrantだけを削除し、残存各0、共有8080/無関係18081の稼働と課題10/11の主要metadata hash不変を再確認した。

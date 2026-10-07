@@ -638,7 +638,7 @@ class TeacherTaskDatabaseTest {
 		AuthenticatedUser owner = teacher();
 		long taskId = TASKS.createDraft(owner, input("Reevaluation status task"), UUID.randomUUID().toString());
 		long promptVersionId = new TeacherPromptControl().saveDraft(
-				owner, taskId, null, 0, "gemini-2.5-flash", "Synthetic prompt", null);
+				owner, taskId, null, 0, "gemini-3.7-flash", "Synthetic prompt", null);
 		long studentId = insertStudentFixture();
 		long assignmentId = findAssignmentId(taskId, classroomId);
 		List<Long> jobIds = new ArrayList<>();
@@ -807,7 +807,7 @@ class TeacherTaskDatabaseTest {
 		AuthenticatedUser owner = teacher();
 		long taskId = TASKS.createDraft(owner, input("Synthetic preview acceptance"), UUID.randomUUID().toString());
 		long promptVersionId = new TeacherPromptControl().saveDraft(
-				owner, taskId, null, 0, "gemini-2.5-flash", "Synthetic preview prompt", null);
+				owner, taskId, null, 0, "gemini-3.7-flash", "Synthetic preview prompt", null);
 		try (Connection connection = Client.createConnection();
 				PreparedStatement statement = connection.prepareStatement("""
 						UPDATE prompt_versions
@@ -836,6 +836,32 @@ class TeacherTaskDatabaseTest {
 		ReevaluationPreviewControl reevaluations = new ReevaluationPreviewControl();
 		String previewCode = reevaluations.startPreview(
 				owner, taskId, promptVersionId, selectedPrompt.rowVersion());
+		ReevaluationPreviewDao previewDao = new ReevaluationPreviewDao();
+		var interrupted = previewDao.claimNextTarget().orElseThrow();
+		try (Connection connection = Client.createConnection();
+				PreparedStatement statement = connection.prepareStatement("""
+						UPDATE reevaluation_preview_targets
+						SET updated_at = DATE_SUB(CURRENT_TIMESTAMP(6), INTERVAL 6 MINUTE)
+						WHERE reevaluation_preview_target_id = ?
+						""")) {
+			statement.setLong(1, interrupted.targetId());
+			assertEquals(1, statement.executeUpdate());
+		}
+		assertTrue(previewDao.claimNextTarget().isEmpty());
+		assertEquals("generating", reevaluations.loadPreview(owner, previewCode).status());
+		try (Connection connection = Client.createConnection();
+				PreparedStatement statement = connection.prepareStatement("""
+						UPDATE reevaluation_preview_targets
+						SET updated_at = DATE_SUB(CURRENT_TIMESTAMP(6), INTERVAL 16 MINUTE)
+						WHERE reevaluation_preview_target_id = ?
+						""")) {
+			statement.setLong(1, interrupted.targetId());
+			assertEquals(1, statement.executeUpdate());
+		}
+		assertTrue(previewDao.claimNextTarget().isEmpty());
+		assertEquals("retryable", reevaluations.loadPreview(owner, previewCode).status());
+		assertEquals("failed", reevaluations.loadPreview(owner, previewCode).targets().getFirst().status());
+		reevaluations.retryFailed(owner, previewCode);
 		ReevaluationPreviewWorker worker = new ReevaluationPreviewWorker(
 				new ReevaluationPreviewDao(), syntheticProvider());
 		worker.start();
@@ -874,12 +900,214 @@ class TeacherTaskDatabaseTest {
 	}
 
 	@Test
+	void liveGeminiGeneratesTeacherArtifactsAndMaterializesPreviewWithoutAnotherCall() throws Exception {
+		Assumptions.assumeTrue("true".equals(System.getenv("GEMINI_API_SMOKE_TEST")),
+				"Explicitly enable up to nine billable requests using only this synthetic fixture.");
+		AuthenticatedUser owner = teacher();
+		long taskId = TASKS.createDraft(owner, input("Synthetic live AI acceptance"), UUID.randomUUID().toString());
+		TeacherPromptControl prompts = new TeacherPromptControl();
+		String model = System.getenv("GEMINI_API_OPERATION_MODEL");
+		if (model == null) model = control.evaluation.GeminiModelCatalog.DEFAULT_MODEL;
+		control.evaluation.GeminiModelCatalog.requireSelectable(model);
+		long promptId = prompts.saveDraft(owner, taskId, null, 0, model,
+				"Evaluate only synthetic evidence using the registered rubric. Give concise reasons in Japanese.",
+				null);
+		var initial = prompts.loadPage(owner, taskId, promptId).selectedVersion();
+		var generated = prompts.generateFluctuations(owner, taskId, promptId, initial.rowVersion());
+		assertEquals("completed", generated.fluctuationGenerationStatus());
+		var resolvedItems = generated.fluctuationItems().stream().map(item ->
+				new entity.TeacherPromptVersion.FluctuationItem(item.id(), item.title(), item.level(),
+						item.description(), item.example(),
+						"課題の記載された仕様と保存済みの根拠のみで判断し、根拠がない事項は推測しない。",
+						"resolved", item.sortOrder())).toList();
+		var resolved = prompts.saveResolutions(owner, taskId, promptId, generated.rowVersion(), resolvedItems, null);
+		var examples = prompts.generateEvaluationExamples(owner, taskId, promptId, resolved.rowVersion());
+		assertEquals("completed", examples.evaluationExamplesStatus());
+		assertEquals(2, examples.evaluationExamples().getFirst().getSimulatedResults().size());
+		var configured = prompts.saveEvaluationExamples(owner, taskId, promptId, examples.rowVersion());
+		assertEquals("configured", configured.promptStatus());
+		var reloaded = prompts.loadPage(owner, taskId, promptId).selectedVersion();
+		assertEquals(configured.fluctuationItems(), reloaded.fluctuationItems());
+		assertEquals(model, reloaded.aiModel());
+		assertEquals(configured.evaluationExamples().getFirst().output(),
+				reloaded.evaluationExamples().getFirst().output());
+
+		long studentId = insertStudentFixture();
+		long assignmentId = findAssignmentId(taskId, classroomId);
+		try (Connection connection = Client.createConnection()) {
+			connection.setAutoCommit(false);
+			insertParticipationAndAcceptedSubmission(connection, studentId, assignmentId);
+			connection.commit();
+		}
+		ReevaluationPreviewControl reevaluations = new ReevaluationPreviewControl();
+		String previewCode = reevaluations.startPreview(owner, taskId, promptId, reloaded.rowVersion());
+		java.util.concurrent.atomic.AtomicInteger calls = new java.util.concurrent.atomic.AtomicInteger();
+		var client = new control.evaluation.GeminiEvaluationClient();
+		EvaluationProvider provider = new EvaluationProvider() {
+			public com.google.gson.JsonObject generate(String model, com.google.gson.JsonObject payload)
+					throws control.evaluation.EvaluationProviderException {
+				calls.incrementAndGet();
+				return client.generate(model, payload);
+			}
+			public String extractOutputText(com.google.gson.JsonObject response)
+					throws control.evaluation.EvaluationProviderException {
+				return client.extractOutputText(response);
+			}
+		};
+		ReevaluationPreviewWorker worker = new ReevaluationPreviewWorker(new ReevaluationPreviewDao(), provider);
+		worker.start();
+		ReevaluationPreview preview;
+		try {
+			long deadline = System.nanoTime()
+					+ control.evaluation.EvaluationRetryPolicy.PROCESSING_BUDGET.plusSeconds(5).toNanos();
+			do {
+				preview = reevaluations.loadPreview(owner, previewCode);
+				if ("ready".equals(preview.status()) || "retryable".equals(preview.status())) {
+					break;
+				}
+				Thread.sleep(100);
+			} while (System.nanoTime() < deadline);
+		} finally {
+			worker.stop();
+		}
+		assertEquals("ready", preview.status());
+		assertEquals(1, preview.targetCount());
+		assertTrue(calls.get() >= 1 && calls.get() <= 3);
+		int previewCalls = calls.get();
+		long jobId = reevaluations.confirmPreview(owner, previewCode);
+		var target = new dao.ReevaluationJobDao().claimNextTarget().orElseThrow();
+		assertEquals(jobId, target.jobId());
+		new dao.EvaluationWorkerDao().materializeReevaluationTarget(target);
+		assertEquals("completed", reevaluations.loadJobStatus(owner, taskId, jobId).status());
+		assertEquals(previewCalls, calls.get());
+		var applied = prompts.loadPage(owner, taskId, promptId);
+		assertEquals("versioned", applied.selectedVersion().promptStatus());
+		assertEquals(promptId, applied.activePromptVersionId().longValue());
+		assertEquals(model, applied.selectedVersion().aiModel());
+		if ("true".equals(System.getenv("AI_OPERATION_BROWSER_FIXTURE"))) {
+			setAcceptanceFixturePassword();
+			retainFixtureAfterTest = true;
+			System.out.printf("AI_OPERATION_BROWSER_FIXTURE taskId=%d promptVersionId=%d previewCode=%s "
+					+ "jobId=%d loginId=%s%n", taskId, promptId, previewCode, jobId, teacherLoginId);
+		}
+	}
+
+	@Test
+	void staleGenerationCanBeRetriedAfterTheFormSavesUnchangedInput() throws SQLException {
+		AuthenticatedUser owner = teacher();
+		long taskId = TASKS.createDraft(owner, input("Synthetic interrupted generation"), UUID.randomUUID().toString());
+		TeacherPromptControl prompts = new TeacherPromptControl();
+		long promptId = prompts.saveDraft(owner, taskId, null, 0, "gemini-3.7-flash", "Synthetic prompt", null);
+		var initial = prompts.loadPage(owner, taskId, promptId).selectedVersion();
+		TeacherPromptDao dao = new TeacherPromptDao();
+		long startedVersion;
+		try (Connection connection = Client.createConnection()) {
+			connection.setAutoCommit(false);
+			startedVersion = dao.beginGeneration(connection, teacherId, taskId, promptId,
+					initial.rowVersion(), "fluctuation");
+			connection.commit();
+		}
+		assertThrows(TeacherPromptDao.PromptGenerationInProgressException.class,
+				() -> prompts.saveDraft(owner, taskId, promptId, startedVersion,
+						"gemini-3.7-flash", "Synthetic prompt", null));
+		try (Connection connection = Client.createConnection();
+				PreparedStatement statement = connection.prepareStatement("""
+						UPDATE prompt_versions SET updated_at = DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 16 MINUTE)
+						WHERE prompt_version_id = ?
+						""")) {
+			statement.setLong(1, promptId);
+			assertEquals(1, statement.executeUpdate());
+		}
+		prompts.saveDraft(owner, taskId, promptId, startedVersion, "gemini-3.7-flash", "Synthetic prompt", null);
+		var saved = prompts.loadPage(owner, taskId, promptId).selectedVersion();
+		assertEquals("failed", saved.fluctuationGenerationStatus());
+		try (Connection connection = Client.createConnection()) {
+			connection.setAutoCommit(false);
+			assertThrows(TeacherPromptDao.PromptVersionConflictException.class,
+					() -> dao.completeFluctuations(connection, teacherId, taskId, promptId, startedVersion, List.of()));
+			dao.beginGeneration(connection, teacherId, taskId, promptId, saved.rowVersion(), "fluctuation");
+			connection.commit();
+		}
+		assertEquals("in_progress", prompts.loadPage(owner, taskId, promptId).selectedVersion()
+				.fluctuationGenerationStatus());
+		var active = prompts.loadPage(owner, taskId, promptId).selectedVersion();
+		var item = new entity.TeacherPromptVersion.FluctuationItem(
+				0, "Synthetic boundary", "低", "Synthetic evidence", "Synthetic question", null, "pending", 1);
+		try (Connection connection = Client.createConnection()) {
+			connection.setAutoCommit(false);
+			dao.completeFluctuations(connection, teacherId, taskId, promptId, active.rowVersion(), List.of(item));
+			connection.commit();
+		}
+		var completed = prompts.loadPage(owner, taskId, promptId).selectedVersion();
+		var savedItem = completed.fluctuationItems().getFirst();
+		var updates = List.of(new entity.TeacherPromptVersion.FluctuationItem(savedItem.id(), savedItem.title(),
+				savedItem.level(), savedItem.description(), savedItem.example(), "Synthetic resolution", "resolved", 1));
+		var resolved = prompts.saveResolutions(owner, taskId, promptId, completed.rowVersion(), updates, null);
+		try (Connection connection = Client.createConnection()) {
+			connection.setAutoCommit(false);
+			dao.beginGeneration(connection, teacherId, taskId, promptId, resolved.rowVersion(), "examples");
+			connection.commit();
+		}
+		var generatingExamples = prompts.loadPage(owner, taskId, promptId).selectedVersion();
+		assertThrows(TeacherPromptDao.PromptGenerationInProgressException.class,
+				() -> prompts.saveResolutions(owner, taskId, promptId, generatingExamples.rowVersion(), updates, null));
+		try (Connection connection = Client.createConnection();
+				PreparedStatement statement = connection.prepareStatement("""
+						UPDATE prompt_versions SET updated_at = DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 16 MINUTE)
+						WHERE prompt_version_id = ?
+						""")) {
+			statement.setLong(1, promptId);
+			assertEquals(1, statement.executeUpdate());
+		}
+		var recoveredExamples = prompts.saveResolutions(
+				owner, taskId, promptId, generatingExamples.rowVersion(), updates, null);
+		assertEquals("failed", recoveredExamples.evaluationExamplesStatus());
+		try (Connection connection = Client.createConnection()) {
+			connection.setAutoCommit(false);
+			dao.beginGeneration(connection, teacherId, taskId, promptId, recoveredExamples.rowVersion(), "examples");
+			connection.commit();
+		}
+	}
+
+	@Test
+	void legacyPromptDraftRequiresExplicitModelChangeBeforeGeneration() throws SQLException {
+		AuthenticatedUser teacher = teacher();
+		long taskId = TASKS.createDraft(teacher, input("Legacy model draft"), UUID.randomUUID().toString());
+		TeacherPromptControl prompts = new TeacherPromptControl();
+		long promptId = prompts.saveDraft(
+				teacher, taskId, null, 0, "gemini-3.7-flash", "Synthetic prompt", null);
+		try (Connection connection = Client.createConnection();
+				PreparedStatement statement = connection.prepareStatement("""
+						UPDATE prompt_versions SET ai_model = 'gemini-2.5-flash',
+						  fluctuation_generation_status = 'completed', evaluation_examples_status = 'completed'
+						WHERE prompt_version_id = ?
+						""")) {
+			statement.setLong(1, promptId);
+			assertEquals(1, statement.executeUpdate());
+		}
+		var legacy = prompts.loadPage(teacher, taskId, promptId).selectedVersion();
+		assertThrows(IllegalArgumentException.class,
+				() -> prompts.generateFluctuations(teacher, taskId, promptId, legacy.rowVersion()));
+		var unchanged = prompts.loadPage(teacher, taskId, promptId).selectedVersion();
+		assertEquals(legacy.rowVersion(), unchanged.rowVersion());
+		assertEquals("gemini-2.5-flash", unchanged.aiModel());
+		assertEquals("completed", unchanged.fluctuationGenerationStatus());
+
+		prompts.saveDraft(teacher, taskId, promptId, unchanged.rowVersion(),
+				"gemini-3.7-flash", unchanged.commonPrompt(), unchanged.additionalInstruction());
+		var updated = prompts.loadPage(teacher, taskId, promptId).selectedVersion();
+		assertEquals("gemini-3.7-flash", updated.aiModel());
+		assertEquals("not_generated", updated.fluctuationGenerationStatus());
+		assertEquals("not_generated", updated.evaluationExamplesStatus());
+	}
+
+	@Test
 	void publishedTaskAllowsASeparatePromptDraftWithoutChangingTheActiveVersion() throws SQLException {
 		AuthenticatedUser teacher = teacher();
 		long taskId = TASKS.createDraft(teacher, input("Published prompt task"), UUID.randomUUID().toString());
 		TeacherPromptControl prompts = new TeacherPromptControl();
 		long activePromptId = prompts.saveDraft(
-				teacher, taskId, null, 0, "gemini-2.5-pro", "Active prompt instructions", null);
+				teacher, taskId, null, 0, "gemini-3.7-flash", "Active prompt instructions", null);
 		try (Connection connection = Client.createConnection();
 				PreparedStatement statement = connection.prepareStatement("""
 						UPDATE prompt_versions
@@ -905,20 +1133,31 @@ class TeacherTaskDatabaseTest {
 		assertTrue(publishedPage.tasks().stream().anyMatch(task -> task.taskId() == taskId
 				&& "published".equals(task.publicationStatus())));
 		assertEquals(activePromptId, publishedPage.activePromptVersionId());
+		try (Connection connection = Client.createConnection();
+				PreparedStatement statement = connection.prepareStatement(
+						"UPDATE prompt_versions SET ai_model = 'gemini-2.5-pro' WHERE prompt_version_id = ?")) {
+			statement.setLong(1, activePromptId);
+			assertEquals(1, statement.executeUpdate());
+		}
+		assertEquals("gemini-2.5-pro",
+				prompts.loadPage(teacher, taskId, activePromptId).selectedVersion().aiModel());
 
 		long nextPromptId = prompts.saveDraft(
-				teacher, taskId, null, 0, "gemini-2.5-flash", "Revised prompt draft", "Extra guidance");
+				teacher, taskId, null, 0, "gemini-3.7-flash", "Revised prompt draft", "Extra guidance");
 		var revisedPage = prompts.loadPage(teacher, taskId, nextPromptId);
 		assertEquals("published", revisedPage.selectedTask().publicationStatus());
 		assertEquals(activePromptId, revisedPage.activePromptVersionId());
 		assertEquals("configured", revisedPage.versions().stream()
 				.filter(version -> version.promptVersionId() == activePromptId)
 				.findFirst().orElseThrow().promptStatus());
+		assertEquals("gemini-2.5-pro", revisedPage.versions().stream()
+				.filter(version -> version.promptVersionId() == activePromptId)
+				.findFirst().orElseThrow().aiModel());
 		assertEquals("draft", revisedPage.selectedVersion().promptStatus());
 		assertEquals("Revised prompt draft", revisedPage.selectedVersion().commonPrompt());
 
 		long promptVersionId = prompts.saveDraft(
-				teacher, taskId, null, 0, "gemini-2.5-pro", "Initial evaluation instructions", null);
+				teacher, taskId, null, 0, "gemini-3.7-flash", "Initial evaluation instructions", null);
 		var created = prompts.loadPage(teacher, taskId, promptVersionId).selectedVersion();
 		assertEquals("v3", created.version());
 		assertEquals("draft", created.promptStatus());
@@ -926,7 +1165,7 @@ class TeacherTaskDatabaseTest {
 
 		assertEquals(promptVersionId, prompts.saveDraft(
 				teacher, taskId, promptVersionId, created.rowVersion(),
-				"gemini-2.5-flash", "Updated evaluation instructions", "Check input validation."));
+				"gemini-3.7-flash", "Updated evaluation instructions", "Check input validation."));
 		var updatedPage = prompts.loadPage(teacher, taskId, promptVersionId);
 		assertEquals("Updated evaluation instructions", updatedPage.selectedVersion().commonPrompt());
 		assertEquals("Check input validation.", updatedPage.selectedVersion().additionalInstruction());
@@ -936,7 +1175,7 @@ class TeacherTaskDatabaseTest {
 		assertThrows(dao.TeacherPromptDao.PromptVersionConflictException.class,
 				() -> prompts.saveDraft(
 						teacher, taskId, promptVersionId, created.rowVersion(),
-						"gemini-2.5-pro", "Stale update", null));
+						"gemini-3.7-flash", "Stale update", null));
 	}
 
 	@Test
@@ -1281,7 +1520,7 @@ class TeacherTaskDatabaseTest {
 		assertNotNull(copiedPrompt);
 		assertTrue(copiedPrompt.promptVersionId() != sourcePromptVersionId);
 		assertEquals("draft", copiedPrompt.promptStatus());
-		assertEquals("gemini-2.5-pro", copiedPrompt.aiModel());
+		assertEquals(control.evaluation.GeminiModelCatalog.DEFAULT_MODEL, copiedPrompt.aiModel());
 		assertEquals("Copied common prompt", copiedPrompt.commonPrompt());
 		assertEquals("Copied task-specific instruction", copiedPrompt.additionalInstruction());
 		assertEquals("not_generated", copiedPrompt.fluctuationGenerationStatus());
@@ -1477,6 +1716,44 @@ class TeacherTaskDatabaseTest {
 						WHERE j.task_id IN (
 						  SELECT task_id FROM tasks WHERE created_by_user_id = ?
 						)
+						""")) {
+					statement.setLong(1, teacherId);
+					statement.executeUpdate();
+				}
+				try (PreparedStatement statement = connection.prepareStatement("""
+						DELETE ed FROM evaluation_evidence ed
+						JOIN evaluation_reasons r ON r.evaluation_reason_id = ed.evaluation_reason_id
+						JOIN evaluations e ON e.evaluation_id = r.evaluation_id
+						JOIN submissions s ON s.submission_id = e.submission_id
+						JOIN task_participations p ON p.participation_id = s.participation_id
+						JOIN task_class_assignments a ON a.task_class_assignment_id = p.task_class_assignment_id
+						JOIN tasks t ON t.task_id = a.task_id
+						WHERE t.created_by_user_id = ?
+						""")) {
+					statement.setLong(1, teacherId);
+					statement.executeUpdate();
+				}
+				try (PreparedStatement statement = connection.prepareStatement("""
+						DELETE rd FROM evaluation_reason_details rd
+						JOIN evaluation_reasons r ON r.evaluation_reason_id = rd.evaluation_reason_id
+						JOIN evaluations e ON e.evaluation_id = r.evaluation_id
+						JOIN submissions s ON s.submission_id = e.submission_id
+						JOIN task_participations p ON p.participation_id = s.participation_id
+						JOIN task_class_assignments a ON a.task_class_assignment_id = p.task_class_assignment_id
+						JOIN tasks t ON t.task_id = a.task_id
+						WHERE t.created_by_user_id = ?
+						""")) {
+					statement.setLong(1, teacherId);
+					statement.executeUpdate();
+				}
+				try (PreparedStatement statement = connection.prepareStatement("""
+						DELETE r FROM evaluation_reasons r
+						JOIN evaluations e ON e.evaluation_id = r.evaluation_id
+						JOIN submissions s ON s.submission_id = e.submission_id
+						JOIN task_participations p ON p.participation_id = s.participation_id
+						JOIN task_class_assignments a ON a.task_class_assignment_id = p.task_class_assignment_id
+						JOIN tasks t ON t.task_id = a.task_id
+						WHERE t.created_by_user_id = ?
 						""")) {
 					statement.setLong(1, teacherId);
 					statement.executeUpdate();
@@ -1801,7 +2078,7 @@ class TeacherTaskDatabaseTest {
 
 	private void activateConfiguredPrompt(AuthenticatedUser owner, long taskId) throws SQLException {
 		long promptVersionId = new TeacherPromptControl().saveDraft(
-				owner, taskId, null, 0, "gemini-2.5-flash", "Synthetic publication prompt", null);
+				owner, taskId, null, 0, "gemini-3.7-flash", "Synthetic publication prompt", null);
 		try (Connection connection = Client.createConnection()) {
 			connection.setAutoCommit(false);
 			try (PreparedStatement statement = connection.prepareStatement("""

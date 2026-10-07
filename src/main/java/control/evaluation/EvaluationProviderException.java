@@ -5,6 +5,7 @@ public final class EvaluationProviderException extends Exception {
 
 	private final boolean retryable;
 	private final Integer httpStatusCode;
+	private java.time.Duration retryAfter;
 
 	public EvaluationProviderException(String message, boolean retryable) {
 		super(message);
@@ -30,5 +31,14 @@ public final class EvaluationProviderException extends Exception {
 
 	public boolean isRetryable() {
 		return retryable;
+	}
+
+	public EvaluationProviderException withRetryAfter(java.time.Duration delay) {
+		this.retryAfter = delay;
+		return this;
+	}
+
+	public java.time.Duration getRetryAfter() {
+		return retryAfter;
 	}
 }

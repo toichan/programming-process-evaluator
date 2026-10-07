@@ -42,7 +42,7 @@
 | 16. 提出課題確認 | 未着手 | [機能仕様](../function-specification.md)「提出課題確認機能」。提出スナップショット、入出力結果、フィルター/前後移動、提出データを変更しない作業用コード実行を対象とする |
 | 17. 評価確認 | 未着手 | [機能仕様](../function-specification.md)「評価確認機能」、[教師評価状態ルール](../state-rules/teacher/evaluation-state-rules.md)。評価一覧/詳細/理由/コードログ/CSVを実装する。Gemini実API統合・再評価の最終受入は工程19まで保留 |
 | 18. アンケート結果確認 | 未着手 | [機能仕様](../function-specification.md)「アンケート結果確認機能」、アンケート形式定義。回答一覧/詳細、同意・所属境界、CSVを実装する |
-| 19. AI連携の最終実装・受入 | 合成providerによるS2受入は完了。Gemini実API確認は延期中 | [教師プロンプト計画](./feature-plans/teacher-prompt-ai.md)、[評価計画](./feature-plans/student-evaluation-survey.md)、[AI連携設計](../ai-api-integration-design.md)。ユーザー再開指示後、設定・費用・合成データ縦断を確認し、必要なら別途承認を得て実施 |
+| 19. AI連携の最終実装・受入 | 実装・合成実API縦断/認証画面確認済み。Pro高思考・時間上限拡張を8080へ反映済み | [教師プロンプト計画](./feature-plans/teacher-prompt-ai.md)、[評価計画](./feature-plans/student-evaluation-survey.md)、[AI連携設計](../ai-api-integration-design.md)。教師生成・preview・確定と通常評価の実API→DB成功。本番quota/費用・品質校正・実データ送信・負荷試験は別ゲート |
 | 20. 機能横断検証 | 未完了 | 全教師/管理者機能の認可、状態遷移、主要導線、異常系、DB再構築を通した最終確認が必要 |
 
 ここでいう「実装済み」は対象計画に記録された範囲に限ります。教師ログイン基盤の存在は教師向け業務機能の完成を意味せず、Gemini構造化出力が一部の合成要求で成功したことも本番評価経路の完了を意味しません。
@@ -74,7 +74,7 @@
 - **工程10 公開・改訂・独立コピー・期限/クラス変更実装と受入完了**: 公開・予約公開・期限処理は[教師課題公開計画](./feature-plans/teacher-task-publication.md)、学習開始前の同系列改訂と学習開始後の独立コピーは[公開後改訂計画](./feature-plans/teacher-task-revision.md)、期限延長と対象クラス追加は[専用計画](./feature-plans/teacher-task-deadline-and-class-changes.md)を参照する。専用MySQL統合テスト31件（27成功/4 browser-fixture skip/0失敗）で期限切れ割当の再開、既存提出履歴保持、stale version拒否、重複/他校クラス拒否、監査・冪等再送、archivedを含む過去割当クラスを追加候補から除外する履歴取得を確認した。認証browserで期限延長・クラス追加と成功通知を確認した。専用Compose環境は検証後に削除済み。AI実API確認は工程19へ延期する。
 - **工程11・12・12a完了、工程13受入中**: 管理者の教師/学校管理、[生徒アカウント管理](./feature-plans/teacher-student-accounts.md)、[教師本人のアカウント管理](./feature-plans/authentication-and-login.md#工程12aの完了記録2026-10-07)を実装・検証した。工程13は共有8080 DB適用と認証browserでの基本画面操作を確認済みで、単一校制約は画面とDBテストで確認済み。選択項目の一括移動、実アップロード、即時/予約配信、履歴操作など配信計画に残る受入を完了してから工程14へ進む。テスト環境はデモDBを使う通常環境または専用DBから作業に適した方を選ぶ。
 - **課題配信と授業演習コード配信の区別**: 課題の公開/改訂は工程10の課題状態操作、授業演習コード配信は工程13の演習フォルダ/ファイルの配布であり、別機能として管理する。
-- **AI稼働確認の延期**: S2の実装と合成providerによるpreview〜confirm/job経路の受入は完了しているが、Gemini実APIとの疎通・実APIによる合成fixture縦断確認・実提出を含む本番相当確認は未実施。ユーザー判断で後続へ延期し、再開指示までは実APIを呼ばず、実提出/コードログを送信しない。未確認項目と再開ゲートは[教師プロンプト計画](./feature-plans/teacher-prompt-ai.md)を参照する。
+- **AI稼働確認の再開・合成受入**: 2026-10-08の明示指示とモデル/時間条件の承認により、Pro高思考の教師縦断・通常評価の実API/DB確認と認証画面確認を実施した。既定は3.1 Pro Preview、既存版は元のモデルを保持する。実提出/コードログを使う検証、採点品質校正、本番quota/費用・負荷試験は未実施。詳細は[教師プロンプト計画](./feature-plans/teacher-prompt-ai.md)の最新受入記録を参照する。
 - OS標準のフォルダ選択/ZIP保存ダイアログと全ブラウザー/OS組合せは未確認。通常Chromeの単体.py保存と内容一致は利用者確認済み。教師工程へ進む承認をこれらの検証完了とは扱わず、演習計画の残事項として保持する。
 - 教師工程前デバッグは、[計画T001〜T014](./feature-plans/pre-teacher-debugging.md)の修正・再検証・ローカル反映・専用環境清掃・記録まで完了し、報告済み。対象5件の未解決ブロッカーはない。同計画と[エラーレポート](./error-report.md)は完了済みの作業記録として保持する。
 - 工程8「評価・アンケート」全体の実設定・ユーザー手動E2Eは、教師向け画面完成後、設定が可能になってから再開する。今回の既知バグに必要な専用合成DB・認証HTTP・回答保存確認だけを先行し、T006全体やその他の未確認事項を完了扱いにしない。
@@ -512,7 +512,7 @@
 
 ## 19. AI連携の最終実装・受入を行う
 
-**現在の状態:** prompt編集/版管理と合成providerによるpreview・confirm・job受入は完了。Gemini実API疎通、実APIを用いた合成データ縦断、実提出での本番相当確認は未実施で、ユーザー判断により延期中。
+**現在の状態:** 2026-10-08、本人承認のGemini 3.1 Pro Previewを新規既定として、thinking_level:high・store:false・出力上限4096tokens、1要求180秒・1工程12分・最大3試行、中断復旧15分へ整合した。Lite既定採用は品質優先の指示で撤回し、3.7/3.8は明示選択、既存版/評価履歴のモデルは不変。専用合成DBで教師の揺らぎ→評価例→preview→明示確定/評価保存/再読込が2run成功し、通常評価も実API200→DB成功。認証browserで既定モデル・Preview表示・生成/保存/再表示・未認証/CSRF拒否・旧適用版/完了job保持を確認した。教師回帰は34成功/4診断gate skip、最終評価回帰は35成功/12外部gate skip（各exit0、失敗0）。WAR生成と8080の当該appだけの再起動が成功し、教師/生徒ログイン各200。課題10/11の主要metadata hashは不変。今回の代替調査・受入は生成POST25（200:19/503:5/404:1/timeout:0）、直前の原因調査を含む累計42（200:22/503:16/404:1/timeout:3）、metadata/model-list GET計2は別集計。過去のprovider失敗は履歴として残す。採点品質の人手校正、契約quota/費用上限・実データ送信許可、大人数同時実行とpreview30分TTLの負荷検証は未完了。統合browserにはCLI suiteのexit codeがなく、CI E2Eの合格とは扱わない。詳細は[教師プロンプト計画](./feature-plans/teacher-prompt-ai.md#pro高思考の最終受入2026-10-08)を参照する。
 
 **参照資料:** [教師プロンプト設計・AI生成計画](./feature-plans/teacher-prompt-ai.md)「AI稼働確認の現状と延期作業」、[工程8評価計画](./feature-plans/student-evaluation-survey.md)、[AI連携設計](../ai-api-integration-design.md)。
 

@@ -31,6 +31,7 @@ class TeacherPromptAiClientTest {
 	void retriesInvalidStructuredOutputBeforeReturningValidatedFluctuations() throws Exception {
 		AtomicInteger calls = new AtomicInteger();
 		TeacherPromptAiClient client = new TeacherPromptAiClient((model, system, input, schema) -> {
+			assertEquals("gemini-3.7-flash", model);
 			if (calls.getAndIncrement() == 0) {
 				return response("{\"ambiguity_items\":[{\"title\":\"欠落\",\"risk_level\":\"medium\"}]}");
 			}
@@ -38,7 +39,7 @@ class TeacherPromptAiClientTest {
 		});
 
 		List<FluctuationItem> items = client.generateFluctuations(
-				"gemini-2.5-pro", taskContext(), "評価指示", null, standardRubric());
+				"gemini-3.7-flash", taskContext(), "評価指示", null, standardRubric());
 
 		assertEquals(2, calls.get());
 		assertEquals(1, items.size());
@@ -55,6 +56,14 @@ class TeacherPromptAiClientTest {
 			requests.add(input);
 			JsonObject request = JsonParser.parseString(input).getAsJsonObject();
 			JsonArray samples = request.getAsJsonArray("synthetic_submission_samples");
+			JsonObject criterion = request.getAsJsonObject("standard_rubric")
+					.getAsJsonArray("dimensions").get(0).getAsJsonObject()
+					.getAsJsonArray("criteria").get(0).getAsJsonObject();
+			assertEquals("文法デバッグ能力", criterion.get("name").getAsString());
+			JsonArray levels = criterion.getAsJsonArray("levels");
+			assertEquals(5, levels.size());
+			assertEquals(5, levels.get(0).getAsJsonObject().get("value").getAsInt());
+			assertEquals("説明", levels.get(0).getAsJsonObject().get("description").getAsString());
 			JsonArray results = new JsonArray();
 			for (var sample : samples) {
 				JsonObject result = new JsonObject();
@@ -80,7 +89,7 @@ class TeacherPromptAiClientTest {
 		});
 
 		JsonObject output = client.generateEvaluationExamples(
-				"gemini-2.5-flash", taskContext(), "評価指示", null, standardRubric(),
+				"gemini-3.7-flash", taskContext(), "評価指示", null, standardRubric(),
 				List.of(new FluctuationItem(
 						8, "境界条件", "高", "範囲外の扱い", "確認質問と明確化ルール",
 						"境界値の扱いを明記する", "resolved", 1)),
@@ -108,6 +117,10 @@ class TeacherPromptAiClientTest {
 
 		assertThrows(IllegalArgumentException.class, () -> client.generateFluctuations(
 				"untrusted-model", taskContext(), "評価指示", null, standardRubric()));
+		assertThrows(IllegalArgumentException.class, () -> client.generateFluctuations(
+				"gemini-2.5-pro", taskContext(), "評価指示", null, standardRubric()));
+		assertThrows(IllegalArgumentException.class, () -> client.generateFluctuations(
+				"gemini-2.5-flash", taskContext(), "評価指示", null, standardRubric()));
 		assertEquals(0, calls.get());
 	}
 

@@ -7,7 +7,8 @@ document.addEventListener('DOMContentLoaded', function() {
       mode: 'markdown',
       theme: 'material-darker',
       lineNumbers: true,
-      lineWrapping: true
+      lineWrapping: true,
+      readOnly: promptInput.readOnly
     });
     promptEditor.setSize(null, '28rem');
   }
