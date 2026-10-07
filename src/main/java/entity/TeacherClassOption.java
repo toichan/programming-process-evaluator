@@ -22,4 +22,8 @@ public record TeacherClassOption(long classroomId, long schoolId, String name, S
 	public String getGradeName() {
 		return gradeName;
 	}
+
+	public String getDisplayName() {
+		return gradeName == null || gradeName.isBlank() ? name : gradeName + " " + name;
+	}
 }

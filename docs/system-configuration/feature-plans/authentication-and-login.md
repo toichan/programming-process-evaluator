@@ -106,3 +106,10 @@ T001〜T004完了。今回の専用DB3個/付与権限・一時fixtureファイ�
 - 検証コマンド: `docker compose run --rm --no-deps -e GRADLE_USER_HOME=/tmp/gradle-teacher-validation app gradle --project-cache-dir=/tmp/teacher-validation-project test --tests 'control.auth.*Test' --tests entity.TeacherAccountInputTest --tests servlet.auth.LoginServletTest --tests servlet.admin.TeacherAccountServletTest war --no-daemon --warning-mode all` 成功（19件成功、失敗/skip0、WAR成功）。変更Java/テストのエディター診断0。
 - restart後の8080の認証browserで正しい`admin`資格情報から統合管理画面へ遷移し、管理者ラベルも`admin`であることを確認。旧デモID・`Admin`・`ADMIN`・誤パスワードを拒否。管理画面POSTで予約ID3種類の教師作成は400、正常生徒ログインと管理URL403も確認した。
 - 教師本人の任意パスワード変更は[機能仕様書第131版](../../function-specification.md)・ロードマップ工程12aへ追加しただけで、今回は画面や変更処理を実装していない。管理者再設定後の強制変更不要という既存方針は維持する。
+
+## 生徒管理実装後の教師初期画面（2026-10-07）
+
+- [機能仕様第134版](../../function-specification.md)に合わせ、教師ログイン後は生徒アカウント管理の権限があれば最優先で表示する。権限なしの場合だけ課題編集 → プロンプト設計 → 教師メニューの順で利用可能な画面へ遷移する。権限判定済みの遷移先がない場合のfallbackも教師メニューとし、管理者/生徒/強制パスワード変更の遷移は維持する。
+- 共通メニューの権限なしリンク無効化とサーバー側の認可は維持する。未実装の業務項目は権限の有無によらず利用不可とする。教師アカウント・学校管理は管理者専用で、一般教師からの直接URLも拒否する。
+- `docker compose run --rm --no-deps -e GRADLE_USER_HOME=/home/gradle/.gradle/student-validation-home app gradle --offline --project-cache-dir=/home/gradle/.gradle/student-management-project test --tests servlet.auth.LoginServletTest war --no-daemon --warning-mode all` 成功。6件成功、失敗/エラー/skip0、WAR生成成功。複数権限・生徒管理だけ・生徒管理権限なし・業務権限なし・既存ロール遷移を確認した。
+- 通常appを再起動して8080の再ログインから生徒管理へ遷移すること、メニューの生徒管理リンク有効/課題・プロンプト無効、直接URLの課題/プロンプト/管理者画面403を確認した。学校filter付きCSVは200・ダウンロードヘッダー・8列・IDと確認可能PWを含み、別学校の行は含まれない。レベル2本人変更後は確認不可のまま維持する。

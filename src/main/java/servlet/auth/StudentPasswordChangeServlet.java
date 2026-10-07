@@ -75,11 +75,19 @@ public final class StudentPasswordChangeServlet extends HttpServlet {
 			RequestMetadata metadata = RequestMetadata.from(request.getRemoteAddr(), request.getHeader("User-Agent"))
 					.withSessionId(user.sessionAuditId());
 			PasswordChangeResult result = AUTHENTICATION.changeStudentPassword(
-					user.userId(), currentPassword, newPassword, metadata);
+					user.userId(), currentPassword, newPassword, metadata,
+					(Long) session.getAttribute("studentAccountVersion"));
 			switch (result) {
 				case SUCCESS -> {
+					Long version = new control.auth.StudentSessionControl().afterPasswordChange(user, newPassword).orElse(null);
+					if (version == null) {
+						session.invalidate();
+						response.sendRedirect(request.getContextPath() + "/student/account/login");
+						return;
+					}
 					AuthenticatedUser updatedUser = user.withPasswordChangeRequired(false);
 					session.setAttribute(USER_ATTRIBUTE, updatedUser);
+					session.setAttribute("studentAccountVersion", version);
 					CsrfTokens.rotate(session);
 					session.setAttribute("passwordChangeNotice", Boolean.TRUE);
 					String destination = user.passwordChangeRequired()

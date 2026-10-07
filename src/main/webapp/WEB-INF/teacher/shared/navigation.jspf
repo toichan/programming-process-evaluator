@@ -4,13 +4,21 @@
 		<h3 class="sidebar-title">メニュー</h3>
 	</div>
 	<ul class="sidebar-menu">
-		<li class="sidebar-menu-item is-unavailable">
-			<span class="sidebar-menu-link" aria-disabled="true">
+		<li class="sidebar-menu-item${teacherNavigationActiveItem == 'accounts' ? ' active' : ''}">
+			<c:choose><c:when test="${teacherNavigationSummary.accountManagementEnabled}">
+			<a class="sidebar-menu-link" href="<c:url value='/teacher/account/account'/>"
+				aria-current="${teacherNavigationActiveItem == 'accounts' ? 'page' : 'false'}">
+				<svg class="sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+				<span>生徒アカウント管理</span>
+			</a>
+			</c:when><c:otherwise>
+			<span class="sidebar-menu-link is-disabled" aria-disabled="true" title="生徒アカウント管理権限がありません">
 				<svg class="sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
 					<path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
 				</svg>
 				<span>生徒アカウント管理</span>
 			</span>
+			</c:otherwise></c:choose>
 		</li>
 		<li class="sidebar-menu-item is-unavailable">
 			<span class="sidebar-menu-link" aria-disabled="true">

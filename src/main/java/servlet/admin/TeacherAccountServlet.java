@@ -152,9 +152,7 @@ public final class TeacherAccountServlet extends HttpServlet {
 		response.getWriter().write(JSON.toJson(value));
 	}
 	static String csvCell(String value) {
-		value = text(value);
-		if (!value.isEmpty() && "=+@-\t\r\n".indexOf(value.charAt(0)) >= 0) value = "'" + value;
-		return "\"" + value.replace("\"", "\"\"") + "\"";
+		return lib.web.CsvCells.encode(value);
 	}
 	private static void csv(HttpServletResponse response, List<TeacherAccountDetails> accounts, List<SchoolDetails> schools)
 			throws IOException {

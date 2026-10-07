@@ -152,6 +152,11 @@ public final class AuthenticationControl {
 
 	public PasswordChangeResult changeStudentPassword(long userId, char[] currentPassword, char[] newPassword,
 			RequestMetadata metadata) throws SQLException {
+		return changeStudentPassword(userId, currentPassword, newPassword, metadata, null);
+	}
+
+	public PasswordChangeResult changeStudentPassword(long userId, char[] currentPassword, char[] newPassword,
+			RequestMetadata metadata, Long expectedVersion) throws SQLException {
 		LocalDateTime now = LocalDateTime.now(clock);
 		char[] submittedCurrentPassword = currentPassword == null ? new char[0] : currentPassword;
 		char[] submittedNewPassword = newPassword == null ? new char[0] : newPassword;
@@ -164,6 +169,12 @@ public final class AuthenticationControl {
 					return PasswordChangeResult.NOT_ALLOWED;
 				}
 				UserCredential user = found.get();
+				if (!StudentSessionControl.matchesVersion(connection, userId, expectedVersion)) {
+					authenticationDao.insertLoginHistory(connection, userId, user.loginId(), "password_change",
+							"failure", "STALE_SESSION", "Password change was rejected.", metadata.ipAddress(), metadata.userAgent(), metadata.sessionId(), now);
+					connection.commit();
+					return PasswordChangeResult.NOT_ALLOWED;
+				}
 				Optional<StudentAccountProfile> profile = user.studentProfile();
 				if (user.accountStatus() != AccountStatus.ACTIVE || user.userType() != UserType.STUDENT
 						|| profile.isEmpty() || profile.get().securityLevel() != 2) {

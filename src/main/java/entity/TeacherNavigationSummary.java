@@ -6,10 +6,15 @@ import java.util.Objects;
 public record TeacherNavigationSummary(
 		boolean taskManagementEnabled,
 		boolean promptDesignEnabled,
+		boolean accountManagementEnabled,
 		List<TeacherSchoolOption> schools) {
 
+	public TeacherNavigationSummary(boolean taskManagementEnabled, boolean promptDesignEnabled, List<TeacherSchoolOption> schools) {
+		this(taskManagementEnabled, promptDesignEnabled, false, schools);
+	}
+
 	public TeacherNavigationSummary(boolean taskManagementEnabled, List<TeacherSchoolOption> schools) {
-		this(taskManagementEnabled, taskManagementEnabled, schools);
+		this(taskManagementEnabled, taskManagementEnabled, false, schools);
 	}
 
 	public TeacherNavigationSummary {
@@ -27,4 +32,6 @@ public record TeacherNavigationSummary(
 	public List<TeacherSchoolOption> getSchools() {
 		return schools;
 	}
+
+	public boolean isAccountManagementEnabled() { return accountManagementEnabled; }
 }

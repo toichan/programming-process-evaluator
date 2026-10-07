@@ -58,6 +58,15 @@
 
 生徒固有のアカウント属性
 
+工程12（V21）では以下の補助テーブルを追加する。認証の正本は引き続き`users.password_hash`。`users.account_version`を生徒の競合検出・セッション失効にも使用する。
+
+|テーブル|主キー・列|用途・保持|
+|:--|:--|:--|
+|student_login_sequence|singleton_id TINYINT PK、next_number BIGINT|1行をロックしてグローバルな`s001`以降の連番を採番。全usersの既存ID・削除IDを再利用しない|
+|student_teacher_credentials|student_user_id BIGINT PK/FK(users)、encrypted_password VARCHAR(256)、updated_at DATETIME|ランダムnonce付きAES-256-GCM暗号文のみ。ユーザIDをAADに使用し、別生徒への転記を拒否。レベル2の本人変更完了・論理削除時に除去する期限付き資格情報。秘密鍵はDB/Git外の環境変数。学習履歴ではなく、通常削除不可の履歴ポリシーの対象外|
+
+生徒プロフィールの初回変更完了時はDBトリガーでも確認用資格情報を除去する。既存ハッシュから暗号文を生成しない。鍵変更時は旧鍵で復号したうえで新鍵で再暗号化する運用が必要であり、単純な鍵の再生成は行わない。
+
 |フィールド名|和名|型|主キー|NULL|その他制約|備考|
 |:--|:--|:--|:--|:--|:--|:--|
 |user_id|ユーザID|BIGINT|〇|NO|PRIMARY_KEY, FOREIGN_KEY|users.user_id|

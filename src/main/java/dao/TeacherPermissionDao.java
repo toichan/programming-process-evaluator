@@ -43,6 +43,23 @@ public final class TeacherPermissionDao {
 		requireFeatureAccess(connection, teacherUserId, "teacher-prompt-design");
 	}
 
+	public void requireAccountManagementAccess(Connection connection, long teacherUserId) throws SQLException {
+		requireFeatureAccess(connection, teacherUserId, "account-management");
+	}
+
+	public List<TeacherSchoolOption> findAccountAuthorizedSchools(Connection connection, long teacherUserId) throws SQLException {
+		requireAccountManagementAccess(connection, teacherUserId);
+		return selectAuthorizedSchools(connection, teacherUserId);
+	}
+
+	public void requireAccountAuthorizedSchool(Connection connection, long teacherUserId, long schoolId) throws SQLException {
+		requireAuthorizedSchool(connection, teacherUserId, schoolId, "account-management");
+	}
+
+	public void requireAccountAuthorizedClass(Connection connection, long teacherUserId, long classroomId, long schoolId) throws SQLException {
+		requireAuthorizedClass(connection, teacherUserId, classroomId, schoolId, "account-management");
+	}
+
 	private void requireFeatureAccess(Connection connection, long teacherUserId, String feature) throws SQLException {
 		requireActiveTeacher(connection, teacherUserId);
 		try (PreparedStatement statement = connection.prepareStatement("""
@@ -80,6 +97,7 @@ public final class TeacherPermissionDao {
 		String sql = """
 				SELECT COALESCE(tfp.is_enabled, 0) AS task_management_enabled,
 				       COALESCE(prompt.is_enabled, 0) AS prompt_design_enabled,
+				       COALESCE(accounts.is_enabled, 0) AS account_management_enabled,
 				       s.school_id, s.school_code, s.name
 				FROM users u
 				LEFT JOIN teacher_feature_permissions tfp
@@ -88,6 +106,8 @@ public final class TeacherPermissionDao {
 				  ON tsp.teacher_user_id = u.user_id AND tsp.access_status = 'enabled'
 				LEFT JOIN teacher_feature_permissions prompt
 				  ON prompt.teacher_user_id = u.user_id AND prompt.feature_code = 'teacher-prompt-design'
+				LEFT JOIN teacher_feature_permissions accounts
+				  ON accounts.teacher_user_id = u.user_id AND accounts.feature_code = 'account-management'
 				LEFT JOIN schools s
 				  ON s.school_id = tsp.school_id AND s.school_status = 'active'
 				WHERE u.user_id = ? AND u.user_type = 'teacher'
@@ -98,6 +118,7 @@ public final class TeacherPermissionDao {
 		Map<Long, TeacherSchoolOption> schools = new LinkedHashMap<>();
 		boolean taskManagementEnabled;
 		boolean promptDesignEnabled;
+		boolean accountManagementEnabled;
 		try (PreparedStatement statement = connection.prepareStatement(sql)) {
 			statement.setString(1, TASK_MANAGEMENT_FEATURE);
 			statement.setLong(2, teacherUserId);
@@ -107,6 +128,7 @@ public final class TeacherPermissionDao {
 				}
 				taskManagementEnabled = rows.getBoolean("task_management_enabled");
 				promptDesignEnabled = rows.getBoolean("prompt_design_enabled");
+				accountManagementEnabled = rows.getBoolean("account_management_enabled");
 				do {
 					long schoolId = rows.getLong("school_id");
 					if (!rows.wasNull()) {
@@ -116,7 +138,7 @@ public final class TeacherPermissionDao {
 				} while (rows.next());
 			}
 		}
-		return new TeacherNavigationSummary(taskManagementEnabled, promptDesignEnabled, List.copyOf(schools.values()));
+		return new TeacherNavigationSummary(taskManagementEnabled, promptDesignEnabled, accountManagementEnabled, List.copyOf(schools.values()));
 	}
 
 	private List<TeacherSchoolOption> selectAuthorizedSchools(Connection connection, long teacherUserId)

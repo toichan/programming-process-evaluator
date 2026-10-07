@@ -64,6 +64,19 @@ public final class AuthenticationFilter implements Filter {
 		}
 
 		String passwordChangePath = "/student/account/change-password";
+		if (user.userType() == UserType.STUDENT) {
+			try {
+				if (!new control.auth.StudentSessionControl().isCurrent(user, session.getAttribute("studentAccountVersion"))) {
+					session.invalidate();
+					response.sendRedirect(request.getContextPath() + "/student/account/login");
+					return;
+				}
+			} catch (SQLException failure) {
+				filterConfig.getServletContext().log("Student session validation failed.", failure);
+				response.sendError(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
+				return;
+			}
+		}
 		if (user.userType() == UserType.TEACHER) {
 			try {
 				if (!new control.auth.TeacherSessionControl().isCurrent(user, session.getAttribute("teacherAccountVersion"))) {

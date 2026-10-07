@@ -83,6 +83,14 @@ public final class LoginServlet extends HttpServlet {
 					return;
 				}
 			}
+			Long studentVersion = null;
+			if (credential.userType() == UserType.STUDENT) {
+				studentVersion = new control.auth.StudentSessionControl().loginVersion(credential).orElse(null);
+				if (studentVersion == null) {
+					forwardWithError(request, response, loginFailureMessage());
+					return;
+				}
+			}
 			boolean passwordChangeRequired = passwordChangeRequired(credential);
 			AuthenticatedUser authenticatedUser = new AuthenticatedUser(
 					credential.userId(),
@@ -100,6 +108,7 @@ public final class LoginServlet extends HttpServlet {
 			authenticatedSession.setMaxInactiveInterval(30 * 60);
 			authenticatedSession.setAttribute(USER_ATTRIBUTE, authenticatedUser);
 			if (teacherVersion != null) authenticatedSession.setAttribute("teacherAccountVersion", teacherVersion);
+			if (studentVersion != null) authenticatedSession.setAttribute("studentAccountVersion", studentVersion);
 			if (teacherDestination != null) authenticatedSession.setAttribute("teacherLandingPath", teacherDestination);
 			CsrfTokens.rotate(authenticatedSession);
 			redirectAuthenticatedUser(request, response, authenticatedUser);
@@ -164,7 +173,7 @@ public final class LoginServlet extends HttpServlet {
 		String destination = destinationFor(user);
 		if (user.userType() == UserType.TEACHER) {
 			Object landing = request.getSession(false).getAttribute("teacherLandingPath");
-			if (landing instanceof String path && java.util.List.of("/teacher/task", "/teacher/prompt", "/teacher/home").contains(path)) {
+			if (landing instanceof String path && java.util.List.of("/teacher/task", "/teacher/prompt", "/teacher/account/account", "/teacher/home").contains(path)) {
 				destination = path;
 			}
 		}
@@ -172,6 +181,7 @@ public final class LoginServlet extends HttpServlet {
 	}
 
 	static String teacherDestinationFor(entity.TeacherNavigationSummary permissions) {
+		if (permissions.accountManagementEnabled()) return "/teacher/account/account";
 		if (permissions.taskManagementEnabled()) return "/teacher/task";
 		if (permissions.promptDesignEnabled()) return "/teacher/prompt";
 		return "/teacher/home";
@@ -184,7 +194,7 @@ public final class LoginServlet extends HttpServlet {
 		return switch (user.userType()) {
 			case STUDENT -> "/student/home";
 			case ADMIN -> "/admin/home";
-			case TEACHER -> "/teacher/task";
+			case TEACHER -> "/teacher/home";
 		};
 	}
 

@@ -6,7 +6,7 @@
 <div class="container-fluid py-4 px-4">
 	<h1 class="h3">教師メニュー</h1>
 	<c:choose>
-		<c:when test="${teacherNavigationSummary.taskManagementEnabled or teacherNavigationSummary.promptDesignEnabled}">
+		<c:when test="${teacherNavigationSummary.taskManagementEnabled or teacherNavigationSummary.promptDesignEnabled or teacherNavigationSummary.accountManagementEnabled}">
 			<p>左のメニューから利用する機能を選択してください。</p>
 		</c:when>
 		<c:otherwise><div class="alert alert-info" role="status">現在、利用できる実装済み機能の権限がありません。管理者に利用権限を確認してください。</div></c:otherwise>

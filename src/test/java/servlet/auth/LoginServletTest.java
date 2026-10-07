@@ -16,10 +16,20 @@ class LoginServletTest {
 	}
 
 	@Test
-	void teachersLandOnTaskManagementUntilAccountManagementIsAvailable() {
+	void teachersPrioritizeAuthorizedStudentAccountManagement() {
+		assertEquals("/teacher/account/account", LoginServlet.teacherDestinationFor(
+				new entity.TeacherNavigationSummary(true, true, true, java.util.List.of())));
+		assertEquals("/teacher/account/account", LoginServlet.teacherDestinationFor(
+				new entity.TeacherNavigationSummary(false, true, true, java.util.List.of())));
+		assertEquals("/teacher/account/account", LoginServlet.teacherDestinationFor(
+				new entity.TeacherNavigationSummary(false, false, true, java.util.List.of())));
+	}
+
+	@Test
+	void teachersWithoutAnAuthorizedLandingUseTheirMenu() {
 		AuthenticatedUser teacher = new AuthenticatedUser(1, "teacher", "Synthetic", UserType.TEACHER, false, "test");
 
-		assertEquals("/teacher/task", LoginServlet.destinationFor(teacher));
+		assertEquals("/teacher/home", LoginServlet.destinationFor(teacher));
 	}
 
 	@Test
