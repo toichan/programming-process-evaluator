@@ -85,7 +85,7 @@
 		</li>
 		<li class="sidebar-menu-item${teacherNavigationActiveItem == 'prompt' ? ' active' : ''}">
 			<c:choose>
-				<c:when test="${teacherNavigationSummary.taskManagementEnabled}">
+				<c:when test="${teacherNavigationSummary.promptDesignEnabled}">
 					<a href="<c:url value='/teacher/prompt'/>" class="sidebar-menu-link"
 						aria-current="${teacherNavigationActiveItem == 'prompt' ? 'page' : 'false'}">
 						<svg class="sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -95,7 +95,7 @@
 					</a>
 				</c:when>
 				<c:otherwise>
-					<span class="sidebar-menu-link is-disabled" aria-disabled="true" title="課題編集権限がありません">
+					<span class="sidebar-menu-link is-disabled" aria-disabled="true" title="プロンプト設計権限がありません">
 						<svg class="sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
 							<path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zm14.71-9.04c.39-.39.39-1.02 0-1.41l-2.5-2.5a.996.996 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.99-1.83z"/>
 						</svg>

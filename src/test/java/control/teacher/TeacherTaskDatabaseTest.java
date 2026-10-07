@@ -73,6 +73,26 @@ class TeacherTaskDatabaseTest {
 	private boolean retainFixtureAfterTest;
 
 	@Test
+	void promptPermissionIsIndependentButStillRequiresTheTaskSchool() throws SQLException {
+		long taskId = TASKS.createDraft(teacher(), input("Independent prompt permission"), UUID.randomUUID().toString());
+		var prompts = new TeacherPromptControl();
+		try (Connection connection = Client.createConnection();
+				PreparedStatement statement = connection.prepareStatement(
+						"UPDATE teacher_feature_permissions SET is_enabled=0 WHERE teacher_user_id=? AND feature_code='task-management'")) {
+			statement.setLong(1, teacherId); statement.executeUpdate();
+		}
+		assertThrows(SecurityException.class, () -> TASKS.loadPage(teacher(), taskId, schoolId));
+		assertEquals(taskId, prompts.loadPage(teacher(), taskId, null).selectedTask().taskId());
+		try (Connection connection = Client.createConnection();
+				PreparedStatement statement = connection.prepareStatement(
+						"UPDATE teacher_school_permissions SET access_status='disabled' WHERE teacher_user_id=? AND school_id=?")) {
+			statement.setLong(1, teacherId); statement.setLong(2, schoolId); statement.executeUpdate();
+		}
+		assertTrue(prompts.loadPage(teacher(), null, null).tasks().isEmpty());
+		assertThrows(SecurityException.class, () -> prompts.loadPage(teacher(), taskId, null));
+	}
+
+	@Test
 	void createsRetainedSyntheticTeacherFixtureForIsolatedBrowserAcceptance() throws SQLException {
 		Assumptions.assumeTrue("true".equals(System.getenv("TEACHER_TASK_BROWSER_FIXTURE")));
 		assertTrue(System.getenv("DB_NAME").matches("ppe_teacher_task_test_[a-z0-9_]+"));
@@ -2422,9 +2442,12 @@ class TeacherTaskDatabaseTest {
 				INSERT INTO teacher_feature_permissions
 					(teacher_user_id, feature_code, is_enabled, updated_by_user_id, updated_at)
 				VALUES (?, 'task-management', 1, ?, CURRENT_TIMESTAMP)
+				     , (?, 'teacher-prompt-design', 1, ?, CURRENT_TIMESTAMP)
 				""")) {
 			statement.setLong(1, teacherId);
 			statement.setLong(2, teacherId);
+			statement.setLong(3, teacherId);
+			statement.setLong(4, teacherId);
 			statement.executeUpdate();
 		}
 	}

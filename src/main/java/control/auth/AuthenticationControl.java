@@ -60,7 +60,7 @@ public final class AuthenticationControl {
 					return LoginResult.failure("ACCOUNT_UNAVAILABLE");
 				}
 
-				if (!portal.allows(user.userType())) {
+				if (!portal.allows(user.userType(), user.loginId(), loginId)) {
 					recordFailure(connection, user.userId(), loginId, "WRONG_LOGIN_PORTAL", metadata, now);
 					connection.commit();
 					return LoginResult.failure("INVALID_CREDENTIALS");
@@ -224,6 +224,16 @@ public final class AuthenticationControl {
 			return this == STUDENT
 					? userType == UserType.STUDENT
 					: userType == UserType.TEACHER || userType == UserType.ADMIN;
+		}
+
+		boolean allows(UserType userType, String storedLoginId, String submittedLoginId) {
+			if (!allows(userType)) return false;
+			if (userType == UserType.ADMIN) {
+				return UserCredential.ADMIN_LOGIN_ID.equals(storedLoginId)
+						&& UserCredential.ADMIN_LOGIN_ID.equals(submittedLoginId);
+			}
+			return !UserCredential.ADMIN_LOGIN_ID.equalsIgnoreCase(storedLoginId)
+					&& !UserCredential.ADMIN_LOGIN_ID.equalsIgnoreCase(submittedLoginId);
 		}
 	}
 

@@ -9,7 +9,6 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 import control.auth.AuthenticatedUser;
-import servlet.auth.CsrfTokens;
 import entity.UserCredential.UserType;
 
 @WebServlet("/admin/home")
@@ -25,9 +24,6 @@ public final class AdminHomeServlet extends HttpServlet {
 			return;
 		}
 
-		request.setAttribute("displayName", user.displayName());
-		request.setAttribute("csrfToken", CsrfTokens.getOrCreate(request.getSession(false)));
-		request.setAttribute("screenPageTitle", "管理者ホーム");
-		request.getRequestDispatcher("/WEB-INF/admin/home.jsp").forward(request, response);
+		response.sendRedirect(request.getContextPath() + "/admin/management");
 	}
 }

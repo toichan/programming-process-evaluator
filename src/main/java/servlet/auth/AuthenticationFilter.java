@@ -16,6 +16,7 @@ import javax.servlet.http.HttpSession;
 
 import control.student.StudentControl;
 import entity.UserCredential.UserType;
+import entity.UserCredential;
 import control.auth.AuthenticatedUser;
 
 @WebFilter("/*")
@@ -56,12 +57,26 @@ public final class AuthenticationFilter implements Filter {
 
 		if ((studentArea && user.userType() != UserType.STUDENT)
 				|| (staffArea && user.userType() != UserType.TEACHER && user.userType() != UserType.ADMIN)
-				|| (adminArea && user.userType() != UserType.ADMIN)) {
+				|| (adminArea && (user.userType() != UserType.ADMIN
+						|| !UserCredential.ADMIN_LOGIN_ID.equals(user.loginId())))) {
 			response.sendError(HttpServletResponse.SC_FORBIDDEN);
 			return;
 		}
 
 		String passwordChangePath = "/student/account/change-password";
+		if (user.userType() == UserType.TEACHER) {
+			try {
+				if (!new control.auth.TeacherSessionControl().isCurrent(user, session.getAttribute("teacherAccountVersion"))) {
+					session.invalidate();
+					response.sendRedirect(request.getContextPath() + "/teacher/account/login");
+					return;
+				}
+			} catch (SQLException failure) {
+				filterConfig.getServletContext().log("Teacher session validation failed.", failure);
+				response.sendError(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
+				return;
+			}
+		}
 		if (user.passwordChangeRequired()
 				&& !path.equals(passwordChangePath)
 				&& !path.equals("/auth/logout")) {

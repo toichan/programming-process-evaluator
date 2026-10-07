@@ -1,6 +1,6 @@
 # 初期利用者・認証・ログイン 実装計画
 
-現在の状態（2026-10-04整理）: **認証と先行学校管理は実装済み**。以下は初回計画と追加バッチの履歴。教師業務機能は工程10・11、教師アカウント管理と管理者画面統合は工程12の未実装範囲として[実装ロードマップ](../implementation-roadmap.md)へ引き継ぐ。本番TLS/cookieや実管理者アカウント等の未確認事項は保持する。
+現在の状態（2026-10-07更新）: **認証・学校管理・工程11の教師アカウント管理と管理画面統合は実装・検証済み**。管理者の固定ID `admin` への修正は末尾の記録を参照する。以下は初回計画と追加バッチの履歴であり、旧未実装記述を現在の状態として扱わない。次は[実装ロードマップ](../implementation-roadmap.md)工程12の生徒アカウント管理。教師本人のアカウント管理は工程12aへ仕様のみ追加し未実装。本番TLS/cookieや実管理者アカウント等の未確認事項は保持する。
 
 ## 目的と範囲
 - 利用者に提供する動作: 生徒・教師・管理者がDB上の認証情報でログインし、規定状態の利用者だけがセッションを取得できる。
@@ -71,3 +71,38 @@
 - [x] ログイン失敗・ロック・ロック解除を仕様どおり記録し、外部メッセージからアカウントの有無を推測できない。
 - [x] 入力制約を機能仕様書・状態ルールと一致させる。
 - [x] 実行した確認結果と未確認事項を記録する。
+
+## 工程11：教師アカウント管理追加バッチ（2026-10-06）
+
+仕様は[機能仕様書第130版](../../function-specification.md)、状態は[アカウント状態ルール](../../state-rules/admin/account-state-rules.md)、データ契約は[テーブル定義](../../database-design/table-definitions.md#users)を正本とする。初期/再設定パスワードの発行直後のみの表示・コピーはユーザー承認済み。教師の次回変更必須という旧プロトタイプ文言は廃止済み仕様と矛盾するため採用しない。
+
+### 要件・タスク対応
+
+| 要件ID | 仕様の参照範囲 | タスク | 実装・検証 |
+|---|---|---|---|
+| REQ-TEACHER-001 | 教師アカウント管理：作成・状態・再設定 | T001 仕様整合、T002 DB/Control | V20、TeacherAccountInput/Dao/Control。資格情報はハッシュのみ保存、削除非復元・履歴保持・失敗rollbackをDB検証 |
+| REQ-TEACHER-002 | 学校/機能権限・認証認可 | T002 DB/Control | 9機能権限、課題/プロンプト権限の分離、学校認可、TeacherSessionControlとFilterの更新版照合。既存ログイン失効・再設定競合・既存ロック維持を検証 |
+| REQ-TEACHER-003 | 一覧/検索・CSV・ログイン/操作履歴・管理画面 | T003 Servlet/JSP/JS | `/admin/management`と`/admin/teachers`、既存2タブ/モーダル、共有template/feedback。学校管理は既存SchoolControlを再利用 |
+| REQ-TEACHER-004 | 保存後再読込・状態/認可/資格情報 | T004 回帰/HTTP/browser・記録 | 下記の自動テストと8080の認証browser受入 |
+
+### 検証結果
+
+- 全体: `docker compose run --rm --no-deps -e GRADLE_USER_HOME=/tmp/gradle-teacher-validation app gradle --project-cache-dir=/tmp/teacher-validation-project test war --no-daemon --warning-mode all` 成功。249件中160成功、89件はDB/実API/browser fixture等の明示ゲートでskip、失敗/エラー0。WAR生成成功。
+- 教師管理: `docker compose run --rm --no-deps -e DB_NAME=ppe_teacher_test_20261006 -e TEACHER_ACCOUNT_DB_TEST=true -e GRADLE_USER_HOME=/tmp/gradle-teacher-validation app gradle --project-cache-dir=/tmp/teacher-validation-project test --tests control.admin.TeacherAccountDatabaseTest --tests entity.TeacherAccountInputTest --tests control.auth.PasswordGeneratorTest --tests servlet.admin.TeacherAccountServletTest --tests control.admin.TeacherAccountControlTest --tests servlet.auth.LoginServletTest --tests 'control.teacher.TeacherPrompt*Test' --tests 'control.teacher.ReevaluationPreview*Test' --tests control.teacher.TeacherNavigationControlTest --no-daemon` 成功（19件成功、失敗/skip0）。セッションstamp/古いhashによる再認証拒否を追加後、同DBで `test --tests control.admin.TeacherAccountDatabaseTest --no-daemon` を再実行し2件成功。
+- プロンプト学校認可: `docker compose run --rm --no-deps -e DB_NAME=ppe_teacher_task_test_admin20261006 -e TEACHER_TASK_DB_TEST=true -e GRADLE_USER_HOME=/tmp/gradle-teacher-validation app gradle --project-cache-dir=/tmp/teacher-validation-project flywayMigrate test --tests control.teacher.TeacherTaskDatabaseTest.promptPermissionIsIndependentButStillRequiresTheTaskSchool --tests control.teacher.TeacherTaskDatabaseTest.promptDraftUsesSharedRubricAndOptimisticVersioning --tests control.teacher.TeacherTaskDatabaseTest.reevaluationJobStatusIsScopedToTeacherAndTaskAndReportsProgress --tests control.teacher.TeacherTaskDatabaseTest.publishedTaskAllowsASeparatePromptDraftWithoutChangingTheActiveVersion --no-daemon` 成功（4件成功、失敗/skip0）。V1〜V20適用成功。
+- 学校回帰: `docker compose run --rm --no-deps -e DB_NAME=ppe_school_test_teacher20261006 -e SCHOOL_DB_TEST=true -e GRADLE_USER_HOME=/tmp/gradle-teacher-validation app gradle --project-cache-dir=/tmp/teacher-validation-project test --tests control.admin.SchoolDatabaseTest --tests entity.SchoolInputTest --no-daemon` 成功（6件成功、うちDB4件、失敗/skip0）。
+- 8080認証browser: 管理者作成/ログイン、教師作成・学校/権限保存、資格情報モーダル終了/再読込後の消去、再設定と旧PW拒否/新PW成功、停止/解除/削除と既存セッション失効、削除後の履歴保持、検索/CSV・CSRF403・教師/生徒の管理URL403を確認。課題編集OFF/プロンプトONの教師は課題403・プロンプト200。
+- 学校タブから登録・日本語名/レベル変更をDB保存後の再表示で確認。生徒登録済み学校のレベルdisabledと既存DBによる改ざん拒否を確認。375pxでページ幅375px、作成モーダル幅359pxでページ全体の横はみ出しなし。
+- ブラウザーの背景タブのクリック/アニメーション待機が停止するため、後半のモーダル検証は一時DOMのfadeクラスを除去し、実button/formのイベントと保存・表示を検証した。アニメーション自体の最終再確認と全ブラウザー/OS組合せは未実施。変更はブラウザーの再読込で消え、ソースには入れていない。
+- エディターは既存Gson依存を解決できずJava診断が残るが、Compose Java21でコンパイル/テスト/WARが成功。変更JS/CSSの診断は0。外部APIは呼び出していない。本番TLS/cookie・実運用アカウントでの受入は対象外。
+
+T001〜T004完了。今回の専用DB3個/付与権限・一時fixtureファイル・学校UI検証fixtureを削除し、routine設定0・8080/app/DB/runner稼働を確認した。合成管理者は利用者確認用に残し、削除検証済み教師は履歴付きで保持する。プロトタイプは変更せず、本実装へ反映した。次は工程12の生徒アカウント管理。
+
+## 管理者の固定ID修正（2026-10-07）
+
+- ユーザー再確認により管理者IDは小文字の`admin`に固定。任意IDのadminロールを認証していた実装を修正し、教師ログインでは入力ID・保存済みIDの両方が正確に`admin`であること、正しいパスワード・利用中状態・管理者ロールを要求する。管理URLもロールと固定IDを検証する。
+- `admin`の大文字/小文字違いは教師IDとして登録できない。初期管理者作成タスクはID入力を廃止して固定IDを使い、表示名・パスワードのみ従来どおり対話入力する。
+- 通常デモDBの既存管理者を固定IDへ修正した。内部user_idと関連履歴・パスワードハッシュを維持し、ID修正を監査へ記録。管理者を追加して1アカウント制約を破ることはしない。資格情報の実値はこの文書に記載しない。
+- 検証コマンド: `docker compose run --rm --no-deps -e GRADLE_USER_HOME=/tmp/gradle-teacher-validation app gradle --project-cache-dir=/tmp/teacher-validation-project test --tests 'control.auth.*Test' --tests entity.TeacherAccountInputTest --tests servlet.auth.LoginServletTest --tests servlet.admin.TeacherAccountServletTest war --no-daemon --warning-mode all` 成功（19件成功、失敗/skip0、WAR成功）。変更Java/テストのエディター診断0。
+- restart後の8080の認証browserで正しい`admin`資格情報から統合管理画面へ遷移し、管理者ラベルも`admin`であることを確認。旧デモID・`Admin`・`ADMIN`・誤パスワードを拒否。管理画面POSTで予約ID3種類の教師作成は400、正常生徒ログインと管理URL403も確認した。
+- 教師本人の任意パスワード変更は[機能仕様書第131版](../../function-specification.md)・ロードマップ工程12aへ追加しただけで、今回は画面や変更処理を実装していない。管理者再設定後の強制変更不要という既存方針は維持する。

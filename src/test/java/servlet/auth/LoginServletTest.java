@@ -9,6 +9,13 @@ import entity.UserCredential.UserType;
 
 class LoginServletTest {
 	@Test
+	void teachersLandOnAnEnabledImplementedFeatureOrTheirMenu() {
+		assertEquals("/teacher/task", LoginServlet.teacherDestinationFor(new entity.TeacherNavigationSummary(true, true, java.util.List.of())));
+		assertEquals("/teacher/prompt", LoginServlet.teacherDestinationFor(new entity.TeacherNavigationSummary(false, true, java.util.List.of())));
+		assertEquals("/teacher/home", LoginServlet.teacherDestinationFor(new entity.TeacherNavigationSummary(false, false, java.util.List.of())));
+	}
+
+	@Test
 	void teachersLandOnTaskManagementUntilAccountManagementIsAvailable() {
 		AuthenticatedUser teacher = new AuthenticatedUser(1, "teacher", "Synthetic", UserType.TEACHER, false, "test");
 

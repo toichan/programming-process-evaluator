@@ -60,8 +60,11 @@ public final class TeacherPromptControl {
 		try (Connection connection = connectionFactory.open()) {
 			connection.setAutoCommit(false);
 			try {
-				permissionDao.requireTaskManagementAccess(connection, user.userId());
-				List<TeacherTaskDetails> tasks = taskDao.findPromptTasks(connection, user.userId());
+				permissionDao.requirePromptDesignAccess(connection, user.userId());
+				var schools = permissionDao.findPromptAuthorizedSchools(connection, user.userId()).stream()
+						.map(entity.TeacherSchoolOption::schoolId).collect(java.util.stream.Collectors.toSet());
+				List<TeacherTaskDetails> tasks = taskDao.findPromptTasks(connection, user.userId()).stream()
+						.filter(task -> schools.contains(task.input().schoolId())).toList();
 				requireAuthorizedClasses(connection, user.userId(), tasks);
 				if (selectedTaskId == null) {
 					connection.commit();
@@ -113,7 +116,7 @@ public final class TeacherPromptControl {
 		try (Connection connection = connectionFactory.open()) {
 			connection.setAutoCommit(false);
 			try {
-				permissionDao.requireTaskManagementAccess(connection, user.userId());
+				permissionDao.requirePromptDesignAccess(connection, user.userId());
 				TeacherTaskDetails task = taskDao.findPromptTask(connection, user.userId(), taskId, true)
 						.orElseThrow(TeacherPromptDao.TeacherTaskNotFoundException::new);
 				requireAuthorizedClasses(connection, user.userId(), List.of(task));
@@ -308,7 +311,7 @@ public final class TeacherPromptControl {
 	}
 
 	private void requireTaskAccess(Connection connection, AuthenticatedUser user, long taskId) throws SQLException {
-		permissionDao.requireTaskManagementAccess(connection, user.userId());
+		permissionDao.requirePromptDesignAccess(connection, user.userId());
 		TeacherTaskDetails task = taskDao.findPromptTask(connection, user.userId(), taskId, true)
 				.orElseThrow(TeacherPromptDao.TeacherTaskNotFoundException::new);
 		requireAuthorizedClasses(connection, user.userId(), List.of(task));
@@ -340,8 +343,9 @@ public final class TeacherPromptControl {
 			long teacherUserId,
 			List<TeacherTaskDetails> tasks) throws SQLException {
 		for (TeacherTaskDetails task : tasks) {
+			permissionDao.requirePromptAuthorizedSchool(connection, teacherUserId, task.input().schoolId());
 			for (var assignment : task.input().classAssignments()) {
-				permissionDao.requireAuthorizedClass(connection, teacherUserId, assignment.classroomId());
+				permissionDao.requirePromptAuthorizedClass(connection, teacherUserId, assignment.classroomId());
 			}
 		}
 	}

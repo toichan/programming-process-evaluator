@@ -14,6 +14,7 @@ public record UserCredential(
 		int consecutiveLoginFailures,
 		Optional<LocalDateTime> loginLockedUntil,
 		Optional<StudentAccountProfile> studentProfile) {
+	public static final String ADMIN_LOGIN_ID = "admin";
 
 	public UserCredential {
 		Objects.requireNonNull(userType, "userType");

@@ -2,6 +2,30 @@
 
 秘密情報・実際の生徒データ・研究データは記載しない。解消後も履歴を保持する。
 
+## 2026-10-07 14:33 JST: 管理者固定IDの仕様差分修正
+
+- 期待結果: 教師ログインの小文字`admin`と正しい資格情報・管理者ロールだけが管理画面へ遷移する。教師本人のアカウント管理は仕様追加のみ。
+- 原因: 初期管理者作成が任意IDを受け付け、認証では管理者ロールだけを見ていたため、長いデモIDでも管理画面へ遷移できた。固定ID・予約IDの境界をControl/Filter/教師入力/初期作成に追加し、デモ管理者の内部IDと履歴を維持してログインIDを修正、監査を記録した。
+- 初回 `test war --tests ...` は`--tests`がwar taskへ適用されUnknown command-line optionで失敗した。`test --tests ... war`の順に修正し、19件成功・失敗/skip0・WAR成功。エディターtest toolは対象JUnitを見つけず、Compose Java21/Gradleで検証した。
+- restart直後のcurlはEmpty replyとなり、retry後200を確認。8080の認証browserでadmin成功・旧ID/大文字違い/誤PW拒否、予約教師ID作成400・通常生徒ログイン/管理URL403を確認した。変更Java/テストの診断0、資格情報は文書・ソースに記載していない。
+- 最終`git diff --check`成功。Markdown診断には既存の改行HTML・末尾の箇条書き様式・表の空白等が報告された。今回の追加節に起因する指摘はなく、無関係な既存の整形は変更していない。
+- 本番TLS/cookie・実運用アカウントは対象外。教師本人のパスワード変更は未実装のまま、[仕様](../function-specification.md)第131版と[ロードマップ](./implementation-roadmap.md)工程12aへ記録した。
+
+## 2026-10-06 15:12 JST: 教師アカウント管理の実装・検証
+
+- Gradleによる初期の対象テストは成功。VS Codeのテストtoolは新規JUnitを検出せず、エディターのJava診断は既存Gson依存を解決できなかったため、Java21のCompose/Gradleで検証する。
+- 失敗監査メソッドを追加するパッチの挿入位置が既存メソッド内部となり、Java compileでillegal start of expression。メソッド境界へ移動して修正した。
+- 専用schema `ppe_teacher_test_20261006` のV11 migrationでMySQL error 1419。既存と同じroutine権限制約。部分適用schemaを使い回さず、今回作成したschemaのみ再作成し、一時的なroutine作成設定で移行後に元へ戻す。
+- Grettyの現在のappログにscannerの接続エラーがあり、自動reloadを信用せず、通常appを再起動して8080のHTTPと新URLを確認する。
+- 統合testのLoginPortal importはAuthenticationControlのネストenumへ修正。学校回帰testは専用DB名ガードが異なるため、教師用DBと分けて実行した。app稼働中はGradleのproject fileHashes lockも共有されるため、`--project-cache-dir=/tmp/teacher-validation-project`を付けて解消した。
+- 初回の認証browser作成POSTはFormDataのmultipart形式をServletが解析せずCSRF 403。通常フォームと同じURLSearchParamsによるapplication/x-www-form-urlencodedへ修正した。保護を解除せず、CSRF/確認付きの実POSTを再検証する。
+- 再検証: 教師管理/入力/資格情報/Servlet/ログイン/プロンプトのfocused suiteは19件成功。セッション更新版・古いhash・権限変更時のログインロック維持を追加後、教師管理DB test2件を再実行して成功。プロンプトの独立機能権限/学校権限と既存保存・再評価のDB回帰4件、学校管理DB4件＋入力2件も成功。全体 `test war --no-daemon --warning-mode all` は249件中160成功、89件は明示ゲートでskip、失敗/エラー0、WAR成功。詳細な実行コマンドは[認証計画](./feature-plans/authentication-and-login.md#工程11教師アカウント管理追加バッチ2026-10-06)を参照する。
+- 8080の認証browserで教師作成・権限編集・再設定と旧PW拒否/新PW成功、停止/解除/削除、変更後のセッション失効・削除後の履歴保持、検索/CSV、学校登録/日本語名とレベル変更・生徒登録済み学校のレベルdisabled、管理者以外403と不正CSRF403を確認した。資格情報はモーダル終了/再読込で消える。375px表示はページ幅375px・作成モーダル359pxで全体の横はみ出しなし。
+- 統合browserが`document.visibilityState=hidden`のためクリック安定待ちやモーダルfadeが停止し、検証selectorにも確定ボタン名/履歴modal ID/複数要素一致の誤りがあった。実際のDOMに合わせてselectorを修正し、後半のmodal受入では一時DOMのfadeを除去してbutton/formイベントで検証した。ソースのアニメーションは変更していない。modal終了時のfocus/aria-hidden警告に対して今回のmodalにfocus解除を追加した。アニメーション自体と全browser/OS組合せの最終受入は未確認。
+- 最終restart後の初回curlはEmpty replyで、retry後に教師ログイン200・未認証管理URL302を確認。再ログインした管理者でconsole/別名/旧学校URL/詳細/履歴/CSVは200、不正CSRF403。fixture確認SQLに存在しない`school_name`を指定したため1054となったが保存処理には影響せず、学校コード/ID指定へ修正した。
+- エディターの既存Gson未解決診断は残る。変更JS/CSS/TeacherSessionControl/DB testの診断は0で、実際のJava21コンパイルは成功。外部APIは呼び出していない。実運用アカウント・本番TLS/cookieは未確認として保持する。
+- 後片付け: 今回作成した専用DB3個/付与権限、資格情報を含む一時fixture2ファイル、学校UI fixtureを削除した。残存schema/学校fixtureは0、routine設定0、通常app/DB/runner稼働を確認。合成adminと削除済み教師の履歴はデモ確認用に残した。`git diff --check`成功。
+
 ## 2026-10-06 14:49 JST: 課題編集テストケースの高さ修正
 
 - 期待結果: 空欄・1行の入力/出力欄は1行分の高さで表示し、改行で伸び、改行を削除すると縮む。

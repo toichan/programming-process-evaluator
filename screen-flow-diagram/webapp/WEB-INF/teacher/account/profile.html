@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Programming Process Evaluator - 教師アカウント情報</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet"
+    integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+  <link href="../../../css/teacher/shared/components.css" rel="stylesheet">
+  <link href="../../../css/teacher/shared/feedback.css" rel="stylesheet">
+  <link href="../../../css/template/template.css" rel="stylesheet">
+  <link href="../../../css/teacher/account/profile.css" rel="stylesheet">
+</head>
+<body class="d-flex">
+  <main class="flex-grow-1">
+    <div class="page-content py-5">
+      <div class="container-fluid px-4">
+        <section class="sample-section profile-hero mb-4">
+          <span class="profile-kicker">My Account</span>
+          <h1 class="section-title mb-3">アカウント情報</h1>
+          <p class="text-muted mb-0">ご自身の登録情報と利用可能な機能を確認し、パスワードを変更できます。</p>
+        </section>
+        <p class="prototype-notice mb-4">画面遷移プロトタイプです。学校・権限・状態は表示用サンプルで、アカウント情報の取得・更新は行いません。</p>
+        <div class="row g-4">
+          <div class="col-12 col-xl-7">
+            <section class="sample-card h-100">
+              <h2 class="card-title mb-4">登録情報</h2>
+              <dl class="profile-details mb-0">
+                <div>
+                  <dt>教師ID</dt>
+                  <dd id="profileTeacherId"></dd>
+                </div>
+                <div>
+                  <dt>アカウント状態</dt>
+                  <dd><span class="badge text-bg-success">利用中</span></dd>
+                </div>
+                <div class="profile-detail-wide">
+                  <dt>閲覧可能な学校</dt>
+                  <dd>
+                    <ul class="mb-0">
+                      <li>国際中等</li>
+                      <li>附属高校</li>
+                    </ul>
+                  </dd>
+                </div>
+              </dl>
+              <p class="text-muted small mt-3 mb-0">教師ID・学校・状態の変更が必要な場合は、管理者へご相談ください。</p>
+            </section>
+          </div>
+          <div class="col-12 col-xl-5">
+            <section class="sample-card h-100">
+              <h2 class="card-title mb-3">パスワード変更</h2>
+              <p class="text-muted">パスワードは任意に変更できます。現在のパスワードは表示できません。</p>
+              <a class="btn btn-primary mb-4" href="./password.html">パスワード変更へ</a>
+              <div class="profile-policy">
+                <h3 class="h6 fw-bold">パスワード要件</h3>
+                <p class="mb-0">半角8〜32文字。英大文字・英小文字・数字・記号のうち3種類以上を含めてください。</p>
+              </div>
+              <p class="text-muted small mt-3 mb-0">現在のパスワードを忘れた場合は、管理者へ再設定を依頼してください。</p>
+            </section>
+          </div>
+          <div class="col-12">
+            <section class="sample-card">
+              <h2 class="card-title mb-3">利用可能な業務機能</h2>
+              <ul class="profile-features mb-3">
+                <li>生徒アカウント管理</li>
+                <li>課題進捗確認</li>
+                <li>提出課題確認</li>
+                <li>授業演習コード確認</li>
+                <li>コード配信</li>
+                <li>評価確認</li>
+                <li>アンケート結果確認</li>
+                <li>課題編集</li>
+                <li>プロンプト設計</li>
+              </ul>
+              <p class="text-muted small mb-0">権限の変更は管理者が行います。学校・業務機能の権限がない場合も、ご自身のアカウント確認とパスワード変更は利用できます。</p>
+            </section>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"
+    integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous"></script>
+  <script src="../../../js/teacher/shared/components.js"></script>
+  <script src="../../../js/teacher/shared/feedback.js"></script>
+  <script src="../../../js/teacher/account/profile.js"></script>
+</body>
+</html>

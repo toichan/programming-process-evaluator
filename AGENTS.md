@@ -149,25 +149,25 @@
 
 ### 作業開始時に確認する資料
 
-1. [実装ロードマップ](docs/system-configuration/implementation-roadmap.md): 「次の着手」と工程10を読む。完了記録を再実装の指示と扱わない。
+1. [実装ロードマップ](docs/system-configuration/implementation-roadmap.md): 「次の着手」と対象工程を読む。完了記録を再実装の指示と扱わない。
 2. [実装手順](docs/system-configuration/implementation-and-local-development.md)と[実装契約](docs/system-configuration/implementation-contract.md): 層の責務、教師の所有範囲、IC-001/005/007/009等の実装前確認事項を確認する。
 3. [機能仕様書](docs/function-specification.md): 教師の課題・プロンプト・ルーブリック・配信と、それに接続する生徒側の要件を確認する。画面遷移図は既存導線の把握が必要な場合のみ参照する。
 4. 教師の[課題状態](docs/state-rules/teacher/task-state-rules.md)、[プロンプト状態](docs/state-rules/teacher/prompt-state-rules.md)、[配信状態](docs/state-rules/teacher/distribution-state-rules.md)と[実装用状態表](docs/state-rules/implementation-state-table.md)を読む。授業演習の配信を扱う場合は[演習状態](docs/state-rules/student/exercise-state-rules.md)も確認する。
 5. [DBテーブル定義](docs/database-design/table-definitions.md)、[教師クラス図](docs/class-diagram/03-teacher-task-distribution.puml)、[入出力形式](docs/format/)を確認する。プロンプト・評価接続を扱う場合は[AI連携設計](docs/ai-api-integration-design.md)も読む。
 6. 新規の確認・通知UIがある場合は[feedbackガイド](docs/feedback-guideline.md)を確認する。プロトタイプ画面やそのCSS/JSは必要な場合のみ参考とし、機能追加の必須確認・変更対象としない。
-7. [工程10の初回スライス計画](docs/system-configuration/feature-plans/teacher-task-draft.md)と[最終受入レポート](docs/system-configuration/feature-plans/checkpoints/teacher-task-draft/batch-report-T014-T015.yaml)を確認する。S1のT001〜T015は完了し、DBでV1〜V16、認証境界、HTTP/ブラウザー回帰を検証済み。開発DBには合成テスト教師と専用学校/クラス権限がある。教師向けホーム画面とそのServlet/JSPは設けず、現在のログイン後は利用可能な課題編集へ遷移する。アカウント管理機能の実装後は画面遷移図どおり同機能へ遷移する。管理者ホームは `/admin/home` として分離・維持する。S2/T014のprompt履歴・評価例・再評価job/対象者別結果履歴は実装済みで、DB/認証browser受入も完了した。S3、課題公開/改訂/独立コピー、期限延長・対象クラス追加は[工程10計画](docs/system-configuration/implementation-roadmap.md)の記録どおり実装・受入済み。開発DBのデータはデモデータであり、ユーザーは消去を許容している。
+7. 工程10の課題/プロンプトと工程11の教師管理は[実装ロードマップ](docs/system-configuration/implementation-roadmap.md)の記録どおり実装・受入済み。[認証計画](docs/system-configuration/feature-plans/authentication-and-login.md)の最新追加バッチと[アカウント状態ルール](docs/state-rules/admin/account-state-rules.md)を確認する。管理者ホームは統合管理画面へリダイレクトし、教師のログイン先は有効かつ実装済みの機能権限に応じて決める。開発DBはデモデータであり、ユーザーは消去を許容している。
 
 ### 現在位置と次の順序
 
 - 2026-10-04ユーザー指示で教師向け機能へ進む。以前の演習確認優先・教師工程前停止の指示は終了したものとして扱う。
 - 工程1〜4の基盤、工程5の認証、工程6の生徒ホーム等は実装済み。工程9の生徒演習T001〜T051と教師工程前の既知バグ5件は完了済み。詳細はロードマップから参照し、本書に版別履歴や完了済みタスクを再掲しない。
 - 工程7・8は主要実装済みだが残る検証がある。教師の課題下書きS1（T001〜T015）と工程10のS2/T014は専用DB、認証HTTP、ブラウザーで受入済み。正式な評価設定/アンケートE2E、工程13の演習コード配信、進捗・評価・CSVなどは未完了。
-- 工程10のS1/S2/S3、課題の公開・予約公開・期限処理、学習開始前の改訂、学習開始後の独立系列コピー、期限延長・対象クラス追加は実装済み。専用DB統合テストと課題操作の認証browser受入も完了。学校管理は実装済みだが、管理者の教師アカウント管理は未着手。全機能の順序・状態は[実装ロードマップ](docs/system-configuration/implementation-roadmap.md)を正とする。
+- 工程10と工程11は実装・専用DB統合テスト・認証browser受入済み。次は教師の生徒アカウント管理。全機能の順序・状態は[実装ロードマップ](docs/system-configuration/implementation-roadmap.md)を正とする。
 
 ### 新セッションの最初のステップ
 
 1. `git status --short`で引き継いだ未コミット変更を確認する。直前のデバッグ修正・テスト・文書は作業ツリーに残っている。ユーザーのDBデータ許容はDBのdemo dataに関するものであり、ソース変更の破棄・revert・commit許可とは区別する。
-2. 次の着手は[実装ロードマップ](docs/system-configuration/implementation-roadmap.md)に従う。課題公開/改訂/独立コピーに加え、期限延長・対象クラス追加も実装と専用DB/認証browser受入まで完了している。次の工程は管理者の教師アカウント・学校権限管理であり、パスワード表示方針など既存仕様差分を実装前に解消する。画面遷移プロトタイプは変更せず、関連文書を整えた後に本実装へ進む。
+2. 次の着手は[実装ロードマップ](docs/system-configuration/implementation-roadmap.md)工程12「教師の生徒アカウント管理」。管理者の教師アカウント・学校権限管理は完了済み。[認証計画](docs/system-configuration/feature-plans/authentication-and-login.md)と生徒の資格情報/CSV契約を確認し、重大な仕様矛盾や未決事項がなければ既存仕様/デザインに従って本実装へ進む。画面遷移プロトタイプは変更しない。
 3. T030/T031の`jobId`付きGET境界・status polling・合成preview/確定受入とT014のjob履歴一覧・対象者別結果表示は完了済み。履歴の認証browser受入はDBとTomcatで実施した。ブラウザー操作前に対象instance、revision、port、DB接続先を確認する。
 4. **DBとテスト環境の選択**: 開発DBに保存されているデータはデモデータであり、ユーザーは消去を許容している。開発DBへのmigration、再seed、初期化、fixture作成・削除を必要に応じて行ってよく、データ保持を理由に隔離環境を必須としない。テストの並列実行、破壊的なschema試行、worker/runtimeの長時間検証、または開発環境への影響回避に利点がある場合は、適切な専用DB/port/containerを使う。隔離・共有のどちらを使っても対象を確認し、意図したDB・コンテナだけを操作する。実利用者データや研究データを使わない、実APIの費用・秘密情報・個人情報の制約を守る、未確認を合格扱いしないという要件は引き続き適用する。
 5. 課題の公開・予約公開・期限処理・改訂・独立系列コピー・期限延長・対象クラス追加は本実装と専用DB/認証browser受入まで完了。追加クラス候補はarchivedを含む過去の割当履歴を除外する。次に管理者の教師アカウント管理へ進む前に、既存仕様のパスワード表示方針差分を確認する。画面遷移プロトタイプは更新せず本実装で進める。授業演習コード配信は課題公開とは別機能で、ロードマップ工程13を参照する。

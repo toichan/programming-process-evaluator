@@ -2,7 +2,6 @@ package control.dev;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.SecureRandom;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -14,7 +13,7 @@ import java.util.List;
 import java.util.UUID;
 
 import control.auth.PasswordHasher;
-import control.auth.PasswordPolicy;
+import control.auth.PasswordGenerator;
 import control.student.StandardRubricSource;
 import control.teacher.TeacherTaskInputValidator;
 import dao.StandardRubricDao;
@@ -29,9 +28,6 @@ import lib.mysql.Client;
 
 public final class DemoDataBootstrap {
 	private static final String EXPECTED_DATABASE = "programming_process_evaluator";
-	private static final char[] PASSWORD_ALPHABET =
-			"ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%".toCharArray();
-	private static final SecureRandom RANDOM = new SecureRandom();
 
 	private DemoDataBootstrap() {
 	}
@@ -43,7 +39,7 @@ public final class DemoDataBootstrap {
 				Files.readString(Path.of("docs/rubric/主体的に学習に取り組む態度_ルーブリック_0805.md")));
 		new StandardRubricDao().register(rubric);
 
-		char[] password = generatedPassword();
+		char[] password = PasswordGenerator.generate();
 		try {
 			SeededDemo demo = createDemo(password);
 			System.out.println("Synthetic demo data created in " + EXPECTED_DATABASE + ".");
@@ -207,25 +203,14 @@ public final class DemoDataBootstrap {
 				INSERT INTO teacher_feature_permissions
 				  (teacher_user_id, feature_code, is_enabled, updated_by_user_id, updated_at)
 				VALUES (?, 'task-management', TRUE, ?, CURRENT_TIMESTAMP)
+				     , (?, 'teacher-prompt-design', TRUE, ?, CURRENT_TIMESTAMP)
 				""")) {
 			statement.setLong(1, teacherId);
 			statement.setLong(2, teacherId);
+			statement.setLong(3, teacherId);
+			statement.setLong(4, teacherId);
 			statement.executeUpdate();
 		}
-	}
-
-	private static char[] generatedPassword() {
-		char[] password;
-		do {
-			password = new char[24];
-			for (int index = 0; index < password.length; index++) {
-				password[index] = PASSWORD_ALPHABET[RANDOM.nextInt(PASSWORD_ALPHABET.length)];
-			}
-			if (!PasswordPolicy.isValid(password)) {
-				Arrays.fill(password, '\0');
-			}
-		} while (!PasswordPolicy.isValid(password));
-		return password;
 	}
 
 	private record SeededDemo(String loginId, String schoolName, String className) {

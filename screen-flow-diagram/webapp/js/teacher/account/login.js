@@ -5,6 +5,14 @@ window.addEventListener('DOMContentLoaded', () => {
   const teacherPasswordInput = document.querySelector('#teacherPassword');
   const togglePasswordButton = document.querySelector('#togglePassword');
 
+  if (window.sessionStorage.getItem('ppeTeacherPasswordChangePreview') === '1') {
+    window.sessionStorage.removeItem('ppeTeacherPasswordChangePreview');
+    window.PPEFeedback.createPageFeedback({
+      title: 'パスワード変更',
+      alertTarget: document.getElementById('teacherLoginFeedback')
+    }).inlineAlert('パスワード変更後の表示例です。新しいパスワードで再ログインしてください。このプロトタイプでは実際のパスワードは変更していません。', 'success');
+  }
+
   togglePasswordButton?.addEventListener('click', () => {
     const isHidden = teacherPasswordInput?.type === 'password';
 

@@ -1,0 +1,104 @@
+@import url("./schools.css");
+
+main.container {
+  max-width: none;
+  padding: 1.5rem !important;
+}
+
+.hero-actions,
+.action-buttons {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.summary-heading {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #27304a;
+}
+
+.create-panel-description {
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+.create-field {
+  padding: 0.85rem 0;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.create-row {
+  display: grid;
+  grid-template-columns: 190px 1fr;
+  gap: 1rem;
+  align-items: start;
+}
+
+.create-row .form-label {
+  padding-top: 0.38rem;
+  font-weight: 700;
+  color: #1e293b;
+  font-size: 0.92rem;
+}
+
+.create-row .form-control {
+  max-width: 360px;
+}
+
+.chip-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.6rem;
+}
+
+.chip-group .form-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0.22rem 0.65rem 0.22rem 1.7rem;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.45rem;
+}
+
+.chip-group .form-check-input {
+  margin-top: 0;
+}
+
+.chip-group .form-check:has(.form-check-input:checked) {
+  background: #eef2ff;
+  border-color: #4f46e5;
+}
+
+.permission-tag {
+  display: inline-block;
+  background: #f1f5f9;
+  border-radius: 0.4rem;
+  padding: 0.2rem 0.4rem;
+  margin: 0.1rem;
+  font-size: 0.8rem;
+}
+
+#teacherAccountTable {
+  min-width: 1250px;
+  font-size: 0.92rem;
+}
+
+#teacherAccountTable td:nth-child(3),
+#teacherAccountTable td:nth-child(4) {
+  min-width: 180px;
+  max-width: 320px;
+}
+
+#historyRows td {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+@media (max-width: 575px) {
+  main.container { padding: 1rem !important; }
+  .create-row { grid-template-columns: 1fr; gap: 0.4rem; }
+}

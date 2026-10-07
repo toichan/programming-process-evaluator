@@ -59,7 +59,7 @@ public final class ReevaluationPreviewControl {
 		try (Connection connection = connectionFactory.open()) {
 			connection.setAutoCommit(false);
 			try {
-				permissionDao.requireTaskManagementAccess(connection, user.userId());
+				permissionDao.requirePromptDesignAccess(connection, user.userId());
 				requireTaskAccess(connection, user.userId(), taskId);
 				PreviewConfiguration configuration = loadConfiguration(connection, taskId, promptVersionId, true);
 				if (configuration.promptRowVersion() != expectedPromptRowVersion) {
@@ -129,7 +129,7 @@ public final class ReevaluationPreviewControl {
 			connection.setAutoCommit(false);
 			try {
 				long taskId = findTaskId(connection, previewCode, user.userId());
-				permissionDao.requireTaskManagementAccess(connection, user.userId());
+				permissionDao.requirePromptDesignAccess(connection, user.userId());
 				requireTaskAccess(connection, user.userId(), taskId);
 				ReevaluationPreview preview = previewDao.findPreview(connection, previewCode, user.userId());
 				connection.commit();
@@ -149,7 +149,7 @@ public final class ReevaluationPreviewControl {
 		try (Connection connection = connectionFactory.open()) {
 			connection.setAutoCommit(false);
 			try {
-				permissionDao.requireTaskManagementAccess(connection, user.userId());
+				permissionDao.requirePromptDesignAccess(connection, user.userId());
 				requireTaskAccess(connection, user.userId(), taskId);
 				ReevaluationJobStatus status = jobDao.loadStatus(connection, jobId, taskId, user.userId());
 				connection.commit();
@@ -191,7 +191,7 @@ public final class ReevaluationPreviewControl {
 
 	private long confirmLocked(Connection connection, AuthenticatedUser user, String previewCode)
 			throws SQLException {
-		permissionDao.requireTaskManagementAccess(connection, user.userId());
+		permissionDao.requirePromptDesignAccess(connection, user.userId());
 		long taskId = findTaskId(connection, previewCode, user.userId());
 		requireTaskAccess(connection, user.userId(), taskId);
 		PreviewSnapshot preview = previewDao.lockPreview(connection, previewCode, user.userId());
@@ -248,7 +248,7 @@ public final class ReevaluationPreviewControl {
 			connection.setAutoCommit(false);
 			try {
 				long taskId = findTaskId(connection, previewCode, user.userId());
-				permissionDao.requireTaskManagementAccess(connection, user.userId());
+				permissionDao.requirePromptDesignAccess(connection, user.userId());
 				requireTaskAccess(connection, user.userId(), taskId);
 				ReevaluationPreview preview = previewDao.findPreview(connection, previewCode, user.userId());
 				T result = operation.run(connection, preview);
@@ -308,7 +308,7 @@ public final class ReevaluationPreviewControl {
 
 	private void requireTaskAccess(Connection connection, long teacherUserId, long taskId) throws SQLException {
 		try (PreparedStatement task = connection.prepareStatement("""
-				SELECT task_id FROM tasks
+				SELECT task_id, school_id FROM tasks
 				WHERE task_id = ? AND created_by_user_id = ? AND deleted_at IS NULL
 				  AND publication_status IN ('draft','published','requires_update')
 				FOR UPDATE
@@ -319,6 +319,7 @@ public final class ReevaluationPreviewControl {
 				if (!rows.next()) {
 					throw new TeacherPromptDao.TeacherTaskNotFoundException();
 				}
+				permissionDao.requirePromptAuthorizedSchool(connection, teacherUserId, rows.getLong("school_id"));
 			}
 		}
 		try (PreparedStatement classes = connection.prepareStatement("""
@@ -329,7 +330,7 @@ public final class ReevaluationPreviewControl {
 			classes.setLong(1, taskId);
 			try (ResultSet rows = classes.executeQuery()) {
 				while (rows.next()) {
-					permissionDao.requireAuthorizedClass(connection, teacherUserId, rows.getLong("classroom_id"));
+					permissionDao.requirePromptAuthorizedClass(connection, teacherUserId, rows.getLong("classroom_id"));
 				}
 			}
 		}

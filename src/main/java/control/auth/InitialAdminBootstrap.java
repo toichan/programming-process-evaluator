@@ -7,6 +7,7 @@ import java.time.LocalDateTime;
 import java.util.Arrays;
 
 import dao.AuthenticationDao;
+import entity.UserCredential;
 import lib.mysql.Client;
 
 public final class InitialAdminBootstrap {
@@ -20,15 +21,12 @@ public final class InitialAdminBootstrap {
 					"Run this task interactively so the initial administrator password is not exposed.");
 		}
 
-		String loginId = console.readLine("Initial administrator login ID: ");
+		String loginId = UserCredential.ADMIN_LOGIN_ID;
+		console.printf("Initial administrator login ID: %s%n", loginId);
 		String displayName = console.readLine("Initial administrator display name: ");
 		char[] password = console.readPassword("Initial administrator password: ");
 		char[] confirmation = console.readPassword("Confirm password: ");
 		try {
-			if (loginId == null || loginId.isBlank() || loginId.length() > 64
-					|| loginId.chars().anyMatch(Character::isWhitespace)) {
-				throw new IllegalArgumentException("The login ID must be 1-64 characters without whitespace.");
-			}
 			if (displayName == null || displayName.isBlank() || displayName.length() > 100) {
 				throw new IllegalArgumentException("The display name must be 1-100 characters.");
 			}

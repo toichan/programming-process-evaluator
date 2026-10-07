@@ -74,10 +74,15 @@ public final class LoginServlet extends HttpServlet {
 				return;
 			}
 
-			if (anonymousSession != null) {
-				anonymousSession.invalidate();
-			}
 			UserCredential credential = result.user();
+			Long teacherVersion = null;
+			if (credential.userType() == UserType.TEACHER) {
+				teacherVersion = new control.auth.TeacherSessionControl().loginVersion(credential).orElse(null);
+				if (teacherVersion == null) {
+					forwardWithError(request, response, loginFailureMessage());
+					return;
+				}
+			}
 			boolean passwordChangeRequired = passwordChangeRequired(credential);
 			AuthenticatedUser authenticatedUser = new AuthenticatedUser(
 					credential.userId(),
@@ -86,11 +91,20 @@ public final class LoginServlet extends HttpServlet {
 					credential.userType(),
 					passwordChangeRequired,
 					result.sessionAuditId());
+			String teacherDestination = null;
+			if (credential.userType() == UserType.TEACHER) {
+				teacherDestination = teacherDestinationFor(new control.teacher.TeacherNavigationControl().load(authenticatedUser));
+			}
+			if (anonymousSession != null) anonymousSession.invalidate();
 			HttpSession authenticatedSession = request.getSession(true);
 			authenticatedSession.setMaxInactiveInterval(30 * 60);
 			authenticatedSession.setAttribute(USER_ATTRIBUTE, authenticatedUser);
+			if (teacherVersion != null) authenticatedSession.setAttribute("teacherAccountVersion", teacherVersion);
+			if (teacherDestination != null) authenticatedSession.setAttribute("teacherLandingPath", teacherDestination);
 			CsrfTokens.rotate(authenticatedSession);
 			redirectAuthenticatedUser(request, response, authenticatedUser);
+		} catch (SecurityException e) {
+			forwardWithError(request, response, loginFailureMessage());
 		} catch (SQLException e) {
 			getServletContext().log("Authentication request failed.", e);
 			response.sendError(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
@@ -147,7 +161,20 @@ public final class LoginServlet extends HttpServlet {
 
 	private static void redirectAuthenticatedUser(HttpServletRequest request, HttpServletResponse response,
 			AuthenticatedUser user) throws IOException {
-		response.sendRedirect(request.getContextPath() + destinationFor(user));
+		String destination = destinationFor(user);
+		if (user.userType() == UserType.TEACHER) {
+			Object landing = request.getSession(false).getAttribute("teacherLandingPath");
+			if (landing instanceof String path && java.util.List.of("/teacher/task", "/teacher/prompt", "/teacher/home").contains(path)) {
+				destination = path;
+			}
+		}
+		response.sendRedirect(request.getContextPath() + destination);
+	}
+
+	static String teacherDestinationFor(entity.TeacherNavigationSummary permissions) {
+		if (permissions.taskManagementEnabled()) return "/teacher/task";
+		if (permissions.promptDesignEnabled()) return "/teacher/prompt";
+		return "/teacher/home";
 	}
 
 	static String destinationFor(AuthenticatedUser user) {
