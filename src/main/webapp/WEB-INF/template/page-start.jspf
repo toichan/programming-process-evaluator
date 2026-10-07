@@ -14,7 +14,7 @@
 	<link href="${pageContext.request.contextPath}/css/template/template.css" rel="stylesheet">
 	<link href="${pageContext.request.contextPath}/css/shared/feedback.css" rel="stylesheet">
 	<c:if test="${screenDesign == 'teacher'}">
-		<link href="${pageContext.request.contextPath}/css/teacher/shared/components.css?v=teacher-menu-v4" rel="stylesheet">
+		<link href="${pageContext.request.contextPath}/css/teacher/shared/components.css?v=teacher-menu-v5" rel="stylesheet">
 	</c:if>
 	<c:if test="${screenDesign == 'teacher-login'}">
 		<link href="${pageContext.request.contextPath}/css/teacher/account/login.css?v=prototype-match-1" rel="stylesheet">
@@ -34,7 +34,7 @@
 		<link href="<c:url value='${screenStylesheet}'/>" rel="stylesheet">
 	</c:if>
 </head>
-<body<c:choose><c:when test="${screenDesign == 'student'}"> class="student-screen"</c:when><c:when test="${screenDesign == 'teacher'}"> class="teacher-screen"</c:when><c:when test="${screenDesign == 'teacher-login'}"> class="teacher-login-screen"</c:when></c:choose>>
+<body<c:choose><c:when test="${screenDesign == 'student'}"> class="student-screen"</c:when><c:when test="${screenDesign == 'teacher'}"> class="teacher-screen ${screenBodyClass}"</c:when><c:when test="${screenDesign == 'teacher-login'}"> class="teacher-login-screen"</c:when><c:when test="${screenDesign == 'admin'}"> class="admin-screen"</c:when></c:choose>>
 	<c:choose>
 		<c:when test="${screenDesign == 'teacher'}">
 			<div class="teacher-app-shell">
@@ -42,12 +42,11 @@
 		</c:when>
 		<c:when test="${screenDesign == 'teacher-login'}">
 		</c:when>
+		<c:when test="${screenDesign == 'admin'}">
+			<main class="py-4">
+				<div class="container-fluid px-4">
+		</c:when>
 		<c:when test="${screenDesign != 'student'}">
-		<header class="bg-white border-bottom">
-			<div class="container py-3">
-				<span class="navbar-brand mb-0">Programming Process Evaluator</span>
-			</div>
-		</header>
-		<main class="container py-5">
+			<main class="container py-5">
 		</c:when>
 	</c:choose>

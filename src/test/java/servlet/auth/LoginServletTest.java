@@ -52,4 +52,19 @@ class LoginServletTest {
 
 		assertEquals("/student/account/change-password", LoginServlet.destinationFor(student));
 	}
+
+	@Test
+	void teachersWithRequiredChangesLandOnTheirOwnPasswordScreen() {
+		AuthenticatedUser teacher = new AuthenticatedUser(5, "teacher", "Synthetic", UserType.TEACHER, true, "test");
+		assertEquals("/teacher/account/password", LoginServlet.destinationFor(teacher));
+	}
+
+	@Test void requiredTeacherFlagIsIndependentOfStudentSchoolPolicyAndAdmin() {
+		var teacher = new entity.UserCredential(5, UserType.TEACHER, "teacher", "unused", "Synthetic",
+				entity.UserCredential.AccountStatus.ACTIVE, 0, java.util.Optional.empty(), java.util.Optional.empty(), true);
+		assertEquals(true, LoginServlet.passwordChangeRequired(teacher));
+		var admin = new entity.UserCredential(6, UserType.ADMIN, "admin", "unused", "Synthetic",
+				entity.UserCredential.AccountStatus.ACTIVE, 0, java.util.Optional.empty(), java.util.Optional.empty(), true);
+		assertEquals(false, LoginServlet.passwordChangeRequired(admin));
+	}
 }

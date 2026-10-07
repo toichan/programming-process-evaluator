@@ -76,16 +76,19 @@ public final class StudentAccountManagementServlet extends HttpServlet {
 	@Override protected void doPost(HttpServletRequest request, HttpServletResponse response) throws IOException {
 		request.setCharacterEncoding("UTF-8"); response.setHeader("Cache-Control", "no-store");
 		if (!CsrfTokens.isValid(request)) { error(response, 403, "画面を読み込み直してから操作してください。"); return; }
-		String value = request.getParameter("password");
+		String action = request.getParameter("action");
+		if ("create".equals(action) && request.getParameter("password") != null) {
+			error(response, 400, "初期パスワードはシステムが自動生成します。"); return;
+		}
+		String value = "create".equals(action) ? null : request.getParameter("password");
 		char[] password = value == null ? new char[0] : value.toCharArray();
 		try {
 			AuthenticatedUser teacher = teacher(request);
 			if (!"yes".equals(request.getParameter("changeConfirmed"))) throw new IllegalArgumentException("確認ダイアログで確定してください。");
-			String action = request.getParameter("action");
 			if ("create".equals(action)) {
 				var input = new StudentAccountCreation(number(request.getParameter("schoolId")), number(request.getParameter("classroomId")),
 						request.getParameter("classroomName"), Math.toIntExact(number(request.getParameter("count"))));
-				json(response, Map.of("message", "生徒アカウントを作成しました。", "ids", CONTROL.create(teacher, input, password))); return;
+				json(response, Map.of("message", "生徒アカウントを作成しました。", "credentials", CONTROL.create(teacher, input))); return;
 			}
 			List<Target> targets = targets(request.getParameterValues("userId"), request.getParameterValues("version"));
 			if ("reveal".equals(action)) {

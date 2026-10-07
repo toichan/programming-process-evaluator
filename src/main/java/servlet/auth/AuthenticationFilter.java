@@ -63,7 +63,8 @@ public final class AuthenticationFilter implements Filter {
 			return;
 		}
 
-		String passwordChangePath = "/student/account/change-password";
+		String passwordChangePath = user.userType() == UserType.TEACHER
+				? "/teacher/account/password" : "/student/account/change-password";
 		if (user.userType() == UserType.STUDENT) {
 			try {
 				if (!new control.auth.StudentSessionControl().isCurrent(user, session.getAttribute("studentAccountVersion"))) {

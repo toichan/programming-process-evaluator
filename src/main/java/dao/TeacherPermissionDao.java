@@ -138,7 +138,16 @@ public final class TeacherPermissionDao {
 				} while (rows.next());
 			}
 		}
-		return new TeacherNavigationSummary(taskManagementEnabled, promptDesignEnabled, accountManagementEnabled, List.copyOf(schools.values()));
+		var features = new java.util.HashSet<String>();
+		try (PreparedStatement statement = connection.prepareStatement(
+				"SELECT feature_code FROM teacher_feature_permissions WHERE teacher_user_id = ? AND is_enabled = TRUE")) {
+			statement.setLong(1, teacherUserId);
+			try (ResultSet rows = statement.executeQuery()) {
+				while (rows.next()) features.add(rows.getString("feature_code"));
+			}
+		}
+		return new TeacherNavigationSummary(taskManagementEnabled, promptDesignEnabled, accountManagementEnabled,
+				List.copyOf(schools.values()), features);
 	}
 
 	private List<TeacherSchoolOption> selectAuthorizedSchools(Connection connection, long teacherUserId)

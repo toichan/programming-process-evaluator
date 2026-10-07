@@ -61,8 +61,7 @@
 				<div id="newClassFields" class="mb-3" hidden><label for="newClassName" class="form-label">新しいクラス名</label><input id="newClassName" name="classroomName" class="form-control" maxlength="100" placeholder="例：1年A組"></div>
 				<div class="mb-3"><label for="accountCount" class="form-label">作成件数</label><input id="accountCount" name="count" type="number" class="form-control" min="1" max="200" value="1" required></div>
 				<div class="mb-3"><label for="schoolSecurityLevel" class="form-label">セキュリティレベル</label><input id="schoolSecurityLevel" class="form-control" value="学校を選択してください" readonly><div class="form-text">学校の設定を適用します。生徒個別には変更できません。</div></div>
-				<div><label for="initialPassword" class="form-label">初期パスワード</label><div class="input-group"><input id="initialPassword" name="password" type="password" class="form-control" minlength="8" maxlength="32" autocomplete="new-password" required><button type="button" class="btn btn-outline-secondary" data-toggle-password="initialPassword">表示</button></div>
-					<div class="form-text">8〜32文字、半角の英大文字・英小文字・数字・記号のうち3種類以上。</div></div>
+				<div class="form-text">初期パスワードは生徒ごとにシステムが8文字で自動生成します。作成後にIDとあわせて確認・コピーしてください。</div>
 			</div>
 			<div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">キャンセル</button><button type="submit" class="btn btn-primary">作成する</button></div>
 		</form>
@@ -80,7 +79,7 @@
 <div class="modal fade" id="studentCredentialModal" tabindex="-1" aria-labelledby="credentialTitle" aria-hidden="true">
 	<div class="modal-dialog modal-dialog-centered"><div class="modal-content">
 		<div class="modal-header"><h2 id="credentialTitle" class="modal-title fs-5">資格情報</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button></div>
-		<div class="modal-body"><p class="small text-secondary">配布用の情報です。閉じると画面から消去します。本人変更後のパスワードは確認できません。</p><label for="credentialText" class="form-label">生徒ID・パスワード</label><textarea id="credentialText" class="form-control font-monospace" rows="4" readonly></textarea><button id="copyCredentialButton" type="button" class="btn btn-outline-secondary mt-2">コピー</button><p id="copyCredentialStatus" class="small mt-2" role="status"></p></div>
+		<div class="modal-body"><p class="small text-secondary">作成時は生徒ごとに8文字の初期パスワードを自動生成します。配布用の情報です。閉じると画面から消去します。本人変更後のパスワードは確認できません。</p><label for="credentialText" class="form-label">生徒ID・パスワード</label><textarea id="credentialText" class="form-control font-monospace" rows="4" readonly></textarea><button id="copyCredentialButton" type="button" class="btn btn-outline-secondary mt-2">コピー</button><p id="copyCredentialStatus" class="small mt-2" role="status"></p></div>
 	</div></div>
 </div>
 <div class="modal fade" id="accountDetailModal" tabindex="-1" aria-labelledby="accountDetailTitle" aria-hidden="true">

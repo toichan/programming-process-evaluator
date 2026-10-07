@@ -133,6 +133,9 @@
 						<div class="sample-card login-panel p-4">
 							<h1 class="card-title h3">教師ログイン</h1>
 							<div id="auth-feedback" aria-live="assertive"></div>
+							<c:if test="${teacherPasswordChangeNotice}">
+								<span class="d-none" data-auth-notice="パスワードを変更しました。新しいパスワードで再ログインしてください。"></span>
+							</c:if>
 							<c:if test="${not empty loginError}">
 								<span class="d-none" data-auth-error="<c:out value='${loginError}'/>"></span>
 							</c:if>

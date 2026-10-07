@@ -25,6 +25,19 @@
 
 	toggle.addEventListener('click', () => setOpen(!sidebar.classList.contains('show')));
 	sidebar.addEventListener('click', (event) => {
+		const unavailable = event.target instanceof Element
+			? event.target.closest('button[data-feature-allowed]') : null;
+		if (unavailable) {
+			event.preventDefault();
+			setOpen(false);
+			window.PPEFeedback.createPageFeedback({ title: '機能の利用', variant: 'warning' }).toast({
+				message: unavailable.dataset.featureAllowed === 'true'
+					? 'この機能は現在準備中です。'
+					: 'あなたのアカウントではこの機能の利用が許可されていません。システム管理者へお問い合わせください。',
+				variant: 'warning'
+			});
+			return;
+		}
 		if (event.target instanceof Element && event.target.closest('a')) {
 			setOpen(false);
 		}

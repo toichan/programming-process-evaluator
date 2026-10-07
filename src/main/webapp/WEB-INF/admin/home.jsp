@@ -1,5 +1,6 @@
 <%@ page contentType="text/html; charset=UTF-8" pageEncoding="UTF-8" session="false" %>
 <%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
+<c:set var="screenDesign" value="admin"/>
 <c:set var="screenPageTitle" value="管理者ホーム"/>
 <%@ include file="/WEB-INF/template/page-start.jspf" %>
 <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">

@@ -163,7 +163,7 @@ window.addEventListener('DOMContentLoaded', () => {
   async function perform(action, targets, data = new FormData(), source) {
     if (pending) return;
     pending = true;
-    const initialPassword = data.get('password');
+    let resetPassword = '';
     const saved = [...root.querySelectorAll('button')].map(button => [button, button.disabled]);
     saved.forEach(([button]) => { button.disabled = true; });
     try {
@@ -180,16 +180,25 @@ window.addEventListener('DOMContentLoaded', () => {
       });
       if (!confirmed) { if (source) modal(source).show(); return; }
       data.set('action', action); data.set('csrfToken', root.dataset.csrf); data.set('changeConfirmed', 'yes');
+      if (action === 'reset') resetPassword = data.get('password');
       for (const target of targets) { data.append('userId', target.userId); data.append('version', target.version); }
       const result = await readJson(endpoint, { method: 'POST', body: new URLSearchParams(data) });
-      createForm.elements.password.value = ''; resetForm.elements.password.value = '';
+      if (data.has('password')) data.set('password', '');
+      resetForm.elements.password.value = '';
       if (result.password) { credential(`${targets[0].loginId}\t${result.password}`); result.password = ''; }
-      else if (action === 'create') credential(result.ids.map(id => `${id}\t${initialPassword}`).join('\n'));
-      else if (action === 'reset') credential(`${targets[0].loginId}\t${initialPassword}`);
+      else if (action === 'create') {
+        credential(result.credentials.map(({ loginId, password }) => `${loginId}\t${password}`).join('\n'));
+        result.credentials.forEach(item => { item.password = ''; });
+      }
+      else if (action === 'reset') { credential(`${targets[0].loginId}\t${resetPassword}`); resetPassword = ''; }
       feedback.toast({ message: result.message || '確認しました。', variant: 'success' });
       await load();
     } catch (error) { showError(error); if (source) modal(source).show(); }
-    finally { pending = false; saved.forEach(([button, disabled]) => { if (button.isConnected) button.disabled = disabled; }); updateSelection(); }
+    finally {
+      resetPassword = '';
+      if (data.has('password')) data.set('password', '');
+      pending = false; saved.forEach(([button, disabled]) => { if (button.isConnected) button.disabled = disabled; }); updateSelection();
+    }
   }
   function historySection(title, entries) {
     const section = node('section', undefined, 'account-detail-section'); section.append(node('h3', title, 'fs-6'));
@@ -251,8 +260,8 @@ window.addEventListener('DOMContentLoaded', () => {
     element.addEventListener('hide.bs.modal', () => { if (element.contains(document.activeElement)) document.activeElement.blur(); });
   });
   credentialElement.addEventListener('hidden.bs.modal', () => { document.querySelector('#credentialText').value = ''; document.querySelector('#copyCredentialStatus').textContent = ''; });
-  createElement.addEventListener('hidden.bs.modal', () => { if (!pending) createForm.elements.password.value = ''; });
+  createElement.addEventListener('hidden.bs.modal', () => { if (!pending) createForm.reset(); });
   resetElement.addEventListener('hidden.bs.modal', () => { if (!pending) resetForm.elements.password.value = ''; });
-  window.addEventListener('pagehide', () => { document.querySelector('#credentialText').value = ''; createForm.elements.password.value = ''; resetForm.elements.password.value = ''; });
+  window.addEventListener('pagehide', () => { document.querySelector('#credentialText').value = ''; createForm.reset(); resetForm.elements.password.value = ''; });
   load();
 });

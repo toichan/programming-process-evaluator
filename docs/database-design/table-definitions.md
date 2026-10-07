@@ -42,6 +42,7 @@
 |display_name|表示名（生徒では旧互換値）|VARCHAR(100)||NO||生徒は画面表示に使わず、今後の作成処理ではlogin_idを設定して別名を要求しない。教師の利用者向けIDにも使わない。管理者表示名と既存値は保持し、匿名化の除去対象から外さない|
 |account_status|アカウント状態|ENUM('active','suspended','deleted')||NO|||
 |account_version|アカウント更新版|BIGINT||NO|DEFAULT 1|V20追加。教師管理の楽観ロックとセッション失効に使用。権限変更・停止/解除・削除・パスワード再設定で加算。ログイン失敗回数の更新では加算しない|
+|teacher_must_change_password|教師の変更必須状態|BOOLEAN||NO|DEFAULT FALSE|V22追加。教師の発行/管理者再設定時TRUE、本人変更成功時FALSE。既存教師はTRUEへ移行し版を加算。生徒・管理者には適用しない|
 |consecutive_login_failures|連続ログイン失敗回数|TINYINT UNSIGNED||NO||0〜5。成功ログイン・30分ロック満了・教師解除で0に戻す|
 |login_locked_until|ログインロック期限|DATETIME||YES||5回連続失敗後、現在時刻から30分。期限満了後は再試行可能|
 |created_by_user_id|作成者ユーザID|BIGINT||YES|FOREIGN_KEY|users.user_id|
@@ -50,7 +51,7 @@
 |updated_at|更新日時|DATETIME||YES|||
 |deleted_at|削除日時|DATETIME||YES||論理削除|
 
-教師資格情報の追加契約（V20）: 初期/再設定パスワードはレスポンスで一度だけ返し、DBには既存`password_hash`だけ保存する。教師の`password_reset_records.must_change_at_next_login`はfalse。発行/再設定を`credential_history`、管理操作を`audit_logs`へ記録し、平文を含めない。機能権限は`account-management`、`task-progress`、`exercise-code-review`、`submission-review`、`code-distribution`、`evaluation-review`、`survey-results`、`task-management`、`teacher-prompt-design`の9コード。V20では既存課題編集権限をプロンプト権限の初期値へ移行するが、以降は独立して管理する。学校権限の解除はdisabledとし、同学校の再許可では既存行を再利用する。
+教師資格情報の追加契約（V20/V22）: 初期/再設定パスワードはレスポンスで一度だけ返し、DBには既存`password_hash`だけ保存する。V22以後に作る教師の`password_reset_records.must_change_at_next_login`はtrueとし、実際の現在状態は`users.teacher_must_change_password`を正本とする。発行/再設定/本人変更を`credential_history`、管理操作/本人変更を`audit_logs`へ記録し、平文・ハッシュを含めない。本人変更は既存ハッシュ更新と同じトランザクションで`account_version`を加算し全旧セッションを失効させる。機能権限は`account-management`、`task-progress`、`exercise-code-review`、`submission-review`、`code-distribution`、`evaluation-review`、`survey-results`、`task-management`、`teacher-prompt-design`の9コード。V20では既存課題編集権限をプロンプト権限の初期値へ移行するが、以降は独立して管理する。学校権限の解除はdisabledとし、同学校の再許可では既存行を再利用する。
 
 教師の論理削除は復元不可で、ログインID・既存履歴を保持する。権限変更・停止/解除・削除はログイン失敗回数とロック期限を変更せず、パスワード再設定時のみ両方を解除する。復元可否は上記の一般分類ではなく[アカウント状態ルール](../state-rules/admin/account-state-rules.md)を優先する。
 

@@ -42,6 +42,10 @@ public final class LoginServlet extends HttpServlet {
 
 		HttpSession session = request.getSession(true);
 		request.setAttribute(CSRF_ATTRIBUTE, CsrfTokens.getOrCreate(session));
+		if (!isStudentPortal(request) && Boolean.TRUE.equals(session.getAttribute("teacherPasswordChangeNotice"))) {
+			session.removeAttribute("teacherPasswordChangeNotice");
+			request.setAttribute("teacherPasswordChangeNotice", Boolean.TRUE);
+		}
 		forwardToLoginPage(request, response);
 	}
 
@@ -154,7 +158,8 @@ public final class LoginServlet extends HttpServlet {
 		return value instanceof AuthenticatedUser user ? user : null;
 	}
 
-	private static boolean passwordChangeRequired(UserCredential user) {
+	static boolean passwordChangeRequired(UserCredential user) {
+		if (user.userType() == UserType.TEACHER) return user.teacherMustChangePassword();
 		if (user.userType() != UserType.STUDENT || user.studentProfile().isEmpty()) {
 			return false;
 		}
@@ -171,7 +176,7 @@ public final class LoginServlet extends HttpServlet {
 	private static void redirectAuthenticatedUser(HttpServletRequest request, HttpServletResponse response,
 			AuthenticatedUser user) throws IOException {
 		String destination = destinationFor(user);
-		if (user.userType() == UserType.TEACHER) {
+		if (user.userType() == UserType.TEACHER && !user.passwordChangeRequired()) {
 			Object landing = request.getSession(false).getAttribute("teacherLandingPath");
 			if (landing instanceof String path && java.util.List.of("/teacher/task", "/teacher/prompt", "/teacher/account/account", "/teacher/home").contains(path)) {
 				destination = path;
@@ -189,7 +194,8 @@ public final class LoginServlet extends HttpServlet {
 
 	static String destinationFor(AuthenticatedUser user) {
 		if (user.passwordChangeRequired()) {
-			return "/student/account/change-password";
+			return user.userType() == UserType.TEACHER
+					? "/teacher/account/password" : "/student/account/change-password";
 		}
 		return switch (user.userType()) {
 			case STUDENT -> "/student/home";

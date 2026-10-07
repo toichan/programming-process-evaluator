@@ -5,7 +5,12 @@ import java.util.List;
 import java.util.Set;
 
 public record TeacherAccountDetails(long userId, String loginId, String status, long version,
-		LocalDateTime createdAt, String createdBy, List<TeacherSchoolOption> schools, Set<String> features) {
+		LocalDateTime createdAt, String createdBy, List<TeacherSchoolOption> schools, Set<String> features,
+		boolean mustChangePassword) {
+	public TeacherAccountDetails(long userId, String loginId, String status, long version,
+			LocalDateTime createdAt, String createdBy, List<TeacherSchoolOption> schools, Set<String> features) {
+		this(userId, loginId, status, version, createdAt, createdBy, schools, features, false);
+	}
 	public TeacherAccountDetails {
 		schools = List.copyOf(schools);
 		features = Set.copyOf(features);
@@ -18,6 +23,7 @@ public record TeacherAccountDetails(long userId, String loginId, String status, 
 	public String getCreatedBy() { return createdBy; }
 	public List<TeacherSchoolOption> getSchools() { return schools; }
 	public Set<String> getFeatures() { return features; }
+	public boolean isMustChangePassword() { return mustChangePassword; }
 	public String getStatusLabel() {
 		return switch (status) {
 			case "active" -> "利用中";

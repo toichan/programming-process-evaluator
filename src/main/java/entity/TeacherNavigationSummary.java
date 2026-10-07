@@ -7,7 +7,14 @@ public record TeacherNavigationSummary(
 		boolean taskManagementEnabled,
 		boolean promptDesignEnabled,
 		boolean accountManagementEnabled,
-		List<TeacherSchoolOption> schools) {
+		List<TeacherSchoolOption> schools,
+		java.util.Set<String> features) {
+
+	public TeacherNavigationSummary(boolean taskManagementEnabled, boolean promptDesignEnabled,
+			boolean accountManagementEnabled, List<TeacherSchoolOption> schools) {
+		this(taskManagementEnabled, promptDesignEnabled, accountManagementEnabled, schools,
+				enabledFeatures(taskManagementEnabled, promptDesignEnabled, accountManagementEnabled));
+	}
 
 	public TeacherNavigationSummary(boolean taskManagementEnabled, boolean promptDesignEnabled, List<TeacherSchoolOption> schools) {
 		this(taskManagementEnabled, promptDesignEnabled, false, schools);
@@ -19,6 +26,7 @@ public record TeacherNavigationSummary(
 
 	public TeacherNavigationSummary {
 		schools = List.copyOf(Objects.requireNonNull(schools));
+		features = java.util.Set.copyOf(Objects.requireNonNull(features));
 	}
 
 	public boolean isTaskManagementEnabled() {
@@ -34,4 +42,13 @@ public record TeacherNavigationSummary(
 	}
 
 	public boolean isAccountManagementEnabled() { return accountManagementEnabled; }
+	public java.util.Set<String> getFeatures() { return features; }
+
+	private static java.util.Set<String> enabledFeatures(boolean task, boolean prompt, boolean accounts) {
+		var features = new java.util.HashSet<String>();
+		if (task) features.add("task-management");
+		if (prompt) features.add("teacher-prompt-design");
+		if (accounts) features.add("account-management");
+		return features;
+	}
 }

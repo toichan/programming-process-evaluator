@@ -1,5 +1,6 @@
 <%@ page contentType="text/html; charset=UTF-8" pageEncoding="UTF-8" session="false" %>
 <%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
+<c:set var="screenDesign" value="admin"/>
 <c:set var="screenPageTitle" value="管理者画面"/>
 <c:set var="screenStylesheet" value="/css/admin/management.css"/>
 <c:set var="screenScript" value="/js/admin/management.js"/>
@@ -95,7 +96,7 @@
 				<div class="create-field create-row"><div class="form-label">機能利用制限<br>（利用可のみチェック）</div><div class="chip-group">
 					<c:forEach var="feature" items="${featureOrder}"><label class="form-check"><input class="form-check-input" type="checkbox" name="features" value="${feature}" checked><span><c:out value="${featureLabels[feature]}"/></span></label></c:forEach>
 				</div></div>
-				<p class="small text-secondary mt-3">権限が有効でも、未実装の教師機能は利用できません。変更は教師の既存ログインにも反映します。</p>
+				<p class="small text-secondary mt-3">初期パスワードはシステムが8文字で自動生成し、作成後に一度だけ確認できます。権限が有効でも未実装の教師機能は利用できません。変更は教師の既存ログインにも反映します。</p>
 				<div class="d-flex justify-content-end gap-2 mt-3"><button class="btn btn-outline-secondary btn-sm" type="reset">リセット</button><button class="btn btn-primary btn-sm" type="submit">保存</button></div>
 			</form>
 		</div>

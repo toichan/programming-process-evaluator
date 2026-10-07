@@ -14,6 +14,10 @@
 		</c:when>
 		<c:when test="${screenDesign == 'teacher-login'}">
 		</c:when>
+		<c:when test="${screenDesign == 'admin'}">
+				</div>
+			</main>
+		</c:when>
 		<c:otherwise>
 			</main>
 			<footer class="border-top bg-white">
@@ -46,6 +50,9 @@
 	</c:if>
 	<c:if test="${screenDesign == 'teacher'}">
 		<script src="${pageContext.request.contextPath}/js/teacher/shared/navigation.js" defer></script>
+	</c:if>
+	<c:if test="${screenDesign == 'teacher' or screenDesign == 'admin'}">
+		<script src="${pageContext.request.contextPath}/js/shared/logout-confirmation.js" defer></script>
 	</c:if>
 	<c:if test="${screenDesign == 'student'}">
 		<script src="${pageContext.request.contextPath}/js/student/shared/rubric.js?v=106" defer></script>

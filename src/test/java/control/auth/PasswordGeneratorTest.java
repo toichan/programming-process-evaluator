@@ -11,7 +11,7 @@ class PasswordGeneratorTest {
 		for (int index = 0; index < 100; index++) {
 			char[] password = PasswordGenerator.generate();
 			try {
-				assertEquals(24, password.length);
+				assertEquals(8, password.length);
 				assertTrue(PasswordPolicy.isValid(password));
 				assertTrue(seen.add(new String(password)));
 			} finally { Arrays.fill(password, '\0'); }

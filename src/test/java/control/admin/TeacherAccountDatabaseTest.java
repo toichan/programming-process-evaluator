@@ -35,7 +35,7 @@ class TeacherAccountDatabaseTest {
 
 	@BeforeEach void setUp() throws SQLException {
 		Assumptions.assumeTrue(Boolean.parseBoolean(System.getenv("TEACHER_ACCOUNT_DB_TEST")));
-		assertTrue(System.getenv("DB_NAME").matches("ppe_teacher_test_[a-z0-9_]+"));
+		assertTrue(System.getenv("DB_NAME").matches("ppe_teacher_(?:self_)?test_[a-z0-9_]+"));
 		try (Connection connection = Client.createConnection()) {
 			assertEquals(0, scalar(connection, "SELECT COUNT(*) FROM users"));
 			try (var statement = connection.prepareStatement("""
@@ -120,7 +120,7 @@ class TeacherAccountDatabaseTest {
 		assertFalse(sessionControl.isCurrent(sessionUser, 3L));
 		try (Connection connection = Client.createConnection()) {
 			assertTrue(new TeacherAccountDao().sessionVersion(connection, account.userId(), null).isEmpty());
-			assertEquals(0, scalar(connection, "SELECT must_change_at_next_login FROM password_reset_records"));
+			assertEquals(1, scalar(connection, "SELECT must_change_at_next_login FROM password_reset_records"));
 		}
 		assertFalse(auth.authenticate(account.loginId(), replacement.toCharArray(), LoginPortal.STAFF,
 				RequestMetadata.from("127.0.0.1", "synthetic")).authenticated());

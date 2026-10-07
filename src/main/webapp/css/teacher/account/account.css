@@ -12,10 +12,10 @@
 .filter-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .75rem; }
 .form-label { font-size: .88rem; font-weight: 500; }
 #accountTable { min-width: 1150px; font-size: .85rem; }
-#accountTable td { max-width: 240px; overflow-wrap: anywhere; }
-#accountTable th { white-space: nowrap; }
+#accountTable th, #accountTable td { white-space: nowrap; }
+#studentAccountConsole .btn, #accountFilters .form-label { white-space: nowrap; }
 .sort-button { border: 0; background: transparent; color: inherit; padding: 0; font-weight: inherit; }
-.account-actions { display: flex; gap: .35rem; flex-wrap: wrap; min-width: 170px; }
+.account-actions { display: flex; gap: .35rem; flex-wrap: nowrap; min-width: max-content; }
 .account-actions .btn { white-space: nowrap; }
 .account-detail-section { margin-top: 1.5rem; }
 .account-detail-section .table-responsive { max-height: 280px; }

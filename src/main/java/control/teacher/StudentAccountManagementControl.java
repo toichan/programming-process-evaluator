@@ -3,11 +3,13 @@ package control.teacher;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 import control.auth.AuthenticatedUser;
+import control.auth.PasswordGenerator;
 import control.auth.PasswordHasher;
 import control.auth.PasswordPolicy;
 import dao.StudentAccountManagementDao;
@@ -24,6 +26,7 @@ public final class StudentAccountManagementControl {
 		public Target { if (userId < 1 || version < 1) throw new IllegalArgumentException("対象・更新版が不正です。"); }
 	}
 	public record ExportRow(ManagedStudentAccount account, String password) {}
+	public record CreatedCredential(String loginId, String password) {}
 
 	public List<ManagedStudentAccount> list(AuthenticatedUser teacher) throws SQLException {
 		return transaction(teacher, connection -> dao.list(connection, teacher.userId()));
@@ -38,23 +41,29 @@ public final class StudentAccountManagementControl {
 				"operations", dao.history(connection, id, "operations")));
 	}
 
-	public List<String> create(AuthenticatedUser teacher, StudentAccountCreation input, char[] password) throws SQLException {
+	public List<CreatedCredential> create(AuthenticatedUser teacher, StudentAccountCreation input) throws SQLException {
 		requireTeacher(teacher);
-		if (input == null || !PasswordPolicy.isValid(password)) throw new IllegalArgumentException("初期パスワードは8〜32文字、半角4種類中3種類以上で指定してください。");
+		if (input == null) throw new IllegalArgumentException("作成するアカウント情報を指定してください。");
 		TeacherCredentialCipher cipher = TeacherCredentialCipher.configured();
 		return audited(teacher, "create", connection -> {
 			permissions.requireAccountAuthorizedSchool(connection, teacher.userId(), input.schoolId());
 			if (input.classroomId() > 0) permissions.requireAccountAuthorizedClass(connection, teacher.userId(), input.classroomId(), input.schoolId());
 			long classroom = dao.resolveClass(connection, input);
-			List<String> ids = new ArrayList<>();
+			List<CreatedCredential> credentials = new ArrayList<>();
 			for (int i = 0; i < input.count(); i++) {
-				String login = dao.nextLoginId(connection);
-				long id = dao.create(connection, teacher.userId(), login, new PasswordHasher().hash(password), input.schoolId(), classroom);
-				dao.saveCredential(connection, id, cipher.encrypt(id, password));
-				dao.audit(connection, teacher.userId(), id, "create", true, "生徒ID: " + login + " / 学校ID: " + input.schoolId() + " / クラスID: " + classroom);
-				ids.add(login);
+				char[] password = PasswordGenerator.generate();
+				try {
+					String login = dao.nextLoginId(connection);
+					long id = dao.create(connection, teacher.userId(), login, new PasswordHasher().hash(password), input.schoolId(), classroom);
+					dao.saveCredential(connection, id, cipher.encrypt(id, password));
+					dao.audit(connection, teacher.userId(), id, "create", true,
+							"生徒ID: " + login + " / 学校ID: " + input.schoolId() + " / クラスID: " + classroom);
+					credentials.add(new CreatedCredential(login, new String(password)));
+				} finally {
+					Arrays.fill(password, '\0');
+				}
 			}
-			return List.copyOf(ids);
+			return List.copyOf(credentials);
 		});
 	}
 

@@ -79,6 +79,19 @@ a.sidebar-menu-link:hover,
 	color: currentColor;
 }
 
+button.sidebar-menu-link {
+	width: 100%;
+	border: 0;
+	background: transparent;
+	text-align: left;
+	font: inherit;
+}
+
+button.sidebar-menu-link:focus-visible {
+	outline: 2px solid #4f46e5;
+	outline-offset: -2px;
+}
+
 .sidebar-menu-item.is-unavailable .sidebar-menu-link,
 .sidebar-menu-link.is-disabled {
 	color: #8a8f98;
@@ -151,6 +164,11 @@ a.sidebar-menu-link:hover,
 .teacher-page-content {
 	flex: 1 0 auto;
 	min-width: 0;
+}
+
+.teacher-self-account-screen .sample-section,
+.teacher-self-account-screen .password-content-row {
+	animation: none;
 }
 
 .teacher-footer {

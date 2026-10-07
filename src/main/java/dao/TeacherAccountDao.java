@@ -67,14 +67,14 @@ public final class TeacherAccountDao {
 		}
 		return new TeacherAccountDetails(id, rows.getString("login_id"), rows.getString("account_status"),
 				rows.getLong("account_version"), rows.getTimestamp("created_at").toLocalDateTime(),
-				rows.getString("created_by"), schools, features);
+				rows.getString("created_by"), schools, features, rows.getBoolean("teacher_must_change_password"));
 	}
 
 	public long create(Connection connection, long actor, TeacherAccountInput input, String hash) throws SQLException {
 		try (PreparedStatement statement = connection.prepareStatement("""
 				INSERT INTO users (user_type, login_id, password_hash, display_name, account_status,
-				  created_by_user_id, created_at)
-				VALUES ('teacher', ?, ?, ?, 'active', ?, CURRENT_TIMESTAMP)
+				  created_by_user_id, created_at, teacher_must_change_password)
+				VALUES ('teacher', ?, ?, ?, 'active', ?, CURRENT_TIMESTAMP, TRUE)
 				""", Statement.RETURN_GENERATED_KEYS)) {
 			statement.setString(1, input.loginId());
 			statement.setString(2, hash);
@@ -145,11 +145,13 @@ public final class TeacherAccountDao {
 				  account_version = account_version + 1, updated_by_user_id = ?, updated_at = CURRENT_TIMESTAMP,
 				  deleted_at = CASE WHEN ? = 'deleted' THEN CURRENT_TIMESTAMP ELSE deleted_at END,
 				  consecutive_login_failures = CASE WHEN ? IS NULL THEN consecutive_login_failures ELSE 0 END,
-				  login_locked_until = CASE WHEN ? IS NULL THEN login_locked_until ELSE NULL END WHERE user_id = ?
+				  login_locked_until = CASE WHEN ? IS NULL THEN login_locked_until ELSE NULL END,
+				  teacher_must_change_password = CASE WHEN ? IS NULL THEN teacher_must_change_password ELSE TRUE END
+				WHERE user_id = ?
 				""")) {
 			statement.setString(1, status); statement.setString(2, hash); statement.setLong(3, actor);
 			statement.setString(4, status); statement.setString(5, hash);
-			statement.setString(6, hash); statement.setLong(7, id);
+			statement.setString(6, hash); statement.setString(7, hash); statement.setLong(8, id);
 			if (statement.executeUpdate() != 1) throw new SQLException("Teacher update row count mismatch.");
 		}
 	}
@@ -160,7 +162,7 @@ public final class TeacherAccountDao {
 			try (PreparedStatement statement = connection.prepareStatement("""
 					INSERT INTO password_reset_records (target_user_id, requested_by_user_id, reset_status,
 					  must_change_at_next_login, requested_at, completed_at)
-					VALUES (?, ?, 'completed', FALSE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+					VALUES (?, ?, 'completed', TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 					""", Statement.RETURN_GENERATED_KEYS)) {
 				statement.setLong(1, id); statement.setLong(2, actor); statement.executeUpdate();
 				try (ResultSet keys = statement.getGeneratedKeys()) {
@@ -255,6 +257,36 @@ public final class TeacherAccountDao {
 			try (ResultSet rows = statement.executeQuery()) {
 				return rows.next() ? Optional.of(rows.getLong(1)) : Optional.empty();
 			}
+		}
+	}
+
+	public void changeOwnPassword(Connection connection, long id, String hash) throws SQLException {
+		try (PreparedStatement statement = connection.prepareStatement("""
+				UPDATE users SET password_hash = ?, teacher_must_change_password = FALSE,
+				  account_version = account_version + 1, updated_by_user_id = ?, updated_at = CURRENT_TIMESTAMP,
+				  consecutive_login_failures = 0, login_locked_until = NULL
+				WHERE user_id = ? AND user_type = 'teacher' AND account_status = 'active' AND deleted_at IS NULL
+				""")) {
+			statement.setString(1, hash);
+			statement.setLong(2, id);
+			statement.setLong(3, id);
+			if (statement.executeUpdate() != 1) throw new SQLException("Teacher password update row count mismatch.");
+		}
+	}
+
+	public void ownPasswordAudit(Connection connection, long id, String result, String reason, String requestId)
+			throws SQLException {
+		try (PreparedStatement statement = connection.prepareStatement("""
+				INSERT INTO audit_logs (actor_user_id, actor_role, feature_code, target_type, target_id,
+				  action_type, result_status, detail, request_id, occurred_at)
+				VALUES (?, 'teacher', 'teacher-account-management', 'teacher', ?, 'password_change', ?, ?, ?, CURRENT_TIMESTAMP)
+				""")) {
+			statement.setLong(1, id);
+			statement.setLong(2, id);
+			statement.setString(3, result);
+			statement.setString(4, reason);
+			statement.setString(5, requestId);
+			statement.executeUpdate();
 		}
 	}
 }

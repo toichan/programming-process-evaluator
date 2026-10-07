@@ -25,7 +25,7 @@ window.addEventListener('DOMContentLoaded', () => {
   };
   const historyLabels = {
     create: '作成', permissions: '権限変更', reset: 'パスワード再設定', suspend: '停止',
-    activate: '停止解除', delete: '削除', login: 'ログイン', logout: 'ログアウト'
+    activate: '停止解除', delete: '削除', login: 'ログイン', logout: 'ログアウト', password_change: '本人パスワード変更'
   };
   async function readJson(url, options) {
     const response = await fetch(url, { ...options, cache: 'no-store', credentials: 'same-origin' });
