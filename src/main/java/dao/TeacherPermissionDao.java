@@ -51,6 +51,21 @@ public final class TeacherPermissionDao {
 		requireFeatureAccess(connection, teacherUserId, "code-distribution");
 	}
 
+	public void requireTaskProgressAccess(Connection connection, long teacherUserId) throws SQLException {
+		requireFeatureAccess(connection, teacherUserId, "task-progress");
+	}
+
+	public List<TeacherSchoolOption> findProgressAuthorizedSchools(Connection connection, long teacherUserId)
+			throws SQLException {
+		requireTaskProgressAccess(connection, teacherUserId);
+		return selectAuthorizedSchools(connection, teacherUserId);
+	}
+
+	public void requireProgressAuthorizedClass(
+			Connection connection, long teacherUserId, long classroomId, long schoolId) throws SQLException {
+		requireAuthorizedClass(connection, teacherUserId, classroomId, schoolId, "task-progress");
+	}
+
 	public List<TeacherSchoolOption> findDistributionAuthorizedSchools(Connection connection, long teacherUserId)
 			throws SQLException {
 		requireCodeDistributionAccess(connection, teacherUserId);

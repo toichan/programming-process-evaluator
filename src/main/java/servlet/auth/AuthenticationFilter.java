@@ -24,10 +24,12 @@ public final class AuthenticationFilter implements Filter {
 	private static final String USER_ATTRIBUTE = AuthenticatedUser.class.getName();
 	private static final StudentControl STUDENTS = new StudentControl();
 	private FilterConfig filterConfig;
+	private PortalHostRouting portalHostRouting;
 
 	@Override
 	public void init(FilterConfig filterConfig) {
 		this.filterConfig = filterConfig;
+		this.portalHostRouting = PortalHostRouting.fromEnvironment();
 	}
 
 	@Override
@@ -36,6 +38,12 @@ public final class AuthenticationFilter implements Filter {
 		HttpServletRequest request = (HttpServletRequest) servletRequest;
 		HttpServletResponse response = (HttpServletResponse) servletResponse;
 		String path = request.getRequestURI().substring(request.getContextPath().length());
+		java.util.Optional<String> portalRedirect = portalHostRouting.redirectLocation(
+				request.getServerName(), request.getServerPort(), path, request.getContextPath());
+		if (portalRedirect.isPresent()) {
+			response.sendRedirect(portalRedirect.get());
+			return;
+		}
 		boolean studentArea = path.startsWith("/student/") && !path.equals("/student/account/login");
 		boolean staffArea = path.startsWith("/teacher/") && !path.equals("/teacher/account/login");
 		boolean adminArea = path.startsWith("/admin/");

@@ -167,8 +167,9 @@ backupはInnoDBの整合性を保つ方式を選び、DDL並行実行を避け�
 | `PPE_STUDENT_CODE` | 一時実行containerへrunnerが注入 | requestのsource | 管理用 `.env` 項目ではない。生徒コードなのでinspect/logアクセスを制限 |
 | `GEMINI_API_KEY` | GeminiEvaluationClient、Compose | 見本は空、Compose未設定時空 | AIには必要。空でもapp全体を起動禁止にはしないが評価は失敗 |
 | `GEMINI_API_SMOKE_TEST` / `GEMINI_API_DIAGNOSTICS` | Gemini client診断・外部APIテスト | 未指定はfalse相当 | 本番では未設定/false。両方trueで限定的なAPIエラーメッセージを追加する |
+| `STUDENT_PORTAL_HOST` / `TEACHER_PORTAL_HOST` | 認証Filterの学校/教師ポータル振り分け | Java既定は `student.ppeval.net` / `teacher.ppeval.net`。Composeと `.env.sample` は `.localhost` | 開発Composeは `.localhost`、本番は取得済みの各ホスト名を明示設定する。両方を別ホストにする |
 
-本番URL、session timeout、Secure/SameSite、モデルID、API timeout/retry、worker数、Hikari poolサイズに対する**運用環境変数は現行実装にない**。URLはproxy/DNS、sessionはweb.xml/Java、モデルはprompt/DB、他はコード・propertiesに置かれている。存在しない `PRODUCTION_URL` 等を必須設定として捏造しない。
+ログイン認証では `/student/**` を `STUDENT_PORTAL_HOST`、`/teacher/**` と `/admin/**` を `TEACHER_PORTAL_HOST` に振り分ける。環境変数は正規ホスト名を設定するもので、DNS/TLS/reverse proxyを構成するものではない。本番proxyは外部Hostを保持してappへ転送し、両ホストのDNSとHTTPS証明書を別途設定する。アプリは誤ったポータルのURLを該当ホストのログイン画面へリダイレクトする。`web.xml` のsession cookieにDomainを設定しないことが重要であり、ブラウザーは同名のJSESSIONIDをホストごとに別々に保存するため、教師と生徒のログインが独立する。セッションcookieのSecure/SameSite、proxy信頼、session timeout、モデルID、API timeout/retry、worker数、Hikari poolサイズに対する**運用環境変数は現行実装にない**。URLはproxy/DNS、sessionはweb.xml/Java、モデルはprompt/DB、他はコード・propertiesに置かれている。存在しない `PRODUCTION_URL` 等を必須設定として捏造しない。
 
 DB/API統合テストには `EVALUATION_DB_TEST`、`CONSENT_DB_TEST`、`SCHOOL_DB_TEST`、`TEACHER_ACCOUNT_DB_TEST`、`EXERCISE_DB_TEST`、`SURVEY_DB_TEST`、`TEACHER_TASK_DB_TEST` とbrowser fixture/保持用flagがある。これらは検証用で、本番appの設定見本へ混ぜない。実行対象DBに制約があるため、production DBでテストを有効にしない。
 

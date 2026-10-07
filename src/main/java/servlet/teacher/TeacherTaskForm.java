@@ -35,7 +35,8 @@ public record TeacherTaskForm(
 			"lateSubmissionPolicy", "taskName", "difficulty", "theme", "description", "features",
 			"inputConstraints", "creationRules", "initialCode", "testCaseIds", "testCaseTitles",
 			"testCaseInputs", "testCaseOutputs", "hintIds", "hintTitles", "hintContents",
-			"hintUsageSyntaxes", "hintCodes", "assignmentIds", "publishAts", "dueAts");
+			"hintUsageSyntaxes", "hintCodes", "assignmentIds", "publishAts", "dueAts",
+			"publishImmediateClassIds", "dueNoneClassIds");
 
 	public static Map<String, List<String>> read(InputStream input, int maximumBytes) throws IOException {
 		byte[] body = input.readNBytes(maximumBytes + 1);

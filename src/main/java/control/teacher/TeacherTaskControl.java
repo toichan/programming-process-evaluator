@@ -223,6 +223,23 @@ public final class TeacherTaskControl {
 			long sourceTaskId,
 			long expectedVersion,
 			String requestId) throws SQLException {
+		return copyTask(user, sourceTaskId, expectedVersion, requestId, true);
+	}
+
+	public long duplicateTask(
+			AuthenticatedUser user,
+			long sourceTaskId,
+			long expectedVersion,
+			String requestId) throws SQLException {
+		return copyTask(user, sourceTaskId, expectedVersion, requestId, false);
+	}
+
+	private long copyTask(
+			AuthenticatedUser user,
+			long sourceTaskId,
+			long expectedVersion,
+			String requestId,
+			boolean requireStartedLearning) throws SQLException {
 		requireTeacher(user);
 		requirePositiveId(sourceTaskId, "課題");
 		if (expectedVersion < 1) {
@@ -262,20 +279,26 @@ public final class TeacherTaskControl {
 				connection.commit();
 				committed = true;
 			} else {
-				if (!"published".equals(source.publicationStatus())) {
+				if (requireStartedLearning && !"published".equals(source.publicationStatus())) {
 					throw new IllegalArgumentException("公開中の課題だけを新しい課題系列へ複製できます。");
+				}
+				if ("archived".equals(source.publicationStatus())) {
+					throw new IllegalArgumentException("削除済みの課題は複製できません。");
 				}
 				if (source.version() != expectedVersion) {
 					throw new TaskDraftConflictException();
 				}
-				if (!taskDao.hasStartedLearning(connection, sourceTaskId, true)) {
+				boolean learningStarted = "published".equals(source.publicationStatus())
+						&& taskDao.hasStartedLearning(connection, sourceTaskId, true);
+				if (requireStartedLearning && !learningStarted) {
 					throw new IllegalArgumentException(
 							"学習開始済みの生徒がいる公開課題だけを新しい課題系列へ複製できます。");
 				}
 
 				TeacherTaskInput sourceInput = source.input();
 				TeacherTaskInput copyInput = new TeacherTaskInput(
-						sourceInput.title(),
+						requireStartedLearning ? sourceInput.title()
+								: sourceInput.title().substring(0, Math.min(sourceInput.title().length(), 251)) + "（複製）",
 						sourceInput.theme(),
 						sourceInput.difficulty(),
 						sourceInput.description(),
@@ -285,10 +308,17 @@ public final class TeacherTaskControl {
 						sourceInput.features(),
 						sourceInput.testCases(),
 						sourceInput.hints(),
-						List.of(),
+						learningStarted ? List.of() : sourceInput.classAssignments().stream()
+								.map(assignment -> new TeacherTaskInput.ClassAssignmentInput(
+										0, assignment.classroomId(), assignment.publishAt(),
+										assignment.dueAt(), assignment.lateSubmissionPolicy()))
+								.toList(),
 						sourceInput.schoolId());
+				requireAuthorizedAssignments(connection, user.userId(), null, copyInput);
 				copiedTaskId = taskDao.insertDraft(connection, user.userId(), copyInput);
-				promptDao.copyCurrentPromptToDraft(connection, user.userId(), sourceTaskId, copiedTaskId);
+				if (learningStarted) {
+					promptDao.copyCurrentPromptToDraft(connection, user.userId(), sourceTaskId, copiedTaskId);
+				}
 				auditTargetId = copiedTaskId;
 				taskDao.recordAudit(
 						connection,
@@ -296,7 +326,7 @@ public final class TeacherTaskControl {
 						copiedTaskId,
 						action,
 						requestId,
-						"学習開始済み課題を独立した課題系列へ複製",
+						"課題を独立した課題系列へ複製",
 						taskStateJson(source.publicationStatus(), source.version()),
 						"{\"publicationStatus\":\"draft\",\"version\":1,\"source_task_id\":"
 								+ sourceTaskId + "}");

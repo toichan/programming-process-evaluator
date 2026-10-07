@@ -18,6 +18,23 @@ import entity.UserCredential.UserType;
 
 class TeacherTaskControlTest {
 	@Test
+	void rejectsAdminAndInvalidVersionBeforeOpeningDatabaseWhenDuplicatingTask() {
+		AtomicBoolean connectionOpened = new AtomicBoolean();
+		TeacherTaskControl control = new TeacherTaskControl(
+				new TeacherPermissionDao(), new TeacherTaskDao(), () -> {
+					connectionOpened.set(true);
+					throw new SQLException("Database must not be reached.");
+				});
+		AuthenticatedUser admin = new AuthenticatedUser(7, "synthetic", "Synthetic", UserType.ADMIN, false, "test");
+		AuthenticatedUser teacher = new AuthenticatedUser(7, "synthetic", "Synthetic", UserType.TEACHER, false, "test");
+		assertThrows(SecurityException.class, () -> control.duplicateTask(
+				admin, 12, 1, "19db2fd2-1d73-4f51-88d7-222222222222"));
+		assertThrows(IllegalArgumentException.class, () -> control.duplicateTask(
+				teacher, 12, 0, "19db2fd2-1d73-4f51-88d7-222222222222"));
+		assertFalse(connectionOpened.get());
+	}
+
+	@Test
 	void rejectsAdminBeforeOpeningDatabaseConnection() {
 		AtomicBoolean connectionOpened = new AtomicBoolean();
 		TeacherTaskControl control = new TeacherTaskControl(

@@ -26,8 +26,8 @@ import control.teacher.TaskDraftConflictException;
 import control.teacher.TaskDraftNotFoundException;
 import control.teacher.TeacherTaskControl;
 import control.teacher.TeacherTaskCreateRegistry;
+import control.teacher.TeacherNavigationControl;
 import entity.TeacherClassOption;
-import entity.TeacherNavigationSummary;
 import entity.TeacherTaskInput;
 import entity.UserCredential.UserType;
 import servlet.auth.CsrfTokens;
@@ -40,6 +40,7 @@ public final class TeacherTaskServlet extends HttpServlet {
 	static final String SAVED_NOTICE_ATTRIBUTE = TeacherTaskServlet.class.getName() + ".savedNotice";
 	private static final String TASK_STATE_NOTICE_ATTRIBUTE = TeacherTaskServlet.class.getName() + ".taskStateNotice";
 	private static final TeacherTaskControl TASKS = new TeacherTaskControl();
+	private static final TeacherNavigationControl NAVIGATION = new TeacherNavigationControl();
 
 	@Override
 	protected void doGet(HttpServletRequest request, HttpServletResponse response)
@@ -202,7 +203,7 @@ public final class TeacherTaskServlet extends HttpServlet {
 			request.setAttribute("teacherTaskHistoryTitle", historyTitle);
 		}
 		request.setAttribute("teacherTaskPage", page);
-		request.setAttribute("teacherNavigationSummary", new TeacherNavigationSummary(true, page.schools()));
+		request.setAttribute("teacherNavigationSummary", NAVIGATION.load(user));
 		request.setAttribute("teacherNavigationActiveItem", "task");
 		request.setAttribute("teacherTaskSaved", consumeSavedNotice(request.getSession(false)));
 		request.setAttribute("teacherTaskStateNotice", consumeTaskStateNotice(request.getSession(false)));
@@ -279,13 +280,20 @@ public final class TeacherTaskServlet extends HttpServlet {
 		Map<Long, Map<String, String>> assignments = new HashMap<>();
 		if (submittedForm != null) {
 			selectedSchoolIds.addAll(submittedForm.selectedSchoolIds());
+			Set<Long> immediateClassIds = safePositiveIds(rawValues.get("publishImmediateClassIds"));
+			Set<Long> noDeadlineClassIds = safePositiveIds(rawValues.get("dueNoneClassIds"));
 			for (var assignment : input.classAssignments()) {
 				selectedClassIds.add(assignment.classroomId());
-				assignments.put(assignment.classroomId(), assignmentValues(assignment));
+				Map<String, String> values = assignmentValues(assignment);
+				values.put("publishImmediate", Boolean.toString(immediateClassIds.contains(assignment.classroomId())));
+				values.put("dueNone", Boolean.toString(noDeadlineClassIds.contains(assignment.classroomId())));
+				assignments.put(assignment.classroomId(), Map.copyOf(values));
 			}
 		} else if (hasSubmittedValues) {
 			selectedSchoolIds.addAll(safePositiveIds(rawValues.get("schoolTargets")));
 			selectedClassIds.addAll(safePositiveIds(rawValues.get("classTargets")));
+			Set<Long> immediateClassIds = safePositiveIds(rawValues.get("publishImmediateClassIds"));
+			Set<Long> noDeadlineClassIds = safePositiveIds(rawValues.get("dueNoneClassIds"));
 			List<String> classroomIds = rawValues.getOrDefault("classTargets", List.of());
 			List<String> assignmentIds = rawValues.getOrDefault("assignmentIds", List.of());
 			List<String> publishAtValues = rawValues.getOrDefault("publishAts", List.of());
@@ -296,10 +304,13 @@ public final class TeacherTaskServlet extends HttpServlet {
 					long assignmentId = index < assignmentIds.size()
 							? safePositiveLong(assignmentIds.get(index), 0)
 							: 0;
-					assignments.put(classroomId, Map.of(
+					Map<String, String> values = new LinkedHashMap<>(Map.of(
 							"assignmentId", Long.toString(assignmentId),
 							"publishAt", index < publishAtValues.size() ? publishAtValues.get(index) : "",
 							"dueAt", index < dueAtValues.size() ? dueAtValues.get(index) : ""));
+					values.put("publishImmediate", Boolean.toString(immediateClassIds.contains(classroomId)));
+					values.put("dueNone", Boolean.toString(noDeadlineClassIds.contains(classroomId)));
+					assignments.put(classroomId, Map.copyOf(values));
 				}
 			}
 		} else if (input != null) {
@@ -347,14 +358,16 @@ public final class TeacherTaskServlet extends HttpServlet {
 				response.sendError(HttpServletResponse.SC_FORBIDDEN, "画面を再読み込みしてください。");
 				return;
 			}
-			if ("copyToNewTaskSeries".equals(operation.action())) {
-				long copiedTaskId = TASKS.createIndependentCopy(
-						user, operation.taskId(), operation.expectedVersion(), operation.requestToken());
+			if ("copyToNewTaskSeries".equals(operation.action()) || "duplicateTask".equals(operation.action())) {
+				long copiedTaskId = "duplicateTask".equals(operation.action())
+						? TASKS.duplicateTask(user, operation.taskId(), operation.expectedVersion(), operation.requestToken())
+						: TASKS.createIndependentCopy(
+								user, operation.taskId(), operation.expectedVersion(), operation.requestToken());
 				HttpSession session = request.getSession(false);
 				if (session != null) {
 					session.setAttribute(
 							TASK_STATE_NOTICE_ATTRIBUTE,
-							"新しい課題系列の下書きを作成しました。対象クラス・公開日時・提出期限を選び、プロンプトを確認してください。");
+							"課題を複製しました。対象クラス・公開日時・提出期限とプロンプトを確認してください。");
 				}
 				response.sendRedirect(response.encodeRedirectURL(
 						request.getContextPath() + "/teacher/task?taskId=" + copiedTaskId));
@@ -390,6 +403,7 @@ public final class TeacherTaskServlet extends HttpServlet {
 	private static boolean isTaskStateAction(String action) {
 		return "deleteTask".equals(action)
 				|| "restoreTask".equals(action)
+				|| "duplicateTask".equals(action)
 				|| "copyToNewTaskSeries".equals(action);
 	}
 
@@ -503,7 +517,7 @@ public final class TeacherTaskServlet extends HttpServlet {
 		return entries.getFirst();
 	}
 
-	private static TaskStateOperation parseTaskStateOperation(Map<String, List<String>> values) {
+	static TaskStateOperation parseTaskStateOperation(Map<String, List<String>> values) {
 		if (!Set.of("action", "csrfToken", "requestToken", "taskId", "expectedVersion").equals(values.keySet())) {
 			throw new IllegalArgumentException("課題操作の入力が不正です。");
 		}
@@ -539,7 +553,7 @@ public final class TeacherTaskServlet extends HttpServlet {
 		}
 	}
 
-	private record TaskStateOperation(
+	record TaskStateOperation(
 			String action, String csrfToken, String requestToken, long taskId, long expectedVersion) {
 	}
 
@@ -582,10 +596,13 @@ public final class TeacherTaskServlet extends HttpServlet {
 	}
 
 	private static Map<String, String> assignmentValues(TeacherTaskInput.ClassAssignmentInput assignment) {
-		return Map.of(
-				"assignmentId", Long.toString(assignment.assignmentId()),
-				"publishAt", assignment.publishAt() == null ? "" : assignment.publishAt().toString(),
-				"dueAt", assignment.dueAt() == null ? "" : assignment.dueAt().toString());
+		Map<String, String> values = new LinkedHashMap<>();
+		values.put("assignmentId", Long.toString(assignment.assignmentId()));
+		values.put("publishAt", assignment.publishAt() == null ? "" : assignment.publishAt().toString());
+		values.put("publishImmediate", Boolean.toString(assignment.assignmentId() > 0 && assignment.publishAt() == null));
+		values.put("dueAt", assignment.dueAt() == null ? "" : assignment.dueAt().toString());
+		values.put("dueNone", Boolean.toString(assignment.assignmentId() > 0 && assignment.dueAt() == null));
+		return values;
 	}
 
 	private static Map<String, String> fieldValues(
