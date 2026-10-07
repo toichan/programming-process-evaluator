@@ -10,7 +10,7 @@
 	<div class="container-fluid px-4">
 		<section class="sample-section password-hero mb-4">
 			<div>
-				<span class="hero-kicker">Password Settings</span>
+				<span class="hero-kicker">Password Update</span>
 				<h1 class="section-title mb-3">パスワード変更</h1>
 				<p class="hero-description mb-0"><c:choose><c:when test="${passwordChangeRequired}">初期または再設定されたパスワードを変更してください。変更完了まで通常の機能は利用できません。</c:when><c:otherwise>現在のパスワードを確認して、新しいパスワードを設定します。</c:otherwise></c:choose></p>
 			</div>

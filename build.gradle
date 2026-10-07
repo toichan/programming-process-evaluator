@@ -69,6 +69,14 @@ tasks.register('createInitialAdmin', JavaExec) {
     mainClass = 'control.auth.InitialAdminBootstrap'
 }
 
+tasks.register('rotateAdminPassword', JavaExec) {
+    group = 'application'
+    description = 'Generate and set a new strong password for the active administrator account.'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'control.auth.RotateAdminPassword'
+    standardInput = System.in
+}
+
 tasks.register('registerStandardRubric', JavaExec) {
     group = 'application'
     description = 'Register the approved 0805 standard rubric without overwriting existing versions.'
