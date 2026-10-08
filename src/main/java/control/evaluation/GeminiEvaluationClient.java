@@ -26,7 +26,21 @@ public final class GeminiEvaluationClient implements EvaluationProvider {
 		this(HttpClient.newBuilder()
 				.connectTimeout(Duration.ofSeconds(10))
 				.build(), System.getenv("GEMINI_API_KEY"),
-				URI.create("https://generativelanguage.googleapis.com/"));
+				configuredBaseUri(System.getenv()));
+	}
+
+	static URI configuredBaseUri(Map<String, String> environment) {
+		String configured = environment.get("GEMINI_API_BASE_URI");
+		String official = "https://generativelanguage.googleapis.com/";
+		if (configured == null || configured.equals(official)) {
+			return URI.create(official);
+		}
+		if (!"simulation".equals(environment.get("PPE_ENV"))
+				|| !"http://gemini-mock:8099/".equals(configured)
+				|| !environment.getOrDefault("GEMINI_API_KEY", "").startsWith("synthetic-")) {
+			throw new IllegalStateException("Custom Gemini endpoints require isolated simulation and a synthetic key.");
+		}
+		return URI.create(configured);
 	}
 
 	GeminiEvaluationClient(HttpClient httpClient, String apiKey) {

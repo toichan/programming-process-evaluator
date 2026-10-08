@@ -73,22 +73,26 @@
 				</c:otherwise>
 			</c:choose>
 		</li>
-		<li class="sidebar-menu-item is-unavailable">
-			<button type="button" class="sidebar-menu-link" aria-disabled="true" data-feature-allowed="${teacherNavigationSummary.features.contains('submission-review')}">
+		<li class="sidebar-menu-item${teacherNavigationActiveItem == 'submissions' ? ' active' : ''}">
+			<c:choose><c:when test="${teacherNavigationSummary.features.contains('submission-review')}">
+			<a class="sidebar-menu-link" href="<c:url value='/teacher/submissions'/>" aria-current="${teacherNavigationActiveItem == 'submissions' ? 'page' : 'false'}">
 				<svg class="sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
 					<path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h6v2H7v-2zm0 3h10v2H7v-2z"/>
 					<path d="M14.5 5l-2.5 2.5L9.5 5H14.5z"/>
 				</svg>
 				<span>提出課題確認</span>
-			</button>
+			</a>
+			</c:when><c:otherwise><button type="button" class="sidebar-menu-link is-disabled" aria-disabled="true" data-feature-allowed="false">提出課題確認</button></c:otherwise></c:choose>
 		</li>
-		<li class="sidebar-menu-item is-unavailable">
-			<button type="button" class="sidebar-menu-link" aria-disabled="true" data-feature-allowed="${teacherNavigationSummary.features.contains('evaluation-review')}">
+		<li class="sidebar-menu-item${teacherNavigationActiveItem == 'evaluations' ? ' active' : ''}">
+			<c:choose><c:when test="${teacherNavigationSummary.features.contains('evaluation-review')}">
+			<a class="sidebar-menu-link" href="<c:url value='/teacher/evaluations'/>" aria-current="${teacherNavigationActiveItem == 'evaluations' ? 'page' : 'false'}">
 				<svg class="sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
 					<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
 				</svg>
 				<span>評価確認</span>
-			</button>
+			</a>
+			</c:when><c:otherwise><button type="button" class="sidebar-menu-link is-disabled" aria-disabled="true" data-feature-allowed="false">評価確認</button></c:otherwise></c:choose>
 		</li>
 		<li class="sidebar-menu-item is-unavailable">
 			<button type="button" class="sidebar-menu-link" aria-disabled="true" data-feature-allowed="${teacherNavigationSummary.features.contains('survey-results')}">

@@ -1,4 +1,6 @@
 FROM python:3.12-alpine
+ARG PPE_GIT_COMMIT=uncommitted
+LABEL org.opencontainers.image.revision=$PPE_GIT_COMMIT
 
 RUN apk add --no-cache docker-cli
 

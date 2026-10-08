@@ -7,25 +7,61 @@ import java.sql.SQLException;
 import java.util.Properties;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 
 public class Client {
 	private static final Pattern ENVIRONMENT_PLACEHOLDER = Pattern.compile("\\$\\{([A-Z0-9_]+)}");
+	private static final Logger LOGGER = Logger.getLogger(Client.class.getName());
 
 	public static Connection createConnection() throws SQLException {
 		return DataSourceHolder.DATA_SOURCE.getConnection();
 	}
 
 	public static void initialize() {
-		try (Connection connection = DataSourceHolder.DATA_SOURCE.getConnection()) {
-			if (!connection.isValid(1)) {
-				throw new SQLException("MySQL connection validation failed.");
+		int attempt = 0;
+		while (true) {
+			try (Connection connection = DataSourceHolder.DATA_SOURCE.getConnection()) {
+				if (!connection.isValid(1)) {
+					throw new SQLException("MySQL connection validation failed.");
+				}
+				return;
+			} catch (SQLException failure) {
+				if (!isTransientConnectionFailure(failure)) {
+					throw new IllegalStateException("Unable to initialize the MySQL connection pool.", failure);
+				}
+				attempt++;
+				LOGGER.log(Level.WARNING,
+						"MySQL is not ready; application initialization will retry (attempt {0}).", attempt);
+				try {
+					Thread.sleep(Math.min(attempt * 1000L, 10_000L));
+				} catch (InterruptedException interrupted) {
+					Thread.currentThread().interrupt();
+					throw new IllegalStateException("Interrupted while waiting for MySQL initialization.", interrupted);
+				}
 			}
-		} catch (SQLException e) {
-			throw new IllegalStateException("Unable to initialize the MySQL connection pool.", e);
 		}
+	}
+
+	static boolean isTransientConnectionFailure(SQLException failure) {
+		for (SQLException current = failure; current != null; current = current.getNextException()) {
+			String state = current.getSQLState();
+			if (state != null && state.startsWith("08")) {
+				return true;
+			}
+			for (Throwable cause = current.getCause(); cause != null; cause = cause.getCause()) {
+				if (cause instanceof SQLException sqlFailure) {
+					state = sqlFailure.getSQLState();
+					if (state != null && state.startsWith("08")) {
+						return true;
+					}
+				}
+			}
+		}
+		return false;
 	}
 
 	public static void closeDataSource() {

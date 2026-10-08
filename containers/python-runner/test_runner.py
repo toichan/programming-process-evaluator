@@ -105,7 +105,7 @@ class ContainerCleanupTest(unittest.TestCase):
         with patch.object(runner.subprocess, "run", side_effect=responses) as command:
             self.assertTrue(runner._cleanup_container("fixture"))
         self.assertEqual(3, command.call_count)
-        self.assertEqual(["docker", "inspect", "--format", "{{.Id}}", "fixture"],
+        self.assertEqual(["docker", "inspect", "--type=container", "--format", "{{.Id}}", "fixture"],
                          command.call_args.args[0])
 
     def test_does_not_accept_daemon_failure_as_absence(self):

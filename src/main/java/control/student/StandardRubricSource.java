@@ -1,7 +1,13 @@
 package control.student;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
+import java.nio.file.Path;
+import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Stream;
 
 import entity.StandardRubric;
 import entity.StandardRubric.Criterion;
@@ -11,10 +17,31 @@ import entity.StandardRubric.Level;
 public final class StandardRubricSource {
 	private StandardRubricSource() {}
 
+	public static StandardRubric loadFromDirectory(Path directory) throws IOException {
+		return parse(
+				Files.readString(findFile(directory, "思考力・判断力・表現力_ルーブリック_0805.md")),
+				Files.readString(findFile(directory, "主体的に学習に取り組む態度_ルーブリック_0805.md")));
+	}
+
 	public static StandardRubric parse(String thinking, String attitude) {
 		return new StandardRubric(StandardRubric.TITLE, StandardRubric.VERSION, List.of(
 				parseDimension(thinking, "thinking", "思考力・判断力・表現力", 4),
 				parseDimension(attitude, "attitude", "主体的に学習に取り組む態度", 2)));
+	}
+
+	private static Path findFile(Path directory, String expectedName) throws IOException {
+		String normalizedExpectedName = Normalizer.normalize(expectedName, Normalizer.Form.NFC);
+		try (Stream<Path> entries = Files.list(directory)) {
+			List<Path> matches = entries
+					.filter(Files::isRegularFile)
+					.filter(path -> Normalizer.normalize(path.getFileName().toString(), Normalizer.Form.NFC)
+							.equals(normalizedExpectedName))
+					.toList();
+			if (matches.size() != 1) {
+				throw new NoSuchFileException(directory.resolve(expectedName).toString());
+			}
+			return matches.get(0);
+		}
 	}
 
 	private static Dimension parseDimension(String source, String code, String label, int count) {

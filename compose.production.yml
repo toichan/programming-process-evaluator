@@ -1,0 +1,229 @@
+name: ppe-production
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-db-environment: &db-environment
+  DB_HOST: db
+  DB_PORT: "3306"
+  DB_NAME: ppe
+
+services:
+  app:
+    image: ppe-app:${PPE_RELEASE:-local}
+    build:
+      context: .
+      dockerfile: containers/production/Dockerfile
+      target: app
+    restart: unless-stopped
+    environment:
+      <<: *db-environment
+      PPE_ENV: production
+      DB_USER: ppe_app
+      DB_PASSWORD_FILE: /run/secrets/db_password
+      GEMINI_API_KEY_FILE: /run/secrets/gemini_api_key
+      STUDENT_CREDENTIAL_KEY_FILE: /run/secrets/student_credential_key
+      PYTHON_RUNNER_TOKEN_FILE: /run/secrets/runner_token
+      PYTHON_RUNNER_URL: http://python-runner:8090
+      STUDENT_PORTAL_HOST: student.ppeval.net
+      TEACHER_PORTAL_HOST: teacher.ppeval.net
+      JAVA_OPTS: -Xms128m -Xmx384m -XX:+ExitOnOutOfMemoryError
+      CATALINA_OPTS: -Dorg.apache.tomcat.util.digester.PROPERTY_SOURCE=org.apache.tomcat.util.digester.EnvironmentPropertySource
+      PPE_TRUSTED_PROXY_REGEX: ${PPE_TRUSTED_PROXY_REGEX:-10[.]231[.]77[.]10}
+    secrets: [db_password, gemini_api_key, student_credential_key, runner_token]
+    networks: [proxy, database, execution, outbound]
+    depends_on:
+      db: {condition: service_healthy}
+      python-runner: {condition: service_healthy}
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 256
+    mem_limit: 640m
+    cpus: 1.0
+    stop_grace_period: 240s
+    logging: *logging
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "--max-time", "3", "http://127.0.0.1:8080/health"]
+      interval: 15s
+      timeout: 5s
+      start_period: 60s
+      retries: 4
+
+  db:
+    image: ppe-db:${PPE_RELEASE:-local}
+    build:
+      context: .
+      dockerfile: containers/production/Dockerfile.db
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ppe
+      MYSQL_ROOT_HOST: localhost
+      MYSQL_ROOT_PASSWORD_FILE: /run/secrets/db_root_password
+    secrets: [db_root_password, db_password, db_migration_password]
+    volumes:
+      - database:/var/lib/mysql
+    networks: [database]
+    command: ["mysqld", "--max-connections=40", "--innodb-buffer-pool-size=128M"]
+    pids_limit: 128
+    mem_limit: 512m
+    cpus: 1.0
+    stop_grace_period: 90s
+    logging: *logging
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /var/lib/mysql/.ppe-initialized && mysqladmin --protocol=tcp --host=127.0.0.1 ping --silent"]
+      interval: 10s
+      timeout: 5s
+      start_period: 60s
+      retries: 10
+
+  migrate:
+    profiles: [tools]
+    image: ppe-tools:${PPE_RELEASE:-local}
+    build:
+      context: .
+      dockerfile: containers/production/Dockerfile
+      target: tools
+    environment:
+      <<: *db-environment
+      DB_USER: ppe_migrate
+      DB_PASSWORD_FILE: /run/secrets/db_migration_password
+    secrets: [db_migration_password]
+    networks: [database]
+    mem_limit: 768m
+    logging: *logging
+
+  python-runner:
+    image: ppe-runner:${PPE_RELEASE:-local}
+    build: {context: ./containers/python-runner}
+    restart: unless-stopped
+    user: "65532:65532"
+    environment:
+      PPE_ENV: production
+      PYTHON_BROKER_NAMESPACE: ${PPE_EXECUTION_NAMESPACE:-ppe-production}
+      PYTHON_RUNTIME_IMAGE: python:3.12-alpine
+      PYTHON_RUNNER_TOKEN_FILE: /run/secrets/runner_token
+      DOCKER_HOST: tcp://docker-broker:2375
+    secrets: [runner_token]
+    networks: [execution, broker]
+    depends_on:
+      docker-broker: {condition: service_healthy}
+    read_only: true
+    tmpfs: ["/tmp:size=8m,mode=1777"]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 64
+    mem_limit: 128m
+    cpus: 0.5
+    stop_grace_period: 70s
+    logging: *logging
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8090/health', timeout=2)"]
+      interval: 15s
+      timeout: 3s
+      retries: 4
+
+  docker-broker:
+    image: ppe-broker:${PPE_RELEASE:-local}
+    build: {context: ./containers/docker-broker}
+    restart: unless-stopped
+    environment:
+      PYTHON_BROKER_NAMESPACE: ${PPE_EXECUTION_NAMESPACE:-ppe-production}
+      PYTHON_RUNTIME_IMAGE: python:3.12-alpine
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks: [broker]
+    read_only: true
+    tmpfs: ["/tmp:size=8m,mode=1777"]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 128
+    mem_limit: 128m
+    cpus: 0.5
+    logging: *logging
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:2375/_ping', timeout=2)"]
+      interval: 10s
+      timeout: 3s
+      retries: 4
+
+  nginx:
+    image: ppe-nginx:${PPE_RELEASE:-local}
+    build: {context: ./containers/nginx}
+    restart: unless-stopped
+    depends_on:
+      app: {condition: service_healthy}
+    ports:
+      - "${PPE_BIND_ADDRESS:-127.0.0.1}:${PPE_HTTP_PORT:-80}:80"
+      - "${PPE_BIND_ADDRESS:-127.0.0.1}:${PPE_HTTPS_PORT:-443}:443"
+    volumes:
+      - "${PPE_TLS_DIR:?Set PPE_TLS_DIR}:/etc/nginx/tls:ro"
+      - "${PPE_ACME_DIR:?Set PPE_ACME_DIR}:/var/www/acme:ro"
+    networks:
+      proxy: {ipv4_address: "${PPE_PROXY_IP:-10.231.77.10}"}
+      edge: {}
+    read_only: true
+    tmpfs: ["/tmp:size=32m,uid=101,gid=101,mode=700"]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 64m
+    cpus: 0.5
+    pids_limit: 64
+    stop_signal: SIGQUIT
+    stop_grace_period: 240s
+    logging: *logging
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8081/_proxy_health"]
+      interval: 15s
+      timeout: 3s
+      retries: 4
+
+  acme-bootstrap:
+    profiles: [acme-bootstrap]
+    image: ppe-nginx:${PPE_RELEASE:-local}
+    build: {context: ./containers/nginx}
+    ports:
+      - "${PPE_BIND_ADDRESS:-127.0.0.1}:${PPE_HTTP_PORT:-80}:80"
+    volumes:
+      - "${PPE_ACME_DIR:?Set PPE_ACME_DIR}:/var/www/acme:ro"
+      - ./containers/nginx/acme-bootstrap.conf:/etc/nginx/acme-bootstrap.conf:ro
+    networks: [edge]
+    command: ["nginx", "-c", "/etc/nginx/acme-bootstrap.conf", "-g", "daemon off;"]
+    read_only: true
+    tmpfs: ["/tmp:size=8m,uid=101,gid=101,mode=700"]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 64m
+    cpus: 0.5
+    pids_limit: 64
+    stop_signal: SIGQUIT
+    stop_grace_period: 30s
+    logging: *logging
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8081/_acme_health"]
+      interval: 5s
+      timeout: 3s
+      retries: 4
+
+volumes:
+  database: {}
+
+networks:
+  proxy:
+    internal: true
+    ipam: {config: [{subnet: "${PPE_PROXY_SUBNET:-10.231.77.0/24}"}]}
+  database: {internal: true}
+  execution: {internal: true}
+  broker: {internal: true}
+  outbound: {}
+  edge: {}
+
+secrets:
+  db_password: {file: "${PPE_SECRETS_DIR:?Set PPE_SECRETS_DIR}/db-password"}
+  db_root_password: {file: "${PPE_SECRETS_DIR}/db-root-password"}
+  db_migration_password: {file: "${PPE_SECRETS_DIR}/db-migration-password"}
+  gemini_api_key: {file: "${PPE_SECRETS_DIR}/gemini-api-key"}
+  student_credential_key: {file: "${PPE_SECRETS_DIR}/student-credential-key"}
+  runner_token: {file: "${PPE_SECRETS_DIR}/runner-token"}

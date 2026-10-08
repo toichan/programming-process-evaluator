@@ -1,4 +1,5 @@
 import codecs
+import hmac
 import json
 import logging
 import os
@@ -28,6 +29,25 @@ MAX_CONCURRENT_EXECUTIONS = threading.BoundedSemaphore(4)
 SESSIONS = {}
 SESSIONS_LOCK = threading.Lock()
 LOGGER = logging.getLogger(__name__)
+
+
+def _configured_token(environ):
+    token_file = environ.get("PYTHON_RUNNER_TOKEN_FILE")
+    if token_file:
+        try:
+            with open(token_file, encoding="utf-8") as secret:
+                token = secret.read(4097).strip()
+        except (OSError, UnicodeError) as error:
+            raise RuntimeError("The runner token file cannot be read.") from error
+    else:
+        token = environ.get("PYTHON_RUNNER_TOKEN", "").strip()
+    if token and (len(token) > 4096 or not token.isascii()
+                  or any(character.isspace() or ord(character) < 33 or ord(character) > 126
+                         for character in token)):
+        raise RuntimeError("The runner token is invalid.")
+    if not token and (token_file or environ.get("PPE_ENV") == "production"):
+        raise RuntimeError("The runner token must be configured.")
+    return token
 
 
 class BoundedOutput:
@@ -100,7 +120,7 @@ def _cleanup_container(container_name):
         # --rm may already own deletion; success requires confirmed absence.
         while time.monotonic() < deadline:
             result = subprocess.run(
-                ["docker", "inspect", "--format", "{{.Id}}", container_name],
+                ["docker", "inspect", "--type=container", "--format", "{{.Id}}", container_name],
                 stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                 timeout=max(.001, deadline - time.monotonic()), check=False,
             )
@@ -129,9 +149,17 @@ def _write_stdin(stream, value):
 
 
 def _container_command(container_name, source):
+    production = os.environ.get("PPE_ENV") == "production"
+    labels = []
+    if production:
+        namespace = os.environ["PYTHON_BROKER_NAMESPACE"]
+        labels = [
+            "--label=ppe.execution.namespace=" + namespace,
+            "--label=ppe.execution.id=" + container_name.rsplit("-", 1)[1],
+        ]
     return [
         "docker", "run", "--rm", "--interactive", "--quiet", "--name", container_name,
-        "--pull=missing",
+        "--pull=never" if production else "--pull=missing",
         "--network=none",
         "--memory=128m",
         "--memory-swap=128m",
@@ -148,13 +176,20 @@ def _container_command(container_name, source):
         "--ulimit=fsize=1048576:1048576",
         "--env=PYTHONDONTWRITEBYTECODE=1",
         "--env=PPE_STUDENT_CODE=" + source,
+        *labels,
         RUNTIME_IMAGE,
         "python3", "-I", "-S", "-B", "-u", "-c", EXECUTION_WRAPPER,
     ]
 
 
+def _container_name(execution_id):
+    namespace = ("-" + os.environ["PYTHON_BROKER_NAMESPACE"]
+                 if os.environ.get("PPE_ENV") == "production" else "")
+    return "ppe-python" + namespace + "-" + execution_id
+
+
 def _run_container(source, standard_input):
-    container_name = "ppe-python-" + uuid.uuid4().hex
+    container_name = _container_name(uuid.uuid4().hex)
     command = _container_command(container_name, source)
     try:
         process = subprocess.Popen(
@@ -252,7 +287,7 @@ def _run_container(source, standard_input):
 class ExecutionSession:
     def __init__(self, source):
         self.session_id = uuid.uuid4().hex
-        self.container_name = "ppe-python-" + self.session_id
+        self.container_name = _container_name(self.session_id)
         self.started_at = time.monotonic()
         self.last_activity_at = self.started_at
         self.lock = threading.RLock()
@@ -476,6 +511,21 @@ def _create_session(source):
 class RequestHandler(BaseHTTPRequestHandler):
     server_version = "PPEPythonRunner/1.0"
 
+    def setup(self):
+        super().setup()
+        self.connection.settimeout(5)
+
+    def _authorized(self):
+        token = getattr(self.server, "runner_token", "")
+        values = self.headers.get_all("Authorization", [])
+        if token and (len(values) != 1
+                      or not hmac.compare_digest(values[0].encode("utf-8"),
+                                                 ("Bearer " + token).encode("utf-8"))):
+            self.close_connection = True
+            self._write_json(401, {"error": "unauthorized"})
+            return False
+        return True
+
     def log_message(self, format_string, *args):
         return
 
@@ -492,6 +542,8 @@ class RequestHandler(BaseHTTPRequestHandler):
         parsed = urllib.parse.urlsplit(self.path)
         if parsed.path == "/health":
             self._write_json(200, {"status": "ok"})
+            return
+        if not self._authorized():
             return
         parts = parsed.path.strip("/").split("/")
         if len(parts) == 2 and parts[0] == "sessions":
@@ -517,6 +569,8 @@ class RequestHandler(BaseHTTPRequestHandler):
 
     def _read_payload(self):
         try:
+            if self.headers.get_all("Transfer-Encoding") or len(self.headers.get_all("Content-Length", [])) != 1:
+                return None, (400, "invalid_content_length")
             try:
                 content_length = int(self.headers.get("Content-Length", "0"))
             except ValueError:
@@ -535,6 +589,8 @@ class RequestHandler(BaseHTTPRequestHandler):
             return None, (400, "invalid_request")
 
     def do_POST(self):
+        if not self._authorized():
+            return
         parsed = urllib.parse.urlsplit(self.path)
         parts = parsed.path.strip("/").split("/")
         if parsed.path == "/execute":
@@ -627,9 +683,45 @@ class RequestHandler(BaseHTTPRequestHandler):
         self._write_json(202, {"accepted": True})
 
 
+class RunnerServer(ThreadingHTTPServer):
+    daemon_threads = True
+    request_queue_size = 32
+
+    def __init__(self, address, handler):
+        super().__init__(address, handler)
+        self.connections = threading.BoundedSemaphore(32)
+
+    def process_request(self, request, client_address):
+        if not self.connections.acquire(blocking=False):
+            self.shutdown_request(request)
+            return
+        try:
+            super().process_request(request, client_address)
+        except Exception:
+            self.connections.release()
+            raise
+
+    def process_request_thread(self, request, client_address):
+        try:
+            super().process_request_thread(request, client_address)
+        finally:
+            self.connections.release()
+
+
 def main():
+    token = _configured_token(os.environ)
+    if os.environ.get("PPE_ENV") == "production":
+        import re
+        namespace = os.environ.get("PYTHON_BROKER_NAMESPACE", "")
+        if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,31}", namespace):
+            raise RuntimeError("The runner broker namespace must be configured.")
+        if os.getuid() == 0:
+            raise RuntimeError("The production runner must not run as root.")
+        if os.environ.get("DOCKER_HOST") != "tcp://docker-broker:2375":
+            raise RuntimeError("The production runner must use the Docker broker.")
     port = int(os.environ.get("RUNNER_PORT", "8090"))
-    server = ThreadingHTTPServer(("0.0.0.0", port), RequestHandler)
+    server = RunnerServer(("0.0.0.0", port), RequestHandler)
+    server.runner_token = token
     server.daemon_threads = True
     server.serve_forever()
 
