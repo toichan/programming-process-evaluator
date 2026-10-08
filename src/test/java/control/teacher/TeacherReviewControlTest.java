@@ -18,6 +18,9 @@ class TeacherReviewControlTest {
 			assertThrows(SecurityException.class, () -> control.detail(user, false, 1, null));
 			assertThrows(SecurityException.class, () -> control.preview(user, 1, "print(1)", ""));
 			assertThrows(SecurityException.class, () -> control.exportCsv(user, TeacherReviewFilter.empty()));
+			assertThrows(SecurityException.class, () -> control.exportSubmissionCsv(user, TeacherReviewFilter.empty()));
+			assertThrows(SecurityException.class, () -> control.submissionFile(user, 1));
+			assertThrows(SecurityException.class, () -> control.submissionZip(user, TeacherReviewFilter.empty()));
 		}
 		assertThrows(SecurityException.class, () -> control.detail(null, true, 1, null));
 	}
@@ -43,5 +46,10 @@ class TeacherReviewControlTest {
 		assertThrows(IllegalArgumentException.class, () -> control.preview(teacher, 0, "", ""));
 		assertThrows(IllegalArgumentException.class, () -> control.preview(teacher, 1, "x".repeat(65537), ""));
 		assertThrows(IllegalArgumentException.class, () -> control.preview(teacher, 1, "", "x".repeat(8193)));
+	}
+	@Test void exportLimitIncludesExact32MiBBoundary() {
+		assertDoesNotThrow(() -> TeacherReviewControl.requireExportSize(32L * 1024 * 1024));
+		assertThrows(entity.PythonExecutionInput.TooLargeException.class,
+				() -> TeacherReviewControl.requireExportSize(32L * 1024 * 1024 + 1));
 	}
 }

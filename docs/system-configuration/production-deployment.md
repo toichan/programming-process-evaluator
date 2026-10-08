@@ -342,6 +342,31 @@ loss can leave the migrator `SUPER` privilege; before any migration, run
 `ensure-migration-privileges.sh` and verify `SHOW GRANTS`. The script detects
 MySQL's backtick and single-quote grant formats and refuses unknown global grants.
 
+When the journal has reached `database_complete` or later, repaired deployment
+tooling does **not** call Compose `up`, `start` or `restart` for DB on resume.
+Before running it, pin `PPE_RECOVERY_DB_CONTAINER_ID` (12–64 hex characters) and
+`PPE_RECOVERY_DB_VOLUME_CREATED_AT` from independently reviewed pre-recovery
+evidence. Do not simply accept newly discovered identities after a discrepancy.
+For the interrupted initial deployment investigated on 2026-10-09 JST:
+
+```sh
+export PPE_RECOVERY_DB_CONTAINER_ID=cead40118ed8
+export PPE_RECOVERY_DB_VOLUME_CREATED_AT=2026-10-08T08:32:49Z
+```
+
+The read-only recovery preflight requires exactly this existing healthy DB,
+the target release's image ID, matching Compose DB configuration hash, normal
+project/service labels, and a writable named `${PPE_PROJECT}_database` mount at
+`/var/lib/mysql`. Volume name, local driver, Compose labels and creation timestamp
+must match. Missing/stopped/unhealthy DB, configuration drift, replaced container
+or volume, or missing identity pins abort before journal/event changes or SQL.
+Do not repair the discrepancy by running Compose `up` or deleting the journal.
+Fresh operations and recovery before `database_complete` retain the normal DB
+startup path; this no-lifecycle guarantee is specifically for post-database-stage
+recovery. Later service stages use `--no-deps`, so they do not start/recreate DB.
+Concurrent external Docker administrators or host failures are outside this
+script's lock; freeze other maintenance and compare DB identity after completion.
+
 #### Recovering a shell-invocation failure with repaired operational tooling
 
 Host scripts with `#!/usr/bin/env bash` must be invoked with `bash`, not `sh`.
@@ -414,12 +439,36 @@ production steps, not actions performed by the regression tests:
    no global SUPER/ALL PRIVILEGES. Any deviation requires investigation; do not
    reset the DB, repair Flyway or adjust the journal to force a retry.
 
+   Normally take the [encrypted backup](#backup-and-restore) before migration:
+   the initial deployment does not run the update backup stage. Use a new private
+   backup subdirectory so backup retention cannot delete older recovery evidence.
+   Verify its SHA-256, preserve trusted provenance off-host, and prove
+   decryption/isolated restore with the offline identity. The dump covers `ppe`,
+   not MySQL accounts or the physical volume. Preserve the existing secret
+   snapshot and document DB account grants; if a complete host/volume rollback
+   is required, obtain a separately approved, encrypted storage snapshot with a
+   reviewed MySQL consistency procedure. A live EBS snapshot alone is not a
+   tested logical restore.
+
+   On 2026-10-09 JST the operator explicitly waived backup and isolated-restore
+   completion as prerequisites **only for this interrupted initial release**,
+   provided read-only checks immediately before resuming still show no `ppe`
+   tables or research data. Initial data loss is acceptable for this operation;
+   database deletion/reset, volume replacement and journal edits are not
+   authorized. Prefer retaining every existing asset. Record that skipping backup
+   leaves no verified pre-migration recovery point if partial DDL or host failure
+   occurs. Stop and reassess if any application data appears. This exception does
+   not change normal update backup requirements. Before collecting research data,
+   implement and verify backup, restoration and existing-data retention tests.
+
 5. After explicit production/maintenance approval, use the **new operational
    script** with the **old target directory**:
 
    ```sh
    export PPE_OPERATION_APPROVAL=production-approved
    export PPE_MAINTENANCE_APPROVED=yes
+   export PPE_RECOVERY_DB_CONTAINER_ID=cead40118ed8
+   export PPE_RECOVERY_DB_VOLUME_CREATED_AT=2026-10-08T08:32:49Z
    bash "$OPS_DIR/scripts/production/deploy-release.sh" initial "$RELEASE_DIR"
    ```
 
@@ -428,7 +477,9 @@ production steps, not actions performed by the regression tests:
    advances the journal normally; retaining it does not mean freezing its phase.
    It checks Flyway checksums and the exact target count before publishing the
    old release ID. The fix commit is the tooling version, not the target
-   application version.
+   application version. Use a reviewed commit that includes both the shell fix
+   and the DB-preserving recovery preflight; the earlier shell-only fix is not
+   sufficient for this no-DB-lifecycle recovery.
 
 6. After success, require `phase=published`, `current-release` equal to the old
    SHA, 23 successful versioned migrations, no failed Flyway records, successful
@@ -437,6 +488,16 @@ production steps, not actions performed by the regression tests:
    with the preflight evidence. Preserve the event log. If interrupted again,
    inspect schema/history and resume only the same target under the existing
    fail-closed rules.
+
+   This is an initial deployment with no previous published application; the
+   app-only `rollback-release.sh` is not applicable. Before migration, abort
+   without changing DB/state if any prerequisite fails. After migration starts,
+   keep the current volume/journal and inspect committed DDL, Flyway history and
+   residual privileges. Prefer a reviewed forward recovery; do not auto-retry a
+   partial migration. A database rollback requires isolated restoration, integrity
+   checks and a separately approved cutover, never an import into the active DB
+   or journal reset. Application containment (stopping newly started services)
+   and residual SUPER revocation also require explicit operator approval.
 
 Preparing the repaired tooling does not change the DB or Flyway history.
 Actually completing an initial deployment necessarily creates schema objects
@@ -461,6 +522,8 @@ Docker. Recovery tests deliberately make old release migration helpers unusable
 to prove the new tooling is used, check old release bytes remain unchanged,
 reject a different target without changing the journal, prevent duplicate
 migration execution, retain partial failed history, and enforce approval checks.
+They also assert zero DB lifecycle calls on resume and fail-closed DB identity,
+health, configuration and mount checks, retaining journal/event bytes on refusal.
 
 ### Normal update and app-only rollback
 

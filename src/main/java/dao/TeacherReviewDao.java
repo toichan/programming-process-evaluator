@@ -199,14 +199,30 @@ public final class TeacherReviewDao {
 		}
 	}
 
+	public String submittedCode(Connection connection, long teacherId, long submissionId) throws SQLException {
+		permissions.requireReviewAccess(connection, teacherId, false);
+		try (var statement = connection.prepareStatement("SELECT sub.submitted_code " + SCOPE + " WHERE sub.submission_id = ?")) {
+			statement.setLong(1, teacherId);
+			statement.setLong(2, submissionId);
+			try (var r = statement.executeQuery()) {
+				if (!r.next()) throw new NotFoundException();
+				return r.getString(1);
+			}
+		}
+	}
 	public void auditCsv(Connection connection, long teacherId, int count) throws SQLException {
+		auditCsv(connection, teacherId, count, true);
+	}
+	public void auditCsv(Connection connection, long teacherId, int count, boolean evaluations) throws SQLException {
 		try (var statement = connection.prepareStatement("""
 				INSERT INTO audit_logs (actor_user_id, actor_role, feature_code, target_type,
 				  action_type, result_status, detail, occurred_at)
-				VALUES (?, 'teacher', 'evaluation-review', 'evaluations', 'csv_export', 'success', ?, CURRENT_TIMESTAMP)
+				VALUES (?, 'teacher', ?, ?, 'csv_export', 'success', ?, CURRENT_TIMESTAMP)
 				""")) {
 			statement.setLong(1, teacherId);
-			statement.setString(2, "Teacher evaluation CSV; latest consent granted only; rows=" + count);
+			statement.setString(2, evaluations ? "evaluation-review" : "submission-review");
+			statement.setString(3, evaluations ? "evaluations" : "submissions");
+			statement.setString(4, "Teacher review CSV; latest consent granted only; rows=" + count);
 			statement.executeUpdate();
 		}
 	}

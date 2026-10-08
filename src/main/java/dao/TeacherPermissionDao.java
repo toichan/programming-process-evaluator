@@ -63,6 +63,10 @@ public final class TeacherPermissionDao {
 		requireFeatureAccess(connection, teacherUserId, "exercise-code-review");
 	}
 
+	public void requireSurveyResultsAccess(Connection connection, long teacherUserId) throws SQLException {
+		requireFeatureAccess(connection, teacherUserId, "survey-results");
+	}
+
 	public List<TeacherSchoolOption> findProgressAuthorizedSchools(Connection connection, long teacherUserId)
 			throws SQLException {
 		requireTaskProgressAccess(connection, teacherUserId);

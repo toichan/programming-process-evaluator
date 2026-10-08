@@ -38,6 +38,45 @@ database_table_count() {
         dc exec -T db sh /opt/ppe/db-admin.sh --skip-column-names
 }
 
+verify_existing_database() {
+    local container metadata running health image db_project service oneoff config_hash mount
+    local expected_hash volume_metadata
+    [[ "${PPE_RECOVERY_DB_CONTAINER_ID:-}" =~ ^[0-9a-f]{12,64}$ \
+        && -n "${PPE_RECOVERY_DB_VOLUME_CREATED_AT:-}" ]] || {
+        echo "Pin PPE_RECOVERY_DB_CONTAINER_ID and PPE_RECOVERY_DB_VOLUME_CREATED_AT from trusted pre-recovery evidence before resuming." >&2
+        return 1
+    }
+    container=$(dc ps --all -q db) || return 1
+    [[ "$container" =~ ^[0-9a-f]{12,64}$ && "$container" = "$PPE_RECOVERY_DB_CONTAINER_ID"* ]] || {
+        echo "Recovery requires exactly the pinned existing DB container; no DB service was started." >&2
+        return 1
+    }
+    metadata=$(docker inspect --format \
+        '{{.State.Running}}|{{if .State.Health}}{{.State.Health.Status}}{{end}}|{{.Image}}|{{index .Config.Labels "com.docker.compose.project"}}|{{index .Config.Labels "com.docker.compose.service"}}|{{index .Config.Labels "com.docker.compose.oneoff"}}|{{index .Config.Labels "com.docker.compose.config-hash"}}|{{range .Mounts}}{{if eq .Destination "/var/lib/mysql"}}{{.Type}}:{{.Name}}:{{.RW}};{{end}}{{end}}' \
+        "$container") || return 1
+    IFS='|' read -r running health image db_project service oneoff config_hash mount <<< "$metadata"
+    [[ "$running" = true && "$health" = healthy && "$db_project" = "$PPE_PROJECT" \
+        && "$service" = db && "$oneoff" = False \
+        && "$image" = "$(cat "$release/ppe-db.id")" \
+        && "$mount" = "volume:${PPE_PROJECT}_database:true;" ]] || {
+        echo "Existing DB health, image, labels or persistent mount differ from the target; recovery stopped without DB lifecycle changes." >&2
+        return 1
+    }
+    expected_hash=$(dc config --hash db) || return 1
+    [[ "$expected_hash" = "db $config_hash" && "$config_hash" =~ ^[0-9a-f]{64}$ ]] || {
+        echo "Existing DB Compose configuration differs; review the environment instead of recreating the DB." >&2
+        return 1
+    }
+    volume_metadata=$(docker volume inspect --format \
+        '{{.Name}}|{{.Driver}}|{{index .Labels "com.docker.compose.project"}}|{{index .Labels "com.docker.compose.volume"}}|{{.CreatedAt}}' \
+        "${PPE_PROJECT}_database") || return 1
+    [[ "$volume_metadata" = "${PPE_PROJECT}_database|local|${PPE_PROJECT}|database|$PPE_RECOVERY_DB_VOLUME_CREATED_AT" ]] || {
+        echo "Existing DB volume identity differs; recovery will not create or replace it." >&2
+        return 1
+    }
+    echo "Recovery verified the existing healthy DB container and volume; DB up/start/recreate was skipped."
+}
+
 history_counts() {
     local tables
     tables=$(database_table_count)
@@ -281,7 +320,14 @@ if [[ "$deployment_mode" = update && "$deployment_policy" != backward-compatible
     exit 1
 fi
 
-dc up -d --no-deps --wait --wait-timeout 120 db
+if [[ "$resuming" = true ]] && stage_complete database_complete; then
+    current_step=database-recovery-preflight
+    if ! verify_existing_database; then
+        exit 1
+    fi
+else
+    dc up -d --no-deps --wait --wait-timeout 120 db
+fi
 run_stage database stage_database
 if [[ "$deployment_mode" = update ]]; then
     run_stage quiesce stage_quiesce

@@ -42,11 +42,87 @@ class TeacherReviewRuntimeTest {
 		var detail = teacher.json("/teacher/submissions?view=detail&submissionId=" + submission).getAsJsonObject();
 		assertEquals("print(input())", detail.get("code").getAsString());
 		assertEquals(2, detail.getAsJsonArray("checks").size());
+		var file = teacher.get("/teacher/submissions?view=file&submissionId=" + submission);
+		assertEquals(200, file.statusCode());
+		assertEquals("print(input())", file.body());
+		assertTrue(file.headers().firstValue("Content-Disposition").orElseThrow().contains("filename*=UTF-8''"));
+		assertEquals(400, teacher.get("/teacher/submissions?view=file").statusCode());
+		assertEquals(400, teacher.get("/teacher/submissions?view=zip&schoolId=999999").statusCode());
+		for (String sort : new String[] { "student", "school", "class", "task", "difficulty", "match", "submitted", "consent" }) {
+			for (String direction : new String[] { "asc", "desc" }) {
+				String suffix = "&sort=" + sort + "&direction=" + direction;
+				var list = teacher.json("/teacher/submissions?view=list" + suffix).getAsJsonArray();
+				var submissionCsv = teacher.get("/teacher/submissions?view=csv" + suffix);
+				assertEquals(200, submissionCsv.statusCode());
+				assertTrue(submissionCsv.body().startsWith("\uFEFF"));
+				assertFalse(submissionCsv.body().contains("review_withdrawn"));
+				var csvLines = submissionCsv.body().split("\r\n");
+				var agreedRows = new java.util.ArrayList<JsonObject>();
+				for (var item : list) if (item.getAsJsonObject().get("consent").getAsString().equals("agreed")) agreedRows.add(item.getAsJsonObject());
+				assertEquals(agreedRows.size() + 1, csvLines.length);
+				for (int i = 0; i < agreedRows.size(); i++) {
+					assertTrue(csvLines[i + 1].contains(",\"" + agreedRows.get(i).get("submissionId").getAsLong() + "\",\"" + agreedRows.get(i).get("revision").getAsInt() + "\","));
+				}
+			}
+		}
+		var archive = teacher.client.send(teacher.request("/teacher/submissions?view=zip").GET().build(), HttpResponse.BodyHandlers.ofByteArray());
+		assertEquals(200, archive.statusCode());
+		int files = 0;
+		try (var zip = new java.util.zip.ZipInputStream(new java.io.ByteArrayInputStream(archive.body()), StandardCharsets.UTF_8)) {
+			while (zip.getNextEntry() != null) { files++; assertTrue(zip.readAllBytes().length > 0); }
+		}
+		assertEquals(3, files);
 		var evaluation = teacher.json("/teacher/evaluations?view=detail&submissionId=" + submission).getAsJsonObject();
 		assertEquals("review-fixed-prompt-v1", evaluation.getAsJsonObject("evaluation").get("promptVersion").getAsString());
 		assertEquals(2, evaluation.getAsJsonObject("evaluation").getAsJsonArray("dimensions").size());
 		assertEquals(2, evaluation.getAsJsonObject("evaluation").getAsJsonArray("scores").size());
 		assertEquals(2, evaluation.getAsJsonArray("logs").size());
+		for (String view : new String[] { "file", "logs" }) {
+			var output = teacher.get("/teacher/evaluations?view=" + view + "&submissionId=" + submission);
+			assertEquals(200, output.statusCode(), output.body());
+			assertTrue(output.headers().firstValue("Content-Disposition").orElseThrow().contains("filename*=UTF-8''"));
+			var payload = JsonParser.parseString(output.body()).getAsJsonObject();
+			assertEquals(submission, payload.getAsJsonObject("row").get("submissionId").getAsLong());
+			assertEquals(2, payload.getAsJsonArray("logs").size());
+		}
+		for (String view : new String[] { "zip", "logs-zip" }) {
+			var output = teacher.client.send(teacher.request("/teacher/evaluations?view=" + view).GET().build(), HttpResponse.BodyHandlers.ofByteArray());
+			assertEquals(200, output.statusCode());
+			var names = new java.util.HashSet<String>();
+			try (var zip = new java.util.zip.ZipInputStream(new java.io.ByteArrayInputStream(output.body()), StandardCharsets.UTF_8)) {
+				java.util.zip.ZipEntry entry;
+				while ((entry = zip.getNextEntry()) != null) {
+					assertTrue(names.add(entry.getName()), "Evaluation versions must not overwrite one another");
+					assertTrue(entry.getName().endsWith(".json"));
+					assertTrue(JsonParser.parseString(new String(zip.readAllBytes(), StandardCharsets.UTF_8)).isJsonObject());
+				}
+			}
+			assertEquals(teacher.json("/teacher/evaluations?view=list").getAsJsonArray().size(), names.size());
+			assertEquals(400, teacher.get("/teacher/evaluations?view=" + view + "&schoolId=999999").statusCode());
+		}
+		for (String sort : new String[] { "student", "school", "class", "task", "difficulty", "thinking", "attitude", "evaluated", "consent" }) {
+			for (String direction : new String[] { "asc", "desc" }) {
+				String suffix = "&sort=" + sort + "&direction=" + direction;
+				var list = teacher.json("/teacher/evaluations?view=list" + suffix).getAsJsonArray();
+				var output = teacher.get("/teacher/evaluations?view=csv" + suffix);
+				assertEquals(200, output.statusCode());
+				var lines = output.body().split("\r\n");
+				int index = 1;
+				for (var item : list) {
+					var row = item.getAsJsonObject();
+					if (row.get("consent").getAsString().equals("agreed"))
+						assertTrue(lines[index++].contains(",\"" + row.get("evaluationId").getAsLong() + "\","));
+				}
+				assertEquals(index, lines.length);
+			}
+		}
+		for (String expression : new String[] { "=4", ">3", ">=3, <2", "<=5" }) {
+			String suffix = "&thinking=" + URLEncoder.encode(expression, StandardCharsets.UTF_8);
+			var list = teacher.json("/teacher/evaluations?view=list" + suffix).getAsJsonArray();
+			for (var item : list) assertTrue(entity.TeacherSurveyFilter.matches(expression, item.getAsJsonObject().get("thinkingScore").getAsDouble()));
+			assertEquals(200, teacher.get("/teacher/evaluations?view=csv" + suffix).statusCode());
+		}
+		assertEquals(400, teacher.get("/teacher/evaluations?view=list&thinking=invalid").statusCode());
 		assertEquals("<script>dummy only</script>",
 				evaluation.getAsJsonObject("evaluation").getAsJsonArray("reasons").get(0).getAsJsonObject().get("body").getAsString());
 		assertEquals(submission, teacher.json("/teacher/evaluations?view=detail&submissionId=" + pending)
@@ -77,9 +153,14 @@ class TeacherReviewRuntimeTest {
 		assertEquals("print(input())", teacher.json("/teacher/submissions?view=detail&submissionId=" + submission).getAsJsonObject().get("code").getAsString());
 		var outsider = new Browser("teacher"); outsider.login("review_outsider", "teacher");
 		assertEquals(404, outsider.get("/teacher/submissions?view=detail&submissionId=" + submission).statusCode());
+		assertEquals(404, outsider.get("/teacher/submissions?view=file&submissionId=" + submission).statusCode());
 		assertEquals(404, outsider.get("/teacher/evaluations?view=detail&submissionId=" + submission).statusCode());
+		assertEquals(404, outsider.get("/teacher/evaluations?view=file&submissionId=" + submission).statusCode());
+		assertEquals(404, outsider.get("/teacher/evaluations?view=logs&submissionId=" + submission).statusCode());
 		var denied = new Browser("teacher"); denied.login("review_denied", "teacher");
 		assertEquals(403, denied.get("/teacher/submissions").statusCode());
+		assertEquals(403, denied.get("/teacher/submissions?view=zip").statusCode());
+		assertEquals(403, denied.get("/teacher/submissions?view=csv").statusCode());
 		assertEquals(403, denied.get("/teacher/evaluations?view=csv").statusCode());
 		var student = new Browser("student"); student.login("review_student", "student"); student.host = "teacher";
 		assertEquals(403, student.get("/teacher/submissions?view=detail&submissionId=" + submission).statusCode());

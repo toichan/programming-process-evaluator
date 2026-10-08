@@ -37,6 +37,37 @@ printf '%s\n' "$all" >> "$PPE_FAKE_DOCKER_TRACE"
 case "$all" in
     "context inspect "*) printf 'unix:///var/run/docker.sock\n'; exit 0 ;;
     "image inspect "*) image=${*: -1}; name=${image%%:*}; cat "$PPE_FAKE_RELEASE/$name.id"; exit 0 ;;
+    "volume inspect "*)
+        if [[ "${PPE_FAKE_DB_CONDITION:-valid}" = missing-volume ]]; then exit 1; fi
+        volume_project=$PPE_PROJECT
+        [[ "${PPE_FAKE_DB_CONDITION:-valid}" != wrong-volume-label ]] || volume_project=ppe-other
+        created=2026-10-08T08:32:49Z
+        [[ "${PPE_FAKE_DB_CONDITION:-valid}" != replaced-volume ]] || created=2026-10-09T00:00:00Z
+        printf '%s_database|local|%s|database|%s\n' "$PPE_PROJECT" "$volume_project" "$created"
+        exit 0
+        ;;
+    "inspect "*)
+        running=true; health=healthy; db_project=$PPE_PROJECT; service=db; oneoff=False
+        image=$(cat "$PPE_FAKE_RELEASE/ppe-db.id")
+        config_hash=$(printf '%064d' 1)
+        mount="volume:${PPE_PROJECT}_database:true;"
+        case "${PPE_FAKE_DB_CONDITION:-valid}" in
+            stopped) running=false ;;
+            unhealthy) health=unhealthy ;;
+            no-healthcheck) health="" ;;
+            wrong-image) image=sha256:wrong ;;
+            wrong-project) db_project=ppe-other ;;
+            wrong-service) service=app ;;
+            oneoff) oneoff=True ;;
+            config-drift) config_hash=$(printf '%064d' 2) ;;
+            wrong-volume) mount="volume:other_database:true;" ;;
+            bind-mount) mount="bind::true;" ;;
+            readonly-volume) mount="volume:${PPE_PROJECT}_database:false;" ;;
+        esac
+        printf '%s|%s|%s|%s|%s|%s|%s|%s\n' \
+            "$running" "$health" "$image" "$db_project" "$service" "$oneoff" "$config_hash" "$mount"
+        exit 0
+        ;;
 esac
 if [[ "$all" = *"exec -T db sh /opt/ppe/db-admin.sh"* ]]; then
     query=$(cat)
@@ -57,6 +88,15 @@ if [[ "$all" = *"exec -T db sh /opt/ppe/db-admin.sh"* ]]; then
     exit 0
 fi
 case "$all" in
+    *"ps --all -q db")
+        case "${PPE_FAKE_DB_CONDITION:-valid}" in
+            missing) ;;
+            multiple) printf '%064d\n%064d\n' 1 2 ;;
+            replaced-container) printf '%064d\n' 2 ;;
+            *) printf '%064d\n' 1 ;;
+        esac
+        ;;
+    *"config --hash db") printf 'db %064d\n' 1 ;;
     *"run --rm --no-deps migrate gradle"*)
         printf 'Flyway validation successful.\n'
         ;;
@@ -121,6 +161,12 @@ run_deploy() {
     export PPE_COMPOSE_FILE="$release/source/compose.production.yml"
     export PPE_FAKE_DB_STATE="$test_root/$project/database.state"
     export PPE_DEPLOYMENT_TEST_FAIL_AT=$point
+    export PPE_RECOVERY_DB_CONTAINER_ID
+    PPE_RECOVERY_DB_CONTAINER_ID=$(printf '%064d' 1)
+    export PPE_RECOVERY_DB_VOLUME_CREATED_AT=2026-10-08T08:32:49Z
+    if [[ "${PPE_FAKE_DB_CONDITION:-valid}" = missing-pins ]]; then
+        unset PPE_RECOVERY_DB_CONTAINER_ID PPE_RECOVERY_DB_VOLUME_CREATED_AT
+    fi
     mkdir -p "$PPE_STATE_DIR" "$PPE_SECRETS_DIR" "$PPE_TLS_DIR" "$PPE_ACME_DIR"
     : > "$PPE_SMOKE_CA_FILE"
     chmod 0700 "$PPE_STATE_DIR"
@@ -148,6 +194,7 @@ for point in before-migration after-migration before-app before-nginx before-smo
     else
         [[ -f "$test_root/$project/database.state" ]]
     fi
+    : > "$PPE_FAKE_DOCKER_TRACE"
     if run_deploy "$project" "" >"$test_root/$project.resume.log" 2>&1; then
         [[ "$(cat "$test_root/$project/state/current-release")" = \
             '1111111111111111111111111111111111111111' ]]
@@ -158,9 +205,67 @@ for point in before-migration after-migration before-app before-nginx before-smo
         exit 1
     fi
     echo "PASS: same-release recovery after $point preserves DB state and publishes only after smoke"
-    [[ "$(grep -c 'run --rm --no-deps migrate$' "$PPE_FAKE_DOCKER_TRACE")" = 1 ]]
+    expected_runs=0
+    [[ "$point" != before-migration ]] || expected_runs=1
+    [[ "$(grep -c 'run --rm --no-deps migrate$' "$PPE_FAKE_DOCKER_TRACE" || true)" = "$expected_runs" ]]
+    grep -q 'ps --all -q db' "$PPE_FAKE_DOCKER_TRACE"
+    grep -q 'volume inspect ' "$PPE_FAKE_DOCKER_TRACE"
+    if grep -Eq ' (up|start|restart|stop|rm|create) (.* )?db$|volume (create|rm)|image (build|rm|tag)' "$PPE_FAKE_DOCKER_TRACE"; then
+        echo "FAIL: recovery changed the existing DB lifecycle, volume or release images" >&2; exit 1
+    fi
 done
 echo "PASS: repaired operational tooling resumes an immutable old release under dash without running migration twice"
+
+for condition in missing-pins missing multiple replaced-container stopped unhealthy no-healthcheck wrong-image wrong-project \
+    wrong-service oneoff config-drift wrong-volume bind-mount readonly-volume missing-volume wrong-volume-label replaced-volume; do
+    project="ppe-sim-db-$condition"
+    if run_deploy "$project" before-migration > "$test_root/$project.first.log" 2>&1; then
+        echo "FAIL: DB recovery setup unexpectedly completed" >&2; exit 1
+    fi
+    cp "$PPE_STATE_DIR/deployment.state" "$test_root/state-before"
+    cp "$PPE_STATE_DIR/deployment-events.log" "$test_root/events-before"
+    : > "$PPE_FAKE_DOCKER_TRACE"
+    if PPE_FAKE_DB_CONDITION=$condition run_deploy "$project" "" > "$test_root/$project.resume.log" 2>&1; then
+        echo "FAIL: recovery accepted DB condition $condition" >&2; exit 1
+    fi
+    cmp -s "$PPE_STATE_DIR/deployment.state" "$test_root/state-before"
+    cmp -s "$PPE_STATE_DIR/deployment-events.log" "$test_root/events-before"
+    [[ ! -f "$PPE_FAKE_DB_STATE" && ! -f "$PPE_STATE_DIR/current-release" ]]
+    [[ ! -d "$PPE_STATE_DIR/deployment.lock" ]]
+    if grep -Eq 'exec |run |up |start |stop |restart |down |volume (create|rm)' "$PPE_FAKE_DOCKER_TRACE"; then
+        echo "FAIL: rejected DB condition $condition caused mutation" >&2; exit 1
+    fi
+    echo "PASS: DB $condition fails closed without changing journal, events, schema or services"
+done
+
+project=ppe-sim-update-recovery
+if run_deploy "$project" before-migration > "$test_root/update.first.log" 2>&1; then
+    echo "FAIL: update recovery setup unexpectedly completed" >&2; exit 1
+fi
+(
+    source "$scripts/deployment-state.sh"
+    deployment_mode=update
+    deployment_release=1111111111111111111111111111111111111111
+    deployment_previous=3333333333333333333333333333333333333333
+    deployment_policy=backward-compatible
+    migration_baseline=0
+    target_migrations=23
+    write_state migration_started
+    write_release_file "$PPE_STATE_DIR/current-release" "$deployment_previous"
+)
+: > "$PPE_FAKE_DOCKER_TRACE"
+if ! PPE_SCHEMA_POLICY=backward-compatible PPE_DEPLOYMENT_TEST_FAIL_AT="" \
+    bash "$scripts/deploy-release.sh" update "$release" > "$test_root/update.resume.log" 2>&1; then
+    cat "$test_root/update.resume.log" >&2
+    echo "FAIL: interrupted update could not resume" >&2; exit 1
+fi
+grep -qx 'phase=published' "$PPE_STATE_DIR/deployment.state"
+grep -qx '3333333333333333333333333333333333333333' "$PPE_STATE_DIR/previous-release"
+[[ "$(grep -c 'run --rm --no-deps migrate$' "$PPE_FAKE_DOCKER_TRACE")" = 1 ]]
+if grep -Eq ' (up|start|restart|stop|rm|create) (.* )?db$|volume (create|rm)|stop app python-runner' "$PPE_FAKE_DOCKER_TRACE"; then
+    echo "FAIL: update recovery changed DB lifecycle or repeated completed quiesce" >&2; exit 1
+fi
+echo "PASS: interrupted update retains the existing DB and skips completed quiesce/backup stages"
 
 project=ppe-sim-other-release
 if run_deploy "$project" before-migration > "$test_root/other-release.first.log" 2>&1; then
