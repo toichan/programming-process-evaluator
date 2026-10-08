@@ -26,7 +26,13 @@ class TeacherExerciseServletTest {
 		String js = Files.readString(Path.of("src/main/webapp/js/teacher/exercise/exercise.js"));
 		assertTrue(js.contains("readOnly: true")); assertTrue(js.contains("createPageFeedback"));
 		assertTrue(js.contains("AbortController")); assertTrue(js.contains("detailSequence"));
+		assertTrue(js.contains("event.target === form.elements.search"));
+		assertTrue(js.contains("event.target instanceof HTMLSelectElement"));
 		assertFalse(js.contains("innerHTML")); assertFalse(js.contains("alert(")); assertFalse(js.contains("confirm("));
+		String servlet = Files.readString(Path.of("src/main/java/servlet/teacher/TeacherExerciseServlet.java"));
+		String css = Files.readString(Path.of("src/main/webapp/css/teacher/exercise/exercise.css"));
+		assertTrue(servlet.contains("\"screenBodyClass\", \"teacher-exercise-review-screen\""));
+		assertTrue(css.contains(".teacher-exercise-review-screen .header-actions"));
 	}
 	private static HttpServletRequest request(Map<String,String[]> values) {
 		return (HttpServletRequest) Proxy.newProxyInstance(HttpServletRequest.class.getClassLoader(),

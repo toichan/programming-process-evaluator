@@ -163,9 +163,10 @@ stage_migration() {
         echo "Flyway history is neither the recorded baseline nor the complete target; stop for manual recovery." >&2
         return 1
     fi
-    sh "$release/source/scripts/production/ensure-migration-privileges.sh"
-    sh "$release/source/scripts/production/migrate.sh"
-    sh "$release/source/scripts/production/ensure-migration-privileges.sh"
+    # Repairable host tooling must still use the verified target release's Compose/images.
+    bash "$scripts/ensure-migration-privileges.sh"
+    sh "$scripts/migrate.sh"
+    bash "$scripts/ensure-migration-privileges.sh"
     validate_release_migrations
     counts=$(history_counts)
     read -r applied failed total <<< "$counts"

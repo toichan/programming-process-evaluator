@@ -342,6 +342,126 @@ loss can leave the migrator `SUPER` privilege; before any migration, run
 `ensure-migration-privileges.sh` and verify `SHOW GRANTS`. The script detects
 MySQL's backtick and single-quote grant formats and refuses unknown global grants.
 
+#### Recovering a shell-invocation failure with repaired operational tooling
+
+Host scripts with `#!/usr/bin/env bash` must be invoked with `bash`, not `sh`.
+Ubuntu 24.04 uses dash for `/bin/sh`; the previous deploy/migration wrappers
+invoked the Bash-only privilege helper through `sh`, which can exit with status
+2 at `set -euo pipefail`, before Flyway starts. The POSIX `migrate.sh` wrapper
+remains a `sh` script, but explicitly uses Bash for privilege checks/revocation.
+
+Deployment uses migration, privilege, backup and smoke helpers beside the
+invoked operational `deploy-release.sh`. The target release still supplies the
+verified Compose file, commit-pinned images (including migration tools) and SQL.
+This separation permits a reviewed tooling-only repair without editing an
+immutable release, retagging images or changing the recorded target. Do not mix
+helper versions or use this mechanism to substitute migration SQL/images.
+
+For the interrupted initial release
+`0e2bfae5e23bc512f0b7cf844264d4d45a484ecc`, the new fix commit must **not** be
+passed as the deployment target while the old journal is incomplete. Use the
+following procedure only after operator review/approval; these are manual
+production steps, not actions performed by the regression tests:
+
+1. Commit/review the tooling fix through the normal process. On a trusted
+   checkout containing that commit, export only its production scripts to a
+   **new**, private operational directory, separate from release directories.
+   Keep the old release's `source`, `READY`, image tags and image-ID records
+   untouched. Example (replace `FIX_COMMIT` with the reviewed full SHA):
+
+   ```sh
+   # Run this export in Bash; stop if either archive or extraction fails.
+   set -euo pipefail
+   FIX_COMMIT=replace-with-reviewed-40-character-fix-commit
+   OPS_DIR=/var/lib/ppe/operations/"$FIX_COMMIT"
+   test ! -e "$OPS_DIR" || exit 1
+   sudo install -d -m 0700 "$OPS_DIR"
+   git archive "$FIX_COMMIT" scripts/production |
+     sudo tar -x -C "$OPS_DIR"
+   ```
+
+2. Preserve the existing `PPE_STATE_DIR` and environment paths, Compose project,
+   secret snapshot, TLS/ACME settings, subnet/IP and ports. Verify no concurrent
+   deployment/migration process or active lock exists. If a stale lock exists,
+   stop for operator investigation rather than automatically deleting it.
+   Save a private copy/checksum of the journal and event log for comparison;
+   never edit, source or delete `deployment.state`.
+
+3. Confirm the journal has `format=2`, `mode=initial`, the **old** release ID,
+   empty `previous`, `policy=initial`, `phase=migration_started`,
+   `migration_baseline=0` and `target_migrations=23`. There should be no
+   conflicting `current-release`. Confirm the old release has matching
+   `commit`/`READY`, seven image IDs matching their recorded files, and exactly
+   23 versioned SQL files. Review the effective Compose config and existing DB
+   container/volume identity; do not change project or DB configuration.
+
+4. Perform read-only DB checks immediately before resuming:
+
+   ```sh
+   RELEASE_DIR=/var/lib/ppe/releases/0e2bfae5e23bc512f0b7cf844264d4d45a484ecc
+   COMPOSE_FILE="$RELEASE_DIR/source/compose.production.yml"
+   docker compose -p "$PPE_PROJECT" -f "$COMPOSE_FILE" ps db
+   docker compose -p "$PPE_PROJECT" -f "$COMPOSE_FILE" \
+     exec -T db sh /opt/ppe/db-admin.sh --skip-column-names <<'SQL'
+   SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='ppe';
+   SELECT COUNT(*) FROM information_schema.tables
+     WHERE table_schema='ppe' AND table_name='flyway_schema_history';
+   SHOW GRANTS FOR 'ppe_migrate'@'%';
+   SQL
+   ```
+
+   Require DB healthy, both counts zero, schema-scoped migration privileges and
+   no global SUPER/ALL PRIVILEGES. Any deviation requires investigation; do not
+   reset the DB, repair Flyway or adjust the journal to force a retry.
+
+5. After explicit production/maintenance approval, use the **new operational
+   script** with the **old target directory**:
+
+   ```sh
+   export PPE_OPERATION_APPROVAL=production-approved
+   export PPE_MAINTENANCE_APPROVED=yes
+   bash "$OPS_DIR/scripts/production/deploy-release.sh" initial "$RELEASE_DIR"
+   ```
+
+   The existing journal is used, completed stages are skipped, image identities
+   are verified and migration runs only from the recorded baseline. The script
+   advances the journal normally; retaining it does not mean freezing its phase.
+   It checks Flyway checksums and the exact target count before publishing the
+   old release ID. The fix commit is the tooling version, not the target
+   application version.
+
+6. After success, require `phase=published`, `current-release` equal to the old
+   SHA, 23 successful versioned migrations, no failed Flyway records, successful
+   Flyway validation, no residual SUPER, healthy services and both portal smoke
+   checks. Compare the DB volume identity and immutable release files/image IDs
+   with the preflight evidence. Preserve the event log. If interrupted again,
+   inspect schema/history and resume only the same target under the existing
+   fail-closed rules.
+
+Preparing the repaired tooling does not change the DB or Flyway history.
+Actually completing an initial deployment necessarily creates schema objects
+and Flyway history through the reviewed migrations; recovery cannot complete
+while leaving an empty database unchanged. No manual history edits are needed.
+Once the old target is published, a new application release may be prepared and
+deployed through the normal `update` workflow after migration compatibility
+review. Do not switch to it during this interrupted operation.
+
+Local regressions (mock Docker/SQL only; dash is required for shell tests):
+
+```sh
+bash scripts/production/tests/shell-invocation-test.sh
+bash scripts/production/tests/migration-privilege-cleanup-test.sh
+bash scripts/production/tests/deployment-recovery-test.sh
+bash scripts/production/tests/deployment-state-test.sh
+```
+
+The shell test syntax-checks every production/test script with its declared
+interpreter and exercises the real migration wrapper through dash with mocked
+Docker. Recovery tests deliberately make old release migration helpers unusable
+to prove the new tooling is used, check old release bytes remain unchanged,
+reject a different target without changing the journal, prevent duplicate
+migration execution, retain partial failed history, and enforce approval checks.
+
 ### Normal update and app-only rollback
 
 Build a new immutable release from a committed SHA, review all migrations as

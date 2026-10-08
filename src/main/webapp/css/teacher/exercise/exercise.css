@@ -4,8 +4,8 @@
 .hero-kicker { display: inline-block; font-size: .8rem; font-weight: 600; color: #4f46e5; text-transform: uppercase; letter-spacing: .05em; margin-bottom: .4rem; }
 .section-title { font-size: 2rem; font-weight: 700; color: var(--bs-gray-900); }
 .hero-description { color: var(--bs-gray-600); }
-.hero-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: .75rem; }
-.stat-card { background: linear-gradient(135deg, #4f46e5, #7c3aed); color: #fff; border-radius: .85rem; padding: 1rem; box-shadow: 0 8px 22px rgba(79,70,229,.2); }
+.hero-stats { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: .75rem; }
+.stat-card { min-width: 0; overflow-wrap: anywhere; background: linear-gradient(135deg, #4f46e5, #7c3aed); color: #fff; border-radius: .85rem; padding: 1rem; box-shadow: 0 8px 22px rgba(79,70,229,.2); }
 .stat-label { font-size: .8rem; opacity: .9; }
 .stat-value { font-size: 1.4rem; font-weight: 700; }
 .panel-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 1rem; padding: 1.25rem; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
@@ -74,12 +74,21 @@ code { background: #eef2ff; color: #4f46e5; padding: .2rem .45rem; border-radius
   .exercise-summary-card,.exercise-detail-grid { grid-template-columns: 1fr; }
   .exercise-summary-stats { grid-template-columns: 1fr; }
   .exercise-summary-stat-wide { grid-column: span 1; }
-  .exercise-hero,.exercise-detail-grid,.filter-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .exercise-hero { grid-template-columns: 1fr; }
+  .exercise-detail-grid,.filter-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
 }
 @media(max-width:767.98px) {
   .exercise-hero,.exercise-detail-grid,.filter-grid,.hero-stats { grid-template-columns: 1fr; }
 }
 .action-buttons { flex-wrap: wrap; }
+@media(min-width:768.01px) and (max-width:1199.98px) {
+  .teacher-exercise-review-screen .teacher-header { height: auto; min-height: 70px; }
+  .teacher-exercise-review-screen .teacher-header > .container-fluid { height: auto !important; flex-wrap: wrap; gap: .75rem; padding-top: .75rem; padding-bottom: .75rem; }
+  .teacher-exercise-review-screen .header-actions { flex: 1 1 100%; min-width: 0; flex-wrap: wrap; }
+  .teacher-exercise-review-screen .header-logo { min-width: 0; }
+  .teacher-exercise-review-screen .header-logo h2,
+  .teacher-exercise-review-screen .teacher-info-text { white-space: normal; overflow-wrap: anywhere; }
+}
 .exercise-detail-grid > *, .exercise-summary-card > * { min-width: 0; }
 .exercise-tree-folder-name { min-width: 0; }
 .exercise-tree-entry-meta { overflow-wrap: anywhere; }
