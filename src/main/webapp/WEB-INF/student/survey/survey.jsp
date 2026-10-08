@@ -12,7 +12,7 @@
 				</li>
 				<li class="learning-flow-step is-done">
 					<a class="learning-flow-link is-yellow"
-						href="<c:url value='/student/evaluation'><c:param name='assignmentId' value='${surveyPage.assignmentId}'/><c:param name='submissionId' value='${surveyPage.evaluationId}'/></c:url>">評価の確認</a>
+						href="<c:url value='/student/evaluation'><c:param name='assignmentId' value='${surveyPage.assignmentId}'/><c:param name='submissionId' value='${surveyPage.evaluationSubmissionId}'/></c:url>">評価の確認</a>
 				</li>
 				<li class="learning-flow-step">
 					<span class="learning-flow-current is-green" aria-current="page">アンケート</span>

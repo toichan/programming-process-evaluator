@@ -124,7 +124,7 @@ public final class StudentTaskSummary {
 	}
 
 	public String getProgressStatus() {
-		return progressStatus;
+		return TaskProgressStatus.forLatestEvaluation(progressStatus, evaluationStatus);
 	}
 
 	public String getSaveStatus() {

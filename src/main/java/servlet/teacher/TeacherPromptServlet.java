@@ -41,7 +41,8 @@ public final class TeacherPromptServlet extends HttpServlet {
 	private static final Set<String> ALLOWED_FIELDS = Set.of(
 			"action", "csrfToken", "taskId", "promptVersionId", "expectedRowVersion",
 			"aiModel", "commonPrompt", "additionalInstruction",
-			"fluctuationIds", "teacherResolutions", "resolutionStatuses", "previewCode");
+			"fluctuationIds", "teacherResolutions", "resolutionStatuses", "previewCode",
+			"expectedTaskVersion", "applyConfirmed");
 	private static final TeacherPromptControl PROMPTS = new TeacherPromptControl();
 	private static final ReevaluationPreviewControl REEVALUATIONS = new ReevaluationPreviewControl();
 	private static final TeacherNavigationControl NAVIGATION = new TeacherNavigationControl();
@@ -178,6 +179,13 @@ public final class TeacherPromptServlet extends HttpServlet {
 			long expectedRowVersion,
 			Map<String, List<String>> values) throws SQLException, EvaluationProviderException {
 		return switch (action) {
+			case "applyUnpublishedPrompt" -> {
+				requireVersion(promptVersionId);
+				PROMPTS.applyUnpublishedPrompt(user, taskId, promptVersionId,
+						nonNegativeLong(requiredScalar(values, "expectedTaskVersion")), expectedRowVersion,
+						"yes".equals(scalar(values, "applyConfirmed")));
+				yield promptVersionId;
+			}
 			case "saveDraft" -> PROMPTS.saveDraft(
 					user, taskId, promptVersionId, expectedRowVersion,
 					requiredScalar(values, "aiModel"),
@@ -350,6 +358,11 @@ public final class TeacherPromptServlet extends HttpServlet {
 				&& selected.fluctuationItems().stream()
 						.noneMatch(item -> "pending".equals(item.resolutionStatus()));
 		request.setAttribute("teacherPromptCanStartReevaluation", canStartReevaluation);
+		var task = page.selectedTask();
+		request.setAttribute("teacherPromptCanApplyUnpublished", selected != null && selected.isReadyForApplication()
+				&& task != null && !task.learningStarted() && "active".equals(task.rubricStatus())
+				&& ("draft".equals(task.publicationStatus()) || "requires_update".equals(task.publicationStatus()))
+				&& !Objects.equals(page.activePromptVersionId(), selected.promptVersionId()));
 		request.setAttribute("teacherReevaluationPreview", preview);
 		request.setAttribute("teacherReevaluationJob", reevaluationJob);
 		request.setAttribute("teacherId", user.loginId());
@@ -394,6 +407,7 @@ public final class TeacherPromptServlet extends HttpServlet {
 
 	private static String noticeFor(String action) {
 		return switch (action) {
+			case "applyUnpublishedPrompt" -> "未公開課題にプロンプトを適用しました。課題編集画面から公開できます。";
 			case "saveDraft" -> "共通プロンプトを保存しました。";
 			case "generateFluctuations" -> "揺らぎ項目を生成しました。";
 			case "saveResolutions" -> "教師対応を保存しました。";

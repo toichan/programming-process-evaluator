@@ -19,26 +19,13 @@ public final class TeacherProgressStatus {
 		if (progressStatus == null || "not_started".equals(progressStatus)) {
 			return isLateAndBlocked(dueAt, assignmentStatus, lateSubmissionPolicy) ? "要対応" : "未着手";
 		}
-		if ("needs_action".equals(progressStatus)
-				|| "failed".equals(latestEvaluationStatus) || "needs_revision".equals(latestEvaluationStatus)) {
-			return "要対応";
-		}
-		if ("in_progress".equals(latestEvaluationStatus)) {
-			return "評価待ち";
-		}
-		if ("completed".equals(latestEvaluationStatus)) {
-			return "完了";
-		}
-		if ("awaiting_evaluation".equals(progressStatus)) {
-			return "評価待ち";
-		}
-		if ("completed".equals(progressStatus)) {
-			return "完了";
-		}
-		if ("submitted".equals(progressStatus)) {
-			return "提出済み";
-		}
-		return "未着手";
+		return switch (TaskProgressStatus.forLatestEvaluation(progressStatus, latestEvaluationStatus)) {
+			case "needs_action" -> "要対応";
+			case "awaiting_evaluation" -> "評価待ち";
+			case "completed" -> "完了";
+			case "submitted" -> "提出済み";
+			default -> "未着手";
+		};
 	}
 
 	private static boolean isLateAndBlocked(Timestamp dueAt, String assignmentStatus, String lateSubmissionPolicy) {

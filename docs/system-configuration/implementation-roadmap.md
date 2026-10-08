@@ -16,7 +16,7 @@
 - 1つの機能を「DB変更 → DAO → Control → Servlet → JSP / JavaScript → 動作確認」まで通してから次に進みます。
 - `screen-flow-diagram` は既存の参考用資産として保ち、本実装の JSP / CSS / JavaScript は `src/main/webapp` に直接実装します。両者の差異は許容し、画面ファイルの移植を必須としません。
 
-## 現在の実装状況（2026-10-07）
+## 現在の実装状況（2026-10-08）
 
 この概要は工程の現在位置を示します。完了判定の根拠・コマンド・未確認事項はリンク先の機能別計画を参照してください。コードや画面が存在するだけで機能完了とは判断しません。
 
@@ -30,7 +30,7 @@
 | 5. 初期利用者・認証 | 実装済み、拡張確認中 | [認証・ログイン計画](./feature-plans/authentication-and-login.md)。実管理者アカウント、本番TLS/cookie等は未確認 |
 | 6. 生徒ホーム・同意・アカウント | 実装済み | [生徒ホーム・同意・アカウント計画](./feature-plans/student-home-consent-account.md)。演習・教師画面等の実装完了を意味しない |
 | 7. Python実行・生徒エディター | 主要実装済み、検証継続 | [生徒エディター計画](./feature-plans/student-editor.md)。対話型runnerは実装済み。ブラウザー・競合・再提出等の残件を同計画で確認 |
-| 8. 評価・コードログ・アンケート | 主要実装済み、実設定・受入保留 | [評価・コードログ・アンケート計画](./feature-plans/student-evaluation-survey.md)。合成データの実API評価→DB保存・再読込を確認済み。アンケート・標準設問・標準ルーブリック閲覧も実装済み。既知バグ修正後の専用合成DB・認証HTTP・ブラウザー検証済み。正式設定とユーザー手動E2Eは教師画面完成後 |
+| 8. 評価・コードログ・アンケート | 主要実装済み、合成設定での教師→生徒→アンケート縦断受入済み | [評価・コードログ・アンケート計画](./feature-plans/student-evaluation-survey.md)。新規課題・実Pro生成/適用/公開→初回パスワード変更/同意→実Python解答/提出→実Pro評価・DB再読込→アンケート保存/提出/再読込を確認。設問登録UIは未実装で検証用DB設定を使用。正式設定UI・利用者手動受入・採点品質/運用条件は別に残る |
 | 9. 授業演習 | T001〜T051完了 | [授業演習計画](./feature-plans/student-exercise.md)の最新記録を正とする。実DB/HTTP/runner/ブラウザー検証と通常Chromeでの単体.py保存確認まで実施済み。OS標準フォルダ選択・ZIP保存ダイアログおよび全ブラウザー/OS組合せは未確認。教師配信・進捗制御等は後続機能 |
 | 10. 教師の課題編集・公開・改訂 | 下書き編集・削除/復元、公開・予約公開・期限処理、学習開始前の同一系列改訂、学習開始後の独立系列コピー、期限延長・対象クラス追加を実装。専用MySQL統合テストと認証browser受入済み。期限切れ割当の再開、既存提出履歴保持、追加割当の認可/冪等性を確認。プロンプトAI実API確認は工程19へ延期 | [教師課題下書き計画](./feature-plans/teacher-task-draft.md)、[S3計画](./feature-plans/teacher-task-s3.md)、[公開計画](./feature-plans/teacher-task-publication.md)、[公開後改訂計画](./feature-plans/teacher-task-revision.md)、[期限延長・クラス追加計画](./feature-plans/teacher-task-deadline-and-class-changes.md)、[教師プロンプト計画](./feature-plans/teacher-prompt-ai.md)、[課題状態ルール](../state-rules/teacher/task-state-rules.md) |
 | 11. 管理者の教師アカウント管理・学校管理 | 実装・受入済み | [認証計画の工程11記録](./feature-plans/authentication-and-login.md#工程11教師アカウント管理追加バッチ2026-10-06)。2タブ管理画面、教師作成/学校・9機能権限/停止・解除/論理削除/再設定/履歴/CSVをDB接続。資格情報の一時表示と教師セッション失効を検証済み |

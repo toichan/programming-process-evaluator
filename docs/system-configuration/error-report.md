@@ -2,6 +2,22 @@
 
 秘密情報・実際の生徒データ・研究データは記載しない。解消後も履歴を保持する。
 
+## 2026-10-08: 不同意案内の削除と教師からアンケートまでの縦断受入
+
+- 機能仕様第149/150版に従い、不同意常設バナーだけを削除。未回答案内、保存通知、同意画面の現在回答、学習継続、アンケートの同意条件は維持した。専用合成DBの実HTTP・統合ブラウザーで確認し、8080へ反映した。
+- 本実装のブロッカーを検出: 新規課題は再評価対象が0人のため、設定済みプロンプトを適用できず公開できなかった。ユーザー承認後に「未公開課題に適用」を追加。未公開・学習開始前、教師/所有/所属権限、明示確認、CSRF、両版、有効ルーブリックと生成物を検証し、active参照・課題版・監査を同一transactionで保存する。既存の対象0人の再評価契約は維持し、適用時の追加AI/job/評価行は0。
+- 版表示の既存bug: prompt statusに存在しない`active`との比較をやめ、課題のactive参照との比較で「適用中」を表示する。アンケートの学習ナビは評価IDを提出IDとして渡していたため、`evaluationSubmissionId`へ修正。評価ID100・提出ID1の実データでリンクと戻り先200を検証した。初回同番のデータだけで成功と判定しない。
+- ブラウザーで評価完了後もホームの課題状態だけ「評価待ち」となる不整合を検出。教師側の最新評価判定を`TaskProgressStatus`へ抽出して共有し、生徒の提出後表示へ適用。DBの履歴は書き換えない。再編集/未着手・明示要対応を以前の完了評価で隠さない。赤テストは8件中7成功/1失敗、修正後の全体と再起動後readbackは成功。
+- 検証環境の初回起動は共有Gradle journal lockでexit1。共有lockを削除せず、既存cacheをread-onlyで参照してlock/journalを除外した専用cacheへコピーして解消。専用schemaへ正本V1〜V23 SQLをDB所有者で順に適用した。Flyway CLIの成功と同一視せず、共有のglobal設定は変更していない。
+- テストの不備を分離して修正: ①`GET /auth/logout`は正しく405になるため正規POST+CSRFへ変更。②初回生徒はDB triggerによりパスワード変更必須となるため、正規変更を経て同意画面へ進むよう修正。③他者の評価は既存の本人検索契約どおりホーム302なので、誤った403期待を修正（アンケート他者403は別途確認）。④native formのCRLFに合わせて課題fixtureを作成し、HTTPのLF作成とブラウザー再送の混在で不要な入力変更判定を発生させない。製品の改行正規化契約は変更していない。⑤JSTLのURL出力に対し`&amp;`限定assertをやめ、同じURLの`&`とHTMLエスケープ表現を区別した。アンケート初回失敗時は回答0を確認し、専用DBの未使用設問fixtureだけを再準備して再実行。評価を再生成/捏造して埋めていない。
+- 課題・プロンプト・適用・公開・提出・完了評価は正規HTTP操作で作成。実Pythonで入力3→出力6、提出前チェック1/1、実Pro通常評価の完了/検証済み応答・固定版/入力・観点/理由のDB再読込、回答の下書き保存/提出/再表示/重複提出で不変を確認した。アンケート設問登録UIは未実装のため、課題別設問設定だけを検証DBへ登録した。これを教師による全設定UIの完成とは扱わない。
+- 実HTTPの正確なコマンドは `docker exec -e LEARNING_FLOW_HTTP_TEST=true -e LEARNING_FLOW_HTTP_BASE=http://ppe-learning-flow-runtime:8080 ppe-learning-flow-runtime gradle --project-cache-dir=/tmp/ppe-learning-flow-project-cache -I /tmp/ppe-learning-flow.init.gradle test --tests servlet.journey.<対象クラス> --rerun-tasks --no-daemon --console=plain`。`LearningFlowFixtureTest`1件→`registerStandardRubric`→`TeacherLearningFlowRuntimeTest`2件→`StudentLearningFlowRuntimeTest`1件→`SurveyLearningFlowRuntimeTest`1件を順次実行し全成功、各exit0。最終修正後にアプリを再起動して`LearningFlowReadBackRuntimeTest`1件も成功、exit0。ゲート有効の一括実行に順序を委ねない。fixtureは空DB必須、surveyは本人の実completed評価必須。
+- 外部ゲート無効の最終全体コマンド: `docker exec ppe-learning-flow-runtime gradle --project-cache-dir=/tmp/ppe-learning-flow-project-cache -I /tmp/ppe-learning-flow.init.gradle test war --rerun-tasks --no-daemon --console=plain` → exit0、358件中232成功/126明示skip/失敗0、WAR成功。ゲートskipを実DB/外部API成功と扱わない。新規Javaのエディター診断は正常、既存Gson参照解決の環境診断は変更していない。
+- 今回の実生成POSTは調査中の再実行を含め8回、全てPro Preview/HTTP200。最終の教師生成2回は26,469/26,733ms、通常評価は20,823ms。追加再読込・画面確認では再生成していない。入力は全て合成データで、実生徒データは送っていない。費用/quota/負荷・人手による採点品質校正は別受入。
+- 統合ブラウザーで教師のPro/適用中/実生成物、同じ生徒提出の評価/観点/理由、評価ID100→アンケート→提出ID1の戻る導線、提出済み回答の非編集表示、再起動後ホームの完了/評価済み/回答済み、不同意生徒の常設バナー0・課題利用可・アンケート対象外を確認。pointer clickの可視/安定待ちtimeoutはnative form/DOM/実HTTPで補った。ブラウザー用assertの教師landing期待違いと提出後にtextboxを探したtimeoutも記録し、実表示/静的回答と照合した。CLI/全pointer E2E認定ではない。
+- 8080反映: `docker exec programming-process-evaluator-app-live gradle --project-cache-dir=/tmp/ppe-learning-live-project-cache war --no-daemon --console=plain --warning-mode all` → exit0。`docker restart --timeout 195 programming-process-evaluator-app-live` → 成功、教師/生徒login200、新しい共通状態判定・初回適用methodの実classを確認。既存課題10/11のmetadata hashは一致、無関係18081のlogin200。共有利用者の資格情報や既存課題は変更していない。
+- 清掃済み: 自作18082アプリ、専用schema/追加grant、一時秘密envファイルだけを削除し、schema/grant残件0・ファイル不存在を確認。清掃後も8080両login/18081のlogin200と課題10/11のhash一致を再確認。テストXML・安全なprovider status/所要時間・詳細reportはsession artifactsへ保持した。
+
 ## 2026-10-08: 公開URLの横断整理と受入
 
 - [方針](./url-routing-policy.md)と機能仕様第148版に従い、24 Servlet・JSPの業務リンク/フォーム/endpoint、ログイン/強制変更/戻り先を確認し、本人情報と他者管理を区別した。旧URL7種は認証・ロール・セッション版・強制変更制限の後にGET/HEAD302、POST等307で誘導する。プロトタイプ、内部JSP/CSS/JS配置、課題/APIの既存系列は維持した。

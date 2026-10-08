@@ -16,6 +16,20 @@ import entity.UserCredential.UserType;
 
 class TeacherPromptControlTest {
 	@Test
+	void rejectsInitialApplicationWithoutRoleConfirmationAndVersionsBeforeOpeningConnection() {
+		AtomicInteger openedConnections = new AtomicInteger();
+		TeacherPromptControl control = control(openedConnections);
+		assertThrows(SecurityException.class, () -> control.applyUnpublishedPrompt(
+				user(UserType.STUDENT, false), 1, 1, 1, 1, true));
+		assertThrows(IllegalArgumentException.class, () -> control.applyUnpublishedPrompt(
+				user(UserType.TEACHER, false), 1, 1, 1, 1, false));
+		assertThrows(IllegalArgumentException.class, () -> control.applyUnpublishedPrompt(
+				user(UserType.TEACHER, false), 1, 1, 0, 1, true));
+		assertThrows(IllegalArgumentException.class, () -> control.applyUnpublishedPrompt(
+				user(UserType.TEACHER, false), 1, 1, 1, 0, true));
+		assertEquals(0, openedConnections.get());
+	}
+	@Test
 	void rejectsNonTeacherBeforeOpeningDatabaseConnection() {
 		AtomicInteger openedConnections = new AtomicInteger();
 		TeacherPromptControl control = control(openedConnections);

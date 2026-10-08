@@ -186,9 +186,9 @@
 										<option value="${version.promptVersionId}" <c:if test="${version.promptVersionId == promptVersion.promptVersionId}">selected</c:if>>
 											<c:out value="${version.version}"/> (
 											<c:choose>
+												<c:when test="${version.promptVersionId == promptPage.activePromptVersionId}">適用中</c:when>
 												<c:when test="${version.promptStatus == 'draft'}">下書き</c:when>
 												<c:when test="${version.promptStatus == 'configured'}">設定済み</c:when>
-												<c:when test="${version.promptStatus == 'active'}">適用中</c:when>
 												<c:otherwise>版管理済み</c:otherwise>
 											</c:choose>)
 										</option>
@@ -387,6 +387,17 @@
 				</c:otherwise>
 			</c:choose>
 			<div class="d-flex gap-2 mt-3 flex-wrap justify-content-center">
+				<c:if test="${teacherPromptCanApplyUnpublished}">
+					<form method="post" action="<c:url value='/teacher/prompt'/>" id="unpublishedPromptApplyForm">
+						<input type="hidden" name="csrfToken" value="<c:out value='${csrfToken}'/>">
+						<input type="hidden" name="taskId" value="<c:out value='${teacherPromptTaskId}'/>">
+						<input type="hidden" name="promptVersionId" value="<c:out value='${promptVersion.promptVersionId}'/>">
+						<input type="hidden" name="expectedRowVersion" value="<c:out value='${promptVersion.rowVersion}'/>">
+						<input type="hidden" name="expectedTaskVersion" value="<c:out value='${promptPage.selectedTask.version}'/>">
+						<input type="hidden" name="applyConfirmed" value="no">
+						<button class="btn btn-primary" type="submit" name="action" value="applyUnpublishedPrompt">未公開課題に適用</button>
+					</form>
+				</c:if>
 				<form method="post" action="<c:url value='/teacher/prompt'/>" id="reevaluationStartForm">
 					<input type="hidden" name="csrfToken" value="<c:out value='${csrfToken}'/>">
 					<input type="hidden" name="taskId" value="<c:out value='${teacherPromptTaskId}'/>">
@@ -409,6 +420,7 @@
 				</form>
 			</div>
 			<p class="text-secondary small text-center mt-2 mb-0">
+				未公開かつ学習開始前の課題は「未公開課題に適用」で設定し、課題編集画面から公開してください。この適用では再評価や追加のAI呼び出しは行いません。<br>
 				プレビューの作成では対象者ごとにGeminiを呼び出すため、確定・取消にかかわらずAPI費用が発生します。
 			</p>
 		</section>
@@ -566,9 +578,9 @@
 										<td>
 											<span class="badge text-bg-secondary">
 												<c:choose>
+													<c:when test="${version.promptVersionId == promptPage.activePromptVersionId}">適用中</c:when>
 													<c:when test="${version.promptStatus == 'draft'}">下書き</c:when>
 													<c:when test="${version.promptStatus == 'configured'}">設定済み</c:when>
-													<c:when test="${version.promptStatus == 'active'}">適用中</c:when>
 													<c:otherwise>版管理済み</c:otherwise>
 												</c:choose>
 											</span>

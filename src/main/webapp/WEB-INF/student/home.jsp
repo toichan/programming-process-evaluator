@@ -18,9 +18,6 @@
 			<a class="btn btn-sm btn-outline-dark" href="<c:url value='/student/consent'/>">回答する</a>
 		</div>
 	</c:if>
-	<c:if test="${studentHome.consentStatus == 'DECLINED'}">
-		<div class="alert alert-secondary" role="status">研究協力には同意していません。学習機能は通常どおり利用できます。</div>
-	</c:if>
 	<section class="sample-section hero-section mb-4">
 		<div class="hero-copy">
 			<span class="hero-kicker">Home</span>

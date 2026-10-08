@@ -273,6 +273,45 @@ public final class TeacherPromptControl {
 		}
 	}
 
+	public void applyUnpublishedPrompt(
+			AuthenticatedUser user, long taskId, long promptVersionId, long expectedTaskVersion,
+			long expectedPromptRowVersion, boolean confirmed) throws SQLException {
+		requireTeacher(user);
+		validatePositiveId(taskId, "課題");
+		validatePositiveId(promptVersionId, "プロンプト版");
+		if (expectedTaskVersion < 1 || expectedPromptRowVersion < 1) {
+			throw new IllegalArgumentException("更新情報が不正です。画面を再読み込みしてください。");
+		}
+		if (!confirmed) {
+			throw new IllegalArgumentException("確認ダイアログで適用を確定してください。");
+		}
+		try (Connection connection = connectionFactory.open()) {
+			connection.setAutoCommit(false);
+			try {
+				requireTaskAccess(connection, user, taskId);
+				TeacherTaskDetails task = taskDao.findPromptTask(connection, user.userId(), taskId, true)
+						.orElseThrow(TeacherPromptDao.TeacherTaskNotFoundException::new);
+				if (task.version() != expectedTaskVersion) {
+					throw new TeacherPromptDao.PromptVersionConflictException();
+				}
+				if (!("draft".equals(task.publicationStatus()) || "requires_update".equals(task.publicationStatus()))
+						|| taskDao.hasStartedLearning(connection, taskId, true)) {
+					throw new IllegalStateException("未公開かつ学習開始前の課題にだけ適用できます。公開済み課題は再評価プレビューを利用してください。");
+				}
+				if (!"active".equals(task.rubricStatus())) {
+					throw new IllegalStateException("有効な標準ルーブリックを設定してください。");
+				}
+				rubricDao.requireActiveId(connection);
+				promptDao.applyUnpublishedPrompt(connection, user.userId(), taskId, promptVersionId,
+						expectedTaskVersion, expectedPromptRowVersion);
+				connection.commit();
+			} catch (SQLException | RuntimeException failure) {
+				rollback(connection, failure);
+				throw failure;
+			}
+		}
+	}
+
 	private GenerationContext beginGeneration(
 			AuthenticatedUser user,
 			long taskId,

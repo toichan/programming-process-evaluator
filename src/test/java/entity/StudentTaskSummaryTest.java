@@ -18,6 +18,15 @@ class StudentTaskSummaryTest {
 		assertEquals("not_applicable", summary(null).getSurveyStatus());
 	}
 
+	@Test
+	void completedEvaluationIsNotDisplayedAsWaitingOnStudentHome() {
+		StudentTaskSummary task = new StudentTaskSummary(1, 1, "Task", "", "", "", null,
+				"submitted", "awaiting_evaluation", "saved", "completed", "submitted",
+				1L, 100L, ConsentStatus.AGREED, null, 1L);
+		assertEquals("completed", task.getProgressStatus());
+		assertEquals(1, new StudentHomePage(null, ConsentStatus.AGREED, java.util.List.of(task)).getSubmittedTaskCount());
+	}
+
 	private static StudentTaskSummary summary(ConsentStatus consentStatus) {
 		return new StudentTaskSummary(
 				1,

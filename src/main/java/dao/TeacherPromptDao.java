@@ -560,6 +560,43 @@ public final class TeacherPromptDao {
 				null, promptVersionDetails(promptVersionId));
 	}
 
+	public void applyUnpublishedPrompt(
+			Connection connection, long teacherUserId, long taskId, long promptVersionId,
+			long expectedTaskVersion, long expectedPromptRowVersion) throws SQLException {
+		requireWriteTransaction(connection);
+		TeacherPromptVersion current = findVersionForUpdate(connection, taskId, promptVersionId);
+		if (current.rowVersion() != expectedPromptRowVersion) {
+			throw new PromptVersionConflictException();
+		}
+		if (!current.isReadyForApplication()) {
+			throw new IllegalStateException("揺らぎへの教師対応と評価例の生成・保存を完了してください。");
+		}
+		Long previousId = findActivePromptVersionId(connection, taskId);
+		try (PreparedStatement statement = connection.prepareStatement("""
+				UPDATE tasks
+				SET active_prompt_version_id = ?, updated_by_user_id = ?,
+				    updated_at = CURRENT_TIMESTAMP, version = version + 1
+				WHERE task_id = ? AND created_by_user_id = ? AND version = ?
+				  AND publication_status IN ('draft','requires_update') AND deleted_at IS NULL
+				""")) {
+			statement.setLong(1, promptVersionId);
+			statement.setLong(2, teacherUserId);
+			statement.setLong(3, taskId);
+			statement.setLong(4, teacherUserId);
+			statement.setLong(5, expectedTaskVersion);
+			if (statement.executeUpdate() != 1) {
+				throw new PromptVersionConflictException();
+			}
+		}
+		JsonObject before = new JsonObject();
+		if (previousId == null) before.add("active_prompt_version_id", com.google.gson.JsonNull.INSTANCE);
+		else before.addProperty("active_prompt_version_id", previousId);
+		JsonObject after = new JsonObject();
+		after.addProperty("active_prompt_version_id", promptVersionId);
+		recordAudit(connection, teacherUserId, taskId, "apply_unpublished_prompt",
+				"未公開・学習開始前の課題へプロンプトを適用", before, after);
+	}
+
 	public void saveResolutions(
 			Connection connection,
 			long teacherUserId,

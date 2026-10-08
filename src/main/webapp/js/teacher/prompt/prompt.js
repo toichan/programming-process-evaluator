@@ -39,6 +39,15 @@ document.addEventListener('DOMContentLoaded', function() {
       const submitter = event.submitter;
       const action = submitter ? submitter.value : '';
       const reevaluationMessages = {
+        applyUnpublishedPrompt: {
+          title: '未公開課題へのプロンプト適用',
+          message: '確認した設定済みプロンプト版を、この課題の現在適用版にします。',
+          details: [
+            '未公開かつ学習開始前の課題だけが対象です。課題の公開は別の操作です。',
+            '再評価・評価履歴・追加のAI呼び出しは行いません。'
+          ],
+          confirmText: '適用する'
+        },
         startReevaluationPreview: {
           title: '全体再評価プレビュー',
           message: '参加者ごとに最新提出をGeminiへ送信して予測を生成します。',
@@ -74,6 +83,9 @@ document.addEventListener('DOMContentLoaded', function() {
       if (reevaluationMessage) {
         if (confirmedAction === action) {
           confirmedAction = null;
+          if (action === 'applyUnpublishedPrompt') {
+            form.elements.namedItem('applyConfirmed').value = 'yes';
+          }
           return;
         }
         event.preventDefault();
