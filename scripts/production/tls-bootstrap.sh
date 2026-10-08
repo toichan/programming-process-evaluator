@@ -49,24 +49,29 @@ install -d -m 0700 "$PPE_TLS_DIR" "$PPE_ACME_DIR" "$PPE_CERTBOT_CONFIG_DIR" \
     "$PPE_CERTBOT_WORK_DIR" "$PPE_CERTBOT_LOG_DIR"
 
 dc() { docker compose -p "$project" -f "$compose" "$@"; }
-if [[ -n "$(dc ps --status running -q nginx)" ]]; then
+running_nginx=$(dc ps --status running -q nginx)
+if [[ -n "$running_nginx" ]]; then
     echo "Stop: HTTPS Nginx is already running; bootstrap will not disturb it." >&2
     exit 1
 fi
 
-bootstrap_started=0
+bootstrap_start_attempted=0
 cleanup() {
-    status=$?
-    if (( bootstrap_started )); then
-        dc --profile acme-bootstrap stop acme-bootstrap >/dev/null 2>&1 || true
+    local status=$?
+    trap - EXIT
+    if (( bootstrap_start_attempted )); then
+        if ! dc --profile acme-bootstrap stop acme-bootstrap; then
+            echo "Failed to stop ACME bootstrap; inspect the acme-bootstrap service before retrying." >&2
+            if (( status == 0 )); then status=1; fi
+        fi
     fi
     exit "$status"
 }
 trap cleanup EXIT
 trap 'exit 1' HUP INT TERM
 
+bootstrap_start_attempted=1
 dc --profile acme-bootstrap up -d --no-deps --wait --wait-timeout 30 acme-bootstrap
-bootstrap_started=1
 certbot_args=(
     certonly --non-interactive --agree-tos --no-eff-email
     --webroot --webroot-path "$PPE_ACME_DIR"
@@ -88,7 +93,7 @@ lineage="$PPE_CERTBOT_CONFIG_DIR/live/ppeval"
 }
 sh "$scripts/install-tls.sh" "$lineage/fullchain.pem" "$lineage/privkey.pem" "$PPE_TLS_DIR"
 dc --profile acme-bootstrap stop acme-bootstrap
-bootstrap_started=0
+bootstrap_start_attempted=0
 dc up -d --no-deps --wait --wait-timeout 60 nginx
 dc exec -T nginx nginx -t
 dc exec -T nginx nginx -s reload
