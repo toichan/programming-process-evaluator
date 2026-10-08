@@ -61,6 +61,20 @@ public class TeacherExerciseDatabaseTest {
 		var bulk = control.bulk(teacher,TeacherExerciseFilter.empty());
 		assertEquals(6, bulk.entries().size(), "Two class memberships must not duplicate student files.");
 		assertEquals(6, bulk.entries().stream().map(StudentExerciseEntry::path).distinct().count());
+		try (var c = Client.createConnection()) {
+			c.setAutoCommit(false);
+			try {
+				long folderScope = scope(c, empty.studentId(), "空フォルダ検証");
+				entry(c, folderScope, null, "folder", "空", "空", null, "active");
+				var folderRow = new TeacherExerciseDao().rows(c, teacher.userId()).stream()
+						.filter(row -> row.studentId() == empty.studentId()).findFirst().orElseThrow();
+				assertEquals(0, folderRow.fileCount());
+				assertEquals(1, folderRow.entryCount());
+				var folderDetail = new TeacherExerciseDao().detail(c, teacher.userId(), empty.studentId(), empty.classroomId());
+				assertEquals(1, TeacherExerciseControl.archiveEntries(folderDetail).size());
+				assertEquals(StudentExerciseEntry.Type.FOLDER, TeacherExerciseControl.archiveEntries(folderDetail).get(0).type());
+			} finally { c.rollback(); }
+		}
 		assertThrows(IllegalArgumentException.class, () -> control.bulk(teacher,
 				new TeacherExerciseFilter(null,null,"","no-match","","")));
 		String csv = control.csv(teacher,TeacherExerciseFilter.empty());

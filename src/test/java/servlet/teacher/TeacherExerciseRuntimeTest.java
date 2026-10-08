@@ -26,6 +26,7 @@ class TeacherExerciseRuntimeTest {
 		var page=teacher.get("/teacher/exercises");
 		assertEquals(200,page.statusCode(),page.body());
 		assertTrue(page.body().contains("id=\"teacherExerciseReview\""));
+		assertTrue(page.body().contains("class=\"teacher-screen teacher-exercise-review-screen\""));
 		assertTrue(page.body().contains("href=\"/teacher/exercises\""));
 		assertEquals("no-store",page.headers().firstValue("Cache-Control").orElseThrow());
 		var rows=teacher.json("/teacher/exercises?view=list").getAsJsonArray(); assertEquals(4,rows.size());

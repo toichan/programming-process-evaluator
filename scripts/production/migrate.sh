@@ -19,9 +19,9 @@ release_lock() {
 trap release_lock EXIT
 trap 'exit 1' HUP INT TERM
 dc() { docker compose -p "$project" -f "$compose" "$@"; }
-sh "$(dirname "$0")/ensure-migration-privileges.sh"
+bash "$(dirname "$0")/ensure-migration-privileges.sh"
 revoke() {
-    sh "$(dirname "$0")/ensure-migration-privileges.sh"
+    bash "$(dirname "$0")/ensure-migration-privileges.sh"
 }
 finish() {
     status=$?

@@ -58,6 +58,7 @@ public final class TeacherExerciseServlet extends HttpServlet {
 				request.setAttribute("teacherId", user.loginId());
 				request.setAttribute("csrfToken", CsrfTokens.getOrCreate(request.getSession(false)));
 				request.setAttribute("screenDesign", "teacher");
+				request.setAttribute("screenBodyClass", "teacher-exercise-review-screen");
 				request.setAttribute("screenUsesCodeMirror", true);
 				request.setAttribute("screenPageTitle", "授業演習コード確認");
 				request.setAttribute("screenStylesheet", "/css/teacher/exercise/exercise.css");
