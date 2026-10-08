@@ -45,8 +45,9 @@ else
     exit 2
     }
 fi
-install -d -m 0700 "$PPE_TLS_DIR" "$PPE_ACME_DIR" "$PPE_CERTBOT_CONFIG_DIR" \
+install -d -m 0700 "$PPE_TLS_DIR" "$PPE_CERTBOT_CONFIG_DIR" \
     "$PPE_CERTBOT_WORK_DIR" "$PPE_CERTBOT_LOG_DIR"
+install -d -m 0755 "$PPE_ACME_DIR"
 
 dc() { docker compose -p "$project" -f "$compose" "$@"; }
 running_nginx=$(dc ps --status running -q nginx)

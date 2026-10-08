@@ -31,6 +31,16 @@ case " $* " in
         exit 0
         ;;
     *" up -d --no-deps --wait --wait-timeout 30 acme-bootstrap "*)
+        [ -z "$(find "$PPE_ACME_DIR" -prune ! -perm 0755 -print)" ] || {
+            echo "FAIL: ACME webroot must be 0755 before Nginx starts" >&2
+            exit 1
+        }
+        for directory in "$PPE_TLS_DIR" "$PPE_CERTBOT_CONFIG_DIR" "$PPE_CERTBOT_WORK_DIR" "$PPE_CERTBOT_LOG_DIR"; do
+            [ -z "$(find "$directory" -prune ! -perm 0700 -print)" ] || {
+                echo "FAIL: TLS and Certbot directories must remain 0700" >&2
+                exit 1
+            }
+        done
         [ "${PPE_TEST_FAIL_BOOTSTRAP_UP:-0}" != 1 ] || exit 17
         ;;
     *" stop acme-bootstrap "*)
@@ -74,6 +84,7 @@ export PPE_TEST_CERT="$test_root/old.crt"
 export PPE_TEST_KEY="$test_root/old.key"
 mkdir -p "$test_root/tls"
 chmod 0700 "$test_root/tls"
+mkdir -m 0700 "$PPE_ACME_DIR"
 : > "$PPE_TEST_TRACE"
 
 bash "$scripts/tls-bootstrap.sh" >/dev/null
@@ -84,6 +95,12 @@ grep -q -- '--profile acme-bootstrap stop' "$PPE_TEST_TRACE"
 grep -q 'exec -T nginx nginx -t' "$PPE_TEST_TRACE"
 grep -q 'exec -T nginx nginx -s reload' "$PPE_TEST_TRACE"
 echo "PASS: first certificate bootstrap installs matching material and validates/reloads HTTPS Nginx"
+[[ -z "$(find "$PPE_ACME_DIR" -prune ! -perm 0755 -print)" ]]
+for directory in "$PPE_CERTBOT_CONFIG_DIR" "$PPE_CERTBOT_WORK_DIR" "$PPE_CERTBOT_LOG_DIR" "$test_root/tls"; do
+    [[ -z "$(find "$directory" -prune ! -perm 0700 -print)" ]]
+done
+[[ -z "$(find "$PPE_CERTBOT_CONFIG_DIR/live/ppeval/privkey.pem" -prune ! -perm 0600 -print)" ]]
+echo "PASS: an existing 0700 ACME webroot becomes 0755 while private directories and the Certbot key remain private"
 
 assert_bootstrap_only_cleanup() {
     grep -q -- '--profile acme-bootstrap stop acme-bootstrap$' "$PPE_TEST_TRACE"

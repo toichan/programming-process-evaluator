@@ -2,7 +2,7 @@
 set -eu
 cd "$(dirname "$0")/../.."
 mode=${1:-unit}
-case "$mode" in unit|integration) ;; *) echo "Usage: sh scripts/testing/teacher-exercise-review-local.sh unit|integration" >&2; exit 2 ;; esac
+case "$mode" in unit|integration|browser) ;; *) echo "Usage: sh scripts/testing/teacher-exercise-review-local.sh unit|integration|browser" >&2; exit 2 ;; esac
 owner=$$
 network=ppe-exercise-review-test
 builder=ppe-exercise-review-builder
@@ -33,7 +33,7 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 mkdir -p "$reports"
 set --
-if [ "$mode" = integration ]; then
+if [ "$mode" != unit ]; then
 	docker network create --label ppe.exercise-review.owner="$owner" "$network" >/dev/null
 	docker run -d --name "$database" --label ppe.exercise-review.owner="$owner" --network "$network" \
 		--tmpfs /var/lib/mysql:rw,size=512m -e MYSQL_ROOT_PASSWORD=exercise-dummy-root \
@@ -55,7 +55,7 @@ docker run --name "$builder" --label ppe.exercise-review.owner="$owner" "$@" \
 	-e EXERCISE_TEST_MODE="$mode" --mount "type=bind,src=$(pwd),dst=/source,readonly" --entrypoint sh ppe-tools:local -c '
 	cp -R /source/src/. /workspace/src/
 	cp /source/build.gradle /source/settings.gradle /workspace/
-	if [ "$EXERCISE_TEST_MODE" = integration ]; then
+	if [ "$EXERCISE_TEST_MODE" != unit ]; then
 		gradle --offline --no-daemon flywayMigrate test --tests control.teacher.TeacherExerciseDatabaseTest war --rerun-tasks
 	else
 		gradle --offline --no-daemon test war --rerun-tasks
@@ -64,14 +64,18 @@ docker run --name "$builder" --label ppe.exercise-review.owner="$owner" "$@" \
 docker cp "$builder:/workspace/build/test-results/test/." "$reports/"
 if [ "$result" != 0 ]; then exit "$result"; fi
 docker cp "$builder:/workspace/build/libs/ROOT.war" "$reports/ROOT.war"
-if [ "$mode" = integration ]; then
-	docker run -d --name "$runtime" --label ppe.exercise-review.owner="$owner" --network "$network" \
+if [ "$mode" != unit ]; then
+	set -- --network "$network"
+	if [ "$mode" = browser ]; then set -- "$@" -p 127.0.0.1:18090:8080; fi
+	docker run -d --name "$runtime" --label ppe.exercise-review.owner="$owner" "$@" \
 		-e PPE_ENV=development -e 'CATALINA_OPTS=-DPPE_TRUSTED_PROXY_REGEX=^$' \
 		-e TEACHER_PORTAL_HOST=teacher.localhost -e STUDENT_PORTAL_HOST=student.localhost \
 		-e DB_HOST="$database" -e DB_PORT=3306 -e DB_NAME=ppe_exercise_review_test \
 		-e DB_USER=exercise_dummy -e DB_PASSWORD=exercise-dummy-password \
 		--mount "type=bind,src=$(pwd)/$reports/ROOT.war,dst=/usr/local/tomcat/webapps/ROOT.war,readonly" \
 		--entrypoint sh ppe-app:local -c 'rm -rf /usr/local/tomcat/webapps/ROOT; exec catalina.sh run' >/dev/null
+	set -- --network "$network" -e DB_HOST="$database" -e DB_PORT=3306 -e DB_NAME=ppe_exercise_review_test \
+		-e DB_USER=root -e DB_PASSWORD=exercise-dummy-root -e TEACHER_EXERCISE_DB_TEST=true
 	docker run --name "$http" --label ppe.exercise-review.owner="$owner" "$@" \
 		-e TEACHER_EXERCISE_RUNTIME_TEST=true -e TEACHER_EXERCISE_HTTP_BASE=http://ppe-exercise-review-runtime:8080 \
 		--mount "type=bind,src=$(pwd),dst=/source,readonly" --entrypoint sh ppe-tools:local -c '
@@ -82,6 +86,11 @@ if [ "$mode" = integration ]; then
 	mkdir -p "$reports/http"
 	docker cp "$http:/workspace/build/test-results/test/." "$reports/http/"
 	docker logs "$runtime" > "$reports/runtime.log" 2>&1
+fi
+if [ "$mode" = browser ] && [ "$result" = 0 ]; then
+	echo "Synthetic browser fixture ready at http://teacher.localhost:18090/teacher/account/login"
+	echo "Login ex_teacher / ExerciseDummy42!; interrupt this script to remove its isolated environment."
+	while :; do sleep 1; done
 fi
 echo "Exercise-review $mode result=$result; reports: $reports; isolated containers/network will be removed."
 exit "$result"

@@ -234,8 +234,12 @@ document.addEventListener('DOMContentLoaded', () => {
     (opener || form.elements.search).focus();
   });
   form.addEventListener('submit', event => event.preventDefault());
-  form.addEventListener('input', render);
-  form.addEventListener('change', event => { if (event.target === form.elements.schoolId) populateClasses(); render(); });
+  form.addEventListener('input', event => { if (event.target === form.elements.search) render(); });
+  form.addEventListener('change', event => {
+    if (!(event.target instanceof HTMLSelectElement)) return;
+    if (event.target === form.elements.schoolId) populateClasses();
+    render();
+  });
   for (const header of document.querySelectorAll('[data-sort-key]')) {
     function changeSort() { direction = sort === header.dataset.sortKey && direction === 'asc' ? 'desc' : 'asc'; sort = header.dataset.sortKey; render(); }
     header.addEventListener('click', changeSort);

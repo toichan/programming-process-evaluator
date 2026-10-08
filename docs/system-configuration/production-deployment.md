@@ -109,8 +109,9 @@ Do not start normal Nginx before a real certificate is installed:
 ```sh
 sudo apt-get update
 sudo apt-get install -y certbot
-sudo install -d -m 0700 /var/lib/ppe/tls-private/current /var/lib/ppe/acme \
+sudo install -d -m 0700 /var/lib/ppe/tls-private/current \
   /var/lib/ppe/certbot/config /var/lib/ppe/certbot/work /var/lib/ppe/certbot/log
+sudo install -d -m 0755 /var/lib/ppe/acme
 export PPE_PROJECT=ppe-production
 export PPE_COMPOSE_FILE=/var/lib/ppe/releases/<commit>/source/compose.production.yml
 export PPE_RELEASE=<40-character-commit>
@@ -133,6 +134,16 @@ domains, validates certificate SANs/key match/expiry, installs it, then runs
 public issuance and `certbot renew --dry-run` remain unverified and require approval.
 After issuance, set `PPE_BIND_ADDRESS=0.0.0.0` only when the EC2 Security Group and
 operator approval permit ports 80/443. Nginx redirects HTTP to HTTPS.
+
+Bootstrap prepares only the public ACME webroot with mode 0755 so Nginx UID/GID
+101:101 can traverse it through the read-only bind mount. TLS and Certbot
+directories are still prepared with mode 0700 and `umask 077`; installed TLS
+material continues to follow the existing installation policy below. Challenge
+files must be readable (normally 0644), and the `.well-known/acme-challenge`
+directories must be traversable (normally 0755). Keep the ACME webroot separate
+from private material; do not recursively relax permissions on TLS or Certbot
+directories. Host ancestors above the bind source need not be made public:
+the container accesses the mounted webroot, not the host path above it.
 
 The Nginx image owns `ENTRYPOINT ["nginx"]`; Compose `command` must contain
 arguments only. Normal Nginx inherits `["-g", "daemon off;"]`, while the bootstrap
@@ -160,7 +171,10 @@ cleanup, existing-deployment guards, bootstrap and renewal. The second requires
 local Docker, Compose (with JSON config support), jq, OpenSSL and curl. It builds
 a uniquely tagged test image and derives an isolated Compose project from the
 production Nginx service definitions, using loopback dynamic ports, a synthetic
-upstream and dummy TLS material. It checks actual container commands, bootstrap
+upstream and dummy TLS material. It uses the bootstrap script to prepare webroot
+permissions and checks UID/GID 101:101 traversal, challenge file reads, read-only
+mount behavior and preservation of private directory modes. It checks actual
+container commands, bootstrap
 health/challenge delivery and normal HTTPS startup/reload. It does not invoke
 real Certbot, mount production secrets, or replace release images. A deliberately
 broken test-only command reproduces the duplicate-`nginx` startup failure and

@@ -47,9 +47,9 @@ trap cleanup EXIT
 trap 'exit 1' HUP INT TERM
 
 mkdir -p "$test_root/tls" "$test_root/acme/.well-known/acme-challenge"
-chmod 0755 "$test_root/acme" "$test_root/acme/.well-known" "$test_root/acme/.well-known/acme-challenge"
+chmod 0755 "$test_root/acme/.well-known" "$test_root/acme/.well-known/acme-challenge"
 printf 'synthetic-acme-challenge\n' > "$test_root/acme/.well-known/acme-challenge/startup-test"
-chmod 0444 "$test_root/acme/.well-known/acme-challenge/startup-test"
+chmod 0644 "$test_root/acme/.well-known/acme-challenge/startup-test"
 openssl req -x509 -newkey rsa:2048 -nodes -days 3 \
     -keyout "$test_root/dummy.key" -out "$test_root/dummy.crt" \
     -subj /CN=student.ppeval.net \
@@ -118,21 +118,6 @@ assert_command() {
         jq -e --argjson expected "$expected" '.[0] | .Path == "nginx" and .Args == $expected' >/dev/null
 }
 
-[[ ! -e "$test_root/tls/fullchain.pem" && ! -e "$test_root/tls/privkey.pem" ]]
-dc up -d --no-deps --wait --wait-timeout 30 acme-bootstrap
-assert_command acme-bootstrap '["-c", "/etc/nginx/acme-bootstrap.conf", "-g", "daemon off;"]'
-dc exec -T acme-bootstrap nginx -t -c /etc/nginx/acme-bootstrap.conf
-http_address=$(dc port acme-bootstrap 80)
-for role in student teacher; do
-    response=$(curl --noproxy '*' -fsS --max-time 5 -H "Host: $role.ppeval.net" \
-        "http://$http_address/.well-known/acme-challenge/startup-test")
-    [[ "$response" = synthetic-acme-challenge ]]
-    [[ "$(curl --noproxy '*' -sS --max-time 5 -o /dev/null -w '%{http_code}' \
-        -H "Host: $role.ppeval.net" "http://$http_address/")" = 404 ]]
-done
-echo "PASS: real ACME bootstrap uses a single nginx, becomes healthy without TLS, and serves both challenge hosts"
-dc stop acme-bootstrap
-
 mkdir "$test_root/bin"
 native_docker=$(command -v docker)
 cat > "$test_root/bin/docker" <<'DOCKER'
@@ -166,6 +151,50 @@ grep -q 'invalid option: "nginx"' "$test_root/failed-container.log"
 [[ ! -e "$test_root/tls/fullchain.pem" && ! -e "$test_root/tls/privkey.pem" ]]
 [[ -z "$(dc ps -a -q nginx)" ]]
 echo "PASS: real duplicate-command failure stops bootstrap, skips Certbot, preserves TLS absence, and does not start normal Nginx"
+
+[[ -z "$(find "$test_root/acme" -prune ! -perm 0755 -print)" ]]
+for directory in "$test_root/tls" "$test_root/certbot-config" "$test_root/certbot-work" "$test_root/certbot-log" "$test_root"; do
+    [[ -z "$(find "$directory" -prune ! -perm 0700 -print)" ]]
+done
+dc up -d --no-deps --wait --wait-timeout 30 acme-bootstrap
+assert_command acme-bootstrap '["-c", "/etc/nginx/acme-bootstrap.conf", "-g", "daemon off;"]'
+dc exec -T acme-bootstrap nginx -t -c /etc/nginx/acme-bootstrap.conf
+dc exec -T acme-bootstrap sh -ec '
+    identity=$(id -u):$(id -g)
+    test "$identity" = 101:101 || { echo "Unexpected Nginx identity: $identity" >&2; exit 1; }
+    for directory in /var/www/acme /var/www/acme/.well-known /var/www/acme/.well-known/acme-challenge; do
+        mode=$(stat -c %a "$directory")
+        test -x "$directory" && test "$mode" = 755 || {
+            echo "Unexpected ACME directory access: $directory (mode $mode)" >&2
+            exit 1
+        }
+        if (printf "must-not-write\n" > "$directory/.ppe-write-test") 2>/dev/null; then
+            echo "ACME directory unexpectedly permits writes: $directory" >&2
+            exit 1
+        fi
+    done
+    file=/var/www/acme/.well-known/acme-challenge/startup-test
+    mode=$(stat -c %a "$file")
+    test -r "$file" && test "$mode" = 644 &&
+        test "$(cat "$file")" = synthetic-acme-challenge || {
+            echo "Unexpected ACME challenge access or contents (mode $mode)" >&2
+            exit 1
+        }
+    if (printf "must-not-write\n" >> "$file") 2>/dev/null; then
+        echo "ACME challenge unexpectedly permits writes" >&2
+        exit 1
+    fi
+'
+http_address=$(dc port acme-bootstrap 80)
+for role in student teacher; do
+    response=$(curl --noproxy '*' -fsS --max-time 5 -H "Host: $role.ppeval.net" \
+        "http://$http_address/.well-known/acme-challenge/startup-test")
+    [[ "$response" = synthetic-acme-challenge ]]
+    [[ "$(curl --noproxy '*' -sS --max-time 5 -o /dev/null -w '%{http_code}' \
+        -H "Host: $role.ppeval.net" "http://$http_address/")" = 404 ]]
+done
+echo "PASS: bootstrap-prepared permissions allow UID/GID 101:101 to read challenges and serve both hosts without write access"
+dc stop acme-bootstrap
 
 cp "$test_root/dummy.crt" "$test_root/tls/fullchain.pem"
 cp "$test_root/dummy.key" "$test_root/tls/privkey.pem"
