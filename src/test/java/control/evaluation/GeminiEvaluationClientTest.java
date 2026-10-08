@@ -23,6 +23,23 @@ import com.google.gson.JsonParser;
 class GeminiEvaluationClientTest {
 	private HttpServer server;
 
+	@Test
+	void localMockCannotReceiveProductionKeysOrArbitraryEndpointConfiguration() {
+		assertEquals("https://generativelanguage.googleapis.com/",
+				GeminiEvaluationClient.configuredBaseUri(java.util.Map.of()).toString());
+		for (var environment : java.util.List.of(
+				java.util.Map.of("PPE_ENV", "production", "GEMINI_API_BASE_URI", "http://gemini-mock:8099/"),
+				java.util.Map.of("PPE_ENV", "simulation", "GEMINI_API_BASE_URI", "http://gemini-mock:8099/",
+						"GEMINI_API_KEY", "non-synthetic-key"),
+				java.util.Map.of("PPE_ENV", "simulation", "GEMINI_API_BASE_URI", "https://untrusted.invalid/",
+						"GEMINI_API_KEY", "synthetic-key"))) {
+			assertThrows(IllegalStateException.class, () -> GeminiEvaluationClient.configuredBaseUri(environment));
+		}
+		assertEquals("http://gemini-mock:8099/", GeminiEvaluationClient.configuredBaseUri(
+				java.util.Map.of("PPE_ENV", "simulation", "GEMINI_API_BASE_URI", "http://gemini-mock:8099/",
+						"GEMINI_API_KEY", "synthetic-key")).toString());
+	}
+
 	@AfterEach
 	void stopServer() {
 		if (server != null) {

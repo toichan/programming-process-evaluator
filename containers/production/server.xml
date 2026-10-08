@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Server port="-1">
+  <Service name="Catalina">
+    <Connector port="8080" protocol="HTTP/1.1" connectionTimeout="10000"
+               maxPostSize="4194304" maxThreads="100" server="PPE" />
+    <Engine name="Catalina" defaultHost="localhost">
+      <Host name="localhost" appBase="webapps" unpackWARs="true" autoDeploy="false">
+        <!-- Only the isolated proxy network is allowed to supply forwarded headers. -->
+        <Valve className="org.apache.catalina.valves.RemoteIpValve"
+               internalProxies="${PPE_TRUSTED_PROXY_REGEX}" remoteIpHeader="X-Forwarded-For"
+               protocolHeader="X-Forwarded-Proto" portHeader="X-Forwarded-Port" />
+      </Host>
+    </Engine>
+  </Service>
+</Server>

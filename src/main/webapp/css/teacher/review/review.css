@@ -1,0 +1,8 @@
+.review-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; align-items: end; }
+.review-code { font-family: monospace; white-space: pre; overflow: auto; max-height: 28rem; background: #f4f6f8; padding: 1rem; border-radius: .5rem; }
+#teacherReview .table { min-width: 1000px; }
+#teacherReview h3, #submissionModal h3 { margin-top: 1.5rem; font-size: 1.2rem; }
+.review-score { display: flex; gap: .75rem; align-items: center; }
+.review-score meter { width: 7rem; }
+#teacherReview .panel-card { padding: 1.5rem; }
+@media (max-width: 600px) { #teacherReview .panel-card { padding: .75rem; } }

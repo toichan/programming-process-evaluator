@@ -2,10 +2,13 @@ package control.student;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.text.Normalizer;
 import java.util.List;
 
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.api.Test;
 import control.auth.AuthenticatedUser;
 import entity.StandardRubric;
@@ -14,9 +17,39 @@ import entity.UserCredential.UserType;
 
 class StandardRubricSourceTest {
 	static StandardRubric source() throws Exception {
-		return StandardRubricSource.parse(
-				Files.readString(Path.of("docs/rubric/思考力・判断力・表現力_ルーブリック_0805.md")),
-				Files.readString(Path.of("docs/rubric/主体的に学習に取り組む態度_ルーブリック_0805.md")));
+		return StandardRubricSource.loadFromDirectory(Path.of("docs/rubric"));
+	}
+
+	private static String readRubric(String filename) throws IOException {
+		String expected = Normalizer.normalize(filename, Normalizer.Form.NFC);
+		try (var entries = Files.list(Path.of("docs/rubric"))) {
+			Path source = entries
+					.filter(path -> Normalizer.normalize(path.getFileName().toString(), Normalizer.Form.NFC)
+							.equals(expected))
+					.findFirst()
+					.orElseThrow();
+			return Files.readString(source);
+		}
+	}
+
+	@Test
+	void loadsRubricsWhenFilesystemUsesDecomposedUnicodeFilenames(@TempDir Path directory) throws Exception {
+		Path sourceDirectory = Path.of("docs/rubric");
+		for (String filename : List.of(
+				"思考力・判断力・表現力_ルーブリック_0805.md",
+				"主体的に学習に取り組む態度_ルーブリック_0805.md")) {
+			String expected = Normalizer.normalize(filename, Normalizer.Form.NFC);
+			Path source;
+			try (var entries = Files.list(sourceDirectory)) {
+				source = entries
+						.filter(path -> Normalizer.normalize(path.getFileName().toString(), Normalizer.Form.NFC)
+								.equals(expected))
+						.findFirst()
+						.orElseThrow();
+			}
+			Files.copy(source, directory.resolve(Normalizer.normalize(filename, Normalizer.Form.NFD)));
+		}
+		assertEquals(2, StandardRubricSource.loadFromDirectory(directory).dimensions().size());
 	}
 
 	@Test
@@ -34,8 +67,8 @@ class StandardRubricSourceTest {
 
 	@Test
 	void rejectsMissingRowsAndWrongLevelOrder() throws Exception {
-		String thinking = Files.readString(Path.of("docs/rubric/思考力・判断力・表現力_ルーブリック_0805.md"));
-		String attitude = Files.readString(Path.of("docs/rubric/主体的に学習に取り組む態度_ルーブリック_0805.md"));
+		String thinking = readRubric("思考力・判断力・表現力_ルーブリック_0805.md");
+		String attitude = readRubric("主体的に学習に取り組む態度_ルーブリック_0805.md");
 		assertThrows(IllegalArgumentException.class, () -> StandardRubricSource.parse("", attitude));
 		assertThrows(IllegalArgumentException.class,
 				() -> StandardRubricSource.parse(thinking.replace("**レベル5**", "**レベル1**"), attitude));

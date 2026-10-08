@@ -279,7 +279,7 @@ public final class StudentEvaluationDao {
 		}
 	}
 
-	private static EvaluationResult findEvaluationResult(
+	static EvaluationResult findEvaluationResult(
 			Connection connection,
 			long evaluationId,
 			long submissionId,

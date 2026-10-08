@@ -25,6 +25,7 @@ public final class AuthenticationFilter implements Filter {
 	private static final StudentControl STUDENTS = new StudentControl();
 	private FilterConfig filterConfig;
 	private PortalHostRouting portalHostRouting;
+	private final boolean requireHttps = ProductionTransportPolicy.requiresHttps(System.getenv());
 
 	@Override
 	public void init(FilterConfig filterConfig) {
@@ -39,6 +40,10 @@ public final class AuthenticationFilter implements Filter {
 		HttpServletResponse response = (HttpServletResponse) servletResponse;
 		String requestedPath = request.getRequestURI().substring(request.getContextPath().length());
 		String path = ApplicationUrls.canonicalPath(requestedPath);
+		if (requireHttps && !ProductionTransportPolicy.permitted(true, request.isSecure(), path)) {
+			response.sendError(HttpServletResponse.SC_FORBIDDEN, "HTTPS is required.");
+			return;
+		}
 		java.util.Optional<String> portalRedirect = portalHostRouting.redirectLocation(
 				request.getServerName(), request.getServerPort(), path, request.getContextPath());
 		if (portalRedirect.isPresent()) {

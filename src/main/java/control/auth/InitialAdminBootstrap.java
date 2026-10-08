@@ -26,6 +26,7 @@ public final class InitialAdminBootstrap {
 		String displayName = console.readLine("Initial administrator display name: ");
 		char[] password = console.readPassword("Initial administrator password: ");
 		char[] confirmation = console.readPassword("Confirm password: ");
+		boolean dataSourceInitialized = false;
 		try {
 			if (displayName == null || displayName.isBlank() || displayName.length() > 100) {
 				throw new IllegalArgumentException("The display name must be 1-100 characters.");
@@ -39,7 +40,9 @@ public final class InitialAdminBootstrap {
 			}
 
 			AuthenticationDao dao = new AuthenticationDao();
-			try (Connection connection = Client.createConnection()) {
+			Connection initializedConnection = Client.createConnection();
+			dataSourceInitialized = true;
+			try (Connection connection = initializedConnection) {
 				connection.setAutoCommit(false);
 				try {
 					if (dao.hasAdmin(connection)) {
@@ -60,6 +63,9 @@ public final class InitialAdminBootstrap {
 			}
 			if (confirmation != null) {
 				Arrays.fill(confirmation, '\0');
+			}
+			if (dataSourceInitialized) {
+				Client.closeDataSource();
 			}
 		}
 	}

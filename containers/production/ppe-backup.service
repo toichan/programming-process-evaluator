@@ -1,0 +1,12 @@
+[Unit]
+Description=Programming Process Evaluator encrypted database backup
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+User=root
+UMask=0077
+EnvironmentFile=/var/lib/ppe/operation.env
+WorkingDirectory=/opt/ppe/current/source
+ExecStart=/usr/bin/bash /opt/ppe/current/source/scripts/production/backup.sh

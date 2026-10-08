@@ -5,8 +5,12 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 
 import com.google.gson.Gson;
 
@@ -17,9 +21,10 @@ public final class PythonRunnerClient {
 	private final HttpClient httpClient;
 	private final URI runnerUri;
 	private final URI executionUri;
+	private final String token;
 
 	public PythonRunnerClient() {
-		this(configuredRunnerUri());
+		this(configuredRunnerUri(), configuredToken(System.getenv()));
 	}
 
 	private static URI configuredRunnerUri() {
@@ -31,17 +36,57 @@ public final class PythonRunnerClient {
 	}
 
 	PythonRunnerClient(URI runnerUri) {
+		this(runnerUri, "");
+	}
+
+	PythonRunnerClient(URI runnerUri, String token) {
 		this.runnerUri = runnerUri;
 		this.executionUri = runnerUri.resolve("/execute");
+		this.token = token;
 		this.httpClient = HttpClient.newBuilder()
 				.connectTimeout(Duration.ofSeconds(2))
 				.build();
 	}
 
+	static String configuredToken(Map<String, String> environment) {
+		String file = environment.get("PYTHON_RUNNER_TOKEN_FILE");
+		String value;
+		if (file != null && !file.isBlank()) {
+			try (var input = Files.newInputStream(Path.of(file))) {
+				byte[] bytes = input.readNBytes(4097);
+				if (bytes.length > 4096) {
+					throw new IllegalStateException("The runner token is invalid.");
+				}
+				value = new String(bytes, StandardCharsets.UTF_8).strip();
+			} catch (IOException | java.nio.file.InvalidPathException e) {
+				throw new IllegalStateException("The runner token file cannot be read.", e);
+			}
+		} else {
+			value = environment.getOrDefault("PYTHON_RUNNER_TOKEN", "").strip();
+		}
+		if (!value.isEmpty() && (value.length() > 4096
+				|| !value.chars().allMatch(character -> character >= 33 && character <= 126))) {
+			throw new IllegalStateException("The runner token is invalid.");
+		}
+		if (value.isEmpty() && ((file != null && !file.isBlank())
+				|| "production".equals(environment.get("PPE_ENV")))) {
+			throw new IllegalStateException("The runner token must be configured.");
+		}
+		return value;
+	}
+
+	private HttpRequest.Builder authorizedRequest(URI uri) {
+		HttpRequest.Builder builder = HttpRequest.newBuilder(uri);
+		if (!token.isEmpty()) {
+			builder.header("Authorization", "Bearer " + token);
+		}
+		return builder;
+	}
+
 	PythonExecutionResult execute(String source, String standardInput)
 			throws IOException, InterruptedException {
 		String requestBody = GSON.toJson(new ExecutionRequest(source, standardInput));
-		HttpRequest request = HttpRequest.newBuilder(executionUri)
+		HttpRequest request = authorizedRequest(executionUri)
 				.timeout(Duration.ofSeconds(65))
 				.header("Content-Type", "application/json; charset=UTF-8")
 				.header("Accept", "application/json")
@@ -73,8 +118,13 @@ public final class PythonRunnerClient {
 	}
 
 	public PythonExecutionResult executePreview(String source) throws IOException, InterruptedException {
+		return executePreview(source, "");
+	}
+
+	public PythonExecutionResult executePreview(String source, String standardInput) throws IOException, InterruptedException {
 		String validatedSource = entity.StudentExerciseInput.validateCode(source);
-		return execute(validatedSource, "");
+		String validatedInput = entity.StudentExerciseInput.validateStandardInput(standardInput);
+		return execute(validatedSource, validatedInput);
 	}
 
 	TimedResult executeTimed(String source, String standardInput) throws IOException, InterruptedException {
@@ -129,7 +179,7 @@ public final class PythonRunnerClient {
 
 	private RunnerSessionResponse sendSessionRequest(URI uri, String method, String body, int expectedStatus)
 			throws IOException, InterruptedException {
-		HttpRequest.Builder builder = HttpRequest.newBuilder(uri)
+		HttpRequest.Builder builder = authorizedRequest(uri)
 				.timeout(Duration.ofSeconds(5))
 				.header("Accept", "application/json");
 		if (body == null) {

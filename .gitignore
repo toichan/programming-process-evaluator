@@ -8,3 +8,5 @@
 /bin/
 /gradlew*
 /.env
+/deploy/runtime/
+/.env.production
