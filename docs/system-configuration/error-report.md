@@ -2,6 +2,149 @@
 
 秘密情報・実際の生徒データ・研究データは記載しない。解消後も履歴を保持する。
 
+## 2026-10-08: 不同意案内の削除と教師からアンケートまでの縦断受入
+
+- 機能仕様第149/150版に従い、不同意常設バナーだけを削除。未回答案内、保存通知、同意画面の現在回答、学習継続、アンケートの同意条件は維持した。専用合成DBの実HTTP・統合ブラウザーで確認し、8080へ反映した。
+- 本実装のブロッカーを検出: 新規課題は再評価対象が0人のため、設定済みプロンプトを適用できず公開できなかった。ユーザー承認後に「未公開課題に適用」を追加。未公開・学習開始前、教師/所有/所属権限、明示確認、CSRF、両版、有効ルーブリックと生成物を検証し、active参照・課題版・監査を同一transactionで保存する。既存の対象0人の再評価契約は維持し、適用時の追加AI/job/評価行は0。
+- 版表示の既存bug: prompt statusに存在しない`active`との比較をやめ、課題のactive参照との比較で「適用中」を表示する。アンケートの学習ナビは評価IDを提出IDとして渡していたため、`evaluationSubmissionId`へ修正。評価ID100・提出ID1の実データでリンクと戻り先200を検証した。初回同番のデータだけで成功と判定しない。
+- ブラウザーで評価完了後もホームの課題状態だけ「評価待ち」となる不整合を検出。教師側の最新評価判定を`TaskProgressStatus`へ抽出して共有し、生徒の提出後表示へ適用。DBの履歴は書き換えない。再編集/未着手・明示要対応を以前の完了評価で隠さない。赤テストは8件中7成功/1失敗、修正後の全体と再起動後readbackは成功。
+- 検証環境の初回起動は共有Gradle journal lockでexit1。共有lockを削除せず、既存cacheをread-onlyで参照してlock/journalを除外した専用cacheへコピーして解消。専用schemaへ正本V1〜V23 SQLをDB所有者で順に適用した。Flyway CLIの成功と同一視せず、共有のglobal設定は変更していない。
+- テストの不備を分離して修正: ①`GET /auth/logout`は正しく405になるため正規POST+CSRFへ変更。②初回生徒はDB triggerによりパスワード変更必須となるため、正規変更を経て同意画面へ進むよう修正。③他者の評価は既存の本人検索契約どおりホーム302なので、誤った403期待を修正（アンケート他者403は別途確認）。④native formのCRLFに合わせて課題fixtureを作成し、HTTPのLF作成とブラウザー再送の混在で不要な入力変更判定を発生させない。製品の改行正規化契約は変更していない。⑤JSTLのURL出力に対し`&amp;`限定assertをやめ、同じURLの`&`とHTMLエスケープ表現を区別した。アンケート初回失敗時は回答0を確認し、専用DBの未使用設問fixtureだけを再準備して再実行。評価を再生成/捏造して埋めていない。
+- 課題・プロンプト・適用・公開・提出・完了評価は正規HTTP操作で作成。実Pythonで入力3→出力6、提出前チェック1/1、実Pro通常評価の完了/検証済み応答・固定版/入力・観点/理由のDB再読込、回答の下書き保存/提出/再表示/重複提出で不変を確認した。アンケート設問登録UIは未実装のため、課題別設問設定だけを検証DBへ登録した。これを教師による全設定UIの完成とは扱わない。
+- 実HTTPの正確なコマンドは `docker exec -e LEARNING_FLOW_HTTP_TEST=true -e LEARNING_FLOW_HTTP_BASE=http://ppe-learning-flow-runtime:8080 ppe-learning-flow-runtime gradle --project-cache-dir=/tmp/ppe-learning-flow-project-cache -I /tmp/ppe-learning-flow.init.gradle test --tests servlet.journey.<対象クラス> --rerun-tasks --no-daemon --console=plain`。`LearningFlowFixtureTest`1件→`registerStandardRubric`→`TeacherLearningFlowRuntimeTest`2件→`StudentLearningFlowRuntimeTest`1件→`SurveyLearningFlowRuntimeTest`1件を順次実行し全成功、各exit0。最終修正後にアプリを再起動して`LearningFlowReadBackRuntimeTest`1件も成功、exit0。ゲート有効の一括実行に順序を委ねない。fixtureは空DB必須、surveyは本人の実completed評価必須。
+- 外部ゲート無効の最終全体コマンド: `docker exec ppe-learning-flow-runtime gradle --project-cache-dir=/tmp/ppe-learning-flow-project-cache -I /tmp/ppe-learning-flow.init.gradle test war --rerun-tasks --no-daemon --console=plain` → exit0、358件中232成功/126明示skip/失敗0、WAR成功。ゲートskipを実DB/外部API成功と扱わない。新規Javaのエディター診断は正常、既存Gson参照解決の環境診断は変更していない。
+- 今回の実生成POSTは調査中の再実行を含め8回、全てPro Preview/HTTP200。最終の教師生成2回は26,469/26,733ms、通常評価は20,823ms。追加再読込・画面確認では再生成していない。入力は全て合成データで、実生徒データは送っていない。費用/quota/負荷・人手による採点品質校正は別受入。
+- 統合ブラウザーで教師のPro/適用中/実生成物、同じ生徒提出の評価/観点/理由、評価ID100→アンケート→提出ID1の戻る導線、提出済み回答の非編集表示、再起動後ホームの完了/評価済み/回答済み、不同意生徒の常設バナー0・課題利用可・アンケート対象外を確認。pointer clickの可視/安定待ちtimeoutはnative form/DOM/実HTTPで補った。ブラウザー用assertの教師landing期待違いと提出後にtextboxを探したtimeoutも記録し、実表示/静的回答と照合した。CLI/全pointer E2E認定ではない。
+- 8080反映: `docker exec programming-process-evaluator-app-live gradle --project-cache-dir=/tmp/ppe-learning-live-project-cache war --no-daemon --console=plain --warning-mode all` → exit0。`docker restart --timeout 195 programming-process-evaluator-app-live` → 成功、教師/生徒login200、新しい共通状態判定・初回適用methodの実classを確認。既存課題10/11のmetadata hashは一致、無関係18081のlogin200。共有利用者の資格情報や既存課題は変更していない。
+- 清掃済み: 自作18082アプリ、専用schema/追加grant、一時秘密envファイルだけを削除し、schema/grant残件0・ファイル不存在を確認。清掃後も8080両login/18081のlogin200と課題10/11のhash一致を再確認。テストXML・安全なprovider status/所要時間・詳細reportはsession artifactsへ保持した。
+
+## 2026-10-08: 公開URLの横断整理と受入
+
+- [方針](./url-routing-policy.md)と機能仕様第148版に従い、24 Servlet・JSPの業務リンク/フォーム/endpoint、ログイン/強制変更/戻り先を確認し、本人情報と他者管理を区別した。旧URL7種は認証・ロール・セッション版・強制変更制限の後にGET/HEAD302、POST等307で誘導する。プロトタイプ、内部JSP/CSS/JS配置、課題/APIの既存系列は維持した。
+- TDDの初回`ApplicationUrlContractTest` / `LoginServletTest`は11件中6成功/5失敗、exit1。旧mapping・JSPの旧リンク・旧landing/強制変更先を検出した意図した赤テスト。修正後の対象認証/アカウントテストと全体回帰は成功した。
+- 専用schemaへのapp権限による`flywayMigrate`はV11でMySQL1419（trigger作成にSUPERが必要）となりexit1。自作の空の専用schemaだけを再作成し、DB所有者で正本のV1〜V23 SQLを順に適用した。共有DBや`log_bin_trust_function_creators`等のglobal設定を変更していない。この直接SQL適用をFlyway CLI成功とは扱わない。
+- 専用containerをinternal DB networkだけで起動した時はpublishされたportがなくcurl exit7。自作containerだけを既存outbound/application networkへ接続し、18082のlogin200を確認。別containerからのGradle検証は共有journal cacheのPID/lockによりexit1。lockを削除せず、専用アプリcontainer内で検証を実行して解消した。
+- 初回の実HTTP5件は4成功/1失敗、exit1。生徒hostから教師URLへの要求は従来契約どおり教師hostのloginへ302となるが、テストが誤って403を期待していた。host違いの302と、教師hostに生徒sessionを提示した時の403を分けてassertし、専用schemaを再作成して再実行。最終5件は全成功/失敗0、exit0。teacher reset/強制変更/失効、旧student password POST307→正規処理→状態/版/資格情報DB再読込、任意変更302→正規account、旧consent POST保存・再読込、不正CSRF403を確認した。
+- 実HTTPの正確な実行: `docker exec -e GEMINI_API_SMOKE_TEST=false -e URL_ROUTING_HTTP_TEST=true -e URL_ROUTING_HTTP_BASE=http://ppe-url-routing-runtime:8080 ppe-url-routing-runtime gradle --project-cache-dir=/tmp/ppe-url-test-project-cache --init-script /tmp/ppe-url-routing.init.gradle test --tests servlet.auth.ApplicationUrlRuntimeTest --no-daemon --console=plain` → 成功。専用DB/空users/専用アプリURIをtest側で検証する。init scriptは`jdk.httpclient.allowRestrictedHeaders=host`、並列無効、buildをcontainerの`/tmp`へ分離するだけで、認可やDB処理をmockしない。
+- 全体回帰の正確な実行: `docker exec -e GEMINI_API_SMOKE_TEST=false -e URL_ROUTING_HTTP_TEST=false ppe-url-routing-runtime gradle --project-cache-dir=/tmp/ppe-url-test-project-cache --init-script /tmp/ppe-url-routing.init.gradle test war --no-daemon --console=plain` → 成功、343件中223成功/120ゲートskip/失敗0、WAR成功。専用アプリのGeminiキーは空、実APIゲート無効。外部Gemini要求は0。
+- 統合ブラウザーで教師login→students・JSの一覧/検索JSON、旧URLのクエリ保持、本人情報/password、生徒login→ナビ研究同意・回答再表示・旧account/passwordから正規画面、管理者login→teachersと学校tabの実DB表示を確認。教師password下部リンクと一部管理者clickは可視/安定待ちでtimeoutし、統合toolのAPIRequestContextは`Storage.getCookies`未対応で失敗した。DOMでhref/可視寸法を確認し、直接GET・実HTTP、native form submit/DOM tab clickで対象画面を確認した。ポインタclick/CLI認証E2Eの全面合格とは扱わず、この制約を保持する。
+- エディター診断では既存Gson参照に依存解決エラーが残るが、追加URLクラス・filter/login/rootと追加テストの診断は正常。Gson依存・既存importは変更せず、実際のGradleコンパイル・全体回帰・実JSON/画面読込は成功している。エディターclasspathの復旧は今回のURL修正対象外。
+- 8080反映: `docker exec programming-process-evaluator-app-live gradle --project-cache-dir=/tmp/ppe-url-live-project-cache war --no-daemon --console=plain --warning-mode all` → 成功。`docker restart --timeout 195 programming-process-evaluator-app-live` → 成功。両login200、teacher/student hostのroot302先、bare role/新旧保護URLの認証redirect、実classの新URL定数を確認した。Gradle9向け既存WarPluginConvention非推奨警告は保持。
+- 自作専用containerはSIGTERM終了（exit143、テスト結果とは別）後に削除、専用schema/grantは0、一時秘密設定も削除。課題10/11のmetadata hashは前後一致、無関係18081のlogin200。共有利用者のpassword・課題・DB状態、APIキー/model/envは変更していない。
+
+## 2026-10-08 06:41〜07:00 JST: Gemini失敗の原因切り分け
+
+- 同じ登録済みキー・3.7 Flash・合成入力で、応答schemaなしの短いInteractions要求、74bytesの最小schema付き要求、教師の揺らぎ生成を各1回比較した。短い要求も60秒上限でtimeout、最小schema付きも60,006msでtimeout、教師要求は503/高需要（49,171ms、入力6,449bytes/schema509bytes）。教師だけの入力サイズ・画面・DB処理を共通の失敗原因とは扱えない。最初の4テストはmetadata取得1成功/生成3失敗、exit 1。
+- 同じキーでモデルmetadata GETは200（118ms）。モデル名`models/gemini-3.7-flash`、version `3.7-flash-08-2026`、標準generateContent対応を確認した。公式モデル文書にも3.7 Flashが存在する。APIキーやモデル名の取り違えを主因とする根拠はない。
+- 同じモデル・短い合成入力で標準generateContentも1回確認し、503/高需要（47,448ms、1テスト失敗、exit 1）。Interactions固有の保存指定・JSON schema・Api-Revisionだけの問題ではない。標準APIはInteractionを作成しないため診断要求にstoreパラメータはなく、アプリのInteractions要求はstore:falseのまま維持した。
+- 本人回答で現行検証キーのプロジェクトは課金設定済み。「無料枠だから」と断定しない。Googleの公開statusはAll Systems Operationalだが、特定モデル/プロジェクトの個別要求の成功保証とは区別する。キーの紐付け・契約quota・残高・実際のpriorityのconsole実査は未実施。
+- 本人が「アプリ設定は変えず3.8 Flashへ1回だけ比較」を承認。同じキー・endpoint・revision・29bytes入力・74bytes schema・store:falseを用い、モデルだけを3.8へ変えた最小要求が200（2,953ms）、JSON検証とファイル保存/再読込に成功（1テスト成功、exit 0）。
+- 時間帯による差を確認するため、直後の3.7最小schema要求を1回再確認し、200（8,765ms）、同じJSON検証・保存/再読込に成功（1テスト成功、exit 0）。3.7が永久に使用不能、または3.8だけが動くとは結論しない。今回の直接の失敗はGoogleが高需要として返した503と生成応答待ちであり、容量/可用性が時間帯で揺れることを確認した。Google内部の具体的な容量不足理由まではAPI応答から特定できない。教師の完全な実API縦断は依然未完了。
+- 今回追加は生成POST6回（200:2、503:2、timeout:2）、metadata GET1回。生成POSTの累計は17回（200:3、503:11、timeout:3）。APIを無制限に再送せず、比較・再確認後に追加生成を停止した。実生徒データは使用していない。
+- 診断テストは明示flagでゲートし、別モデル比較/直後再確認には追加flagを要求する。最終の外部無効回帰は8成功/7明示skip/0失敗、exit 0。実APIで失敗した実行を、このローカル回帰成功で帳消しにはしない。
+- Gradleの出力を専用containerの`/tmp`へ隔離し、既存8080のclass出力・DB・利用者・課題・モデル設定・envを変更せず、再起動もしていない。測定JSON・合成成功出力・原因切り分けレポートはsession artifactへ保存。正確な実行条件は[AI計画の原因切り分け記録](./feature-plans/teacher-prompt-ai.md#原因切り分け記録2026-10-08-06410700-jst)を参照する。
+
+## 2026-10-08 06:18〜06:36 JST: AI追加確認・生成中エディター修正
+
+- 教師実API縦断の追加1件は、揺らぎ生成の3試行すべて503（14,225/9,038/16,992ms、Retry-Afterによる30秒待機を2回）。JUnit 0成功/1失敗/0skip、exit 1。外部累計11要求（200:1、503:9、timeout:1）。教師縦断の後段は未到達であり、モデル高需要の失敗を成功扱いしない。
+- 認証ブラウザーで、合成課題13だけを用いた保存/reload、生成中保存拒否409と行版保持、揺らぎ/評価例の15分超中断→フォーム保存→failed/reload/監査、未認証ログイン遷移、不正CSRF403、共有feedback確認/キャンセルを検証した。合成の評価例復旧fixtureはAI実生成の証拠とは扱わない。外部APIの追加UI呼出しなし。
+- 生成中のCodeMirrorが元textareaのreadonlyを継承せず編集可能だった。初回assertionで再現し、readonlyの明示設定後に生成中true/中断下書きfalseと保存拒否/復旧を確認。配信JSの構文/editor検査、WARとdiff checkは成功。既存機能の編集不可仕様の修正で、公開済みプロンプトの変更ではない。
+- 初回のブラウザー試験は、同一URLへのPOST redirect完了前のreloadでERR_ABORTED。navigationを先に待つ手順へ修正して成功。不正CSRF検証で`form.action`が同名の入力項目に隠され誤ったURLへ送信され400となったため、`getAttribute('action')`に修正して403を確認した。モーダルの表示アニメーション中の閉じ待ちtimeoutは、表示後にキャンセルを再実行して解消。新しいJSの配信確認とブラウザーcache上の旧JSの実行は区別した。
+- 清掃前の監査照会で存在しない`reason`列を使用し失敗したため、実schemaの`detail`/`target_type`/`target_id`で再照会し復旧監査3件を確認した。SQL照会失敗をDB受入成功に数えない。
+- 合成課題13はUIから論理削除し、archived/deleted・処理中0をDB確認。既存課題10/11の主要metadata hashは不変。専用schemaのusers/tasks各0を確認し、そのschema/grantだけを削除して残存0を確認した。検証の正確なコマンド・境界は[追加受入記録](./feature-plans/teacher-prompt-ai.md#追加の実api認証ブラウザー確認2026-10-08-06180636-jst)を参照する。
+
+## 2026-10-08 05:48以降 JST: AI信頼性・実API縦断
+
+- 最初の合成smoke1回は503（モデル高需要）で失敗した。共通retryを実装後、通常評価の合成実APIは200（21,586ms）で成功し、DB request成功、2観点の評価、検証済みresponse、input snapshotの保存・再読込を確認した。
+- 現行schemaに対する評価DB fixtureの最初の8件は課題の必須`school_id`未設定で失敗した。fixtureを現行schemaへ合わせて再実行し、8件成功/失敗・skip0となった。失敗した最初のDB実行では外部呼出しに到達していない。
+- 教師実API縦断テストの最初のコンパイルでprovider wrapperのthrows宣言不足が発生し修正。外部呼出しまで進んだ1回目は揺らぎ生成の3試行がすべて503（4,802/8,297/5,904ms）。2回目も2試行503（2,790/40,058ms）、3試行目は60秒HTTP timeout。いずれも高需要と明示された応答であり、schemaが原因とは断定しない。上限付き再試行後に生成失敗を記録し、成功扱いにはしない。
+- 上記までの外部要求は計8回（200:1、503:6、timeout:1）。入力は専用DB上の合成課題/提出/ログのみ。教師の揺らぎ→評価例→preview→確定の実API受入は未完了。自動的な無制限再送や未承認モデルへのfallbackは行わない。
+- 教師生成のrubric payloadが観点名だけだったため、DB登録済み標準rubricの尺度値・ラベル・記述も送るよう補完し、契約テストに追加した。通常評価は従来から尺度記述を送っている。
+
+## 2026-10-08 05:36〜05:46 JST: AI再開・モデル/保存設定の整合
+
+- TDD初回14件中6件失敗。3.7 Flashが教師clientで拒否される、旧2.5モデルがControl/clientで許可される、通常/教師生成のHTTP要求にstoreがない差分を再現した。共通モデル定義とstore:falseを実装後、専用DB4件を含む26件が成功（失敗/エラー/skip0）、WAR成功。正確な最終コマンドは[AI再開受入記録](./feature-plans/teacher-prompt-ai.md#t-ai-001002-受入記録)を参照する。
+- 汎用runTestsはJavaテストを検出しなかったため既存Gradleを使用した。エディターのGson型未解決は継続するが、実Gradleコンパイル成功とは区別する。
+- 8080再起動後のreadiness確認で実在しない `/auth/teacher/login` を使い、待機が失敗した。正しい `/teacher/account/login` はHTTP200であり、Tomcat起動も確認。再ログイン後の画面保存・reload受入は成功した。過去のGradle lockエラーが累積container logに含まれたが、今回の再起動は成功した。
+- 共有確認ボタンの誤ったselectorによるtimeoutは、実際のdialogのボタンで解消。今回生成した合成課題12/プロンプト1だけを検証し、課題12はUIから論理削除。既存課題10・進捗デモ11は未削除のまま保持した。
+- 専用schemaは現行schema/Flyway履歴だけを複製し、合成DB4件を実行した。空DB migrationの再検証ではない。fixture残存0を確認して専用schema/grantを削除。外部生成APIは呼び出しておらず、実モデル可用性・外部保持の実確認・retry改善は後続に残す。
+
+## 2026-10-07 18:46以降 JST: 個別初期パスワード検証
+
+- 全体のGradle `test war --rerun-tasks --no-daemon --warning-mode all`は成功。生徒資格情報のDBテストは専用Compose projectで2件成功した。
+- 最初に共有ローカルDB上へ新設した専用schemaのFlyway V11がMySQL error 1419（binary logging/routine creator権限）で失敗した。作成したschemaと同schemaへの付与権限だけを削除し、既存DBデータは変更していない。以後は独立Compose project/volumeを使い、migration中だけその専用MySQLの`log_bin_trust_function_creators`を1にし、適用後は0へ復元した。
+- 独立projectの空Gradle cacheで`--offline`を使ったmigration準備はFlyway Gradle plugin未キャッシュで失敗した。専用projectでオンラインのGradle `help`を実行してpluginを解決した後、全migrationとDBテストが成功した。
+- ホストの`node --check src/main/webapp/js/teacher/account/account.js`は`node: command not found`（exit 127）。既存8080のブラウザーで配信中の同JSを取得し、`new Function(source)`による構文検証はPASS（19,457文字）。Dockerは`docker info`で利用可能。ブラウザーの認証済みadmin/teacher UI受入は今回未実施。
+- browser toolの`page.request.get`は`Storage.getCookies`未対応で失敗したため、ブラウザーをJS資産URLへ直接開いて構文確認した。アプリ側の障害とは扱わない。独立ComposeのGradle/MySQL container/volumeは検証後に削除し、共有アプリ・DB・volumeは維持する。
+
+## 2026-10-07 17:56以降 JST: 工程12aの再検証・ブラウザー受入
+
+- 17:56の対象19件とWARは成功。専用V1〜V22 DBで全体270件中181成功・89明示ゲートskip・失敗/エラー0。教師本人DB4件と管理者教師DB2件はskip0で成功し、前項の不具合解消を確認した。コマンドと受入範囲は[認証計画の工程12a完了記録](./feature-plans/authentication-and-login.md#工程12aの完了記録2026-10-07)を参照する。
+- ホストの`node --check`はNode未導入で実行できなかった。複合コマンド全体のexit 0をNode成功とは扱わず、ブラウザーで変更JS 3本を取得して構文確認し、全件成功を確認した。Nodeのインストールはしていない。
+- 再起動直後の8080に一時的なEmpty reply/404があった。起動完了後の再確認は教師ログイン200であり、継続的な障害ではなかった。
+- ブラウザーツール側の結果整形で`URL is not defined`が出た。クリック・通知は先に実行されており、アプリ例外ではない。以後は実行側で`page.url()`をそのまま返し、URL解析はページ内で行った。
+- 通常クリックの安定待ちとaria-disabled要素の通知待ちでタイムアウトがあった。権限なしホームのマウス/Enter通知は確認済み。権限あり未実装の通知、表示切替、フォーム確認は標準DOMイベントから確認し、アプリ側の例外は観測しなかった。タイムアウトの原因をアプリ不具合と断定せず、通常ポインター操作の網羅的再確認は未実施として残す。
+- 確認ダイアログの表示途中にキャンセルした検証では閉じ待ちがタイムアウトした。Bootstrapの表示アニメーション完了後にキャンセルを再実行して成功し、確定後のログイン遷移・成功通知も確認した。入力失敗、CSRF、旧版などの期待された400/403/409は異常なサーバー障害と区別する。
+- 合成教師の清掃で「一覧から行が消える」という検証が失敗した。管理者一覧は論理削除後も履歴確認用の行を保持するためであり、実際の削除は成功済みだった。「削除済み」状態・更新版・失効を確認する検証へ修正し、履歴を物理削除して補わなかった。
+- 専用DB利用者残存0を確認後に当該schema/grantを除去し、それぞれ残存0とroutine設定0を確認した。通常DBの合成教師は論理削除し、既存確認アカウントのパスワードは維持した。外部API・実生徒データは使用していない。
+
+## 2026-10-07 17:41〜17:54 JST: 工程12aの初回変更・コンパイル・権限テスト
+
+- 初回変更の回帰テストを先に追加し、教師の必須変更が生徒URLへ遷移する不具合を再現した（7件中1件失敗）。教師専用の変更先を追加し、保存済み業務landingが必須変更先を上書きしないよう修正した。
+- DAO追加メソッドの挿入位置が既存メソッド内に入り、17:48の対象test/WARでコンパイルエラーになった。メソッド境界を修正した。
+- 17:54のコンパイル/WARは成功したが、権限テストのResultSet proxyが列番号を扱わず、追加した機能集合にnullを返した（19件中1件失敗）。DAOを明示的な列名で取得するよう修正した。再検証結果は工程12aの完了記録へ追記する。
+- 外部APIは使用していない。SQL履歴には資格情報を記載しない。エディターの依存関係解析が古い診断を表示する場合も、実際のGradleコンパイル結果と区別する。
+
+## 2026-10-07 17:19 JST: 教師ログイン初期画面の優先順位
+
+- ユーザー指示は生徒管理を初期画面とすることだったが、複数の機能権限がある教師では課題編集 → プロンプト設計 → 生徒管理の順で選ばれていた。生徒管理権限ありのケースを最優先へ修正し、権限なしfallbackと管理者/生徒/強制変更の遷移は維持した。権限判定済みの遷移先がない教師のfallbackも教師メニューへ変更した。
+- 対象テスト6件成功、失敗/エラー/skip0、WAR生成成功。8080の再ログイン後の生徒管理表示、メニュー制限、課題/プロンプト/管理者URL403、学校filter付きID/PW CSV200を確認した。コマンド・詳細は[認証計画](./feature-plans/authentication-and-login.md#生徒管理実装後の教師初期画面2026-10-07)を参照する。
+- 再起動直後のEmpty replyと一時404はretry後に解消し、教師ログイン200。暗号化資格情報・CSVの安全要件は変更せず、外部APIは使用していない。
+
+## 2026-10-07 16:42 JST: 工程12 最終受入と修正
+
+- 失敗監査用helperの挿入時に`requireTeacher`がtransactionメソッド内へ入ったコンパイルエラーを修正し、専用DB2件を含む全体257件（168成功/89 gate skip/失敗・エラー0）とWARを確認した。
+- 初回browserは失敗ビルド後のGretty状態で404。正常ビルド・app再作成後に8080へ再ログインして解消した。再作成は資格情報鍵の環境注入も反映するために行い、鍵の再生成はしていない。
+- 作成モーダルの表示遷移中にsubmitするとBootstrapのhideが無視され、共有確認待ちが完了しない問題を再現。表示遷移を追跡して`shown.bs.modal`を待ってからhideするよう修正し、レベル2/新規クラス作成と再設定で再検証した。アニメーションを削除して回避していない。再度開いたパスワード欄のtypeがtextのまま残る問題も、フォーム初期化でpasswordへ戻すよう修正した。
+- 操作名なしPOSTが500となることをHTTPで再現。immutable listの`contains(null)`がNullPointerExceptionとなることを追加単体テストで再現し、nullを先に拒否するガードを追加した。最終回帰は259件（168成功/91 gate skip/失敗・エラー0）とWAR成功。専用DBを清掃したため最終runではDB2件はskipだが、それ以前のゲート有効runで成功済み。コマンドは[工程12計画](./feature-plans/teacher-student-accounts.md#自動検証)を参照する。
+- browser検証では非表示tabのraf待ち、dialog buttonのselector違い、削除後も全状態filterでは5件残ることを3件と誤認した待ちにtimeoutが発生した。timer polling・実際のbutton名/状態へ修正し、共有確認の2人選択/キャンセル、詳細3種履歴、資格情報消去、パスワード再マスク、375px/モーダル359pxを再検証した。セッション切れのJSONリクエストは成功扱いにせず画面へ再ログインした。
+- HTTPで一覧/CSV/詳細/資格情報確認/再設定/ロック解除/停止/解除/2人削除、CSRF/権限外403、古い版400を確認。生徒の初回/再設定後変更、レベル1変更拒否、旧セッション失効、本人変更後のCSV空欄と暗号行除去、削除後履歴保持も確認した。
+- 専用schema/付与権限の残存0、routine設定0、通常app/DB/runner稼働を確認した。JSP/JS/CSS診断なし。クリップボード許可・全browser/OS・本番TLS/cookie/鍵運用は未確認として残し、外部APIは呼んでいない。
+- 最終app再起動直後はEmpty replyが3回発生し、retry後にログイン200。再認証後の画面別名/一覧/詳細/CSVは200、操作名なしPOSTは400を確認した。
+- 表示遷移の最初のbackdrop未表示段階では、show class確認を先にするとhide待ちを飛ばす余地があるため、遷移待ちをclass確認より前へ移した。1つの同期イベント内で開く/入力/submitする最速ケースを確認し、backdrop未表示でのsubmit、同時モーダル1件、キャンセル・入力消去が成功した。JSのみの最終差分をWARへ再格納し、格納JSのSHA-256一致を確認した。
+
+## 2026-10-07 15:14 JST: 工程12 初回コンパイル
+
+- VS Codeテスト機能は新規JUnitを検出せず、ComposeのGradleへ切り替えた。
+- 初回コンパイルで`studentVersion`のスコープ不整合を検出。教師分岐へ誤って入っていた生徒版取得を分離して修正。
+- 次のコンパイルでCSVのクラス表示に参照した`getDisplayName()`が未定義と判明。既存DTOへ学校内の学年/クラスを結合する共有表示メソッドを追加した。再検証は工程12計画へ記録する。
+- 初回の独立`/tmp`キャッシュで単体テストは成功したが、依存解決に9分40秒を要した。既存Gradle homeを共有する試行はjournal lock（稼働appのPID253）で失敗。稼働プロセスを停止せず、既存modules cacheを独立した永続Gradle homeへコピーし、offline実行へ切り替えた。V1〜V21の専用DB移行・DB2件を含む対象テストとWARは21秒で成功。
+- エディターは新規ServletのGson解決に未解決診断を表示するが、実際のComposeコンパイルは成功。JSP/JavaScript診断はなし。
+
+## 2026-10-07 14:33 JST: 管理者固定IDの仕様差分修正
+
+- 期待結果: 教師ログインの小文字`admin`と正しい資格情報・管理者ロールだけが管理画面へ遷移する。教師本人のアカウント管理は仕様追加のみ。
+- 原因: 初期管理者作成が任意IDを受け付け、認証では管理者ロールだけを見ていたため、長いデモIDでも管理画面へ遷移できた。固定ID・予約IDの境界をControl/Filter/教師入力/初期作成に追加し、デモ管理者の内部IDと履歴を維持してログインIDを修正、監査を記録した。
+- 初回 `test war --tests ...` は`--tests`がwar taskへ適用されUnknown command-line optionで失敗した。`test --tests ... war`の順に修正し、19件成功・失敗/skip0・WAR成功。エディターtest toolは対象JUnitを見つけず、Compose Java21/Gradleで検証した。
+- restart直後のcurlはEmpty replyとなり、retry後200を確認。8080の認証browserでadmin成功・旧ID/大文字違い/誤PW拒否、予約教師ID作成400・通常生徒ログイン/管理URL403を確認した。変更Java/テストの診断0、資格情報は文書・ソースに記載していない。
+- 最終`git diff --check`成功。Markdown診断には既存の改行HTML・末尾の箇条書き様式・表の空白等が報告された。今回の追加節に起因する指摘はなく、無関係な既存の整形は変更していない。
+- 本番TLS/cookie・実運用アカウントは対象外。教師本人のパスワード変更は未実装のまま、[仕様](../function-specification.md)第131版と[ロードマップ](./implementation-roadmap.md)工程12aへ記録した。
+
+## 2026-10-06 15:12 JST: 教師アカウント管理の実装・検証
+
+- Gradleによる初期の対象テストは成功。VS Codeのテストtoolは新規JUnitを検出せず、エディターのJava診断は既存Gson依存を解決できなかったため、Java21のCompose/Gradleで検証する。
+- 失敗監査メソッドを追加するパッチの挿入位置が既存メソッド内部となり、Java compileでillegal start of expression。メソッド境界へ移動して修正した。
+- 専用schema `ppe_teacher_test_20261006` のV11 migrationでMySQL error 1419。既存と同じroutine権限制約。部分適用schemaを使い回さず、今回作成したschemaのみ再作成し、一時的なroutine作成設定で移行後に元へ戻す。
+- Grettyの現在のappログにscannerの接続エラーがあり、自動reloadを信用せず、通常appを再起動して8080のHTTPと新URLを確認する。
+- 統合testのLoginPortal importはAuthenticationControlのネストenumへ修正。学校回帰testは専用DB名ガードが異なるため、教師用DBと分けて実行した。app稼働中はGradleのproject fileHashes lockも共有されるため、`--project-cache-dir=/tmp/teacher-validation-project`を付けて解消した。
+- 初回の認証browser作成POSTはFormDataのmultipart形式をServletが解析せずCSRF 403。通常フォームと同じURLSearchParamsによるapplication/x-www-form-urlencodedへ修正した。保護を解除せず、CSRF/確認付きの実POSTを再検証する。
+- 再検証: 教師管理/入力/資格情報/Servlet/ログイン/プロンプトのfocused suiteは19件成功。セッション更新版・古いhash・権限変更時のログインロック維持を追加後、教師管理DB test2件を再実行して成功。プロンプトの独立機能権限/学校権限と既存保存・再評価のDB回帰4件、学校管理DB4件＋入力2件も成功。全体 `test war --no-daemon --warning-mode all` は249件中160成功、89件は明示ゲートでskip、失敗/エラー0、WAR成功。詳細な実行コマンドは[認証計画](./feature-plans/authentication-and-login.md#工程11教師アカウント管理追加バッチ2026-10-06)を参照する。
+- 8080の認証browserで教師作成・権限編集・再設定と旧PW拒否/新PW成功、停止/解除/削除、変更後のセッション失効・削除後の履歴保持、検索/CSV、学校登録/日本語名とレベル変更・生徒登録済み学校のレベルdisabled、管理者以外403と不正CSRF403を確認した。資格情報はモーダル終了/再読込で消える。375px表示はページ幅375px・作成モーダル359pxで全体の横はみ出しなし。
+- 統合browserが`document.visibilityState=hidden`のためクリック安定待ちやモーダルfadeが停止し、検証selectorにも確定ボタン名/履歴modal ID/複数要素一致の誤りがあった。実際のDOMに合わせてselectorを修正し、後半のmodal受入では一時DOMのfadeを除去してbutton/formイベントで検証した。ソースのアニメーションは変更していない。modal終了時のfocus/aria-hidden警告に対して今回のmodalにfocus解除を追加した。アニメーション自体と全browser/OS組合せの最終受入は未確認。
+- 最終restart後の初回curlはEmpty replyで、retry後に教師ログイン200・未認証管理URL302を確認。再ログインした管理者でconsole/別名/旧学校URL/詳細/履歴/CSVは200、不正CSRF403。fixture確認SQLに存在しない`school_name`を指定したため1054となったが保存処理には影響せず、学校コード/ID指定へ修正した。
+- エディターの既存Gson未解決診断は残る。変更JS/CSS/TeacherSessionControl/DB testの診断は0で、実際のJava21コンパイルは成功。外部APIは呼び出していない。実運用アカウント・本番TLS/cookieは未確認として保持する。
+- 後片付け: 今回作成した専用DB3個/付与権限、資格情報を含む一時fixture2ファイル、学校UI fixtureを削除した。残存schema/学校fixtureは0、routine設定0、通常app/DB/runner稼働を確認。合成adminと削除済み教師の履歴はデモ確認用に残した。`git diff --check`成功。
+
 ## 2026-10-06 14:49 JST: 課題編集テストケースの高さ修正
 
 - 期待結果: 空欄・1行の入力/出力欄は1行分の高さで表示し、改行で伸び、改行を削除すると縮む。
@@ -651,3 +794,17 @@
 - 起動: `GET http://127.0.0.1:18084/` はHTTP 302、Tomcat 9.0.118はport 8080（host 18084）で起動。worker SQL/処理失敗ログは確認されなかった。
 - 注意: 計測結果はこの専用runtimeの実測値であり、最大遅延の一般保証を単一試行のみで証明するものではない。ただし、60秒固定pollの実周期で当該期限を跨いだ確認として受入条件を満たした。
 - 後片付け: 専用Compose projectのapp/DB/runner、volume/networkを削除し、port 18084/13319のlistenerがないことを確認する。
+
+## 2026-10-08 JST: Gemini代替モデル・Pro高思考の運用受入
+
+- 最終結果: 本人承認のGemini 3.1 Pro Preview高思考で教師実API縦断2run、通常評価、認証browserの実生成・保存/再読込が成功。1要求180秒・1工程12分・最大3試行、中断復旧15分へ整合し、8080用WAR/当該appの再起動とteacher/student login各200を確認。詳細コマンドと測定は[教師プロンプト計画](./feature-plans/teacher-prompt-ai.md#pro高思考の最終受入2026-10-08)。
+- provider失敗: 初期候補3.8の教師縦断は6要求（200×2/503×4）でpreview未完了、exit1。2.5 Proは最小要求404「新規利用者には利用不可」で再送せず。Proの保持fixture runでも評価例の初回503があったが、承認済みの長い待機/再送内で成功した。過去の3.7高需要/timeoutを最終成功で消さない。
+- TDD初回: Pro既定assert、時間上限assertはそれぞれ意図したred後に修正。Lite縦断初回はAPI3件成功後、確定状態をconfiguredと期待したtestとcleanupのFK不足で失敗した。期待をversioned/active/model再読込へ修正し、fixtureに属する評価理由/evidence等も削除して再run成功。Liteの疎通成功を採点品質保証とせず、品質優先の指示で既定採用を撤回。
+- 診断/通常回帰の混在: 2.5 Pro診断runは404に加えて、diagnostics=trueで実行した秘密情報非表示の通常単体assert2件が失敗した。診断用文言を通常結果と混ぜた検証条件の問題として分離し、diagnostics=falseの最終評価回帰は35成功/12gate skip/失敗0、exit0。privacyのassertや秘匿処理は弱めていない。
+- Gradle競合: 通常評価初回は共用validation-homeのjournal lockで起動前失敗、外部要求0。直列再runは1成功・exit0。browser serverはprivate Gradle homeコピーと専用build/project cacheへ隔離した。
+- server起動: 初回18082起動はGrettyのstdin EOFで即終了し、コマンドexit0でもreadiness失敗。stdinを開いて保持する起動へ修正し、running/login200を確認。起動コマンドのexit0だけを稼働成功にしない。
+- browser手順: 最初の古いref入力timeout後は現在DOMの合成教師欄から認証成功。新規版フローの初回は実行コンテキストに`URL`がなく失敗、次は既存shared feedbackの無名dialog/「実行する」buttonと不一致でtimeout。selectorsを実DOMへ整合して再run成功。いずれも生成前なので追加API要求0。評価例フローは生成/保存成功後、状態badgeも含むsection全文の一致assertが設定済み遷移で失敗した。生成結果/理由だけを比較し、保存済み版のreloadと旧適用版不変を再確認して成功、再生成は行っていない。
+- SQL照合手順: 存在しないjob/task/prompt/preview列の照合queryはMySQL 1054で失敗した。`SHOW COLUMNS`で実列を確認し、`reevaluation_status` / `prompt_status` / `evaluation_examples_status` / `target_status`を使用してDB状態を再確認した。製品処理の500や保存失敗とは区別する。
+- 最終教師回帰は保存XMLで34成功/4skip/失敗0（38件、exit0）。以前のメモの41件集計は誤りで、XMLを正とする。評価回帰47件と共通テストが重複するので、独立テスト数として合算しない。既存のGradle非推奨/SLF4J notice、エディターのGson解決問題は実Gradle compile/WAR成功と区別した。
+- 生成POSTは今回25（200:19/503:5/404:1）、直前の原因調査を含む累計42（200:22/503:16/404:1/timeout:3）。GET計2は別。実生徒データ・APIキー値・実利用者passwordを出力していない。課題10/11の主要metadata hashは不変。大人数負荷・品質校正・本番予算/quota・実データ送信は未検証/別承認。
+- 後片付け: 18082専用appを停止した際、stdin保持pipelineが停止猶予195秒後にexit137となった。受入中のAPI/DB失敗ではなく、隔離server終了時の結果として記録する。listener除去後、今回作成した2schema/そのgrantだけを削除し、残存各0、共有8080/無関係18081の稼働と課題10/11の主要metadata hash不変を再確認した。

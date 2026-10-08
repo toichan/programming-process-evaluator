@@ -18,7 +18,7 @@ import control.auth.RequestMetadata;
 import control.auth.PasswordPolicy;
 import entity.UserCredential.UserType;
 
-@WebServlet("/student/account/change-password")
+@WebServlet(ApplicationUrls.STUDENT_PASSWORD)
 public final class StudentPasswordChangeServlet extends HttpServlet {
 	private static final long serialVersionUID = 1L;
 	private static final String USER_ATTRIBUTE = AuthenticatedUser.class.getName();
@@ -75,15 +75,23 @@ public final class StudentPasswordChangeServlet extends HttpServlet {
 			RequestMetadata metadata = RequestMetadata.from(request.getRemoteAddr(), request.getHeader("User-Agent"))
 					.withSessionId(user.sessionAuditId());
 			PasswordChangeResult result = AUTHENTICATION.changeStudentPassword(
-					user.userId(), currentPassword, newPassword, metadata);
+					user.userId(), currentPassword, newPassword, metadata,
+					(Long) session.getAttribute("studentAccountVersion"));
 			switch (result) {
 				case SUCCESS -> {
+					Long version = new control.auth.StudentSessionControl().afterPasswordChange(user, newPassword).orElse(null);
+					if (version == null) {
+						session.invalidate();
+						response.sendRedirect(request.getContextPath() + "/student/account/login");
+						return;
+					}
 					AuthenticatedUser updatedUser = user.withPasswordChangeRequired(false);
 					session.setAttribute(USER_ATTRIBUTE, updatedUser);
+					session.setAttribute("studentAccountVersion", version);
 					CsrfTokens.rotate(session);
 					session.setAttribute("passwordChangeNotice", Boolean.TRUE);
 					String destination = user.passwordChangeRequired()
-							? "/student/home" : "/student/account/account";
+							? "/student/home" : ApplicationUrls.STUDENT_ACCOUNT;
 					response.sendRedirect(request.getContextPath() + destination);
 				}
 				case CURRENT_PASSWORD_INVALID ->

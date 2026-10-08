@@ -40,10 +40,25 @@
 - JSONスキーマ検証に失敗した場合は再試行する。
 - 応答文を画面表示する場合も、JSON内の所定フィールドから描画する。
 
+### 2.3.1 モデル・外部保存設定（2026-10-08再開判断）
+
+- ユーザーによる評価品質優先の指示に基づきLiteの既定採用は撤回。実APIの合成縦断成功とPreviewの提供条件変更リスクを明示した承認に基づき、既定は `gemini-3.1-pro-preview` とする。画面でもProはPreviewモデルと明示する。既存の適用版・評価履歴のモデルは保持し、暗黙のモデルfallbackは行わない。選択可能モデルには `gemini-3.7-flash` / `gemini-3.8-flash` も維持する。
+- 旧モデルの下書きは明示的なモデル変更・保存後に教師AI生成を実行する。適用済み旧版は新しい下書きで変更する。
+- 課題評価、再評価preview、揺らぎ項目、評価例生成のすべてのGemini要求に `store:false` を明示する。会話継続・background APIは使わず、アプリDBの履歴/preview保持は既存契約を維持する。
+- [Interactions公式概要](https://ai.google.dev/gemini-api/docs/interactions-overview)で、未指定時は `store=true`、`store:false` はInteraction保存を無効にする指定であることを確認した。Googleのデータ利用規約やその他の保持を一切無効にする指定とは扱わない。
+- [モデル公式資料](https://ai.google.dev/gemini-api/docs/models/gemini-3.7-flash)と[構造化出力公式資料](https://ai.google.dev/gemini-api/docs/structured-output)を確認した。公開資料への掲載は、このAPIキーでの生成権限・費用・容量の証明ではない。endpoint/応答形式の実稼働確認は合成データの後続ゲートで行う。
+- 外部API費用の運用上限および実生徒データ送信承認はモデル・保存方針の確認とは分ける。ユーザー承認に基づく合成データの実API受入は、[教師AI計画](./system-configuration/feature-plans/teacher-prompt-ai.md)の段階別要求上限で実施する。
+
 ### 2.4 失敗時処理
 1. 同一ペイロードで1回再試行
 2. 不要フィールドを削減した簡略ペイロードで1回再試行
 3. 失敗時はユーザーに再実行可能な状態を提示し、監査ログに記録
+
+2026-10-08の追加承認により最大3試行、1要求180秒、処理全体12分の範囲で行う。`thinking_level: high` を明示し、出力上限4096tokensとstore:falseは維持する。provider失敗の待機は初回30〜60秒・次回60〜120秒のjitter付き指数待機とし、HTTPの `Retry-After`（秒またはHTTP日時）より早く再送しない。形式不正の再試行は短い待機を維持する。次の180秒要求枠を確保できない場合は明示失敗とする。恒久的な400/401/403/402/404は再試行しない。割込み時は待機/送信を中止し失敗状態を記録する。処理中の通常評価が15分を超えて残った場合は監査付き失敗へ復旧し、利用者の明示再試行で新しい評価履歴を作成する。
+
+ユーザーは登録済みキーを使う外部API検証を指示した。検証入力は合成課題・提出・ログのみとし、成功を偽装せず、実呼出し結果・失敗・再試行とDB再読込を記録する。実生徒データ送信と本番の月額上限の決定は別の未確認事項として保持する。
+
+再評価previewも15分以上残った生成中targetは失敗として保持し、失敗対象のみの教師の明示retryを必要とする。worker再起動だけで有料要求を繰り返さない。確定後のjob復旧は保存済み結果のmaterializeであり、providerへ再送しない。
 
 ### 2.5 データ添付方針
 - 生成AIには、機能実行に必要なデータのみを添付して送信する。
@@ -65,7 +80,7 @@ docker compose exec -T app sh -c 'if [ -n "$GEMINI_API_KEY" ]; then echo "GEMINI
 5. キー未設定または無効時は評価を成功扱いにせず、評価要求を失敗として記録する。API キーはリクエストヘッダーで送信し、URL・アプリログ・例外メッセージへ出力しない。
 6. ローカル `.env` は本番用の秘密情報管理手段ではない。本番環境では AWS Secrets Manager 等の組織承認済みシークレットストアから実行時に注入し、アクセス権・ローテーション・失効担当者を定める。本番公開前に [本番運用条件](./system-configuration/production-operations-decisions.md) の API 上限・費用アラート・キー管理者を決定する。
 
-疎通テストは通常の単体テストではスキップされ、明示的に指定した場合だけ1回の外部 API 呼び出しを行う。評価クライアントは、Google AI Studio の Get Started ガイドに合わせて `POST /v1beta/interactions` を使用し、`x-goog-api-key` と `Api-Revision: 2026-05-20` をヘッダーに指定する。現在の疎通テストモデルは `gemini-3.7-flash` とし、[Gemini 3.7 Flash のモデル情報](https://ai.google.dev/gemini-api/docs/models/gemini-3.7-flash)でモデルIDを確認した。モデル一覧・詳細に存在することは、特定プロジェクトでの生成枠の利用可否を保証しない。利用可能なモデルはプロジェクトごとに異なるため、[Gemini API モデル一覧](https://ai.google.dev/gemini-api/docs/models)で確認し、実行前にプロジェクトの利用可否・料金・上限を確認する。旧候補 `gemini-2.5-flash` はこのAPIキーでは「新規利用者には利用不可」と返されたため、疎通モデルに使用しない。
+疎通テストは通常の単体テストではスキップされ、明示的に指定した場合だけ1回の外部 API 呼び出しを行う。評価クライアントは、Google AI Studio の Get Started ガイドに合わせて `POST /v1beta/interactions` を使用し、`x-goog-api-key` と `Api-Revision: 2026-05-20` をヘッダーに指定する。現在の通常疎通テストは共通catalogの既定 `gemini-3.1-pro-preview` を使用する。[モデル情報](https://ai.google.dev/gemini-api/docs/models/gemini-3.1-pro-preview)に加え、高思考設定で教師の揺らぎ・評価例・preview・確定と通常評価の実API/DB成功を確認した。過去の3.7/3.8原因診断は当時のモデルを固定した別テストとして保持する。モデル一覧・詳細に存在することは、特定プロジェクトでの生成枠の利用可否を保証しない。利用可能なモデルはプロジェクトごとに異なるため、[Gemini API モデル一覧](https://ai.google.dev/gemini-api/docs/models)で確認し、実行前にプロジェクトの利用可否・料金・上限を確認する。旧候補 `gemini-2.5-flash` および今回比較した `gemini-2.5-pro` はこのAPIキーでは「新規利用者には利用不可」と返されたため、既定・新規選択モデルには使用しない。
 
 Interactions API の入力には評価指示を `system_instruction`、匿名化済み評価データを `input` として分けて渡す。`response_format` でJSON MIMEタイプと出力スキーマを指定し、REST応答の `steps` から `model_output` のテキストだけを取り出して、アプリケーション側でも評価スキーマを検証する。
 
@@ -102,7 +117,7 @@ Bを同一bodyで4回再試行した結果は、Attempt 2=503 (13.608秒)、Atte
 - **モデル固有 / Googleサービスcapacity**: 全段階を3.7 Flashで行ったため、別モデルとの比較は今回していない。高需要messageと同一条件での503/200混在は一時的な処理変動と整合するが、単独では根本原因の証明にならない。
 - **quota / billing / key restrictions**: 今回のInteractionsエラー本文にquota・billing・APIキー制限を明示する兆候は見られず、最小要求とBの成功も確認した。ただしConsole設定は取得できないため、人間による確認が必要。
 
-本番評価要求は `GeminiEvaluationClient` が `system_instruction`、匿名化評価JSONの `input`、`response_format` のschema、`generation_config.max_output_tokens: 4096` を送信し、`store` は指定しない。以前の最小疎通テストは `store:false` を指定していた。A〜Fの段階診断も `store:false`、GはFと同じbodyからその指定だけを外したが、F/Gはどちらも503だったため、この1組だけではstore設定の因果関係は判断できない。研究・生徒データを扱う前に、保存方針を確認してから本番クライアントのstore指定を判断する。
+当時の本番評価要求は `GeminiEvaluationClient` が `system_instruction`、匿名化評価JSONの `input`、`response_format` のschema、`generation_config.max_output_tokens: 4096` を送信し、`store` は指定しなかった。以前の最小疎通テストは `store:false` を指定していた。A〜Fの段階診断も `store:false`、GはFと同じbodyからその指定だけを外したが、F/Gはどちらも503だったため、この1組だけではstore設定の因果関係は判断できない。研究・生徒データを扱う前に、保存方針を確認してから本番クライアントのstore指定を判断する。
 
 Google AI Studio / Google Cloud Consoleで人間が確認する項目:
 

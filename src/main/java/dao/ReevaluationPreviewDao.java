@@ -265,12 +265,28 @@ public final class ReevaluationPreviewDao implements ReevaluationPreviewWorkRepo
 						UPDATE reevaluation_preview_targets pt
 						JOIN reevaluation_previews p
 						  ON p.reevaluation_preview_id = pt.reevaluation_preview_id
-						SET pt.target_status = 'pending', pt.updated_at = CURRENT_TIMESTAMP(6)
+						SET pt.target_status = 'failed',
+						    pt.safe_error_code = 'worker_interrupted',
+						    pt.safe_error_message = '予測処理が中断されました。失敗した対象を再試行してください。',
+						    pt.updated_at = CURRENT_TIMESTAMP(6)
 						WHERE pt.target_status = 'in_progress'
-						  AND pt.updated_at < DATE_SUB(CURRENT_TIMESTAMP(6), INTERVAL 5 MINUTE)
+						  AND pt.updated_at < DATE_SUB(CURRENT_TIMESTAMP(6), INTERVAL %d MINUTE)
 						  AND p.expires_at > CURRENT_TIMESTAMP(6)
-						""")) {
+						""".formatted(control.evaluation.EvaluationRetryPolicy.INTERRUPTED_AFTER.toMinutes()))) {
 					recover.executeUpdate();
+				}
+				try (PreparedStatement recoverParents = connection.prepareStatement("""
+						SELECT p.reevaluation_preview_id
+						FROM reevaluation_previews p
+						WHERE p.preview_status = 'generating' AND p.expires_at > CURRENT_TIMESTAMP(6)
+						  AND EXISTS (SELECT 1 FROM reevaluation_preview_targets pt
+						    WHERE pt.reevaluation_preview_id = p.reevaluation_preview_id
+						      AND pt.target_status = 'failed' AND pt.safe_error_code = 'worker_interrupted')
+						FOR UPDATE
+						"""); ResultSet parents = recoverParents.executeQuery()) {
+					while (parents.next()) {
+						updatePreviewStatus(connection, parents.getLong("reevaluation_preview_id"));
+					}
 				}
 				try (PreparedStatement select = connection.prepareStatement("""
 						SELECT pt.reevaluation_preview_target_id, pt.reevaluation_preview_id,

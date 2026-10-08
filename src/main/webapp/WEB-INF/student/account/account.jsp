@@ -92,7 +92,7 @@
 				<div class="button-group account-password-action mb-4">
 					<c:choose>
 						<c:when test="${account.securityLevel == 2}">
-							<a class="btn btn-primary account-password-button" href="<c:url value='/student/account/change-password'/>">パスワード変更へ</a>
+							<a class="btn btn-primary account-password-button" href="<c:url value='/student/account/password'/>">パスワード変更へ</a>
 						</c:when>
 						<c:otherwise>
 							<button class="btn btn-secondary account-password-button" type="button" disabled

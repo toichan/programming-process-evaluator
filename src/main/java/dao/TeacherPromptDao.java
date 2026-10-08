@@ -14,6 +14,7 @@ import java.util.UUID;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
+import control.evaluation.GeminiModelCatalog;
 import entity.StandardRubric;
 import entity.ReevaluationJobHistory;
 import entity.TeacherPromptAuditEntry;
@@ -331,6 +332,7 @@ public final class TeacherPromptDao {
 		boolean changed = !current.aiModel().equals(modelId)
 				|| !current.commonPrompt().equals(commonPrompt)
 				|| !java.util.Objects.equals(current.additionalInstruction(), nullableText(additionalInstruction));
+		recoverOrRejectGeneration(connection, teacherUserId, current);
 		try (PreparedStatement statement = connection.prepareStatement("""
 				UPDATE prompt_versions
 				SET ai_model = ?, common_prompt = ?, additional_evaluation_instruction = ?,
@@ -412,7 +414,7 @@ public final class TeacherPromptDao {
 				copiedTaskId,
 				null,
 				0,
-				"gemini-2.5-pro",
+				GeminiModelCatalog.DEFAULT_MODEL,
 				commonPrompt,
 				additionalInstruction);
 	}
@@ -424,15 +426,8 @@ public final class TeacherPromptDao {
 		if (!"draft".equals(current.promptStatus()) || current.rowVersion() != expectedRowVersion) {
 			throw new PromptVersionConflictException();
 		}
+		recoverOrRejectGeneration(connection, teacherUserId, current);
 		String statusColumn = stageColumn(stage);
-		String currentStatus = "fluctuation".equals(stage)
-				? current.fluctuationGenerationStatus() : current.evaluationExamplesStatus();
-		if ("in_progress".equals(currentStatus)) {
-			LocalDateTime updatedAt = current.updatedAt();
-			if (updatedAt != null && updatedAt.isAfter(LocalDateTime.now().minusMinutes(15))) {
-				throw new PromptGenerationInProgressException();
-			}
-		}
 		try (PreparedStatement statement = connection.prepareStatement("""
 				UPDATE prompt_versions
 				SET %s = 'in_progress', updated_by_user_id = ?, updated_at = CURRENT_TIMESTAMP,
@@ -565,6 +560,43 @@ public final class TeacherPromptDao {
 				null, promptVersionDetails(promptVersionId));
 	}
 
+	public void applyUnpublishedPrompt(
+			Connection connection, long teacherUserId, long taskId, long promptVersionId,
+			long expectedTaskVersion, long expectedPromptRowVersion) throws SQLException {
+		requireWriteTransaction(connection);
+		TeacherPromptVersion current = findVersionForUpdate(connection, taskId, promptVersionId);
+		if (current.rowVersion() != expectedPromptRowVersion) {
+			throw new PromptVersionConflictException();
+		}
+		if (!current.isReadyForApplication()) {
+			throw new IllegalStateException("揺らぎへの教師対応と評価例の生成・保存を完了してください。");
+		}
+		Long previousId = findActivePromptVersionId(connection, taskId);
+		try (PreparedStatement statement = connection.prepareStatement("""
+				UPDATE tasks
+				SET active_prompt_version_id = ?, updated_by_user_id = ?,
+				    updated_at = CURRENT_TIMESTAMP, version = version + 1
+				WHERE task_id = ? AND created_by_user_id = ? AND version = ?
+				  AND publication_status IN ('draft','requires_update') AND deleted_at IS NULL
+				""")) {
+			statement.setLong(1, promptVersionId);
+			statement.setLong(2, teacherUserId);
+			statement.setLong(3, taskId);
+			statement.setLong(4, teacherUserId);
+			statement.setLong(5, expectedTaskVersion);
+			if (statement.executeUpdate() != 1) {
+				throw new PromptVersionConflictException();
+			}
+		}
+		JsonObject before = new JsonObject();
+		if (previousId == null) before.add("active_prompt_version_id", com.google.gson.JsonNull.INSTANCE);
+		else before.addProperty("active_prompt_version_id", previousId);
+		JsonObject after = new JsonObject();
+		after.addProperty("active_prompt_version_id", promptVersionId);
+		recordAudit(connection, teacherUserId, taskId, "apply_unpublished_prompt",
+				"未公開・学習開始前の課題へプロンプトを適用", before, after);
+	}
+
 	public void saveResolutions(
 			Connection connection,
 			long teacherUserId,
@@ -580,6 +612,7 @@ public final class TeacherPromptDao {
 				|| current.fluctuationItems().size() != updates.size()) {
 			throw new PromptVersionConflictException();
 		}
+		recoverOrRejectGeneration(connection, teacherUserId, current);
 		java.util.Set<Long> seen = new java.util.HashSet<>();
 		for (FluctuationItem update : updates) {
 			if (!seen.add(update.id())
@@ -626,6 +659,32 @@ public final class TeacherPromptDao {
 		after.addProperty("additional_instruction", nullableText(additionalInstruction));
 		recordAudit(connection, teacherUserId, taskId, "save_fluctuation_resolutions", "揺らぎ項目への教師対応を保存",
 				null, after);
+	}
+
+	private void recoverOrRejectGeneration(Connection connection, long teacherUserId, TeacherPromptVersion current)
+			throws SQLException {
+		if (!current.hasActiveGeneration()) {
+			return;
+		}
+		if (!current.isGenerationStale()) {
+			throw new PromptGenerationInProgressException();
+		}
+		try (PreparedStatement statement = connection.prepareStatement("""
+				UPDATE prompt_versions
+				SET fluctuation_generation_status = CASE WHEN fluctuation_generation_status = 'in_progress'
+				      THEN 'failed' ELSE fluctuation_generation_status END,
+				    evaluation_examples_status = CASE WHEN evaluation_examples_status = 'in_progress'
+				      THEN 'failed' ELSE evaluation_examples_status END
+				WHERE prompt_version_id = ? AND row_version = ? AND prompt_status = 'draft'
+				""")) {
+			statement.setLong(1, current.promptVersionId());
+			statement.setLong(2, current.rowVersion());
+			if (statement.executeUpdate() != 1) {
+				throw new PromptVersionConflictException();
+			}
+		}
+		recordAudit(connection, teacherUserId, current.taskId(), "recover_generation",
+				"中断したAI生成を復旧", null, promptVersionDetails(current.promptVersionId()));
 	}
 
 	public void failGeneration(Connection connection, long teacherUserId, long taskId, long promptVersionId,

@@ -48,6 +48,24 @@ public record TeacherPromptVersion(
 	public List<FluctuationItem> getFluctuationItems() { return fluctuationItems; }
 	public List<EvaluationExample> getEvaluationExamples() { return evaluationExamples; }
 
+	public boolean hasActiveGeneration() {
+		return "in_progress".equals(fluctuationGenerationStatus) || "in_progress".equals(evaluationExamplesStatus);
+	}
+
+	public boolean isReadyForApplication() {
+		return ("configured".equals(promptStatus) || "versioned".equals(promptStatus))
+				&& "completed".equals(fluctuationGenerationStatus)
+				&& "completed".equals(evaluationExamplesStatus)
+				&& !fluctuationItems.isEmpty()
+				&& fluctuationItems.stream().noneMatch(item -> "pending".equals(item.resolutionStatus()))
+				&& evaluationExamples.stream().anyMatch(example -> "active".equals(example.status()));
+	}
+
+	public boolean isGenerationStale() {
+		return hasActiveGeneration() && updatedAt != null
+				&& !updatedAt.isAfter(LocalDateTime.now().minusMinutes(15));
+	}
+
 	public record FluctuationItem(
 			long id,
 			String title,

@@ -89,7 +89,7 @@
 					<noscript><div class="alert alert-warning">回答変更の確認ダイアログを表示するため、JavaScriptを有効にしてください。</div></noscript>
 					<form id="consentForm" class="consent-form" method="post"
 						data-current-status="${consentPage.status}"
-						action="<c:url value='/student/survey/consent'/>">
+						action="<c:url value='/student/consent'/>">
 						<input type="hidden" name="csrfToken" value="<c:out value='${csrfToken}'/>">
 						<input type="hidden" name="documentVersionId" value="<c:out value='${consentDocument.id}'/>">
 						<input type="hidden" name="responseId" value="${consentPage.responseId}">

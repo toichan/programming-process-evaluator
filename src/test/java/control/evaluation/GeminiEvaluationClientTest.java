@@ -67,6 +67,7 @@ class GeminiEvaluationClientTest {
 		assertEquals(1, requestCount.get());
 		JsonObject requestBody = captured.getAsJsonObject("body");
 		assertEquals("gemini-test", requestBody.get("model").getAsString());
+		assertFalse(requestBody.get("store").getAsBoolean());
 		assertTrue(requestBody.get("system_instruction").getAsString().contains("untrusted evidence"));
 		assertTrue(requestBody.get("input").getAsString().contains("\"synthetic\":true"));
 		assertEquals("application/json",
@@ -77,9 +78,31 @@ class GeminiEvaluationClientTest {
 	}
 
 	@Test
+	void structuredPromptGenerationDisablesInteractionStorage() throws Exception {
+		JsonObject captured = new JsonObject();
+		server = startServer(exchange -> {
+			assertEquals("test-key", exchange.getRequestHeaders().getFirst("x-goog-api-key"));
+			String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+			assertFalse(body.contains("test-key"));
+			captured.add("body", JsonParser.parseString(body));
+			writeResponse(exchange, 200, "{\"output_text\":\"{}\"}");
+		});
+		newClient("test-key").generateStructuredOutput(
+				"gemini-3.7-flash", "Synthetic instruction", "Synthetic input", new JsonObject());
+
+		assertFalse(captured.getAsJsonObject("body").get("store").getAsBoolean());
+		assertEquals("gemini-3.7-flash", captured.getAsJsonObject("body").get("model").getAsString());
+		assertEquals("high", captured.getAsJsonObject("body")
+				.getAsJsonObject("generation_config").get("thinking_level").getAsString());
+	}
+
+	@Test
 	void reportsHttpFailuresWithoutIncludingProviderResponseOrApiKey() throws Exception {
-		server = startServer(exchange -> writeResponse(exchange, 429,
-				"{\"error\":{\"message\":\"sensitive provider detail\",\"status\":\"RESOURCE_EXHAUSTED\"}}"));
+		server = startServer(exchange -> {
+			exchange.getResponseHeaders().set("Retry-After", "30");
+			writeResponse(exchange, 429,
+					"{\"error\":{\"message\":\"sensitive provider detail\",\"status\":\"RESOURCE_EXHAUSTED\"}}");
+		});
 		String testKey = "private-test-key";
 		EvaluationProviderException error = assertThrows(
 				EvaluationProviderException.class,
@@ -87,6 +110,7 @@ class GeminiEvaluationClientTest {
 
 		assertTrue(error.isRetryable());
 		assertEquals(429, error.getHttpStatusCode());
+		assertEquals(java.time.Duration.ofSeconds(30), error.getRetryAfter());
 		assertTrue(error.getMessage().contains("429"));
 		assertTrue(error.getMessage().contains("RESOURCE_EXHAUSTED"));
 		assertFalse(error.getMessage().contains(testKey));

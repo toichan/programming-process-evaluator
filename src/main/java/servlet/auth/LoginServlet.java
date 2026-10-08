@@ -42,6 +42,10 @@ public final class LoginServlet extends HttpServlet {
 
 		HttpSession session = request.getSession(true);
 		request.setAttribute(CSRF_ATTRIBUTE, CsrfTokens.getOrCreate(session));
+		if (!isStudentPortal(request) && Boolean.TRUE.equals(session.getAttribute("teacherPasswordChangeNotice"))) {
+			session.removeAttribute("teacherPasswordChangeNotice");
+			request.setAttribute("teacherPasswordChangeNotice", Boolean.TRUE);
+		}
 		forwardToLoginPage(request, response);
 	}
 
@@ -74,10 +78,23 @@ public final class LoginServlet extends HttpServlet {
 				return;
 			}
 
-			if (anonymousSession != null) {
-				anonymousSession.invalidate();
-			}
 			UserCredential credential = result.user();
+			Long teacherVersion = null;
+			if (credential.userType() == UserType.TEACHER) {
+				teacherVersion = new control.auth.TeacherSessionControl().loginVersion(credential).orElse(null);
+				if (teacherVersion == null) {
+					forwardWithError(request, response, loginFailureMessage());
+					return;
+				}
+			}
+			Long studentVersion = null;
+			if (credential.userType() == UserType.STUDENT) {
+				studentVersion = new control.auth.StudentSessionControl().loginVersion(credential).orElse(null);
+				if (studentVersion == null) {
+					forwardWithError(request, response, loginFailureMessage());
+					return;
+				}
+			}
 			boolean passwordChangeRequired = passwordChangeRequired(credential);
 			AuthenticatedUser authenticatedUser = new AuthenticatedUser(
 					credential.userId(),
@@ -86,11 +103,21 @@ public final class LoginServlet extends HttpServlet {
 					credential.userType(),
 					passwordChangeRequired,
 					result.sessionAuditId());
+			String teacherDestination = null;
+			if (credential.userType() == UserType.TEACHER) {
+				teacherDestination = teacherDestinationFor(new control.teacher.TeacherNavigationControl().load(authenticatedUser));
+			}
+			if (anonymousSession != null) anonymousSession.invalidate();
 			HttpSession authenticatedSession = request.getSession(true);
 			authenticatedSession.setMaxInactiveInterval(30 * 60);
 			authenticatedSession.setAttribute(USER_ATTRIBUTE, authenticatedUser);
+			if (teacherVersion != null) authenticatedSession.setAttribute("teacherAccountVersion", teacherVersion);
+			if (studentVersion != null) authenticatedSession.setAttribute("studentAccountVersion", studentVersion);
+			if (teacherDestination != null) authenticatedSession.setAttribute("teacherLandingPath", teacherDestination);
 			CsrfTokens.rotate(authenticatedSession);
 			redirectAuthenticatedUser(request, response, authenticatedUser);
+		} catch (SecurityException e) {
+			forwardWithError(request, response, loginFailureMessage());
 		} catch (SQLException e) {
 			getServletContext().log("Authentication request failed.", e);
 			response.sendError(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
@@ -131,7 +158,8 @@ public final class LoginServlet extends HttpServlet {
 		return value instanceof AuthenticatedUser user ? user : null;
 	}
 
-	private static boolean passwordChangeRequired(UserCredential user) {
+	static boolean passwordChangeRequired(UserCredential user) {
+		if (user.userType() == UserType.TEACHER) return user.teacherMustChangePassword();
 		if (user.userType() != UserType.STUDENT || user.studentProfile().isEmpty()) {
 			return false;
 		}
@@ -147,17 +175,39 @@ public final class LoginServlet extends HttpServlet {
 
 	private static void redirectAuthenticatedUser(HttpServletRequest request, HttpServletResponse response,
 			AuthenticatedUser user) throws IOException {
-		response.sendRedirect(request.getContextPath() + destinationFor(user));
+		String destination = destinationFor(user);
+		if (user.userType() == UserType.TEACHER && !user.passwordChangeRequired()) {
+			Object landing = request.getSession(false).getAttribute("teacherLandingPath");
+			destination = teacherLandingFor(landing);
+		}
+		response.sendRedirect(request.getContextPath() + destination);
+	}
+
+	static String teacherLandingFor(Object landing) {
+		if (landing instanceof String path) {
+			String canonical = ApplicationUrls.canonicalPath(path);
+			if (java.util.List.of("/teacher/task", "/teacher/prompt", ApplicationUrls.TEACHER_STUDENTS, "/teacher/home")
+					.contains(canonical)) return canonical;
+		}
+		return "/teacher/home";
+	}
+
+	static String teacherDestinationFor(entity.TeacherNavigationSummary permissions) {
+		if (permissions.accountManagementEnabled()) return ApplicationUrls.TEACHER_STUDENTS;
+		if (permissions.taskManagementEnabled()) return "/teacher/task";
+		if (permissions.promptDesignEnabled()) return "/teacher/prompt";
+		return "/teacher/home";
 	}
 
 	static String destinationFor(AuthenticatedUser user) {
 		if (user.passwordChangeRequired()) {
-			return "/student/account/change-password";
+			return user.userType() == UserType.TEACHER
+					? ApplicationUrls.TEACHER_PASSWORD : ApplicationUrls.STUDENT_PASSWORD;
 		}
 		return switch (user.userType()) {
 			case STUDENT -> "/student/home";
 			case ADMIN -> "/admin/home";
-			case TEACHER -> "/teacher/task";
+			case TEACHER -> "/teacher/home";
 		};
 	}
 

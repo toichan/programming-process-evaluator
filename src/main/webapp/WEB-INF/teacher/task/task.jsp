@@ -110,7 +110,9 @@
 													id="class-${classroom.classroomId}" value="${classroom.classroomId}"
 													data-assignment-id="<c:out value='${assignment.assignmentId}' default='0'/>"
 													data-publish-at="<c:out value='${assignment.publishAt}'/>"
+													data-publish-immediate="<c:out value='${assignment.publishImmediate}' default='false'/>"
 													data-due-at="<c:out value='${assignment.dueAt}'/>"
+													data-due-none="<c:out value='${assignment.dueNone}' default='false'/>"
 													<c:if test="${teacherTaskSelectedClassIds.contains(classroom.classroomId)}">checked</c:if>>
 												<label class="form-check-label" for="class-${classroom.classroomId}">
 													<c:if test="${not empty classroom.gradeName}"><c:out value="${classroom.gradeName}"/></c:if>
@@ -150,9 +152,9 @@
 							<div class="col-12">
 								<label class="form-label">クラス別の公開期間・提出期限</label>
 								<div id="classScheduleList" class="class-schedule-list" aria-live="polite">
-									<p class="class-schedule-empty mb-0 text-muted">クラスを選択すると、クラスごとの設定欄が表示されます。</p>
+									<p class="class-schedule-empty mb-0 text-muted">クラスを選択すると、公開日時（即時公開可）と提出期限を設定できます。</p>
 								</div>
-								<div class="form-text">公開日時を指定すると予約公開になります。指定しない場合は公開後すぐに生徒へ表示されます。</div>
+								<div class="form-text">クラスごとに公開日時（即時公開可）と提出期限（期限なし可）を個別に設定できます。</div>
 							</div>
 							<div class="col-12">
 								<label for="taskNameInput" class="form-label">課題名・授業</label>
@@ -375,7 +377,7 @@
 								</td>
 								<td>
 									<c:choose>
-										<c:when test="${task.publicationStatus == 'requires_update' || task.publicationStatus == 'published' || (task.publicationStatus == 'draft' && task.promptStatus == 'draft')}">
+										<c:when test="${task.publicationStatus == 'requires_update' || task.publicationStatus == 'published' || task.publicationStatus == 'draft'}">
 											<a class="btn btn-sm btn-outline-primary" href="<c:url value='/teacher/prompt'><c:param name='taskId' value='${task.taskId}'/></c:url>">プロンプト設定</a>
 										</c:when>
 										<c:otherwise><button class="btn btn-sm btn-outline-secondary" type="button" disabled title="公開前に設定します。">未設定</button></c:otherwise>
@@ -387,13 +389,9 @@
 								<td>
 									<div class="d-flex gap-2">
 										<c:if test="${task.createdByUserId == teacherTaskUserId}">
-											<c:if test="${task.publicationStatus == 'draft' || task.publicationStatus == 'requires_update' || task.publicationStatus == 'published'}">
+											<c:if test="${not (task.publicationStatus == 'published' && task.learningStarted)}">
 												<a class="btn btn-sm btn-outline-primary" href="<c:url value='/teacher/task'><c:param name='taskId' value='${task.taskId}'/></c:url>">
-													<c:choose>
-														<c:when test="${task.publicationStatus == 'published'}">改訂案を作成</c:when>
-														<c:when test="${task.publicationStatus == 'requires_update'}">改訂案を編集</c:when>
-														<c:otherwise>編集</c:otherwise>
-													</c:choose>
+													編集
 												</a>
 											</c:if>
 											<a class="btn btn-sm btn-outline-secondary" href="<c:url value='/teacher/task'><c:param name='taskId' value='${task.taskId}'/><c:param name='view' value='history'/></c:url>">履歴</a>
@@ -408,9 +406,20 @@
 												<input type="hidden" name="requestToken" value="<c:out value='${teacherTaskIndependentCopyTokens[task.taskId]}'/>">
 												<input type="hidden" name="taskId" value="<c:out value='${task.taskId}'/>">
 												<input type="hidden" name="expectedVersion" value="<c:out value='${task.version}'/>">
-												<button class="btn btn-sm btn-outline-primary" type="submit">新しい課題として編集</button>
+												<button class="btn btn-sm btn-outline-primary" type="submit">編集</button>
 											</form>
 										</c:if>
+										<form class="task-state-form" method="post" action="<c:url value='/teacher/task'/>"
+											data-confirm-title="課題を複製しますか？"
+											data-confirm-message="別の課題系列の下書きとして複製します。学習開始済みの場合は対象クラス・公開日時・提出期限を引き継がず、履歴は複製しません。"
+											data-confirm-label="複製する">
+											<input type="hidden" name="action" value="duplicateTask">
+											<input type="hidden" name="csrfToken" value="<c:out value='${csrfToken}'/>">
+											<input type="hidden" name="requestToken" value="<c:out value='${teacherTaskIndependentCopyTokens[task.taskId]}'/>">
+											<input type="hidden" name="taskId" value="<c:out value='${task.taskId}'/>">
+											<input type="hidden" name="expectedVersion" value="<c:out value='${task.version}'/>">
+											<button class="btn btn-sm btn-outline-secondary" type="submit">複製</button>
+										</form>
 										<form class="task-state-form" method="post" action="<c:url value='/teacher/task'/>"
 											data-confirm-title="課題を削除しますか？" data-confirm-message="課題は一覧から非表示になります。関連する提出・評価・履歴は保持されます。">
 											<input type="hidden" name="action" value="deleteTask">

@@ -693,6 +693,10 @@ public final class TeacherTaskDao {
 		}
 	}
 
+	static boolean isPublishablePromptStatus(String status) {
+		return "configured".equals(status) || "versioned".equals(status);
+	}
+
 	public PublicationResult publishDraft(
 			Connection connection,
 			long teacherUserId,
@@ -763,11 +767,12 @@ public final class TeacherTaskDao {
 					throw new IllegalArgumentException("課題の状態が更新されています。再読み込みしてください。");
 				}
 				if (!"active".equals(rows.getString("rubric_status"))
-						|| !List.of("configured", "versioned").contains(rows.getString("prompt_status"))
+						|| !isPublishablePromptStatus(rows.getString("prompt_status"))
 						|| !"completed".equals(rows.getString("evaluation_examples_status"))) {
 					throw new IllegalArgumentException(
 							"公開前に有効な標準ルーブリックと、評価例の生成が完了したプロンプト版を設定してください。");
 				}
+
 				if (!currentTaskStatus.equals(rows.getString("publication_status"))) {
 					throw new IllegalArgumentException("課題の状態が更新されています。再読み込みしてください。");
 				}

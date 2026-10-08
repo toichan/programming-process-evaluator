@@ -32,7 +32,8 @@ public final class LogoutServlet extends HttpServlet {
 		Object sessionValue = session.getAttribute(USER_ATTRIBUTE);
 		if (!(sessionValue instanceof AuthenticatedUser user)) {
 			session.invalidate();
-			response.sendRedirect(request.getContextPath() + "/student/account/login");
+			response.sendRedirect(request.getContextPath()
+					+ PortalHostRouting.fromEnvironment().loginPathForHost(request.getServerName()));
 			return;
 		}
 

@@ -159,9 +159,18 @@
 					<label for="modelSelect" class="form-label">AIモデル</label>
 					<select class="form-select" id="modelSelect" form="promptDraftForm" name="aiModel"
 						<c:if test="${not teacherPromptEditableDraft}">disabled</c:if>>
-						<option value="gemini-2.5-pro" <c:if test="${teacherPromptModel == 'gemini-2.5-pro'}">selected</c:if>>Gemini 2.5 Pro</option>
-						<option value="gemini-2.5-flash" <c:if test="${teacherPromptModel == 'gemini-2.5-flash'}">selected</c:if>>Gemini 2.5 Flash</option>
+						<c:if test="${teacherPromptLegacyModel}">
+							<option value="<c:out value='${teacherPromptModel}'/>" selected>
+								<c:out value="${teacherPromptModel}"/>（旧モデル）
+							</option>
+						</c:if>
+						<c:forEach items="${teacherPromptModels}" var="model">
+							<option value="<c:out value='${model.key}'/>" <c:if test="${teacherPromptModel == model.key}">selected</c:if>><c:out value="${model.value}"/></option>
+						</c:forEach>
 					</select>
+					<c:if test="${teacherPromptLegacyModel}">
+						<p class="form-text">保存済みのモデルを表示しています。AI生成には選択可能なAIモデルへ変更して下書きを保存してください。適用済みの版は新しい下書きで変更してください。</p>
+					</c:if>
 				</div>
 				<div class="col-lg-4">
 					<label for="versionSelect" class="form-label">バージョン</label>
@@ -177,9 +186,9 @@
 										<option value="${version.promptVersionId}" <c:if test="${version.promptVersionId == promptVersion.promptVersionId}">selected</c:if>>
 											<c:out value="${version.version}"/> (
 											<c:choose>
+												<c:when test="${version.promptVersionId == promptPage.activePromptVersionId}">適用中</c:when>
 												<c:when test="${version.promptStatus == 'draft'}">下書き</c:when>
 												<c:when test="${version.promptStatus == 'configured'}">設定済み</c:when>
-												<c:when test="${version.promptStatus == 'active'}">適用中</c:when>
 												<c:otherwise>版管理済み</c:otherwise>
 											</c:choose>)
 										</option>
@@ -378,6 +387,17 @@
 				</c:otherwise>
 			</c:choose>
 			<div class="d-flex gap-2 mt-3 flex-wrap justify-content-center">
+				<c:if test="${teacherPromptCanApplyUnpublished}">
+					<form method="post" action="<c:url value='/teacher/prompt'/>" id="unpublishedPromptApplyForm">
+						<input type="hidden" name="csrfToken" value="<c:out value='${csrfToken}'/>">
+						<input type="hidden" name="taskId" value="<c:out value='${teacherPromptTaskId}'/>">
+						<input type="hidden" name="promptVersionId" value="<c:out value='${promptVersion.promptVersionId}'/>">
+						<input type="hidden" name="expectedRowVersion" value="<c:out value='${promptVersion.rowVersion}'/>">
+						<input type="hidden" name="expectedTaskVersion" value="<c:out value='${promptPage.selectedTask.version}'/>">
+						<input type="hidden" name="applyConfirmed" value="no">
+						<button class="btn btn-primary" type="submit" name="action" value="applyUnpublishedPrompt">未公開課題に適用</button>
+					</form>
+				</c:if>
 				<form method="post" action="<c:url value='/teacher/prompt'/>" id="reevaluationStartForm">
 					<input type="hidden" name="csrfToken" value="<c:out value='${csrfToken}'/>">
 					<input type="hidden" name="taskId" value="<c:out value='${teacherPromptTaskId}'/>">
@@ -400,6 +420,7 @@
 				</form>
 			</div>
 			<p class="text-secondary small text-center mt-2 mb-0">
+				未公開かつ学習開始前の課題は「未公開課題に適用」で設定し、課題編集画面から公開してください。この適用では再評価や追加のAI呼び出しは行いません。<br>
 				プレビューの作成では対象者ごとにGeminiを呼び出すため、確定・取消にかかわらずAPI費用が発生します。
 			</p>
 		</section>
@@ -557,9 +578,9 @@
 										<td>
 											<span class="badge text-bg-secondary">
 												<c:choose>
+													<c:when test="${version.promptVersionId == promptPage.activePromptVersionId}">適用中</c:when>
 													<c:when test="${version.promptStatus == 'draft'}">下書き</c:when>
 													<c:when test="${version.promptStatus == 'configured'}">設定済み</c:when>
-													<c:when test="${version.promptStatus == 'active'}">適用中</c:when>
 													<c:otherwise>版管理済み</c:otherwise>
 												</c:choose>
 											</span>

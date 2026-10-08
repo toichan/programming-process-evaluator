@@ -16,6 +16,20 @@ import entity.UserCredential.UserType;
 
 class TeacherPromptControlTest {
 	@Test
+	void rejectsInitialApplicationWithoutRoleConfirmationAndVersionsBeforeOpeningConnection() {
+		AtomicInteger openedConnections = new AtomicInteger();
+		TeacherPromptControl control = control(openedConnections);
+		assertThrows(SecurityException.class, () -> control.applyUnpublishedPrompt(
+				user(UserType.STUDENT, false), 1, 1, 1, 1, true));
+		assertThrows(IllegalArgumentException.class, () -> control.applyUnpublishedPrompt(
+				user(UserType.TEACHER, false), 1, 1, 1, 1, false));
+		assertThrows(IllegalArgumentException.class, () -> control.applyUnpublishedPrompt(
+				user(UserType.TEACHER, false), 1, 1, 0, 1, true));
+		assertThrows(IllegalArgumentException.class, () -> control.applyUnpublishedPrompt(
+				user(UserType.TEACHER, false), 1, 1, 1, 0, true));
+		assertEquals(0, openedConnections.get());
+	}
+	@Test
 	void rejectsNonTeacherBeforeOpeningDatabaseConnection() {
 		AtomicInteger openedConnections = new AtomicInteger();
 		TeacherPromptControl control = control(openedConnections);
@@ -35,9 +49,19 @@ class TeacherPromptControlTest {
 				1,
 				null,
 				0,
-				"gemini-2.5-pro",
+				"gemini-3.7-flash",
 				"  ",
 				""));
+		assertEquals(0, openedConnections.get());
+	}
+
+	@Test
+	void rejectsLegacyModelBeforeOpeningDatabaseConnection() {
+		AtomicInteger openedConnections = new AtomicInteger();
+		TeacherPromptControl control = control(openedConnections);
+		IllegalArgumentException error = assertThrows(IllegalArgumentException.class, () -> control.saveDraft(
+				user(UserType.TEACHER, false), 1, null, 0, "gemini-2.5-pro", "Synthetic prompt", ""));
+		org.junit.jupiter.api.Assertions.assertTrue(error.getMessage().contains("モデル"));
 		assertEquals(0, openedConnections.get());
 	}
 

@@ -354,6 +354,7 @@ function loadTeacherComponents() {
               <span class="teacher-info-text">${teacherDisplaySchoolText}</span>
             </div>
           </div>
+          <a class="btn btn-sm btn-outline-primary" href="../account/profile.html">アカウント</a>
           <button class="btn btn-sm btn-outline-secondary" onclick="logout()">ログアウト</button>
         </div>
       </div>
@@ -584,7 +585,8 @@ function setActiveSidebarMenu() {
     '/teacher/prompt/prompt.html': 'prompt'
   };
 
-  let activePage = 'account';
+  let activePage = path.includes('/teacher/account/profile.html')
+    || path.includes('/teacher/account/password.html') ? null : 'account';
   Object.keys(pageMap).forEach(key => {
     if (path.includes(key)) {
       activePage = pageMap[key];

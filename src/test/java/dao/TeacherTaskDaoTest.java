@@ -21,6 +21,14 @@ class TeacherTaskDaoTest {
 	private final TeacherTaskDao dao = new TeacherTaskDao();
 
 	@Test
+	void missingPromptStatusIsNotPublishable() {
+		assertEquals(false, TeacherTaskDao.isPublishablePromptStatus(null));
+		assertEquals(false, TeacherTaskDao.isPublishablePromptStatus("draft"));
+		assertEquals(true, TeacherTaskDao.isPublishablePromptStatus("configured"));
+		assertEquals(true, TeacherTaskDao.isPublishablePromptStatus("versioned"));
+	}
+
+	@Test
 	void requiresTransactionBeforeInsertingDraft() {
 		assertThrows(IllegalStateException.class,
 				() -> dao.insertDraft(connection(true, new ArrayList<>()), 1, emptyInput()));

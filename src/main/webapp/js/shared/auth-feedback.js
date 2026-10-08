@@ -1,8 +1,9 @@
 (function() {
   document.addEventListener('DOMContentLoaded', function() {
     const errorElement = document.querySelector('[data-auth-error]');
+    const noticeElement = document.querySelector('[data-auth-notice]');
     const feedbackTarget = document.getElementById('auth-feedback');
-    if (!errorElement || !feedbackTarget || !window.PPEFeedback) {
+    if ((!errorElement && !noticeElement) || !feedbackTarget || !window.PPEFeedback) {
       return;
     }
 
@@ -10,6 +11,7 @@
       title: '認証',
       alertTarget: feedbackTarget
     });
-    feedback.inlineAlert(errorElement.dataset.authError, 'danger');
+    if (errorElement) feedback.inlineAlert(errorElement.dataset.authError, 'danger');
+    else feedback.inlineAlert(noticeElement.dataset.authNotice, 'success');
   });
 })();

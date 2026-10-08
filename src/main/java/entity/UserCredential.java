@@ -13,7 +13,16 @@ public record UserCredential(
 		AccountStatus accountStatus,
 		int consecutiveLoginFailures,
 		Optional<LocalDateTime> loginLockedUntil,
-		Optional<StudentAccountProfile> studentProfile) {
+		Optional<StudentAccountProfile> studentProfile,
+		boolean teacherMustChangePassword) {
+	public static final String ADMIN_LOGIN_ID = "admin";
+
+	public UserCredential(long userId, UserType userType, String loginId, String passwordHash, String displayName,
+			AccountStatus accountStatus, int consecutiveLoginFailures, Optional<LocalDateTime> loginLockedUntil,
+			Optional<StudentAccountProfile> studentProfile) {
+		this(userId, userType, loginId, passwordHash, displayName, accountStatus, consecutiveLoginFailures,
+				loginLockedUntil, studentProfile, false);
+	}
 
 	public UserCredential {
 		Objects.requireNonNull(userType, "userType");

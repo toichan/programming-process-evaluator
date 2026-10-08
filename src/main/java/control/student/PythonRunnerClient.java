@@ -12,13 +12,13 @@ import com.google.gson.Gson;
 
 import entity.PythonExecutionResult;
 
-final class PythonRunnerClient {
+public final class PythonRunnerClient {
 	private static final Gson GSON = new Gson();
 	private final HttpClient httpClient;
 	private final URI runnerUri;
 	private final URI executionUri;
 
-	PythonRunnerClient() {
+	public PythonRunnerClient() {
 		this(configuredRunnerUri());
 	}
 
@@ -72,6 +72,11 @@ final class PythonRunnerClient {
 				result.errorCode);
 	}
 
+	public PythonExecutionResult executePreview(String source) throws IOException, InterruptedException {
+		String validatedSource = entity.StudentExerciseInput.validateCode(source);
+		return execute(validatedSource, "");
+	}
+
 	TimedResult executeTimed(String source, String standardInput) throws IOException, InterruptedException {
 		long startedAt = System.nanoTime();
 		PythonExecutionResult result = execute(source, standardInput);
@@ -82,7 +87,7 @@ final class PythonRunnerClient {
 
 	record TimedResult(PythonExecutionResult result, int durationMilliseconds) {}
 
-	String startSession(String source) throws IOException, InterruptedException {
+	public String startSession(String source) throws IOException, InterruptedException {
 		RunnerSessionResponse result = sendSessionRequest(
 				runnerUri.resolve("/sessions"),
 				"POST",
@@ -94,7 +99,7 @@ final class PythonRunnerClient {
 		return result.sessionId;
 	}
 
-	RunnerSessionResponse pollSession(String sessionId, long cursor)
+	public RunnerSessionResponse pollSession(String sessionId, long cursor)
 			throws IOException, InterruptedException {
 		if (cursor < 0) {
 			throw new IllegalArgumentException("The execution event cursor is invalid.");
@@ -106,7 +111,7 @@ final class PythonRunnerClient {
 				200);
 	}
 
-	void sendSessionInput(String sessionId, String line) throws IOException, InterruptedException {
+	public void sendSessionInput(String sessionId, String line) throws IOException, InterruptedException {
 		sendSessionRequest(
 				runnerUri.resolve("/sessions/" + sessionId + "/input"),
 				"POST",
@@ -114,7 +119,7 @@ final class PythonRunnerClient {
 				202);
 	}
 
-	void cancelSession(String sessionId) throws IOException, InterruptedException {
+	public void cancelSession(String sessionId) throws IOException, InterruptedException {
 		sendSessionRequest(
 				runnerUri.resolve("/sessions/" + sessionId + "/cancel"),
 				"POST",
@@ -183,24 +188,24 @@ final class PythonRunnerClient {
 		private String errorCode;
 	}
 
-	static final class RunnerSessionResponse {
-		String sessionId;
-		String status;
-		Integer exitCode;
-		String errorCode;
-		List<RunnerEvent> events;
-		long nextCursor;
-		String standardInput;
-		String standardOutput;
-		String standardError;
-		boolean standardOutputTruncated;
-		boolean standardErrorTruncated;
-		long durationMilliseconds;
+	public static final class RunnerSessionResponse {
+		public String sessionId;
+		public String status;
+		public Integer exitCode;
+		public String errorCode;
+		public List<RunnerEvent> events;
+		public long nextCursor;
+		public String standardInput;
+		public String standardOutput;
+		public String standardError;
+		public boolean standardOutputTruncated;
+		public boolean standardErrorTruncated;
+		public long durationMilliseconds;
 	}
 
-	static final class RunnerEvent {
-		long id;
-		String stream;
-		String text;
+	public static final class RunnerEvent {
+		public long id;
+		public String stream;
+		public String text;
 	}
 }

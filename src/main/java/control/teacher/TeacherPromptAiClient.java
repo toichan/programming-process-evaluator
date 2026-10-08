@@ -13,13 +13,14 @@ import com.google.gson.JsonParser;
 
 import control.evaluation.EvaluationProviderException;
 import control.evaluation.GeminiEvaluationClient;
+import control.evaluation.GeminiModelCatalog;
+import control.evaluation.EvaluationRetryPolicy;
 import entity.StandardRubric;
 import entity.StandardRubric.Criterion;
 import entity.StandardRubric.Dimension;
 import entity.TeacherPromptVersion.FluctuationItem;
 
 public final class TeacherPromptAiClient {
-	private static final String MODEL_ID_PATTERN = "[A-Za-z0-9._-]{1,100}";
 	private final StructuredGenerator generator;
 
 	public TeacherPromptAiClient() {
@@ -95,7 +96,8 @@ public final class TeacherPromptAiClient {
 			Function<JsonObject, T> validator) throws EvaluationProviderException {
 		EvaluationProviderException lastProviderFailure = null;
 		IllegalArgumentException lastOutputFailure = null;
-		for (int attempt = 0; attempt < 3; attempt++) {
+		EvaluationRetryPolicy retries = new EvaluationRetryPolicy();
+		for (int attempt = 0; attempt < EvaluationRetryPolicy.MAX_ATTEMPTS; attempt++) {
 			JsonObject requestInput = attempt < 2 ? input : simplified(input);
 			try {
 				JsonObject raw = generator.generate(modelId, systemInstruction, requestInput.toString(), schema);
@@ -106,12 +108,14 @@ public final class TeacherPromptAiClient {
 				if (!failure.isRetryable() || attempt == 2) {
 					throw failure;
 				}
+				retries.awaitNext(attempt, failure);
 			} catch (RuntimeException failure) {
 				lastOutputFailure = new IllegalArgumentException(
 						"AI returned an invalid structured prompt-design response.", failure);
 				if (attempt == 2) {
 					throw lastOutputFailure;
 				}
+				retries.awaitNext(attempt, lastOutputFailure);
 			}
 		}
 		if (lastProviderFailure != null) {
@@ -243,7 +247,18 @@ public final class TeacherPromptAiClient {
 			dimensionJson.addProperty("label", dimension.label());
 			JsonArray criteria = new JsonArray();
 			for (Criterion criterion : dimension.criteria()) {
-				criteria.add(criterion.name());
+				JsonObject criterionJson = new JsonObject();
+				criterionJson.addProperty("name", criterion.name());
+				JsonArray levels = new JsonArray();
+				for (var level : criterion.levels()) {
+					JsonObject levelJson = new JsonObject();
+					levelJson.addProperty("value", level.value());
+					levelJson.addProperty("label", level.label());
+					levelJson.addProperty("description", level.description());
+					levels.add(levelJson);
+				}
+				criterionJson.add("levels", levels);
+				criteria.add(criterionJson);
 			}
 			dimensionJson.add("criteria", criteria);
 			dimensions.add(dimensionJson);
@@ -358,10 +373,7 @@ public final class TeacherPromptAiClient {
 	}
 
 	private static void requireModel(String modelId) {
-		if (modelId == null || !modelId.matches(MODEL_ID_PATTERN)
-				|| !List.of("gemini-2.5-pro", "gemini-2.5-flash").contains(modelId)) {
-			throw new IllegalArgumentException("選択できないAIモデルです。");
-		}
+		GeminiModelCatalog.requireSelectable(modelId);
 	}
 
 	@FunctionalInterface

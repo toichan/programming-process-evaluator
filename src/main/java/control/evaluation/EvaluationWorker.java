@@ -15,7 +15,7 @@ import dao.EvaluationWorkerDao.EvaluationJob;
 
 public final class EvaluationWorker implements Runnable {
 	private static final Logger LOGGER = Logger.getLogger(EvaluationWorker.class.getName());
-	private static final int MAX_ATTEMPTS = 3;
+	private static final int MAX_ATTEMPTS = EvaluationRetryPolicy.MAX_ATTEMPTS;
 	private static final long IDLE_WAIT_MILLIS = 1_000;
 
 	private final EvaluationWorkRepository repository;
@@ -47,7 +47,7 @@ public final class EvaluationWorker implements Runnable {
 		if (thread != null) {
 			thread.interrupt();
 			try {
-				thread.join(65_000);
+				thread.join(EvaluationRetryPolicy.REQUEST_TIMEOUT.toMillis() + 5_000);
 			} catch (InterruptedException e) {
 				Thread.currentThread().interrupt();
 			}
@@ -107,6 +107,7 @@ public final class EvaluationWorker implements Runnable {
 			return;
 		}
 
+		EvaluationRetryPolicy retries = new EvaluationRetryPolicy();
 		for (int attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
 			JsonObject rawResponse = null;
 			JsonObject result;
@@ -142,6 +143,12 @@ public final class EvaluationWorker implements Runnable {
 				}
 				if (attempt == MAX_ATTEMPTS - 1) {
 					repository.fail(job, safeFailureDetail(e), retryCount);
+					return;
+				}
+				try {
+					retries.awaitNext(attempt, e);
+				} catch (EvaluationProviderException stopped) {
+					repository.fail(job, "Evaluation retry was interrupted or exceeded its deadline.", retryCount);
 					return;
 				}
 				continue;

@@ -19,6 +19,7 @@ import javax.servlet.http.HttpSession;
 
 import control.auth.AuthenticatedUser;
 import control.evaluation.EvaluationProviderException;
+import control.evaluation.GeminiModelCatalog;
 import control.teacher.TeacherNavigationControl;
 import control.teacher.TeacherPromptControl;
 import control.teacher.ReevaluationPreviewControl;
@@ -40,7 +41,8 @@ public final class TeacherPromptServlet extends HttpServlet {
 	private static final Set<String> ALLOWED_FIELDS = Set.of(
 			"action", "csrfToken", "taskId", "promptVersionId", "expectedRowVersion",
 			"aiModel", "commonPrompt", "additionalInstruction",
-			"fluctuationIds", "teacherResolutions", "resolutionStatuses", "previewCode");
+			"fluctuationIds", "teacherResolutions", "resolutionStatuses", "previewCode",
+			"expectedTaskVersion", "applyConfirmed");
 	private static final TeacherPromptControl PROMPTS = new TeacherPromptControl();
 	private static final ReevaluationPreviewControl REEVALUATIONS = new ReevaluationPreviewControl();
 	private static final TeacherNavigationControl NAVIGATION = new TeacherNavigationControl();
@@ -177,6 +179,13 @@ public final class TeacherPromptServlet extends HttpServlet {
 			long expectedRowVersion,
 			Map<String, List<String>> values) throws SQLException, EvaluationProviderException {
 		return switch (action) {
+			case "applyUnpublishedPrompt" -> {
+				requireVersion(promptVersionId);
+				PROMPTS.applyUnpublishedPrompt(user, taskId, promptVersionId,
+						nonNegativeLong(requiredScalar(values, "expectedTaskVersion")), expectedRowVersion,
+						"yes".equals(scalar(values, "applyConfirmed")));
+				yield promptVersionId;
+			}
 			case "saveDraft" -> PROMPTS.saveDraft(
 					user, taskId, promptVersionId, expectedRowVersion,
 					requiredScalar(values, "aiModel"),
@@ -186,7 +195,7 @@ public final class TeacherPromptServlet extends HttpServlet {
 				requireVersion(promptVersionId);
 				TeacherPromptVersion source = reloadSelectedVersion(user, taskId, promptVersionId);
 				yield PROMPTS.saveDraft(user, taskId, null, 0,
-						source.aiModel(), source.commonPrompt(), source.additionalInstruction());
+						GeminiModelCatalog.DEFAULT_MODEL, source.commonPrompt(), source.additionalInstruction());
 			}
 			case "generateFluctuations" -> {
 				long savedId = saveDraft(user, taskId, promptVersionId, expectedRowVersion, values);
@@ -320,8 +329,11 @@ public final class TeacherPromptServlet extends HttpServlet {
 		TeacherPromptVersion selected = page.selectedVersion();
 		Long effectiveVersionId = effectiveVersionId(promptVersionId, selected);
 		request.setAttribute("teacherPromptVersionId", effectiveVersionId == null ? "" : effectiveVersionId);
-		request.setAttribute("teacherPromptModel",
-				submittedValue(submittedValues, "aiModel", selected == null ? "gemini-2.5-pro" : selected.aiModel()));
+		String model = submittedValue(submittedValues, "aiModel",
+				selected == null ? GeminiModelCatalog.DEFAULT_MODEL : selected.aiModel());
+		request.setAttribute("teacherPromptModel", model);
+		request.setAttribute("teacherPromptModels", GeminiModelCatalog.selectableModels());
+		request.setAttribute("teacherPromptLegacyModel", !GeminiModelCatalog.isSelectable(model));
 		request.setAttribute("teacherPromptText",
 				submittedValue(submittedValues, "commonPrompt", selected == null ? "" : selected.commonPrompt()));
 		request.setAttribute("teacherPromptAdditionalInstruction",
@@ -346,6 +358,11 @@ public final class TeacherPromptServlet extends HttpServlet {
 				&& selected.fluctuationItems().stream()
 						.noneMatch(item -> "pending".equals(item.resolutionStatus()));
 		request.setAttribute("teacherPromptCanStartReevaluation", canStartReevaluation);
+		var task = page.selectedTask();
+		request.setAttribute("teacherPromptCanApplyUnpublished", selected != null && selected.isReadyForApplication()
+				&& task != null && !task.learningStarted() && "active".equals(task.rubricStatus())
+				&& ("draft".equals(task.publicationStatus()) || "requires_update".equals(task.publicationStatus()))
+				&& !Objects.equals(page.activePromptVersionId(), selected.promptVersionId()));
 		request.setAttribute("teacherReevaluationPreview", preview);
 		request.setAttribute("teacherReevaluationJob", reevaluationJob);
 		request.setAttribute("teacherId", user.loginId());
@@ -369,8 +386,7 @@ public final class TeacherPromptServlet extends HttpServlet {
 	static boolean isEditableDraft(boolean hasSelectedTask, TeacherPromptVersion selected) {
 		return hasSelectedTask
 				&& (selected == null || "draft".equals(selected.promptStatus()))
-				&& (selected == null || !"in_progress".equals(selected.fluctuationGenerationStatus()))
-				&& (selected == null || !"in_progress".equals(selected.evaluationExamplesStatus()));
+				&& (selected == null || !selected.hasActiveGeneration() || selected.isGenerationStale());
 	}
 
 	private static List<FluctuationItem> resolutions(Map<String, List<String>> values) {
@@ -391,6 +407,7 @@ public final class TeacherPromptServlet extends HttpServlet {
 
 	private static String noticeFor(String action) {
 		return switch (action) {
+			case "applyUnpublishedPrompt" -> "未公開課題にプロンプトを適用しました。課題編集画面から公開できます。";
 			case "saveDraft" -> "共通プロンプトを保存しました。";
 			case "generateFluctuations" -> "揺らぎ項目を生成しました。";
 			case "saveResolutions" -> "教師対応を保存しました。";

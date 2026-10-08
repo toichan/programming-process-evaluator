@@ -41,6 +41,8 @@
 |password_hash|パスワードハッシュ|VARCHAR(255)||NO||平文パスワードを保存しない|
 |display_name|表示名（生徒では旧互換値）|VARCHAR(100)||NO||生徒は画面表示に使わず、今後の作成処理ではlogin_idを設定して別名を要求しない。教師の利用者向けIDにも使わない。管理者表示名と既存値は保持し、匿名化の除去対象から外さない|
 |account_status|アカウント状態|ENUM('active','suspended','deleted')||NO|||
+|account_version|アカウント更新版|BIGINT||NO|DEFAULT 1|V20追加。教師管理の楽観ロックとセッション失効に使用。権限変更・停止/解除・削除・パスワード再設定で加算。ログイン失敗回数の更新では加算しない|
+|teacher_must_change_password|教師の変更必須状態|BOOLEAN||NO|DEFAULT FALSE|V22追加。教師の発行/管理者再設定時TRUE、本人変更成功時FALSE。既存教師はTRUEへ移行し版を加算。生徒・管理者には適用しない|
 |consecutive_login_failures|連続ログイン失敗回数|TINYINT UNSIGNED||NO||0〜5。成功ログイン・30分ロック満了・教師解除で0に戻す|
 |login_locked_until|ログインロック期限|DATETIME||YES||5回連続失敗後、現在時刻から30分。期限満了後は再試行可能|
 |created_by_user_id|作成者ユーザID|BIGINT||YES|FOREIGN_KEY|users.user_id|
@@ -49,9 +51,22 @@
 |updated_at|更新日時|DATETIME||YES|||
 |deleted_at|削除日時|DATETIME||YES||論理削除|
 
+教師資格情報の追加契約（V20/V22）: 初期/再設定パスワードはレスポンスで一度だけ返し、DBには既存`password_hash`だけ保存する。V22以後に作る教師の`password_reset_records.must_change_at_next_login`はtrueとし、実際の現在状態は`users.teacher_must_change_password`を正本とする。発行/再設定/本人変更を`credential_history`、管理操作/本人変更を`audit_logs`へ記録し、平文・ハッシュを含めない。本人変更は既存ハッシュ更新と同じトランザクションで`account_version`を加算し全旧セッションを失効させる。機能権限は`account-management`、`task-progress`、`exercise-code-review`、`submission-review`、`code-distribution`、`evaluation-review`、`survey-results`、`task-management`、`teacher-prompt-design`の9コード。V20では既存課題編集権限をプロンプト権限の初期値へ移行するが、以降は独立して管理する。学校権限の解除はdisabledとし、同学校の再許可では既存行を再利用する。
+
+教師の論理削除は復元不可で、ログインID・既存履歴を保持する。権限変更・停止/解除・削除はログイン失敗回数とロック期限を変更せず、パスワード再設定時のみ両方を解除する。復元可否は上記の一般分類ではなく[アカウント状態ルール](../state-rules/admin/account-state-rules.md)を優先する。
+
 ## student_profiles
 
 生徒固有のアカウント属性
+
+工程12（V21）では以下の補助テーブルを追加する。認証の正本は引き続き`users.password_hash`。`users.account_version`を生徒の競合検出・セッション失効にも使用する。
+
+|テーブル|主キー・列|用途・保持|
+|:--|:--|:--|
+|student_login_sequence|singleton_id TINYINT PK、next_number BIGINT|1行をロックしてグローバルな`s001`以降の連番を採番。全usersの既存ID・削除IDを再利用しない|
+|student_teacher_credentials|student_user_id BIGINT PK/FK(users)、encrypted_password VARCHAR(256)、updated_at DATETIME|ランダムnonce付きAES-256-GCM暗号文のみ。ユーザIDをAADに使用し、別生徒への転記を拒否。レベル2の本人変更完了・論理削除時に除去する期限付き資格情報。秘密鍵はDB/Git外の環境変数。学習履歴ではなく、通常削除不可の履歴ポリシーの対象外|
+
+生徒プロフィールの初回変更完了時はDBトリガーでも確認用資格情報を除去する。既存ハッシュから暗号文を生成しない。鍵変更時は旧鍵で復号したうえで新鍵で再暗号化する運用が必要であり、単純な鍵の再生成は行わない。
 
 |フィールド名|和名|型|主キー|NULL|その他制約|備考|
 |:--|:--|:--|:--|:--|:--|:--|
@@ -759,7 +774,8 @@ preview確定から再評価workerが通常評価履歴へ結果を移すまで�
 |root_path|ルートパス|VARCHAR(500)||YES|||
 |save_status|保存状態|ENUM('draft','saved')||NO|||
 |template_status|テンプレート状態|ENUM('active','archived')||NO|||
-|overwrite_policy|再配信時の上書き方針|ENUM('overwrite','append')||NO|||
+|overwrite_policy|再配信時の互換方針|ENUM('append')||NO||配信は常に別フォルダへ追加し、既存コードを上書きしない|
+|template_version|テンプレート更新版|INT||NO|DEFAULT 0|編集競合の検出|
 |created_at|作成日時|DATETIME||NO|||
 |updated_at|更新日時|DATETIME||YES|||
 
@@ -788,6 +804,9 @@ preview確定から再評価workerが通常評価履歴へ結果を移すまで�
 |distribution_template_id|配信テンプレートID|BIGINT||NO|FOREIGN_KEY|distribution_templates.distribution_template_id|
 |executed_by_user_id|実行者ユーザID|BIGINT||NO|FOREIGN_KEY|users.user_id|
 |distribution_status|全体配信状態|ENUM('draft','scheduled','in_progress','completed','stopped')||NO||「未配信/下書き」は draft|
+|template_name_snapshot|配信時テンプレート名|VARCHAR(255)||NO||配信実行作成時の不変スナップショット|
+|root_path_snapshot|配信時ルート名|VARCHAR(500)||NO||配信実行作成時の不変スナップショット|
+|request_token|配信要求トークン|CHAR(36)||YES|UNIQUE(executed_by_user_id, request_token)|二重送信時の配信実行作成を冪等にする|
 |created_at|作成日時|DATETIME||NO|||
 |completed_at|完了日時|DATETIME||YES|||
 
@@ -799,11 +818,24 @@ preview確定から再評価workerが通常評価履歴へ結果を移すまで�
 |:--|:--|:--|:--|:--|:--|:--|
 |distribution_target_id|配信対象ID|BIGINT|〇|NO|PRIMARY_KEY, AUTO_INCREMENT||
 |distribution_id|配信ID|BIGINT||NO|FOREIGN_KEY|distributions.distribution_id|
-|classroom_id|クラスID|BIGINT||NO|FOREIGN_KEY|classrooms.classroom_id|
+|classroom_id|クラスID|BIGINT||NO|FOREIGN_KEY, UNIQUE(distribution_id, classroom_id)|classrooms.classroom_id。同一配信内の同一クラス重複を防ぐ|
 |target_status|クラス別配信状態|ENUM('not_distributed','scheduled','distributed','stopped')||NO|||
 |scheduled_at|配信予定日時|DATETIME||YES||NULLは即時配信|
 |distributed_at|実配信日時|DATETIME||YES|||
 |execution_result|実行結果|TEXT||YES|||
+
+## distribution_snapshot_files
+
+配信実行時点のテンプレート項目スナップショット。後からテンプレートが変更されても、予約済み/過去の配信内容は変わらない。
+
+|フィールド名|和名|型|主キー|NULL|その他制約|備考|
+|:--|:--|:--|:--|:--|:--|:--|
+|distribution_snapshot_file_id|配信スナップショット項目ID|BIGINT|〇|NO|PRIMARY_KEY, AUTO_INCREMENT||
+|distribution_id|配信ID|BIGINT||NO|FOREIGN_KEY|distributions.distribution_id|
+|path|相対パス|VARCHAR(1000)||NO|UNIQUE(distribution_id, path)|||
+|path_hash|パス照合ハッシュ|BINARY(32)||NO|UNIQUE(distribution_id, path_hash)|MySQL照合順序に基づく生成列|
+|entry_type|項目種別|ENUM('folder','file')||NO|||
+|initial_content|初期内容|LONGTEXT||YES||ファイルのみ|
 
 ## distribution_histories
 
@@ -831,7 +863,7 @@ preview確定から再評価workerが通常評価履歴へ結果を移すまで�
 |version|領域版番号|BIGINT||NO|DEFAULT 0, CHECK >= 0|作成/保存/ごみ箱/復元の競合判定。V12で追加・ローカル適用済み|
 |merged_into_exercise_id|統合先生徒演習ID|BIGINT||YES|FOREIGN_KEY, INDEX(student_user_id, merged_into_exercise_id)|V14。未統合/通常ルートはNULL。統合済み元領域から同一生徒の現行ルートを参照し、元領域は物理削除・状態書換えしない|
 |student_user_id|生徒ユーザID|BIGINT||NO|FOREIGN_KEY|student_profiles.user_id|
-|distribution_target_id|配信対象ID|BIGINT||YES|FOREIGN_KEY|distribution_targets.distribution_target_id。生徒作成領域ではNULL|
+|distribution_target_id|配信対象ID|BIGINT||YES|FOREIGN_KEY, UNIQUE(distribution_target_id, student_user_id)|生徒作成領域ではNULL。同一配信対象・生徒の演習領域は1件とし、再試行を冪等にする|
 |exercise_origin|演習作成元|ENUM('distribution','student_created')||NO|||
 |scope_name|演習名/範囲|VARCHAR(255)||NO||例: 授業演習 / ウォームアップ|
 |exercise_status|演習状態|ENUM('not_started','in_progress','temporarily_saved','completed','expired','needs_review','archived')||NO||archivedは演習領域の論理削除|
@@ -1133,7 +1165,7 @@ AIへ渡した匿名化済み入力の再現用スナップショット
 |ルーブリック状態/段階|rubrics.rubric_status, criterion_levels.level_value|評価段階の説明も行で保存|
 |評価状態/再評価状態|evaluations.evaluation_status, reevaluation_jobs.reevaluation_status|旧評価結果は上書きしない|
 |配信全体/クラス別状態|distributions.distribution_status, distribution_targets.target_status|予約/実配信日時も分離保存|
-|テンプレート保存/有効/上書き方針|distribution_templates.save_status, template_status, overwrite_policy|フォルダ/ファイルは別行|
+|テンプレート保存/有効/再配信互換方針|distribution_templates.save_status, template_status, overwrite_policy|再配信は別フォルダへ追加し、既存ファイルを上書きしない|
 |授業演習領域/ファイル状態|student_exercises.exercise_status, save_status; student_exercise_entries.entry_status|演習全体とツリー内項目の状態を分離|
 |取り組み時間|task_activity_sessions.active_duration_seconds|セッション合計から集計|
 |演習領域/ツリー|student_exercises.scope_name, exercise_origin; student_exercise_entries.parent_entry_id, entry_type, path, current_content, entry_status|空フォルダ、階層、最終保存内容、ごみ箱を保持|

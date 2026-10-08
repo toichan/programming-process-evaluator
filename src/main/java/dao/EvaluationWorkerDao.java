@@ -30,6 +30,12 @@ public final class EvaluationWorkerDao implements EvaluationWorkRepository {
 	public Optional<EvaluationJob> claimNext() throws SQLException {
 		try (Connection connection = Client.createConnection()) {
 			connection.setAutoCommit(false);
+			try {
+				recoverInterruptedRequests(connection);
+			} catch (SQLException | RuntimeException failure) {
+				rollback(connection, failure);
+				throw failure;
+			}
 			try (PreparedStatement select = connection.prepareStatement("""
 					SELECT er.evaluation_request_id, er.evaluation_id, er.model_id,
 					       er.prompt_version, er.rubric_version, er.consent_status_at_request,
@@ -50,6 +56,7 @@ public final class EvaluationWorkerDao implements EvaluationWorkRepository {
 						connection.commit();
 						return Optional.empty();
 					}
+
 					long requestId = resultSet.getLong("evaluation_request_id");
 					long evaluationId = resultSet.getLong("evaluation_id");
 					long participationId = resultSet.getLong("participation_id");
@@ -101,6 +108,65 @@ public final class EvaluationWorkerDao implements EvaluationWorkRepository {
 			} catch (SQLException | RuntimeException e) {
 				rollback(connection, e);
 				throw e;
+			}
+		}
+	}
+
+	private static void recoverInterruptedRequests(Connection connection) throws SQLException {
+		try (PreparedStatement select = connection.prepareStatement("""
+				SELECT er.evaluation_request_id, er.evaluation_id, e.submission_id, tp.participation_id
+				FROM evaluation_requests er
+				JOIN evaluations e ON e.evaluation_id = er.evaluation_id
+				JOIN submissions s ON s.submission_id = e.submission_id
+				JOIN task_participations tp ON tp.participation_id = s.participation_id
+				WHERE er.request_status = 'in_progress' AND e.evaluation_status = 'in_progress'
+				  AND er.requested_at < DATE_SUB(CURRENT_TIMESTAMP(6), INTERVAL %d MINUTE)
+				FOR UPDATE SKIP LOCKED
+				""".formatted(control.evaluation.EvaluationRetryPolicy.INTERRUPTED_AFTER.toMinutes()));
+				ResultSet rows = select.executeQuery()) {
+			while (rows.next()) {
+				long evaluationId = rows.getLong("evaluation_id");
+				try (PreparedStatement update = connection.prepareStatement("""
+						UPDATE evaluations SET evaluation_status = 'failed', completed_at = CURRENT_TIMESTAMP(6)
+						WHERE evaluation_id = ? AND evaluation_status = 'in_progress'
+						""")) {
+					update.setLong(1, evaluationId);
+					update.executeUpdate();
+				}
+				try (PreparedStatement update = connection.prepareStatement("""
+						UPDATE evaluation_requests SET request_status = 'failed',
+						  completed_at = CURRENT_TIMESTAMP(6),
+						  error_detail = 'Evaluation processing was interrupted. Please retry.'
+						WHERE evaluation_request_id = ? AND request_status = 'in_progress'
+						""")) {
+					update.setLong(1, rows.getLong("evaluation_request_id"));
+					update.executeUpdate();
+				}
+				try (PreparedStatement update = connection.prepareStatement("""
+						UPDATE task_participations tp SET tp.evaluation_status = 'failed'
+						WHERE tp.participation_id = ? AND tp.draft_base_submission_id = ?
+						  AND NOT EXISTS (
+						    SELECT 1 FROM evaluations newer
+						    WHERE newer.submission_id = ? AND newer.evaluation_id > ?
+						  )
+						""")) {
+					update.setLong(1, rows.getLong("participation_id"));
+					update.setLong(2, rows.getLong("submission_id"));
+					update.setLong(3, rows.getLong("submission_id"));
+					update.setLong(4, evaluationId);
+					update.executeUpdate();
+				}
+				try (PreparedStatement audit = connection.prepareStatement("""
+						INSERT INTO audit_logs (
+						  actor_role, feature_code, target_type, target_id, action_type, result_status,
+						  error_code, error_message, occurred_at)
+						VALUES ('system', 'student_evaluation', 'evaluation', ?, 'evaluation_failed',
+						  'failure', 'worker_interrupted',
+						  'Evaluation processing was interrupted. Please retry.', CURRENT_TIMESTAMP(6))
+						""")) {
+					audit.setLong(1, evaluationId);
+					audit.executeUpdate();
+				}
 			}
 		}
 	}
@@ -261,9 +327,13 @@ public final class EvaluationWorkerDao implements EvaluationWorkRepository {
 						SET evaluation_status = 'completed'
 						WHERE participation_id = ?
 						  AND draft_base_submission_id = ?
+						  AND NOT EXISTS (SELECT 1 FROM evaluations newer
+						    WHERE newer.submission_id = ? AND newer.evaluation_id > ?)
 						""")) {
 					update.setLong(1, job.participationId());
 					update.setLong(2, job.submissionId());
+					update.setLong(3, job.submissionId());
+					update.setLong(4, job.evaluationId());
 					update.executeUpdate();
 				}
 				connection.commit();
@@ -456,7 +526,9 @@ public final class EvaluationWorkerDao implements EvaluationWorkRepository {
 						WHERE evaluation_id = ? AND evaluation_status = 'in_progress'
 						""")) {
 					update.setLong(1, job.evaluationId());
-					update.executeUpdate();
+					if (update.executeUpdate() != 1) {
+						throw new SQLException("The evaluation is no longer owned by this worker.");
+					}
 				}
 				try (PreparedStatement update = connection.prepareStatement("""
 						UPDATE evaluation_requests
@@ -467,15 +539,21 @@ public final class EvaluationWorkerDao implements EvaluationWorkRepository {
 					update.setInt(1, retryCount);
 					update.setString(2, safeErrorDetail);
 					update.setLong(3, job.requestId());
-					update.executeUpdate();
+					if (update.executeUpdate() != 1) {
+						throw new SQLException("The evaluation request is no longer owned by this worker.");
+					}
 				}
 				try (PreparedStatement update = connection.prepareStatement("""
 						UPDATE task_participations
 						SET evaluation_status = 'failed'
 						WHERE participation_id = ? AND draft_base_submission_id = ?
+						  AND NOT EXISTS (SELECT 1 FROM evaluations newer
+						    WHERE newer.submission_id = ? AND newer.evaluation_id > ?)
 						""")) {
 					update.setLong(1, job.participationId());
 					update.setLong(2, job.submissionId());
+					update.setLong(3, job.submissionId());
+					update.setLong(4, job.evaluationId());
 					update.executeUpdate();
 				}
 				try (PreparedStatement audit = connection.prepareStatement("""

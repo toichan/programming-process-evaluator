@@ -11,12 +11,25 @@
 	</div>
 	<div class="interactive-terminal" role="region" aria-label="実行結果と入力">
 		<pre id="terminalOutput" class="interactive-terminal-output" aria-live="polite">まだ実行していません。</pre>
-		<form id="terminalInputForm" class="interactive-terminal-input-row">
-			<label class="visually-hidden" for="terminalInput">実行中の入力</label>
-			<input id="terminalInput" class="form-control" type="text"
-				autocomplete="off" disabled placeholder="実行中に入力してEnter">
-			<button id="terminalSendButton" class="btn btn-outline-primary" type="submit" disabled>送信</button>
-			<button id="terminalCancelButton" class="btn btn-outline-danger" type="button" hidden>停止</button>
-		</form>
+		<c:choose>
+			<c:when test="${terminalInputMode eq 'inline'}">
+				<div id="terminalInputForm" class="interactive-terminal-input-row" role="group" aria-label="実行中の入力">
+					<label class="visually-hidden" for="terminalInput">実行中の入力</label>
+					<input id="terminalInput" class="form-control" type="text"
+						autocomplete="off" disabled placeholder="実行中に入力してEnter">
+					<button id="terminalSendButton" class="btn btn-outline-primary" type="button" disabled>送信</button>
+					<button id="terminalCancelButton" class="btn btn-outline-danger" type="button" hidden>停止</button>
+				</div>
+			</c:when>
+			<c:otherwise>
+				<form id="terminalInputForm" class="interactive-terminal-input-row">
+					<label class="visually-hidden" for="terminalInput">実行中の入力</label>
+					<input id="terminalInput" class="form-control" type="text"
+						autocomplete="off" disabled placeholder="実行中に入力してEnter">
+					<button id="terminalSendButton" class="btn btn-outline-primary" type="submit" disabled>送信</button>
+					<button id="terminalCancelButton" class="btn btn-outline-danger" type="button" hidden>停止</button>
+				</form>
+			</c:otherwise>
+		</c:choose>
 	</div>
 </section>

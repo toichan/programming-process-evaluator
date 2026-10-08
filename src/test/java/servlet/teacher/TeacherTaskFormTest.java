@@ -39,6 +39,18 @@ class TeacherTaskFormTest {
 	}
 
 	@Test
+	void acceptsPerClassImmediateAndNoDeadlineCheckboxValues() {
+		Map<String, List<String>> values = new java.util.HashMap<>(validCreateValues());
+		values.put("publishImmediateClassIds", List.of("9"));
+		values.put("dueNoneClassIds", List.of("9"));
+
+		TeacherTaskForm form = TeacherTaskForm.parse(values);
+
+		assertNull(form.input().classAssignments().get(0).publishAt());
+		assertNull(form.input().classAssignments().get(0).dueAt());
+	}
+
+	@Test
 	void acceptsPublishActionForNewDraftWithNoExistingVersion() {
 		Map<String, List<String>> values = new java.util.HashMap<>(validCreateValues());
 		values.put("action", List.of("publishTask"));

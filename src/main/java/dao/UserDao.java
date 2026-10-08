@@ -19,7 +19,7 @@ import lib.mysql.Client;
 public final class UserDao {
 	private static final String FIND_BY_LOGIN_ID = """
 			SELECT u.user_id, u.user_type, u.login_id, u.password_hash, u.display_name, u.account_status,
-			       u.consecutive_login_failures, u.login_locked_until,
+			       u.consecutive_login_failures, u.login_locked_until, u.teacher_must_change_password,
 			       sp.user_id AS student_profile_user_id,
 			       CASE WHEN sp.school_id IS NULL THEN sp.security_level ELSE school.security_level END AS security_level,
 			       sp.first_login_status, sp.must_change_password
@@ -31,7 +31,7 @@ public final class UserDao {
 
 	private static final String FIND_BY_USER_ID = """
 			SELECT u.user_id, u.user_type, u.login_id, u.password_hash, u.display_name, u.account_status,
-			       u.consecutive_login_failures, u.login_locked_until,
+			       u.consecutive_login_failures, u.login_locked_until, u.teacher_must_change_password,
 			       sp.user_id AS student_profile_user_id,
 			       CASE WHEN sp.school_id IS NULL THEN sp.security_level ELSE school.security_level END AS security_level,
 			       sp.first_login_status, sp.must_change_password
@@ -119,7 +119,8 @@ public final class UserDao {
 				accountStatus,
 				consecutiveLoginFailures,
 				loginLockedUntil,
-				studentProfile);
+				studentProfile,
+				resultSet.getBoolean("teacher_must_change_password"));
 	}
 
 	private static <E extends Enum<E>> E enumValue(Class<E> enumType, String value) throws SQLException {

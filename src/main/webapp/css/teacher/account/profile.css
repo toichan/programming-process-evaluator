@@ -1,0 +1,9 @@
+.profile-hero { background: linear-gradient(135deg, #2563eb14, #06b6d414); }
+.profile-kicker { display: inline-block; margin-bottom: 1rem; padding: .4rem .85rem; border-radius: 999px; background: #2563eb1f; color: var(--bs-primary); font-size: .85rem; font-weight: 700; }
+.profile-details, .profile-features { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.profile-details > div, .profile-policy { padding: 1rem; border: 1px solid var(--bs-gray-200); border-radius: .75rem; background: #f8fafc; }
+.profile-details dt { margin-bottom: .5rem; color: var(--bs-gray-600); font-size: .85rem; }
+.profile-details dd { margin: 0; overflow-wrap: anywhere; }
+.profile-detail-wide { grid-column: 1 / -1; }
+.profile-features { padding-left: 1.25rem; }
+@media (max-width: 767px) { .profile-details, .profile-features { grid-template-columns: 1fr; } }

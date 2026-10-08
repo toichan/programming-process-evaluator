@@ -14,7 +14,9 @@ import control.student.StudentControl;
 import entity.StudentAccountDetails;
 import servlet.auth.CsrfTokens;
 
-@WebServlet("/student/account/account")
+import servlet.auth.ApplicationUrls;
+
+@WebServlet(ApplicationUrls.STUDENT_ACCOUNT)
 public final class StudentAccountServlet extends HttpServlet {
 	private static final long serialVersionUID = 1L;
 	private static final StudentControl STUDENTS = new StudentControl();

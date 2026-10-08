@@ -10,6 +10,7 @@ import com.google.gson.JsonObject;
 
 import control.auth.AuthenticatedUser;
 import control.evaluation.EvaluationProviderException;
+import control.evaluation.GeminiModelCatalog;
 import dao.StandardRubricDao;
 import dao.TeacherPermissionDao;
 import dao.TeacherPromptDao;
@@ -60,8 +61,11 @@ public final class TeacherPromptControl {
 		try (Connection connection = connectionFactory.open()) {
 			connection.setAutoCommit(false);
 			try {
-				permissionDao.requireTaskManagementAccess(connection, user.userId());
-				List<TeacherTaskDetails> tasks = taskDao.findPromptTasks(connection, user.userId());
+				permissionDao.requirePromptDesignAccess(connection, user.userId());
+				var schools = permissionDao.findPromptAuthorizedSchools(connection, user.userId()).stream()
+						.map(entity.TeacherSchoolOption::schoolId).collect(java.util.stream.Collectors.toSet());
+				List<TeacherTaskDetails> tasks = taskDao.findPromptTasks(connection, user.userId()).stream()
+						.filter(task -> schools.contains(task.input().schoolId())).toList();
 				requireAuthorizedClasses(connection, user.userId(), tasks);
 				if (selectedTaskId == null) {
 					connection.commit();
@@ -113,7 +117,7 @@ public final class TeacherPromptControl {
 		try (Connection connection = connectionFactory.open()) {
 			connection.setAutoCommit(false);
 			try {
-				permissionDao.requireTaskManagementAccess(connection, user.userId());
+				permissionDao.requirePromptDesignAccess(connection, user.userId());
 				TeacherTaskDetails task = taskDao.findPromptTask(connection, user.userId(), taskId, true)
 						.orElseThrow(TeacherPromptDao.TeacherTaskNotFoundException::new);
 				requireAuthorizedClasses(connection, user.userId(), List.of(task));
@@ -269,6 +273,45 @@ public final class TeacherPromptControl {
 		}
 	}
 
+	public void applyUnpublishedPrompt(
+			AuthenticatedUser user, long taskId, long promptVersionId, long expectedTaskVersion,
+			long expectedPromptRowVersion, boolean confirmed) throws SQLException {
+		requireTeacher(user);
+		validatePositiveId(taskId, "課題");
+		validatePositiveId(promptVersionId, "プロンプト版");
+		if (expectedTaskVersion < 1 || expectedPromptRowVersion < 1) {
+			throw new IllegalArgumentException("更新情報が不正です。画面を再読み込みしてください。");
+		}
+		if (!confirmed) {
+			throw new IllegalArgumentException("確認ダイアログで適用を確定してください。");
+		}
+		try (Connection connection = connectionFactory.open()) {
+			connection.setAutoCommit(false);
+			try {
+				requireTaskAccess(connection, user, taskId);
+				TeacherTaskDetails task = taskDao.findPromptTask(connection, user.userId(), taskId, true)
+						.orElseThrow(TeacherPromptDao.TeacherTaskNotFoundException::new);
+				if (task.version() != expectedTaskVersion) {
+					throw new TeacherPromptDao.PromptVersionConflictException();
+				}
+				if (!("draft".equals(task.publicationStatus()) || "requires_update".equals(task.publicationStatus()))
+						|| taskDao.hasStartedLearning(connection, taskId, true)) {
+					throw new IllegalStateException("未公開かつ学習開始前の課題にだけ適用できます。公開済み課題は再評価プレビューを利用してください。");
+				}
+				if (!"active".equals(task.rubricStatus())) {
+					throw new IllegalStateException("有効な標準ルーブリックを設定してください。");
+				}
+				rubricDao.requireActiveId(connection);
+				promptDao.applyUnpublishedPrompt(connection, user.userId(), taskId, promptVersionId,
+						expectedTaskVersion, expectedPromptRowVersion);
+				connection.commit();
+			} catch (SQLException | RuntimeException failure) {
+				rollback(connection, failure);
+				throw failure;
+			}
+		}
+	}
+
 	private GenerationContext beginGeneration(
 			AuthenticatedUser user,
 			long taskId,
@@ -289,6 +332,7 @@ public final class TeacherPromptControl {
 				if (!"draft".equals(version.promptStatus())) {
 					throw new TeacherPromptDao.PromptVersionConflictException();
 				}
+				GeminiModelCatalog.requireSelectable(version.aiModel());
 				if ("examples".equals(stage)
 						&& (!"completed".equals(version.fluctuationGenerationStatus())
 								|| version.fluctuationItems().isEmpty()
@@ -308,7 +352,7 @@ public final class TeacherPromptControl {
 	}
 
 	private void requireTaskAccess(Connection connection, AuthenticatedUser user, long taskId) throws SQLException {
-		permissionDao.requireTaskManagementAccess(connection, user.userId());
+		permissionDao.requirePromptDesignAccess(connection, user.userId());
 		TeacherTaskDetails task = taskDao.findPromptTask(connection, user.userId(), taskId, true)
 				.orElseThrow(TeacherPromptDao.TeacherTaskNotFoundException::new);
 		requireAuthorizedClasses(connection, user.userId(), List.of(task));
@@ -340,8 +384,9 @@ public final class TeacherPromptControl {
 			long teacherUserId,
 			List<TeacherTaskDetails> tasks) throws SQLException {
 		for (TeacherTaskDetails task : tasks) {
+			permissionDao.requirePromptAuthorizedSchool(connection, teacherUserId, task.input().schoolId());
 			for (var assignment : task.input().classAssignments()) {
-				permissionDao.requireAuthorizedClass(connection, teacherUserId, assignment.classroomId());
+				permissionDao.requirePromptAuthorizedClass(connection, teacherUserId, assignment.classroomId());
 			}
 		}
 	}
@@ -394,9 +439,8 @@ public final class TeacherPromptControl {
 	}
 
 	private static void validatePrompt(String modelId, String commonPrompt, String additionalInstruction) {
-		if (modelId == null
-				|| !List.of("gemini-2.5-pro", "gemini-2.5-flash").contains(modelId)
-				|| commonPrompt == null || commonPrompt.isBlank() || commonPrompt.length() > MAX_COMMON_PROMPT_LENGTH
+		GeminiModelCatalog.requireSelectable(modelId);
+		if (commonPrompt == null || commonPrompt.isBlank() || commonPrompt.length() > MAX_COMMON_PROMPT_LENGTH
 				|| additionalInstruction != null
 						&& additionalInstruction.length() > MAX_ADDITIONAL_INSTRUCTION_LENGTH) {
 			throw new IllegalArgumentException("プロンプトとAIモデルの入力を確認してください。");

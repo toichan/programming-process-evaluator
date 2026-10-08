@@ -55,11 +55,13 @@ class TeacherPermissionDaoTest {
 				Map.of("task_management_enabled", true, "school_id", 12L,
 						"school_code", "SCH-12", "name", "北中学校"),
 				Map.of("task_management_enabled", true, "school_id", 13L,
-						"school_code", "SCH-13", "name", "南高校")));
+						"school_code", "SCH-13", "name", "南高校")), List.of("task-management", "code-distribution"));
 
 		var summary = dao.findNavigationSummary(connection, 42);
 
 		assertTrue(summary.taskManagementEnabled());
+		assertTrue(summary.features().contains("code-distribution"));
+		assertFalse(summary.features().contains("account-management"));
 		assertEquals(List.of(
 				new entity.TeacherSchoolOption(12, "SCH-12", "北中学校"),
 				new entity.TeacherSchoolOption(13, "SCH-13", "南高校")), summary.schools());
@@ -84,7 +86,26 @@ class TeacherPermissionDaoTest {
 	}
 
 	private static Connection navigationConnection(List<Map<String, Object>> rows) {
-		PreparedStatement statement = (PreparedStatement) Proxy.newProxyInstance(
+		return navigationConnection(rows, List.of());
+	}
+
+	private static Connection navigationConnection(List<Map<String, Object>> rows, List<String> features) {
+		return (Connection) Proxy.newProxyInstance(
+				Connection.class.getClassLoader(),
+				new Class<?>[] { Connection.class },
+				(proxy, method, arguments) -> {
+					if ("getAutoCommit".equals(method.getName())) return false;
+					if ("prepareStatement".equals(method.getName())) {
+						List<Map<String, Object>> selected = arguments[0].toString().contains("SELECT feature_code")
+								? features.stream().map(code -> Map.<String, Object>of("feature_code", code)).toList() : rows;
+						return navigationStatement(selected);
+					}
+					throw new SQLException("Unexpected connection method: " + method.getName());
+				});
+	}
+
+	private static PreparedStatement navigationStatement(List<Map<String, Object>> rows) {
+		return (PreparedStatement) Proxy.newProxyInstance(
 				PreparedStatement.class.getClassLoader(),
 				new Class<?>[] { PreparedStatement.class },
 				(proxy, method, arguments) -> {
@@ -96,18 +117,6 @@ class TeacherPermissionDaoTest {
 						return null;
 					}
 					throw new SQLException("Unexpected statement method: " + method.getName());
-				});
-		return (Connection) Proxy.newProxyInstance(
-				Connection.class.getClassLoader(),
-				new Class<?>[] { Connection.class },
-				(proxy, method, arguments) -> {
-					if ("getAutoCommit".equals(method.getName())) {
-						return false;
-					}
-					if ("prepareStatement".equals(method.getName())) {
-						return statement;
-					}
-					throw new SQLException("Unexpected connection method: " + method.getName());
 				});
 	}
 

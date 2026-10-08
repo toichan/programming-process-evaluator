@@ -17,7 +17,7 @@ import dao.ReevaluationPreviewDao.PreviewWorkItem;
 
 public final class ReevaluationPreviewWorker implements Runnable {
 	private static final Logger LOGGER = Logger.getLogger(ReevaluationPreviewWorker.class.getName());
-	private static final int MAX_ATTEMPTS = 3;
+	private static final int MAX_ATTEMPTS = EvaluationRetryPolicy.MAX_ATTEMPTS;
 	private static final long IDLE_WAIT_MILLIS = 1_000;
 	private static final long CLEANUP_INTERVAL_MILLIS = 60_000;
 
@@ -51,7 +51,7 @@ public final class ReevaluationPreviewWorker implements Runnable {
 		if (thread != null) {
 			thread.interrupt();
 			try {
-				thread.join(65_000);
+				thread.join(EvaluationRetryPolicy.REQUEST_TIMEOUT.toMillis() + 5_000);
 			} catch (InterruptedException interrupted) {
 				Thread.currentThread().interrupt();
 			}
@@ -103,6 +103,7 @@ public final class ReevaluationPreviewWorker implements Runnable {
 					invalidInput);
 			return;
 		}
+		EvaluationRetryPolicy retries = new EvaluationRetryPolicy();
 		for (int attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
 			JsonObject rawResponse = null;
 			try {
@@ -141,6 +142,14 @@ public final class ReevaluationPreviewWorker implements Runnable {
 							failure instanceof IllegalArgumentException
 									? "AI応答が評価形式に適合しませんでした。"
 									: "予測サービスへの接続に失敗しました。");
+				} else {
+					try {
+						retries.awaitNext(attempt, failure);
+					} catch (EvaluationProviderException stopped) {
+						repository.markFailed(item.targetId(), item.previewId(), attempt + 1,
+								"retry_stopped", "予測の待機が中断されたか処理時間の上限を超えました。");
+						return;
+					}
 				}
 			}
 		}

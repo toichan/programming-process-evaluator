@@ -161,8 +161,10 @@ document.addEventListener('DOMContentLoaded', function() {
     container.querySelectorAll('.class-schedule-row').forEach(function(row) {
       const values = {
         assignmentId: row.querySelector('[name="assignmentIds"]').value,
-        publishAt: row.querySelector('[name="publishAts"]').value,
-        dueAt: row.querySelector('[name="dueAts"]').value
+        publishAt: row.querySelector('.class-schedule-publish').value,
+        publishImmediate: row.querySelector('.class-schedule-publish-immediate').checked,
+        dueAt: row.querySelector('.class-schedule-deadline').value,
+        dueNone: row.querySelector('.class-schedule-deadline-none').checked
       };
       saved.set(row.dataset.classId, values);
       scheduleValues.set(row.dataset.classId, values);
@@ -190,35 +192,96 @@ document.addEventListener('DOMContentLoaded', function() {
       const publishAt = document.createElement('input');
       publishAt.type = 'datetime-local';
       publishAt.step = '1';
-      publishAt.className = 'form-control';
-      publishAt.name = 'publishAts';
+      publishAt.className = 'form-control class-schedule-publish';
+      publishAt.id = 'schedulePublish-' + classInput.value;
       publishAt.setAttribute('aria-label', name.textContent + ' 公開日時');
+      const publishAtValue = document.createElement('input');
+      publishAtValue.type = 'hidden';
+      publishAtValue.name = 'publishAts';
+      const publishImmediate = document.createElement('input');
+      publishImmediate.type = 'checkbox';
+      publishImmediate.className = 'form-check-input class-schedule-publish-immediate';
+      publishImmediate.id = 'schedulePublishImmediate-' + classInput.value;
+      publishImmediate.name = 'publishImmediateClassIds';
+      publishImmediate.value = classInput.value;
+      const publishImmediateLabel = document.createElement('label');
+      publishImmediateLabel.className = 'form-check-label';
+      publishImmediateLabel.htmlFor = publishImmediate.id;
+      publishImmediateLabel.textContent = '即時公開';
+      const publishImmediateBlock = document.createElement('div');
+      publishImmediateBlock.className = 'form-check mt-2';
+      publishImmediateBlock.append(publishImmediate, publishImmediateLabel);
       const dueAt = document.createElement('input');
       dueAt.type = 'datetime-local';
       dueAt.step = '1';
-      dueAt.className = 'form-control';
-      dueAt.name = 'dueAts';
+      dueAt.className = 'form-control class-schedule-deadline';
+      dueAt.id = 'scheduleDeadline-' + classInput.value;
       dueAt.setAttribute('aria-label', name.textContent + ' 提出期限');
+      const dueAtValue = document.createElement('input');
+      dueAtValue.type = 'hidden';
+      dueAtValue.name = 'dueAts';
+      const dueNone = document.createElement('input');
+      dueNone.type = 'checkbox';
+      dueNone.className = 'form-check-input class-schedule-deadline-none';
+      dueNone.id = 'scheduleDeadlineNone-' + classInput.value;
+      dueNone.name = 'dueNoneClassIds';
+      dueNone.value = classInput.value;
+      const dueNoneLabel = document.createElement('label');
+      dueNoneLabel.className = 'form-check-label';
+      dueNoneLabel.htmlFor = dueNone.id;
+      dueNoneLabel.textContent = '提出期限なし';
+      const dueNoneBlock = document.createElement('div');
+      dueNoneBlock.className = 'form-check mt-2';
+      dueNoneBlock.append(dueNone, dueNoneLabel);
       const initial = scheduleValues.get(classInput.value) || saved.get(classInput.value) || {
         assignmentId: classInput.dataset.assignmentId || '0',
         publishAt: classInput.dataset.publishAt || '',
-        dueAt: classInput.dataset.dueAt || ''
+        publishImmediate: classInput.dataset.publishImmediate === 'true',
+        dueAt: classInput.dataset.dueAt || '',
+        dueNone: classInput.dataset.dueNone === 'true'
       };
       assignmentId.value = initial.assignmentId;
       setDateValue(publishAt, initial.publishAt);
+      publishImmediate.checked = initial.publishImmediate === true;
+      const updatePublishValue = function() {
+        if (publishImmediate.checked) {
+          publishAt.value = '';
+        }
+        publishAt.disabled = publishImmediate.checked;
+        publishAtValue.value = publishImmediate.checked ? '' : publishAt.value;
+      };
+      publishImmediate.addEventListener('change', updatePublishValue);
+      publishAt.addEventListener('input', updatePublishValue);
+      publishAt.addEventListener('change', updatePublishValue);
+      updatePublishValue();
       setDateValue(dueAt, initial.dueAt);
+      dueNone.checked = initial.dueNone === true;
+      const updateDueValue = function() {
+        if (dueNone.checked) {
+          dueAt.value = '';
+        }
+        dueAt.disabled = dueNone.checked;
+        dueAtValue.value = dueNone.checked ? '' : dueAt.value;
+      };
+      dueNone.addEventListener('change', updateDueValue);
+      dueAt.addEventListener('input', updateDueValue);
+      dueAt.addEventListener('change', updateDueValue);
+      updateDueValue();
       const publishBlock = scheduleField('公開日時', publishAt);
+      publishBlock.append(publishImmediateBlock, publishAtValue);
       const dueBlock = scheduleField('提出期限', dueAt);
+      dueBlock.append(dueNoneBlock, dueAtValue);
       row.append(name, assignmentId, publishBlock, dueBlock);
       container.append(row);
     });
   }
 
   function scheduleField(labelText, control) {
-    const field = document.createElement('label');
+    const field = document.createElement('div');
     field.className = 'field-block class-schedule-field';
-    const caption = document.createElement('span');
+    const caption = document.createElement('label');
     caption.className = 'mini-label';
+    caption.htmlFor = control.id;
     caption.textContent = labelText;
     field.append(caption, control);
     return field;

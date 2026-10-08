@@ -60,6 +60,7 @@
 - [評価ルーブリック](./rubric/): 評価観点の詳細。
 - [サーバ維持費・AI API費の試算](./server-cost-estimate.md): 仮定に基づく試算。現在の確定価格としては扱わず、公開前に再確認する。
 - [本番運用条件の確認テンプレート](./system-configuration/production-operations-decisions.md): AWS・バックアップ・費用・運用など、公開前に人が決定する項目。
+- [デプロイ準備調査](./system-configuration/deployment-readiness-assessment.md): 現行コード・設定の実装根拠、公開前の不足事項、確認質問、機能開発と並行できる準備順。決定内容の正本は上記の本番運用条件。
 
 ### 外部資料のスナップショット
 

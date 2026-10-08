@@ -1,0 +1,446 @@
+.teacher-progress-screen {
+	background-color: #f8fafc;
+	flex-grow: 1;
+}
+
+.teacher-progress-screen .history-hero {
+	display: grid;
+	grid-template-columns: 1.2fr 1fr;
+	gap: 1.25rem;
+	align-items: stretch;
+}
+
+.teacher-progress-screen .hero-kicker {
+	display: inline-block;
+	margin-bottom: 0.4rem;
+	color: #4f46e5;
+	font-size: 0.8rem;
+	font-weight: 600;
+	letter-spacing: 0.05em;
+	text-transform: uppercase;
+}
+
+.teacher-progress-screen .section-title {
+	color: var(--bs-gray-900);
+	font-size: 2rem;
+	font-weight: 700;
+}
+
+.teacher-progress-screen .hero-description {
+	color: var(--bs-gray-600);
+}
+
+.teacher-progress-screen .hero-stats {
+	display: grid;
+	grid-template-columns: repeat(3, 1fr);
+	gap: 0.75rem;
+}
+
+.teacher-progress-screen .stat-card {
+	padding: 1rem;
+	border-radius: 0.85rem;
+	background: linear-gradient(135deg, #4f46e5, #7c3aed);
+	box-shadow: 0 8px 22px rgba(79, 70, 229, 0.2);
+	color: #fff;
+}
+
+.teacher-progress-screen .stat-label {
+	font-size: 0.8rem;
+	opacity: 0.9;
+}
+
+.teacher-progress-screen .stat-value {
+	font-size: 1.7rem;
+	font-weight: 700;
+}
+
+.teacher-progress-screen .panel-card {
+	padding: 1.25rem;
+	border: 1px solid #e2e8f0;
+	border-radius: 1rem;
+	background: #fff;
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.teacher-progress-screen .summary-heading {
+	color: #27304a;
+	font-size: 1.15rem;
+	font-weight: 700;
+}
+
+.teacher-progress-screen .action-buttons {
+	display: flex;
+	gap: 0.5rem;
+}
+
+.teacher-progress-screen .filter-grid {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(150px, 1fr));
+	gap: 0.75rem;
+}
+
+.teacher-progress-screen .form-label {
+	margin-bottom: 0.35rem;
+	color: var(--bs-gray-700);
+	font-size: 0.88rem;
+	font-weight: 500;
+}
+
+.teacher-progress-screen .form-control,
+.teacher-progress-screen .form-select {
+	border: 1px solid #cbd5e1;
+	border-radius: 0.5rem;
+}
+
+.teacher-progress-screen .form-control:focus,
+.teacher-progress-screen .form-select:focus {
+	border-color: #4f46e5;
+	box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+}
+
+.teacher-progress-screen .table {
+	margin-bottom: 0;
+	font-size: 0.92rem;
+}
+
+.teacher-progress-screen #historyTable {
+	min-width: 980px;
+}
+
+.teacher-progress-screen .table-light thead th {
+	padding: 0.9rem 0.7rem;
+	border-bottom: 2px solid #cbd5e1;
+	color: var(--bs-gray-700);
+}
+
+.teacher-progress-screen #historyTable thead th {
+	font-size: 0.84rem;
+	line-height: 1.3;
+	vertical-align: middle;
+	white-space: nowrap;
+}
+
+.teacher-progress-screen #historyTable thead th.sortable {
+	position: relative;
+	padding-right: 1.5rem;
+	cursor: pointer;
+	user-select: none;
+}
+
+.teacher-progress-screen #historyTable thead th.sortable::after {
+	position: absolute;
+	top: 50%;
+	right: 0.45rem;
+	color: #94a3b8;
+	font-size: 0.78rem;
+	content: "↕";
+	transform: translateY(-50%);
+}
+
+.teacher-progress-screen #historyTable thead th.sortable.sorted-asc::after {
+	color: #4f46e5;
+	content: "▲";
+}
+
+.teacher-progress-screen #historyTable thead th.sortable.sorted-desc::after {
+	color: #4f46e5;
+	content: "▼";
+}
+
+.teacher-progress-screen .table tbody td {
+	padding: 0.85rem 0.7rem;
+	vertical-align: middle;
+}
+
+.teacher-progress-screen .table tbody tr:hover {
+	background-color: #f0f4ff;
+}
+
+.teacher-progress-screen #historyTable .badge.difficulty-beginner,
+.teacher-progress-screen #historyTable .badge.difficulty-intermediate,
+.teacher-progress-screen #historyTable .badge.difficulty-advanced {
+	border: 0;
+	color: #fff;
+	font-weight: 700;
+}
+
+.teacher-progress-screen #historyTable .badge.difficulty-beginner {
+	background: #059669;
+}
+
+.teacher-progress-screen #historyTable .badge.difficulty-intermediate {
+	background: #eab308;
+}
+
+.teacher-progress-screen #historyTable .badge.difficulty-advanced {
+	background: #dc2626;
+}
+
+.teacher-progress-screen #historyTable .badge.difficulty-none {
+	background: #64748b;
+	color: #fff;
+}
+
+.teacher-progress-screen #historyTable td:last-child .btn {
+	min-width: 3.4rem;
+	white-space: nowrap;
+}
+
+.teacher-progress-screen code {
+	padding: 0.2rem 0.45rem;
+	border-radius: 0.35rem;
+	background: #eef2ff;
+	color: #4f46e5;
+	font-size: 0.88rem;
+}
+
+.teacher-progress-screen .consent {
+	font-size: 0.8rem;
+	font-weight: 600;
+}
+
+.teacher-progress-screen .consent-ok {
+	color: #15803d;
+}
+
+.teacher-progress-screen .consent-no {
+	color: #b91c1c;
+}
+
+.teacher-progress-screen .consent-pending {
+	color: #475569;
+}
+
+.teacher-progress-screen .summary-header-row {
+	margin-bottom: 0.75rem;
+}
+
+.teacher-progress-screen .summary-kicker {
+	margin-bottom: 0;
+	padding: 0.2rem 0.65rem;
+	border: 1px solid rgba(79, 70, 229, 0.18);
+	border-radius: 999px;
+	background: rgba(79, 70, 229, 0.1);
+}
+
+.teacher-progress-screen .summary-section .summary-heading {
+	color: #27304a;
+	font-size: 1.15rem;
+	font-weight: 700;
+}
+
+.teacher-progress-screen .summary-layout {
+	display: grid;
+	grid-template-columns: 310px 1fr;
+	gap: 2.5rem;
+	align-items: center;
+}
+
+.teacher-progress-screen .summary-stat-row {
+	display: grid;
+	grid-template-columns: repeat(3, 1fr);
+	gap: 0.55rem;
+}
+
+.teacher-progress-screen .summary-stat-box {
+	padding: 0.65rem 0.5rem;
+	border-radius: 0.65rem;
+	text-align: center;
+}
+
+.teacher-progress-screen .summary-stat-todo {
+	background: #f1f5f9;
+	color: #475569;
+}
+
+.teacher-progress-screen .summary-stat-active {
+	background: #fef3c7;
+	color: #92400e;
+}
+
+.teacher-progress-screen .summary-stat-done {
+	background: #dcfce7;
+	color: #15803d;
+}
+
+.teacher-progress-screen .ssb-count {
+	font-size: 1.55rem;
+	font-weight: 700;
+	line-height: 1.1;
+}
+
+.teacher-progress-screen .ssb-label {
+	margin-top: 0.15rem;
+	font-size: 0.72rem;
+	font-weight: 500;
+}
+
+.teacher-progress-screen .completion-label,
+.teacher-progress-screen .completion-pct {
+	font-size: 0.82rem;
+}
+
+.teacher-progress-screen .completion-label {
+	color: #64748b;
+	font-weight: 500;
+}
+
+.teacher-progress-screen .completion-pct {
+	color: #15803d;
+	font-weight: 700;
+}
+
+.teacher-progress-screen .summary-chart-wrap {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.teacher-progress-screen .summary-chart-wrap canvas {
+	width: 100%;
+	max-width: 380px;
+	max-height: 380px;
+}
+
+#historyDetailModal .detail-meta {
+	color: #475569;
+	font-size: 1.02rem;
+	font-weight: 600;
+	line-height: 1.45;
+}
+
+#historyDetailModal .modal-header-actions {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 0.75rem;
+	margin-left: auto;
+}
+
+#historyDetailModal .modal-header {
+	background-color: #f8fafc;
+}
+
+#historyDetailModal .timeline-card {
+	padding: 1rem;
+	border: 1px solid #e2e8f0;
+	border-radius: 0.8rem;
+	background: #f8fafc;
+}
+
+#historyDetailModal .detail-table-wrap {
+	overflow: hidden;
+	border: 1px solid #e2e8f0;
+	border-radius: 0.75rem;
+	background: #fff;
+}
+
+#historyDetailModal .code-meta-group {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.45rem;
+}
+
+#historyDetailModal .code-meta-chip {
+	display: inline-flex;
+	align-items: center;
+	padding: 0.2rem 0.65rem;
+	border-radius: 999px;
+	background: #e2e8f0;
+	color: #475569;
+	font-size: 0.75rem;
+	font-weight: 600;
+}
+
+#historyDetailModal #latestCodeViewer {
+	width: 100%;
+	height: 240px;
+	margin-top: 0.4rem;
+	padding: 0.75rem;
+	border: 1px solid #cbd5e1;
+	border-radius: 0.55rem;
+	background: #1e293b;
+	color: #cbd5e1;
+	font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+	font-size: 0.86rem;
+	resize: vertical;
+}
+
+#historyDetailModal .CodeMirror {
+	margin-top: 0.4rem;
+	height: 240px;
+	border: 1px solid #cbd5e1;
+	border-radius: 0.55rem;
+	font-size: 0.86rem;
+}
+
+#historyDetailModal .table {
+	font-size: 0.92rem;
+}
+
+#historyDetailModal .table tbody td {
+	padding: 0.85rem 0.7rem;
+	overflow-wrap: anywhere;
+}
+
+#historyDetailModal .table thead th {
+	padding: 0.9rem 0.7rem;
+	border-bottom: 2px solid #cbd5e1;
+	color: var(--bs-gray-700);
+}
+
+@media (max-width: 576px) {
+	#historyDetailModal .table {
+		font-size: 0.8rem;
+	}
+
+	#historyDetailModal .table tbody td {
+		padding: 0.5rem 0.35rem;
+	}
+}
+
+@media (max-width: 400px) {
+	#historyDetailModal .modal-header {
+		flex-wrap: wrap;
+		gap: 0.75rem;
+	}
+}
+
+@media (max-width: 1200px) {
+	.teacher-progress-screen .filter-grid {
+		grid-template-columns: repeat(2, minmax(170px, 1fr));
+	}
+}
+
+@media (max-width: 992px) {
+	.teacher-progress-screen .history-hero {
+		grid-template-columns: 1fr;
+	}
+
+	.teacher-progress-screen .hero-stats {
+		grid-template-columns: repeat(3, minmax(120px, 1fr));
+	}
+
+	.teacher-progress-screen .summary-layout {
+		grid-template-columns: 1fr;
+	}
+
+	.teacher-progress-screen .summary-chart-wrap canvas {
+		max-width: 320px;
+		max-height: 320px;
+	}
+}
+
+@media (max-width: 768px) {
+	.teacher-progress-screen .filter-grid {
+		grid-template-columns: repeat(2, minmax(140px, 1fr));
+	}
+
+	.teacher-progress-screen .table {
+		font-size: 0.84rem;
+	}
+
+	.teacher-progress-screen #historyTable {
+		min-width: 920px;
+	}
+}
