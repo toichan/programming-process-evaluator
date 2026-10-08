@@ -28,7 +28,7 @@ filter/対象ID/表示操作等のクエリはそのまま保持し、redirect�
 
 ## 本実装のURL棚卸し
 
-24の`@WebServlet`と、以下の画面/API系列を対象に確認する。未実装教師機能のために架空URLを追加しない。
+28の`@WebServlet`と、以下の画面/API系列を対象に確認する。未実装教師機能のために架空URLを追加しない。
 
 | 分類 | 正規URL・系列 | 扱い |
 |---|---|---|
@@ -44,6 +44,7 @@ filter/対象ID/表示操作等のクエリはそのまま保持し、redirect�
 | ルーブリック | `/student/rubric` | 維持 |
 | 教師業務 | `/teacher/home`、`students`、`task`、`prompt`、`progress`、`distribution` | studentsだけ正規化、既存の対象ID/job/filter/API契約は維持 |
 | 教師本人情報 | `/teacher/account`、`/teacher/account/password` | 本人情報URLを短縮、password維持 |
+| 教師確認 | `/teacher/exercises`、`/teacher/submissions`、`/teacher/evaluations`、`/teacher/surveys` | 既存の確認一覧系列に統一。提出はGETの`view=list/detail/file/zip/csv`、POSTは一時コピーpreviewのみ。評価はGETの`view=list/detail/file/logs/zip/logs-zip/csv`（file/logsは単体JSON、zip/logs-zipは現在の絞込/並び順）、保存済み内容の参照専用。アンケートはGETの`view=list/detail/csv/text`、保存済み課題別回答の参照専用 |
 | 管理者 | `/admin/home`、`/admin/teachers`、`/admin/schools` | 管理画面をteachersへ統一、home/schools維持。schoolsは既存の独立学校API |
 | 開発用サンプル | `/hello` | 既存サンプルとして維持。業務メニューには追加しない |
 | 内部view・静的資産 | `/WEB-INF/...`、`/css/...`、`/js/...` | 公開業務URLとは別。内部viewはServletからforwardし、配置の一律改名はしない |

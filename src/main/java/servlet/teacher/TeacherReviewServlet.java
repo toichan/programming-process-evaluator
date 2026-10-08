@@ -2,6 +2,8 @@ package servlet.teacher;
 
 import java.io.IOException;
 import java.sql.SQLException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import javax.servlet.ServletException;
 import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.*;
@@ -36,11 +38,26 @@ public final class TeacherReviewServlet extends HttpServlet {
 				Long evaluationId = optionalId(request, "evaluationId");
 				if (!evaluations && evaluationId != null) throw new IllegalArgumentException("評価IDはこの操作では指定できません。");
 				json(response, review.detail(user, evaluations, requiredId(request, "submissionId"), evaluationId));
-			} else if ("csv".equals(view) && evaluations) {
-				String csv = review.exportCsv(user, filter);
+			} else if ("csv".equals(view)) {
+				String csv = evaluations ? review.exportCsv(user, filter) : review.exportSubmissionCsv(user, filter);
 				response.setContentType("text/csv; charset=UTF-8");
-				response.setHeader("Content-Disposition", "attachment; filename=\"teacher-evaluations.csv\"");
+				response.setHeader("Content-Disposition", "attachment; filename=\"" + (evaluations ? "teacher-evaluations" : "submission_list") + ".csv\"");
 				response.getWriter().write(csv);
+			} else if (evaluations && java.util.Set.of("file", "logs", "zip", "logs-zip").contains(view == null ? "" : view)) {
+				boolean zip = view.endsWith("zip"), logs = view.startsWith("logs");
+				var download = zip ? review.evaluationZip(user, filter, logs)
+						: review.evaluationFile(user, requiredId(request, "submissionId"), optionalId(request, "evaluationId"), logs);
+				response.setContentType(zip ? "application/zip" : "application/json; charset=UTF-8");
+				response.setHeader("Content-Disposition", "attachment; filename=\"" + (zip ? "evaluations.zip" : "evaluation.json")
+						+ "\"; filename*=UTF-8''" + URLEncoder.encode(download.filename(), StandardCharsets.UTF_8).replace("+", "%20"));
+				response.getOutputStream().write(download.content());
+			} else if (!evaluations && ("file".equals(view) || "zip".equals(view))) {
+				boolean zip = "zip".equals(view);
+				var download = zip ? review.submissionZip(user, filter) : review.submissionFile(user, requiredId(request, "submissionId"));
+				response.setContentType(zip ? "application/zip" : "text/x-python; charset=UTF-8");
+				response.setHeader("Content-Disposition", "attachment; filename=\"" + (zip ? "submission_files.zip" : "submission.py")
+						+ "\"; filename*=UTF-8''" + URLEncoder.encode(download.filename(), StandardCharsets.UTF_8).replace("+", "%20"));
+				response.getOutputStream().write(download.content());
 			} else if (view == null) {
 				review.list(user, evaluations, filter);
 				Long selected = optionalId(request, "submissionId");
@@ -54,11 +71,14 @@ public final class TeacherReviewServlet extends HttpServlet {
 				request.setAttribute("csrfToken", CsrfTokens.getOrCreate(request.getSession(false)));
 				request.setAttribute("screenDesign", "teacher");
 				request.setAttribute("screenPageTitle", evaluations ? "評価確認" : "提出課題確認");
-				request.setAttribute("screenStylesheet", "/css/teacher/review/review.css");
-				request.setAttribute("screenScript", "/js/teacher/review/review.js");
-				request.getRequestDispatcher("/WEB-INF/teacher/review/review.jsp").forward(request, response);
+				request.setAttribute("screenBodyClass", evaluations ? "evaluation-review-screen" : "submission-review-screen");
+				request.setAttribute("screenUsesCodeMirror", !evaluations);
+				request.setAttribute("screenStylesheet", evaluations ? "/css/teacher/evaluation/evaluation.css" : "/css/teacher/submission/submission.css");
+				request.setAttribute("screenScript", evaluations ? "/js/teacher/evaluation/evaluation.js" : "/js/teacher/submission/submission.js");
+				request.getRequestDispatcher(evaluations ? "/WEB-INF/teacher/evaluation/evaluation.jsp" : "/WEB-INF/teacher/submission/submission.jsp").forward(request, response);
 			} else response.sendError(400);
-		} catch (IllegalArgumentException failure) { response.sendError(400); }
+		} catch (TooLargeException failure) { response.sendError(413); }
+		catch (IllegalArgumentException failure) { response.sendError(400); }
 		catch (NotFoundException failure) { response.sendError(404); }
 		catch (SecurityException failure) { response.sendError(403); }
 		catch (SQLException failure) {
@@ -107,7 +127,8 @@ public final class TeacherReviewServlet extends HttpServlet {
 		if (level != null && level > 5) throw new IllegalArgumentException("評価段階が不正です。");
 		return new TeacherReviewFilter(optionalId(request, "schoolId"), optionalId(request, "classroomId"), optionalId(request, "taskId"),
 				request.getParameter("difficulty"), request.getParameter("consent"), level == null ? null : level.intValue(),
-				request.getParameter("search"), request.getParameter("sort"), request.getParameter("direction"));
+				request.getParameter("search"), request.getParameter("sort"), request.getParameter("direction"),
+				request.getParameter("thinking"), request.getParameter("attitude"));
 	}
 	private static long requiredId(HttpServletRequest request, String name) {
 		Long id = optionalId(request, name);

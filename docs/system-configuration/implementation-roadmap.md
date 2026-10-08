@@ -39,9 +39,9 @@
 | 13. 授業演習コード配信 | 実装・ブラウザー受入済み（2026-10-07） | [コード配信計画](./feature-plans/teacher-exercise-distribution.md)。単一校制約、演習構成UI、実ファイルアップロード、一括移動、即時配信、予約配信と実ワーカー完了、履歴の表示/編集/複製/予約変更/停止/再開を確認済み |
 | 14. 課題進捗確認 | 実装・テスト・認証ブラウザー受入済み（2026-10-08） | [課題進捗確認計画](./feature-plans/teacher-task-progress.md)。専用MySQL統合テストと認証ブラウザーで空状態・実データ行・詳細履歴・検索/絞込/ソート/更新/CSV/BOM/担当外詳細を確認。実ファイルのdownloadイベントはブラウザー環境から通知されず、CSV Blob内容を検証 |
 | 15. 授業演習コード確認 | 実装・テスト・認証ブラウザー受入済み（2026-10-08） | [最終受入](./feature-plans/teacher-exercise-review.md#最終受入2026-10-08)。検索後クリック・空フォルダ取得・通常/中間/狭幅を確認。全体252成功/130skip/失敗0、実DB/HTTP各1成功。8080反映済み。OS保存ダイアログ・本番/全端末受入は別 |
-| 16. 提出課題確認 | 実装・専用DB/認証HTTP・代表ブラウザー操作を検証済み（2026-10-08） | [提出・自動評価確認計画](./feature-plans/teacher-submission-evaluation-review.md)。全提出版・不変I/O、検索/絞込/ソート、modal/前後移動、認証付きrunnerの一時コピー実行を接続。現在の機能/学校境界と実行前後の認可、提出/ログ不変性を検証。本番TLS/実端末手動受入は別 |
-| 17. 評価確認 | 自動評価の参照機能を実装・検証済み（2026-10-08） | [提出・自動評価確認計画](./feature-plans/teacher-submission-evaluation-review.md)。評価全履歴/固定版、2次元/観点/理由、コード時点、前回完了結果、最新同意CSV/監査をDB/HTTPへ接続。実Gemini縦断・再評価の最終受入は工程19と区別。手動採点操作は追加しない |
-| 18. アンケート結果確認 | 未着手 | [機能仕様](../function-specification.md)「アンケート結果確認機能」、アンケート形式定義。回答一覧/詳細、同意・所属境界、CSVを実装する |
+| 16. 提出課題確認 | プロトタイプ再現・DB/認証HTTP/通常・狭幅ブラウザー受入済み（2026-10-08、第155版） | [提出画面最終受入](./feature-plans/teacher-submission-evaluation-review.md#提出画面のプロトタイプ再現最終受入2026-10-08第155版)。3集計/9列sort/全画面詳細/左右CodeMirror/単体・ZIP・監査CSVを実DBへ接続。全体259成功/132skip/失敗0、8080反映。本番TLS/OS保存完了は別 |
+| 17. 評価確認 | プロトタイプ再現・DB/認証HTTP/通常・狭幅ブラウザー受入済み（2026-10-08、第156版） | [評価画面最終受入](./feature-plans/teacher-submission-evaluation-review.md#評価画面のプロトタイプ再現最終受入2026-10-08第156版)。3カード/独立サマリー・分布/条件式/10列・9sort/全画面詳細/理由・ログ/JSON・ZIP・監査CSVを実DBへ接続。全体260成功/132skip/失敗0、8080反映済み。実AI・再評価の受入は工程19と区別 |
+| 18. アンケート結果確認 | 実装・DB/認証HTTP・認証ブラウザー受入済み（2026-10-08） | [工程18最終受入](#工程18最終受入2026-10-08)。プロトタイプの集計/条件式/一覧/詳細、最新同意/割当学校認可、仮名化CSV/TXTを接続。全体257成功/132skip/失敗0、8080反映済み |
 | 19. AI連携の最終実装・受入 | 実装・合成実API縦断/認証画面確認済み。Pro高思考・時間上限拡張を8080へ反映済み | [教師プロンプト計画](./feature-plans/teacher-prompt-ai.md)、[評価計画](./feature-plans/student-evaluation-survey.md)、[AI連携設計](../ai-api-integration-design.md)。教師生成・preview・確定と通常評価の実API→DB成功。本番quota/費用・品質校正・実データ送信・負荷試験は別ゲート |
 | 20. 機能横断検証 | 未完了 | 全教師/管理者機能の認可、状態遷移、主要導線、異常系、DB再構築を通した最終確認が必要 |
 
@@ -55,9 +55,9 @@
 | 教師 | 教師本人のアカウント管理 | 中 | 12a | 実装・検証済み。業務権限とは独立した本人情報、初期/再設定後の必須変更・通常変更 |
 | 教師 | 課題進捗確認 | 高 | 14 | 実装・専用MySQL/認証ブラウザー受入済み。実ファイルのdownloadイベント確認はブラウザー環境制約 |
 | 教師 | 授業演習コード確認 | 高 | 15 | 実装・DB/認証HTTP・ブラウザー受入済み。範囲と未確認事項は[工程15最終受入](./feature-plans/teacher-exercise-review.md#最終受入2026-10-08)を参照 |
-| 教師 | 提出課題確認 | 高 | 16 | 実装・専用DB/認証HTTP/代表ブラウザー操作を検証済み。実行コピーと元提出を分離。本番TLS・実端末手動受入は別 |
-| 教師 | 評価確認 | 高 | 17 | 自動評価の画面/履歴/理由/ログ/同意付き監査CSVを実装・検証済み。実AI/再評価受入は19、手動採点は対象外 |
-| 教師 | アンケート結果確認 | 低 | 18 | 未着手 |
+| 教師 | 提出課題確認 | 高 | 16 | 第155版でプロトタイプ構成/操作を再現し通常/狭幅受入済み。実行コピー・元提出・監査CSVを分離。詳細は[最終受入](./feature-plans/teacher-submission-evaluation-review.md#提出画面のプロトタイプ再現最終受入2026-10-08第155版) |
+| 教師 | 評価確認 | 高 | 17 | 第156版でプロトタイプ構成/操作を再現し通常/狭幅受入済み。保存済み評価/履歴/理由/ログとJSON・ZIP・最新同意監査CSV。詳細は[最終受入](./feature-plans/teacher-submission-evaluation-review.md#評価画面のプロトタイプ再現最終受入2026-10-08第156版)。手動採点は対象外 |
+| 教師 | アンケート結果確認 | 低 | 18 | 実装・受入済み。[工程18最終受入](#工程18最終受入2026-10-08)。回答別履歴・下書き、6条件式/全列sort、仮名化出力と監査を検証 |
 | 教師 | 課題編集 | ― | 10 | 下書き/学校所属/削除・復元/公開・期限処理/改訂/独立系列コピー/期限延長/対象クラス追加を実装し、専用DB統合テストと認証browser受入済み |
 | 教師 | プロンプト設計 | 中 | 10、AI連携は19 | 基本編集/版管理と合成provider受入は完了。Gemini実API受入は延期 |
 | 教師 | コード配信（授業演習コード配信） | 中 | 13 | 配信処理は専用DB検証・8080開発DB適用・認証browser受入済み。今回の画面再現・単一校制約は実装とDB検証済み、認証後画面受入待ち |
@@ -68,6 +68,7 @@
 
 ### 次の着手と意図的な保留（2026-10-07更新）
 
+- **最新の次作業（2026-10-08）:** 工程18の実装・受入を完了。工程19は合成実API受入済みで本番条件は別ゲートのため、次は工程20の機能横断検証。以下の旧着手順は各工程当時の履歴として扱う。
 - 工程9「授業演習」はT001〜T051が完了している。過去の第95〜104版記録にあるT030/T031未完了や「次は演習のこの機能」といった記述は当時点の履歴であり、現在の状態として扱わない。詳細・最終検証の範囲と限界は[授業演習計画](./feature-plans/student-exercise.md)を参照する。
 - **工程10 S1・S2/T014受入完了**: [初回スライス計画](./feature-plans/teacher-task-draft.md)のT001〜T015と、[教師プロンプト計画](./feature-plans/teacher-prompt-ai.md)のS2/T014を参照。再評価job履歴一覧、履歴からの詳細表示、対象生徒別の提出revision・状態・評価点を隔離認証browserで確認済み。専用V1〜V18 DB test、全体JUnit 204件（135 pass / 0 fail / 69 skip）とWAR生成も成功。証跡は[エラーレポート](./error-report.md)と[S2実装チェックポイント](./feature-plans/checkpoints/teacher-prompt-ai/tasks-to-impl.yaml)を参照。共有8080/DBは変更していない。
 - **工程10 S3完了**: [S3計画](./feature-plans/teacher-task-s3.md)に従い、必須の単一学校所属（V19、フォーム〜DAO）と、同一学校の課題管理権限教師による論理削除・下書き復元を実装。編集は作成者に限定し、管理者操作は含めない。空の専用DBとプロジェクト専用Compose DBへV1〜V19を適用し、専用DB統合testと認証browserで削除・復元を確認した。プロジェクト専用Compose DBを再構築し、新しい合成デモを投入済み。migration自体はデータ削除をせず、共有DB/他DBは変更していない。
@@ -479,7 +480,7 @@
 
 **完了条件:** 表示内容が最新保存データと一致し、担当外情報が漏れず、画面操作で生徒データを更新しないこと。
 
-**現在の状態:** 実装・受入済み。正確な検証コマンドと限界は[最終受入](./feature-plans/teacher-exercise-review.md#最終受入2026-10-08)を参照する。工程16/17の参照機能も既に実装・検証済みのため、次の機能作業は工程18「アンケート結果確認」。
+**現在の状態:** 実装・受入済み。正確な検証コマンドと限界は[最終受入](./feature-plans/teacher-exercise-review.md#最終受入2026-10-08)を参照する。工程16〜18の参照機能も実装・検証済みのため、次は工程20の機能横断検証。
 
 ---
 
@@ -491,6 +492,8 @@
 
 **完了条件:** 提出時snapshotとチェック結果が一貫し、担当外データが漏れず、作業用コードが提出へ保存されないこと。
 
+**第155版再現受入:** ユーザーの明示指示により、プロトタイプの3カード・6filter・9列/8sort・全画面詳細/左右editor・単体/一括ZIP/CSVを補完し、実DB/APIへ接続した。[最終受入](./feature-plans/teacher-submission-evaluation-review.md#提出画面のプロトタイプ再現最終受入2026-10-08第155版)を参照。権限・過去割当・提出版・CSV最新同意/監査・一時実行不変性は維持。評価画面の見た目は変更していない。
+
 ---
 
 ## 17. 評価確認を実装する
@@ -501,6 +504,8 @@
 
 **完了条件:** 評価・版・提出・ログがDB上で一致し、所属/同意境界と履歴保持を確認すること。
 
+**第156版再現受入:** ユーザーの明示指示により評価専用JSP/CSS/JSを分離し、プロトタイプの一覧/独立サマリー/全画面詳細/ログ操作を実DBへ接続した。[最終受入](./feature-plans/teacher-submission-evaluation-review.md#評価画面のプロトタイプ再現最終受入2026-10-08第156版)に差分・必要な例外・検証コマンドを記録。ダミー点/理由/未評価数は使わず、固定版・全履歴・現在権限・最新同意/監査・読取専用を維持。提出画面とプロトタイプは変更していない。次は工程20の機能横断検証。
+
 ---
 
 ## 18. アンケート結果確認を実装する
@@ -510,6 +515,31 @@
 **作業範囲:** 回答一覧、クラスfilter、同意/回答状態、課題/難易度/日時、回答詳細、仕様に沿うCSVを実装する。全体アンケートは対象外のまま維持する。
 
 **完了条件:** 回答・同意・所属境界がDBと一致し、CSV列/文字コード/個人情報の扱いを確認すること。
+
+### 工程18の実装・受入タスク（第154版）
+
+| タスク | 要件 | 対象・完了条件 |
+|---|---|---|
+| T-SVR-001 | REQ-SVR-001 認可と同意 | 現在教師/機能/割当学校・最新同意をDAOで検証。担当外/撤回後詳細404、機能失効403。履歴の所属と回答不変 |
+| T-SVR-002 | REQ-SVR-002 保存回答と評価 | DTO/DAOで回答・設問/選択肢・固定evaluationの2次元点数を取得。標準6項目と追加設問を区別、下書き/提出/0件を再現 |
+| T-SVR-003 | REQ-SVR-003 出力 | filter/全列sort/6条件式をサーバーでも検証。内部user IDのCSV/記述出力、UTF8/BOM/CRLF/数式対策、監査失敗503 |
+| T-SVR-004 | REQ-SVR-004 プロトタイプ画面 | 3集計カード、サマリー/棒グラフ、学校/クラス/課題同期、検索/全filter/ソート、更新、詳細/理由/システム評価を再現。共通template/feedback、安全DOM、通常/狭幅 |
+| T-SVR-005 | REQ-SVR-005 実環境受入 | 対象unit→隔離MySQL/認証HTTP→認証ブラウザー→全体/WAR→8080接続・最終記録と清掃 |
+
+**API/実装方針:** GET `/teacher/surveys`（JSP）、`view=list|detail|csv|text`。detailは正の`responseId`、filterは`schoolId/classroomId/taskId/difficulty/completion/consent/search`、標準6項目の条件式と`sort/direction`。不正/重複query400、担当外404、DB/監査503、GETは回答・評価・コードログを変更しない。Servlet → Control → DAO → DBを使用し、migrationと固定回答seedは製品へ追加しない。プロトタイプ自体は変更しない。研究用CSV/TXTはログインIDを含めない。
+
+**状態:** T-SVR-001〜005実装・受入済み。関連正本は[機能仕様第154版](../function-specification.md#アンケート結果確認機能優先度低)、[状態ルール](../state-rules/student/survey-state-rules.md)、[合意済み識別子](./feature-plans/survey-implementation-open-questions.md)、[DB定義](../database-design/table-definitions.md)、[プロトタイプ](../../screen-flow-diagram/webapp/WEB-INF/teacher/survey/survey.html)。教師向けアンケート/設問登録UIは追加していない。
+
+### 工程18最終受入（2026-10-08）
+
+- 本実装は[`TeacherSurveyServlet`](../../src/main/java/servlet/teacher/TeacherSurveyServlet.java) → [`TeacherSurveyControl`](../../src/main/java/control/teacher/TeacherSurveyControl.java) → [`TeacherSurveyDao`](../../src/main/java/dao/TeacherSurveyDao.java) → 既存MySQL。migration/製品の回答seedは追加していない。教師メニューを`/teacher/surveys`へ接続し、28 Servletの正規URL契約も更新した。
+- 現在の教師/機能/学校権限、回答→評価→提出→割当学校・課題・本人の一致、最新同意を毎回検証。同意撤回後は全参照/出力から除外、再同意後は保持済み回答が再び対象。転籍・閉じたsurvey・終了済み割当の履歴を保持。読む/更新する操作で回答/評価/提出/コードログは不変。
+- 標準6数値は明示question_codeを使用し、未知設問を推測配置しない。任意のtext/multiple_choice・inactive選択肢のラベル・理由を詳細/追加CSV列へ保持。欠損値は「-」、下書きは開始日時、提出済みは提出日時。研究出力の内部user IDは仮名化であり完全匿名ではない。自由記述の個人情報は利用者の点検が必要。
+- `sh scripts/testing/teacher-survey-review-local.sh unit` → exit0、389件中257成功/132明示ゲートskip/失敗・error0、WAR成功。`sh scripts/testing/teacher-survey-review-local.sh integration` → exit0、空DB Flyway適用・対象7件中6成功/1 runtimeゲートskip、別プロセスの認証HTTP1件成功。実DB/HTTP成功と通常実行のskipを区別する。fixtureは合成データのみ、既存の安全guard/owner label/tmpfs/cleanupを再利用。
+- 認証HTTPで全14列sortと一覧/CSV順序一致、6条件式、正規JSP/JSON/CSV/TXT 200、未認証302・誤ロール/機能失効403・担当外404・不正/重複/overflow400・POST405・監査失敗503、撤回/再同意を確認。DBでは閉じたsurvey/非在籍/終了割当、異なる本人/評価/課題の除外、現在の教師/学校/機能失効と参照不変性を検証した。
+- 統合ブラウザーでプロトタイプと同じ1440pxのhero/summary列幅、3カード、50%完了率・欠損除外平均3.0、学校/クラス同期、検索→通常詳細click、条件エラー通知/出力無効、下書き/同意filter、キーボードsort、4回連続詳細開閉とfocus復帰、追加回答のHTML不活性・選択肢ラベル、更新不変、CSV/TXTのHTTP200/Blob開始を確認。詳細の通常/375px、一覧の1440/1024/768/375pxでページ全体の横溢れなし、表だけ局所スクロール。共通template/feedbackを使い、共通CSSとプロトタイプは変更していない。
+- 8080の当該appだけ再起動し、新Servlet class・正規JS/CSS配信とsource hash一致、host別teacher/student login各200、未認証survey302を確認。認証後業務受入は専用18091で実施し、8080の既存教師の資格情報変更/再seedはしていない。検証用container/networkを全て清掃し、共有app/DB/runner/他プロジェクトDBは維持。commit・本番deploy・外部AI呼出はなし。
+- 未確認はOS保存完了/保存ダイアログ・全OS/ブラウザー組合せ・本番負荷/TLS・利用者による実運用受入。統合ブラウザーにはCLI E2E suiteのexit codeはない。エディターの既存Gson解決診断とGradle deprecation警告を実ビルド成功と区別し、詳細は[エラーレポート](./error-report.md)へ記録。
 
 ---
 

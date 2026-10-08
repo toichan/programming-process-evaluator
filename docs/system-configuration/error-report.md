@@ -2,6 +2,36 @@
 
 秘密情報・実際の生徒データ・研究データは記載しない。解消後も履歴を保持する。
 
+## 2026-10-08: 評価確認のプロトタイプ再現・受入
+
+- 初回パッチで新exportメソッドを既存CSV transaction内へ誤挿入しコンパイル失敗。クラス直下へ移して解消した。最終のclean全体392件は260成功/132明示skip/失敗・error0、WAR成功。対象DB26件は25成功/1 runtime gate skip、別認証HTTP1成功。旧XMLを混ぜず実行別reportを集計した。
+- 保存DTOには`dimensionCode/category`がないため、初期の配色/理由絞込を実際の`label/dimensionLabel`へ修正。詳細container/カード/余白を専用CSSで調整し、1440pxのhero/grid/scorepanel幅をプロトタイプと照合した。共通CSS、提出専用資産、プロトタイプは不変。
+- shared feedbackのtoastは文字列引数ではなく`{message, variant}`に修正。modal close時のfocus警告はhide時blur/hidden時起動buttonへ復帰で解消し、単体取得後と4回連続開閉で確認。最終正常操作のpageerror/console warning0。
+- 詳細requestの成功だけでなく失敗にもsequence確認を追加。旧履歴の遅延503が最新成功詳細を隠さないことを合成応答で再現・確認した。503更新時の旧データ/集計clear・通知/出力無効と再取得復旧も確認。意図的な503のnetwork errorは未解決の製品障害として扱わない。
+- ブラウザーの検証selectorで存在しない第2学校option/提出tbody名を参照したtimeoutは、現在の合成fixtureと実DOMに合わせて修正して再確認した。プロトタイプfile頁の通常pointerclickは統合ブラウザーのtimeoutがあり、比較用modal幾何は起動関数で確認。本実装は通常pointerで受入した。専用runtimeの静的JS更新後に認証が失効したため合成アカウントで再ログインし、最終JS hash/操作を確認。資格情報変更/DB再seedなし。
+- 8080の当該appへ反映し、正規teacher/student login200・未認証evaluation302・配信CSS/JS hash一致を確認。所有検証環境だけ清掃し共有環境を維持。エディターに残る既存Gson依存解決/古いControlメソッド診断とGradle9 deprecation警告は、実compile/WAR成功と区別する。OS保存完了/全端末/本番TLS/負荷/大件数ZIPは未確認。外部AI・本番deploy・commitなし。[評価画面最終受入](./feature-plans/teacher-submission-evaluation-review.md#評価画面のプロトタイプ再現最終受入2026-10-08第156版)を参照。
+
+## 2026-10-08: 提出課題確認のプロトタイプ再現・受入
+
+- 初回パッチで新Controlメソッドを既存CSV transaction内へ誤挿入し、コンパイル失敗。クラス直下へ移動して解消。最終clean compile/test/WARは成功。エディターには既存Gson解決/古いControlメソッド診断が残る場合があるため、実Gradle成功と区別した。
+- 当初の対象テストreportコピーにはtools imageに残る過去XMLが混在した。最終スクリプトは`gradle clean`と実行別保存を採用し、古い集計370件は受入件数に使わない。最新対象は25件（24成功/1 runtime gate skip）、別認証HTTP1成功。全体clean回帰は391件（259成功/132明示skip/失敗・error0）。
+- 1024pxで共通headerの長い教師ID/学校名と操作群がdocumentを1180pxへ広げていた。提出専用body classで1199px以下のheaderを折り返し、1440/1024/768/375pxでdocument幅=viewport幅を確認。長い実データで「表示」が折り返す点も表button/pillのnowrapで補完。共通CSSとプロトタイプは不変。
+- ダウンロード完了後の全表再描画が詳細起動buttonを破棄し、閉じた後のfocusが復帰しなかった。出力button状態だけを更新するよう変更し、単体取得後のcloseと連続4回の開閉で「表示」へfocus復帰を確認。CodeMirrorの元textarea値は自動同期されないため、編集内容の検証は実editor APIで行い、空textareaをコード欠落と読み替えない。
+- ブラウザー検証の「閉じる」selectorがmodalと成功toastの2buttonに一致した。modal内へ限定して再検証。プロトタイプfile頁の通常clickには統合ブラウザーの安定性timeoutがあったため、比較用のmodal幾何だけ起動関数で確認した。本実装の詳細は通常pointer clickで受入した。
+- `sh scripts/testing/teacher-submission-review-local.sh unit` → exit0、全体259成功/132skip/0失敗、WAR成功。`browser`はclean対象24成功/1skipと認証HTTP1成功後に18089を保持し、通常/狭幅受入後stop/trapで清掃。全8sort×昇降順/一覧CSV順序、単体/ZIP内容・不同意CSV除外、機能/学校境界、監査拒否、32 MiB境界、一時実行不変性を確認。画面/serverの16並びを照合し、模擬503で古い一覧clear/通知後に実DB更新へ復旧した。
+- 開発8080の当該appだけ再起動し、teacher/student login200・未認証提出302、配信CSS/JS source hash一致を確認。実DB業務受入は専用合成18089。所有検証container/networkを清掃し共有app/DB/runner/別プロジェクトDBを維持。OS保存完了/全端末/本番TLS/負荷/実利用者手動受入は未確認。外部AI、本番deploy、commitなし。差分と再現コマンドは[提出画面最終受入](./feature-plans/teacher-submission-evaluation-review.md#提出画面のプロトタイプ再現最終受入2026-10-08第155版)を参照。
+
+## 2026-10-08: アンケート結果確認の実装・最終受入
+
+- 初回の検証コードは未採用Mockitoと認証DTOの旧constructorを使ってコンパイル失敗。依存を増やさず、既存方式のJDK Proxyと現行6引数へ修正した。CSVは既存`CsvCells`が全セルを引用するため、誤った非引用期待を修正。初回隔離DB検証自体は成功しており、テスト不備と製品障害を区別した。
+- 全体回帰が新Servlet追加でURL棚卸し件数27→28を検出。正規`/teacher/surveys`・JSP/menuリンクを確認し、URL方針と契約テストを更新。修正後は全体389件中257成功/132ゲートskip/失敗・error0、WAR成功。
+- 共通CSSの`main .hero-stats`が画面CSSより優先され、375pxでカードが2列になった。画面body classのスコープで3列を維持。狭幅の教師情報が過度に折り返す点も、この画面だけheader actions/情報行を折り返す形へ補完。通常1440pxのhero/summary列幅はプロトタイプと一致、1440/1024/768/375pxでページ幅とviewportが一致、表だけ局所スクロール。プロトタイプ・共通CSSは変更しない。
+- Bootstrapの閉じる操作に伴うaria-hidden/focus警告はhideでモーダル内のfocusを外し、hidden後に表示ボタンへ戻す方式で補正。4回連続開閉・focus復帰とページJS error0を確認。検索欄のblur/changeで表示ボタンを消さないよう、検索inputとselect changeを分離した。DB取得失敗時は一覧/集計/詳細の旧データを消して共通inline通知を表示する。
+- 最終コマンド`sh scripts/testing/teacher-survey-review-local.sh unit` → exit0、257成功/132明示skip/0失敗、WAR成功。`sh scripts/testing/teacher-survey-review-local.sh integration` → exit0、空DB migration・対象6成功/1 runtime skipと別認証HTTP1成功。全sort/一覧CSV順序・6条件式・不正/重複/ID overflow・同意撤回/再同意・異なる本人/評価/課題・現在教師/機能/学校失効・歴史所属・参照不変・監査拒否を検証した。出力内容を生成しても監査commit成功前には応答しない。
+- 合成教師で実画面検索/filter/条件エラー/sort/summary/詳細/追加設問/更新/CSV/TXTを確認。HTML風の保存記述はtextContentで文字として表示し、任意設問やinactive選択肢のラベルも落とさない。研究CSV/TXTは内部user IDを使い、ログインID/氏名/出席番号/学校・クラス名を投影しない。自由記述は完全匿名を保証しないことを画面へ明記した。
+- 8080の当該appを再起動し、teacher/student各正しいhostのlogin200、未認証survey302、Servlet classと最新JS/CSS hash一致を確認。認証業務受入は隔離18091で行い、共有利用者の資格情報を変更していない。全所有container/networkを清掃、共有app/DB/runner/他プロジェクトDBは維持した。
+- 未確認: OS保存完了/全端末・本番TLS/負荷/実利用者手動受入。Gsonの既存エディターclasspath診断とGradle 9 deprecationは未修正（Gradleの実コンパイルは成功）。統合ブラウザーの撮影ではviewportが再設定されるため、幅の根拠はsetViewportSize直後のDOM計測とし、画像名/撮影サイズと混同しない。詳細は[工程18最終受入](./implementation-roadmap.md#工程18最終受入2026-10-08)。
+
 ## 2026-10-08: 授業演習コード確認の最終受入
 
 - 検索入力後の詳細クリック消失を実イベントで特定した。`mousedown`後の検索欄`change`が一覧DOMを置き換え、`click`が発生しなかった。検索の`input`とselectの`change`へ再描画対象を限定し、通常クリックによる4回連続開閉とhidden完了後フォーカス復帰で解消を確認。

@@ -1,0 +1,79 @@
+.submission-review-screen .page-content { background: #f8fafc; flex-grow: 1; }
+.submission-review-screen .submission-hero { display: grid; grid-template-columns: 1.2fr 1fr; gap: 1.25rem; align-items: stretch; }
+.submission-review-screen .hero-kicker { display: inline-block; font-size: .8rem; font-weight: 600; color: #4f46e5; text-transform: uppercase; letter-spacing: .05em; margin-bottom: .4rem; }
+.submission-review-screen .section-title { font-size: 2rem; font-weight: 700; color: var(--bs-gray-900); }
+.submission-review-screen .hero-description { color: var(--bs-gray-600); }
+.submission-review-screen main .hero-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .75rem; }
+.submission-review-screen .stat-card { background: linear-gradient(135deg, #4f46e5, #7c3aed); color: #fff; border-radius: .85rem; padding: 1rem; box-shadow: 0 8px 22px rgba(79,70,229,.2); }
+.submission-review-screen .stat-label { font-size: .8rem; opacity: .9; }
+.submission-review-screen .stat-value { font-size: 1.6rem; font-weight: 700; }
+.submission-review-screen .panel-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 1rem; padding: 1.25rem; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+.submission-review-screen .summary-heading { font-size: 1.15rem; font-weight: 700; color: #27304a; }
+.submission-review-screen .action-buttons { display: flex; gap: .5rem; flex-wrap: wrap; }
+.submission-review-screen .filter-grid { display: grid; grid-template-columns: repeat(4, minmax(150px, 1fr)); gap: .75rem; }
+.submission-review-screen .form-label { font-weight: 500; color: var(--bs-gray-700); margin-bottom: .35rem; font-size: .88rem; }
+.submission-review-screen .form-control, .submission-review-screen .form-select { border: 1px solid #cbd5e1; border-radius: .5rem; }
+.submission-review-screen .form-control:focus, .submission-review-screen .form-select:focus { border-color: #4f46e5; box-shadow: 0 0 0 3px rgba(79,70,229,.1); }
+#submissionTable { min-width: 980px; margin-bottom: 0; font-size: .92rem; }
+#submissionTable thead th { white-space: nowrap; vertical-align: middle; font-size: .84rem; line-height: 1.3; }
+#submissionTable thead th.sortable { cursor: pointer; user-select: none; position: relative; padding-right: 1.5rem; }
+#submissionTable thead th.sortable::after { content: '↕'; position: absolute; right: .45rem; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: .78rem; }
+#submissionTable thead th.sorted-asc::after { content: '▲'; color: #4f46e5; }
+#submissionTable thead th.sorted-desc::after { content: '▼'; color: #4f46e5; }
+#submissionTable tbody td { padding: .85rem .7rem; vertical-align: middle; }
+#submissionTable .btn, #submissionTable .match-pill { white-space: nowrap; }
+#submissionTable tbody tr:hover { background: #f0f4ff; }
+#submissionTable .badge { color: #fff; border: none; font-weight: 700; }
+#submissionTable .difficulty-beginner { background: #059669; }
+#submissionTable .difficulty-intermediate { background: #eab308; }
+#submissionTable .difficulty-advanced { background: #dc2626; }
+#submissionTable .difficulty-none { background: #64748b; }
+.submission-review-screen code { background: #eef2ff; color: #4f46e5; padding: .2rem .45rem; border-radius: .35rem; font-size: .88rem; }
+.submission-review-screen .match-pill { display: inline-flex; align-items: center; justify-content: center; min-width: 5.2rem; padding: .2rem .55rem; border-radius: 999px; font-size: .8rem; font-weight: 700; }
+.submission-review-screen .match-pill.is-pass { background: #dcfce7; color: #166534; }
+.submission-review-screen .match-pill.is-partial { background: #fef3c7; color: #92400e; }
+.submission-review-screen .consent { font-size: .8rem; font-weight: 700; }
+.submission-review-screen .consent-ok { color: #15803d; }
+.submission-review-screen .consent-pending { color: #475569; }
+.submission-review-screen .consent-no { color: #b91c1c; }
+.submission-review-screen .detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.submission-review-screen .detail-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: .9rem; padding: 1rem; min-width: 0; }
+.submission-review-screen .detail-title { font-size: 1rem; font-weight: 700; color: #0f172a; }
+.submission-review-screen .detail-meta { color: #475569; font-size: 1.02rem; font-weight: 600; line-height: 1.45; overflow-wrap: anywhere; }
+.submission-review-screen .code-source { font: 500 .9rem/1.6 "SFMono-Regular", Consolas, monospace; white-space: pre; }
+.submission-review-screen .detail-card .CodeMirror { min-height: 260px; height: 260px; border-radius: .75rem; font: 500 .9rem/1.6 "SFMono-Regular", Consolas, monospace; }
+.submission-review-screen .run-output-wrap { background: #111827; border-radius: .75rem; padding: .8rem .9rem; color: #dbeafe; }
+.submission-review-screen .output-label { font-size: .78rem; opacity: .9; margin-bottom: .35rem; }
+#workCodeOutput { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font: 500 .85rem/1.6 "SFMono-Regular", Consolas, monospace; }
+.submission-review-screen .match-summary { display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; padding: .28rem .65rem; background: #e2e8f0; color: #334155; font-size: .8rem; font-weight: 700; }
+.submission-review-screen .match-summary.is-pass { background: #dcfce7; color: #166534; }
+.submission-review-screen .match-summary.is-partial { background: #fee2e2; color: #b91c1c; }
+.submission-review-screen .io-result-table thead th { font-size: .82rem; color: #475569; white-space: nowrap; }
+.submission-review-screen .io-result-table td { font-size: .88rem; color: #334155; white-space: pre-wrap; overflow-wrap: anywhere; max-width: 20rem; }
+.submission-review-screen .io-result-table tr.is-pass td { background: rgba(34,197,94,.08); }
+.submission-review-screen .io-result-table tr.is-fail td { background: rgba(239,68,68,.08); }
+.submission-review-screen .result-mark { font-weight: 800; }
+.submission-review-screen .submission-detail-footer { position: relative; min-height: 52px; }
+#detailPagerText { position: absolute; left: 50%; top: 50%; margin: 0; transform: translate(-50%, -50%); }
+.submission-review-screen .detail-footer-actions { margin-left: auto; }
+@media (max-width: 991px) {
+  .submission-review-screen .submission-hero { grid-template-columns: 1fr; }
+  .submission-review-screen .filter-grid { grid-template-columns: repeat(2, minmax(150px, 1fr)); }
+  .submission-review-screen .detail-grid { grid-template-columns: 1fr; }
+  .submission-review-screen .submission-detail-footer { flex-direction: column; align-items: stretch; gap: .75rem; }
+  #detailPagerText { position: static; transform: none; text-align: center; order: 1; }
+  .submission-review-screen .detail-footer-actions { margin-left: 0; justify-content: center; flex-wrap: wrap; order: 2; }
+}
+@media (max-width: 1199px) {
+  .submission-review-screen .teacher-header { height: auto; min-height: 70px; }
+  .submission-review-screen .teacher-header > .container-fluid { flex-wrap: wrap; gap: .75rem; padding-top: .75rem; padding-bottom: .75rem; }
+  .submission-review-screen .header-actions { flex-wrap: wrap; min-width: 0; max-width: 100%; }
+  .submission-review-screen .teacher-info { max-width: 100%; }
+  .submission-review-screen .teacher-info-item { flex-wrap: wrap; }
+  .submission-review-screen .teacher-info-text { overflow-wrap: anywhere; }
+}
+@media (max-width: 767px) {
+  .submission-review-screen main .hero-stats, .submission-review-screen .filter-grid { grid-template-columns: 1fr; }
+  .submission-review-screen .teacher-info { width: 100%; }
+  #submissionDetailModal .modal-header { flex-wrap: wrap; gap: .5rem; }
+}
