@@ -134,6 +134,39 @@ public issuance and `certbot renew --dry-run` remain unverified and require appr
 After issuance, set `PPE_BIND_ADDRESS=0.0.0.0` only when the EC2 Security Group and
 operator approval permit ports 80/443. Nginx redirects HTTP to HTTPS.
 
+The Nginx image owns `ENTRYPOINT ["nginx"]`; Compose `command` must contain
+arguments only. Normal Nginx inherits `["-g", "daemon off;"]`, while the bootstrap
+uses `["-c", "/etc/nginx/acme-bootstrap.conf", "-g", "daemon off;"]`.
+Do not remove `nginx` from `compose exec ... nginx -t` or reload commands:
+`exec` does not prepend the image entrypoint.
+The bootstrap configuration places Nginx temporary paths under the existing
+`/tmp` tmpfs, not `/var/cache/nginx`, so it can start with a read-only root
+filesystem and the image's nonroot user.
+
+If bootstrap startup or health waiting fails, the script attempts to stop only
+the `acme-bootstrap` service, preserves the failing exit status, and reports a
+cleanup failure. It does not stop normal Nginx or delete TLS files. Failure to
+inspect running Nginx aborts before any service mutation.
+
+Local regression commands:
+
+```sh
+bash scripts/production/tests/tls-workflow-test.sh
+bash scripts/production/tests/nginx-startup-test.sh
+```
+
+The first test uses mocked Docker/Certbot and synthetic certificates for failure
+cleanup, existing-deployment guards, bootstrap and renewal. The second requires
+local Docker, Compose (with JSON config support), jq, OpenSSL and curl. It builds
+a uniquely tagged test image and derives an isolated Compose project from the
+production Nginx service definitions, using loopback dynamic ports, a synthetic
+upstream and dummy TLS material. It checks actual container commands, bootstrap
+health/challenge delivery and normal HTTPS startup/reload. It does not invoke
+real Certbot, mount production secrets, or replace release images. A deliberately
+broken test-only command reproduces the duplicate-`nginx` startup failure and
+checks the bootstrap script's cleanup with a fail-closed Certbot stub. Only its test
+containers, network, image and temporary files are removed.
+
 Install renewal with the host Certbot timer and a deploy hook. Export the same
 `PPE_PROJECT`, `PPE_COMPOSE_FILE`, `PPE_TLS_DIR`, and `PPE_CERTBOT_CONFIG_DIR`
 environment in a root-readable, mode-0600 environment file that contains paths

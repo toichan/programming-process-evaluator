@@ -190,7 +190,7 @@ services:
       - "${PPE_ACME_DIR:?Set PPE_ACME_DIR}:/var/www/acme:ro"
       - ./containers/nginx/acme-bootstrap.conf:/etc/nginx/acme-bootstrap.conf:ro
     networks: [edge]
-    command: ["nginx", "-c", "/etc/nginx/acme-bootstrap.conf", "-g", "daemon off;"]
+    command: ["-c", "/etc/nginx/acme-bootstrap.conf", "-g", "daemon off;"]
     read_only: true
     tmpfs: ["/tmp:size=8m,uid=101,gid=101,mode=700"]
     cap_drop: [ALL]
