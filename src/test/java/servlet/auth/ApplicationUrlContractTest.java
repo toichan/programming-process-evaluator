@@ -53,7 +53,8 @@ class ApplicationUrlContractTest {
 		}
 		assertTrue(paths.contains("/health"), "Readiness must have a dedicated endpoint.");
 		assertTrue(paths.containsAll(Set.of("/teacher/submissions", "/teacher/evaluations")));
-		assertEquals(26, servlets().size(), "Review the whole URL inventory when adding a servlet.");
+		assertTrue(paths.contains("/teacher/exercises"));
+		assertEquals(27, servlets().size(), "Review the whole URL inventory when adding a servlet.");
 	}
 
 	@Test

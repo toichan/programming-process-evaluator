@@ -13,11 +13,16 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 public record ExerciseDownload(
-		List<StudentExerciseEntry> entries, String fileName, String contentType, boolean archive) {
+		List<StudentExerciseEntry> entries, String fileName, String contentType, boolean archive,
+		int pathPrefixAllowance) {
 	private static final DateTimeFormatter TIMESTAMP = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss");
 
 	public ExerciseDownload(List<StudentExerciseEntry> entries) {
 		this(entries, "exercise.zip", "application/zip", true);
+	}
+
+	public ExerciseDownload(List<StudentExerciseEntry> entries, String fileName, String contentType, boolean archive) {
+		this(entries, fileName, contentType, archive, 0);
 	}
 
 	public static String archiveName(String rootName) {
@@ -77,13 +82,16 @@ public record ExerciseDownload(
 
 	public ExerciseDownload {
 		if (fileName == null || contentType == null) throw new IllegalArgumentException("ダウンロード情報が正しくありません。");
+		if (pathPrefixAllowance < 0 || pathPrefixAllowance > 2 * (StudentExerciseInput.MAX_NAME_CHARACTERS + 1)
+				|| !archive && pathPrefixAllowance != 0)
+			throw new IllegalArgumentException("ダウンロード対象のパスが正しくありません。");
 		StudentExerciseInput.validateName(fileName);
 		entries = List.copyOf(entries);
 		var paths = new HashSet<String>();
 		for (var entry : entries) {
 			if (entry.status() != StudentExerciseEntry.Status.ACTIVE || entry.path().startsWith("/")
 					|| entry.path().indexOf('\\') >= 0
-					|| entry.path().codePointCount(0, entry.path().length()) > StudentExerciseInput.MAX_PATH_CHARACTERS
+					|| entry.path().codePointCount(0, entry.path().length()) > StudentExerciseInput.MAX_PATH_CHARACTERS + pathPrefixAllowance
 					|| !paths.add(entry.path())) {
 				throw new IllegalArgumentException("ダウンロード対象のパスが正しくありません。");
 			}
