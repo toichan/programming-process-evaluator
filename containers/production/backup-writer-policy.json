@@ -6,6 +6,8 @@
       "Effect": "Allow",
       "Action": "ssm:GetParameter",
       "Resource": [
+        "arn:aws:ssm:ap-northeast-1:ACCOUNT_ID:parameter/programming-process-evaluator/prod/backup-s3-bucket",
+        "arn:aws:ssm:ap-northeast-1:ACCOUNT_ID:parameter/programming-process-evaluator/prod/backup-kms-key-arn",
         "arn:aws:ssm:ap-northeast-1:ACCOUNT_ID:parameter/programming-process-evaluator/prod/backup/s3-bucket",
         "arn:aws:ssm:ap-northeast-1:ACCOUNT_ID:parameter/programming-process-evaluator/prod/backup/s3-prefix",
         "arn:aws:ssm:ap-northeast-1:ACCOUNT_ID:parameter/programming-process-evaluator/prod/backup/age-recipient",

@@ -45,10 +45,10 @@ case "$service/$action" in
 ssm/get-parameter)
     [[ "${FAIL_STAGE:-}" != ssm ]] || exit 12
     case "$name" in
-        */s3-bucket) echo ppe-mock-backup ;;
+        */s3-bucket|*/backup-s3-bucket) echo ppe-mock-backup ;;
         */s3-prefix) echo production/mysql ;;
         */age-recipient) printf 'age1'; printf 'a%.0s' {1..58}; printf '\n' ;;
-        */kms-key-arn) echo arn:aws:kms:ap-northeast-1:123456789012:key/11111111-1111-1111-1111-111111111111 ;;
+        */kms-key-arn|*/backup-kms-key-arn) echo arn:aws:kms:ap-northeast-1:123456789012:key/11111111-1111-1111-1111-111111111111 ;;
         */sns-topic-arn) echo arn:aws:sns:ap-northeast-1:123456789012:ppe-backup ;;
         *) exit 13 ;;
     esac ;;
@@ -103,6 +103,7 @@ elif [[ "$1" = inspect ]]; then
         printf '|true|healthy|ppe-sim-backup-test|db|volume:ppe-sim-backup-test_database:true;|2026-01-01T00:00:00Z\n'
     fi
 elif [[ "$1" = compose ]]; then
+    printf 'database-access\n' >> "$MOCK_ROOT/database-access"
     if [[ "$*" = *"ps --all -q db"* ]]; then
         printf 'a%.0s' {1..64}; printf '\n'; exit 0
     fi
@@ -115,6 +116,7 @@ elif [[ "$1" = compose ]]; then
     printf 'synthetic-SQL-not-to-be-logged\n'
 else
     [[ "${FAIL_STAGE:-}" != age ]] || exit 22
+    [[ "${FAIL_STAGE:-}" != recipient-checksum ]] || exit 23
     cat >/dev/null
     printf 'synthetic-encrypted-not-to-be-logged\n'
 fi
@@ -164,5 +166,39 @@ if PPE_BACKUP_RELEASE=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb PPE_BACKUP_BASELI
     if bash -c 'exec 9>&-; source "$1"; acquire_database_lock' bash "$scripts/database-lock.sh" >> "$root/log" 2>&1; then
         echo "Expected independent lock contention." >&2; exit 1
     fi
+)
+(
+    unset PPE_BACKUP_PARAMETER_PREFIX PPE_BACKUP_AGE_RECIPIENT
+    export PPE_BACKUP_BUCKET_PARAMETER=/programming-process-evaluator/prod/backup-s3-bucket
+    export PPE_BACKUP_KMS_PARAMETER=/programming-process-evaluator/prod/backup-kms-key-arn
+    export PPE_BACKUP_RECIPIENT_FILE="$root/public-recipient"
+    printf 'age1' > "$PPE_BACKUP_RECIPIENT_FILE"
+    printf 'a%.0s' {1..58} >> "$PPE_BACKUP_RECIPIENT_FILE"
+    printf '\n' >> "$PPE_BACKUP_RECIPIENT_FILE"
+    export PPE_BACKUP_S3_BUCKET=incorrect-local-value PPE_BACKUP_KMS_KEY_ARN=incorrect-local-value
+    bash "$scripts/backup.sh" > "$root/log" 2>&1
+    bash "$scripts/verify-backup-receipt.sh" "$root/state/last-successful-backup.receipt" >> "$root/log" 2>&1
+    grep -q '^bucket=ppe-mock-backup$' "$root/state/last-successful-backup.receipt"
+    if PPE_BACKUP_PARAMETER_PREFIX=/programming-process-evaluator/prod/backup \
+        bash "$scripts/backup.sh" > "$root/log" 2>&1; then exit 1; fi
+    if PPE_BACKUP_KMS_PARAMETER= bash "$scripts/backup.sh" > "$root/log" 2>&1; then exit 1; fi
+    if PPE_BACKUP_SNS_TOPIC_ARN= bash "$scripts/backup.sh" > "$root/log" 2>&1; then exit 1; fi
+    if PPE_BACKUP_RECIPIENT_FILE="$root/missing-recipient" \
+        bash "$scripts/backup.sh" > "$root/log" 2>&1; then exit 1; fi
+    for failure in empty invalid checksum; do
+        rm -f "$root/database-access"
+        case "$failure" in
+            empty) : > "$root/public-recipient-invalid" ;;
+            invalid) printf 'not-an-age-recipient\n' > "$root/public-recipient-invalid" ;;
+            checksum) cp "$PPE_BACKUP_RECIPIENT_FILE" "$root/public-recipient-invalid" ;;
+        esac
+        if PPE_BACKUP_RECIPIENT_FILE="$root/public-recipient-invalid" \
+            FAIL_STAGE="recipient-$failure" bash "$scripts/backup.sh" > "$root/log" 2>&1; then
+            echo "Expected public recipient rejection: $failure." >&2; exit 1
+        fi
+        test ! -e "$root/database-access"
+        test -z "$(find "$root/state" -name '.age-recipient.*' -print)"
+    done
+    if FAIL_STAGE=ssm bash "$scripts/backup.sh" > "$root/log" 2>&1; then exit 1; fi
 )
 echo "Backup/config/S3/download completion/failure/freshness/provenance/credential rejection and real flock inheritance: PASS"

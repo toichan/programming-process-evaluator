@@ -38,7 +38,34 @@ load_backup_config() {
     export AWS_SHARED_CREDENTIALS_FILE=/dev/null AWS_CONFIG_FILE=/dev/null AWS_EC2_METADATA_DISABLED=false
     [[ "${AWS_REGION:-ap-northeast-1}" = ap-northeast-1 ]] ||
         { backup_error "This backup configuration requires the Tokyo region."; return 1; }
-    if [[ -n "${PPE_BACKUP_PARAMETER_PREFIX:-}" ]]; then
+    if [[ -n "${PPE_BACKUP_BUCKET_PARAMETER:-}" || -n "${PPE_BACKUP_KMS_PARAMETER:-}" ]]; then
+        [[ -z "${PPE_BACKUP_PARAMETER_PREFIX:-}" \
+            && "${PPE_BACKUP_BUCKET_PARAMETER:-}" = /programming-process-evaluator/prod/backup-s3-bucket \
+            && "${PPE_BACKUP_KMS_PARAMETER:-}" = /programming-process-evaluator/prod/backup-kms-key-arn ]] ||
+            { backup_error "Use both approved direct parameter names without a parameter prefix."; return 1; }
+        local parameter value
+        for parameter in "$PPE_BACKUP_BUCKET_PARAMETER" "$PPE_BACKUP_KMS_PARAMETER"; do
+            value=$(backup_aws ssm get-parameter --name "$parameter" \
+                --query Parameter.Value --output text) ||
+                { backup_error "Direct backup parameter retrieval failed."; return 1; }
+            [[ -n "$value" && "$value" != None && "$value" != *$'\n'* && "$value" != *$'\r'* ]] ||
+                { backup_error "Invalid direct backup parameter."; return 1; }
+            if [[ "$parameter" = "$PPE_BACKUP_BUCKET_PARAMETER" ]]; then
+                export PPE_BACKUP_S3_BUCKET=$value
+            else
+                export PPE_BACKUP_KMS_KEY_ARN=$value
+            fi
+        done
+        if [[ -n "${PPE_BACKUP_RECIPIENT_FILE:-}" ]]; then
+            [[ "$PPE_BACKUP_RECIPIENT_FILE" = /* \
+                && -f "$PPE_BACKUP_RECIPIENT_FILE" && ! -L "$PPE_BACKUP_RECIPIENT_FILE" ]] ||
+                { backup_error "Public age recipient requires a regular absolute file."; return 1; }
+            value=$(cat "$PPE_BACKUP_RECIPIENT_FILE") || return 1
+            [[ -z "${PPE_BACKUP_AGE_RECIPIENT:-}" || "$PPE_BACKUP_AGE_RECIPIENT" = "$value" ]] ||
+                { backup_error "Public age recipient sources disagree."; return 1; }
+            export PPE_BACKUP_AGE_RECIPIENT=$value
+        fi
+    elif [[ -n "${PPE_BACKUP_PARAMETER_PREFIX:-}" ]]; then
         [[ "$PPE_BACKUP_PARAMETER_PREFIX" = /programming-process-evaluator/prod/backup ]] ||
             { backup_error "Unexpected backup parameter namespace."; return 1; }
         local name value

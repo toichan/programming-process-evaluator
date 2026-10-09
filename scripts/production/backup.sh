@@ -57,6 +57,26 @@ if [[ -f "$PPE_STATE_DIR/project" ]]; then
         echo "Backup state belongs to another Compose project." >&2; exit 1;
     }
 fi
+stage=age-recipient
+if [[ "${PPE_BACKUP_REQUIRE_REMOTE:-yes}" = yes ]]; then
+    recipient=$PPE_BACKUP_AGE_RECIPIENT
+else
+    : "${PPE_BACKUP_RECIPIENT_FILE:?Set the age public recipient file for local tests}"
+    [[ "$PPE_BACKUP_RECIPIENT_FILE" = /* && -f "$PPE_BACKUP_RECIPIENT_FILE" \
+        && ! -L "$PPE_BACKUP_RECIPIENT_FILE" ]] || {
+        echo "Public age recipient requires a regular absolute file." >&2; exit 1;
+    }
+    recipient=$(cat "$PPE_BACKUP_RECIPIENT_FILE")
+fi
+[[ "$recipient" =~ ^age1[a-z0-9]{58}$ ]] || { echo "Invalid age public recipient." >&2; exit 1; }
+recipient_file=$(mktemp "$PPE_STATE_DIR/.age-recipient.XXXXXX")
+printf '%s\n' "$recipient" > "$recipient_file"
+chmod 0444 "$recipient_file"
+docker run --rm -i --network none --read-only --cap-drop ALL --security-opt no-new-privileges \
+    -v "$recipient_file:/run/recipient:ro" \
+    "${PPE_BACKUP_IMAGE:-ppe-backup:local}" -R /run/recipient </dev/null >/dev/null || {
+    echo "Age public recipient validation failed before database access." >&2; exit 1;
+}
 if [[ "${PPE_BACKUP_REQUIRE_REMOTE:-yes}" = yes && -z "${PPE_BACKUP_RELEASE:-}" ]]; then
     [[ -f "$PPE_STATE_DIR/current-release" && "${PPE_RELEASE:-}" = "$(cat "$PPE_STATE_DIR/current-release")" ]] || {
         echo "Scheduled backup release configuration differs from current-release; review operation.env." >&2; exit 1;
@@ -98,16 +118,6 @@ minimum=${PPE_BACKUP_MIN_FREE_MIB:-1024}
 }
 free=$(df -kP "$directory" | awk 'END {print $4}')
 (( free >= minimum * 1024 )) || { echo "Insufficient free space for backup." >&2; exit 1; }
-if [[ "${PPE_BACKUP_REQUIRE_REMOTE:-yes}" = yes ]]; then
-    recipient=$PPE_BACKUP_AGE_RECIPIENT
-else
-    : "${PPE_BACKUP_RECIPIENT_FILE:?Set the age public recipient file for local tests}"
-    recipient=$(cat "$PPE_BACKUP_RECIPIENT_FILE")
-fi
-[[ "$recipient" =~ ^age1[a-z0-9]{58}$ ]] || { echo "Invalid age public recipient." >&2; exit 1; }
-recipient_file=$(mktemp "$PPE_STATE_DIR/.age-recipient.XXXXXX")
-printf '%s\n' "$recipient" > "$recipient_file"
-chmod 0444 "$recipient_file"
 created=$(date -u +%s)
 temporary=$(mktemp "$directory/.ppe-$(date -u +%Y%m%dT%H%M%SZ).XXXXXX")
 stamp=$(basename "$temporary")
