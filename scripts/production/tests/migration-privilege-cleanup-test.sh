@@ -8,6 +8,7 @@ test_root=$(mktemp -d "${TMPDIR:-/tmp}/ppe-migration-privilege-test.XXXXXX")
 trap 'rm -rf "$test_root"' EXIT
 chmod 0700 "$test_root"
 mkdir -m 0700 "$test_root/bin"
+mkdir -m 0700 "$test_root/state"
 
 cat > "$test_root/bin/docker" <<'DOCKER'
 #!/usr/bin/env bash
@@ -42,6 +43,7 @@ chmod 0700 "$test_root/bin/docker"
 
 export PATH="$test_root/bin:$PATH"
 export PPE_PROJECT=ppe-sim-migration-privilege
+export PPE_STATE_DIR="$test_root/state"
 export PPE_COMPOSE_FILE="$test_root/compose.yml"
 export PPE_TEST_GRANTS="$test_root/grants"
 export PPE_TEST_REVOKED="$test_root/revoked"

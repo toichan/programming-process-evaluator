@@ -20,7 +20,7 @@ target_migrations=23
 deployment_phase=prepared
 
 write_state prepared
-[[ "$(stat -f '%Lp' "$state_file")" = 600 ]]
+[[ -z "$(find "$state_file" -prune ! -perm 0600 -print)" ]]
 [[ "$(state_value release)" = "$deployment_release" ]]
 ! stage_complete database_complete
 write_state database_started

@@ -29,6 +29,8 @@ mkdir -p -m 700 "$PPE_STATE_DIR"
 [[ -z "$(find "$PPE_STATE_DIR" -prune ! -perm 0700 -print)" ]] || {
     echo "Operation state directory must be private (0700)." >&2; exit 1;
 }
+source "$(dirname "${BASH_SOURCE[0]}")/database-lock.sh"
+acquire_database_lock || exit 1
 mkdir "$PPE_STATE_DIR/deployment.lock" 2>/dev/null || {
     echo "Another deployment is active or a stale lock needs manual review." >&2; exit 1;
 }

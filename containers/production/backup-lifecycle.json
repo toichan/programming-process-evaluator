@@ -1,0 +1,18 @@
+{
+  "Rules": [
+    {
+      "ID": "PpeBackupThirtyDays",
+      "Status": "Enabled",
+      "Filter": {"Prefix": "production/mysql/"},
+      "Expiration": {"Days": 30},
+      "NoncurrentVersionExpiration": {"NoncurrentDays": 1},
+      "AbortIncompleteMultipartUpload": {"DaysAfterInitiation": 1}
+    },
+    {
+      "ID": "PpeExpiredDeleteMarkers",
+      "Status": "Enabled",
+      "Filter": {"Prefix": "production/mysql/"},
+      "Expiration": {"ExpiredObjectDeleteMarker": true}
+    }
+  ]
+}
