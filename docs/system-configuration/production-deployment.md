@@ -461,22 +461,36 @@ broken test-only command reproduces the duplicate-`nginx` startup failure and
 checks the bootstrap script's cleanup with a fail-closed Certbot stub. Only its test
 containers, network, image and temporary files are removed.
 
-Install renewal with the host Certbot timer and a deploy hook. Export the same
-`PPE_PROJECT`, `PPE_COMPOSE_FILE`, `PPE_TLS_DIR`, and `PPE_CERTBOT_CONFIG_DIR`
-environment in a root-readable, mode-0600 environment file that contains paths
-only, not secret values. Configure:
+Install renewal with the existing host Certbot timer, the PPE service drop-in,
+and a dedicated mode-0600 paths-only environment. Follow the
+[TLS renewal installation and approval runbook](./tls-renewal-operation.md);
+do not edit the immutable application release or reuse the backup environment.
+The wrapper explicitly selects the custom config/work/log directories and
+`ppeval` lineage. Its non-renewing preflight is:
 
 ```sh
-certbot renew --deploy-hook \
-  '/var/lib/ppe/releases/<commit>/source/scripts/production/tls-renew-hook.sh'
+sudo /bin/bash /var/lib/ppe/tls-operations/current/scripts/production/renew-tls.sh \
+  /var/lib/ppe/tls-operation.env --check
 systemctl list-timers --all | grep -i certbot
 ```
 
-The hook checks both renewed domain names, installs atomically, tests Nginx, and
-reloads it; on ordinary validation/reload failure it restores the previous
-certificate/key and attempts another tested reload. Review Certbot logs and
-certificate expiry after every timer run. SIGKILL/power loss during host file
-replacement still requires manual inspection.
+The hook checks the lineage and both domains, retains a private previous pair,
+serializes hook deployments, and tests/reloads Nginx. Ordinary installation
+(including partial publication), validation or reload failures restore the
+previous pair and attempt a tested reload. Recovery failures remain failures,
+are reported explicitly, and retain recovery material. Each file rename is
+atomic, but the pair is not a single atomic transaction; SIGKILL/power loss
+requires manual inspection and may leave the deployment lock. Do not run the
+installer independently/concurrently with the renewal hook. Review Certbot logs,
+backup directory permissions and certificate expiry after timer runs.
+
+2026-10-09 Phase 2 local acceptance: the synthetic TLS workflow passed 34 checks
+on both macOS and isolated Ubuntu; Ubuntu systemd verified the service/drop-in,
+and isolated real Nginx passed 4 checks, including replacement-certificate trust
+on both portal hosts without changing the Nginx container ID. Production wiring,
+ACME staging dry-run, production hook/reload and reboot acceptance remain
+unexecuted and require separate approval. No production or backup settings were
+changed for this work.
 
 The TLS directory is 0755/files 0444 for the nonroot proxy; its host parent is 0700.
 Do not place it under a public/shared parent. The locally generated dummy self-signed
@@ -1172,6 +1186,14 @@ test files and this deployment/error documentation. Runtime config/private keys
 are not commit inputs. No production actions or additional implementation are
 part of this closeout. Subsequent feature work follows the implementation
 roadmap independently; it must not modify the fixed backup operations implicitly.
+
+Closeout local regression results: `bash scripts/production/tests/backup-operation-config-test.sh`
+passed all five parse-only checks, exit0. The isolated mock command
+`docker run --rm --network none --read-only --tmpfs /tmp:rw,exec,nosuid,nodev,size=128m -v "$PWD:/work:ro" -w /work --entrypoint /bin/bash mcr.microsoft.com/playwright:v1.51.1-noble -c 'bash scripts/production/tests/backup-test.sh'`
+also passed, exit0, covering backup/config/S3/download/freshness/provenance,
+credential rejection and flock inheritance. It used no network or Docker socket
+and performed no production backup. Commit, push and merge are owner-managed;
+the agent did not stage or commit these changes.
 
 #### Final acceptance checkpoint (2026-10-09 22:34 JST)
 

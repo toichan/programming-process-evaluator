@@ -216,3 +216,43 @@ for role in student teacher; do
     [[ "$response" = synthetic-upstream ]]
 done
 echo "PASS: real normal Nginx retains its default command, becomes healthy, redirects HTTP, proxies HTTPS, and reloads"
+
+lineage="$test_root/certbot-config/live/ppeval"
+mkdir -p "$lineage"
+openssl req -x509 -newkey rsa:2048 -nodes -days 3 \
+    -keyout "$lineage/privkey.pem" -out "$lineage/fullchain.pem" \
+    -subj /CN=student.ppeval.net \
+    -addext 'subjectAltName=DNS:student.ppeval.net,DNS:teacher.ppeval.net' >/dev/null 2>&1
+before=$(dc ps -q nginx)
+PPE_PROJECT="$project" PPE_COMPOSE_FILE="$test_root/compose.json" \
+    PPE_CERTBOT_CONFIG_DIR="$test_root/certbot-config" RENEWED_LINEAGE="$lineage" \
+    RENEWED_DOMAINS='student.ppeval.net teacher.ppeval.net' \
+    bash "$repo/scripts/production/tls-renew-hook.sh"
+[[ "$before" = "$(dc ps -q nginx)" ]]
+cmp -s "$lineage/fullchain.pem" "$test_root/tls/fullchain.pem"
+cmp -s "$lineage/privkey.pem" "$test_root/tls/privkey.pem"
+[[ -z "$(find "$test_root/tls/privkey.pem" -prune ! -perm 0444 -print)" ]]
+for role in student teacher; do
+    verified=0
+    for attempt in 1 2 3 4 5; do
+        if response=$(curl --noproxy '*' --cacert "$lineage/fullchain.pem" -fsS --max-time 5 \
+            --resolve "$role.ppeval.net:$https_port:127.0.0.1" \
+            "https://$role.ppeval.net:$https_port/health" 2>/dev/null); then
+            [[ "$response" = synthetic-upstream ]]
+            verified=1
+            break
+        fi
+        sleep 1
+    done
+    [[ "$verified" = 1 ]] || { echo "Renewed synthetic certificate was not served." >&2; exit 1; }
+done
+backup_count=0
+for backup in "$test_root"/.ppe-tls-before-renew.*; do
+    [[ -d "$backup" ]] || continue
+    [[ -z "$(find "$backup" -prune ! -perm 0700 -print)" ]]
+    cmp -s "$backup/fullchain.pem" "$test_root/dummy.crt"
+    cmp -s "$backup/privkey.pem" "$test_root/dummy.key"
+    backup_count=$((backup_count + 1))
+done
+[[ "$backup_count" = 1 ]]
+echo "PASS: real deploy hook serves the renewed certificate on both hosts without recreating Nginx and retains the private old pair"

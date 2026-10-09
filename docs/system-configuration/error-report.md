@@ -2,6 +2,16 @@
 
 秘密情報・実際の生徒データ・研究データは記載しない。解消後も履歴を保持する。
 
+## 2026-10-09 23:22以降 JST: TLS更新ローカル回帰テストのfixture権限
+
+- 対象・手順: `bash scripts/production/tests/tls-workflow-test.sh`。合成証明書とDocker/Certbotモックのみを使用、本番接続・ACME通信なし。
+- 期待: 各失敗系の前に合成の旧証明書ペアへfixtureを戻す。初回は既存11チェック成功後、非root macOSで0444のテスト用配信ファイルへ`cp`したためPermission denied、exit1。
+- 原因・対応: テストfixtureの再準備に必要な書込権限がなかった。テスト用ペアだけ0600に戻してコピーし、直後に0444へ再設定。本番スクリプトの権限要件は緩和しない。
+- 影響: 一時テストディレクトリのみ。既存ローカル環境、本番証明書・DB・コンテナへの変更なし。再検証結果はTLS更新手順のローカル検証記録を参照。
+- Ubuntuのnetwork-none/read-only追加試験: systemd定義検証はPASS。その後一時領域のmock executableがPermission deniedでexit126。初回`/tmp` tmpfsの実行制限に起因し、モック実行用のテスト専用tmpfsに`exec`を明示して再検証する。本番権限や設定には変更なし。
+- 復旧失敗時のlock保持を追加後、macOS/Ubuntuの旧テストはNginx構文検査を常時失敗させたまま次の正常系へ進み、意図どおり残ったlockによりexit1。新しいfail-closed契約とのfixture不整合。旧ペア復旧とlock保持を検証した後、テスト専用lockだけ解除して次の独立ケースへ進むよう修正。復旧失敗・次回配置拒否の専用テストも追加。
+- 最終再検証: macOS/Ubuntu各34チェックPASS、exit0。Ubuntuのsystemd定義検証1 PASS、exit0。隔離した実Nginx4チェックPASS、exit0、両hostで合成の新証明書を信頼検証して旧ペア退避とcontainer ID不変も確認。一時資産は当該testのcleanupで削除。残る制約は本番配置・実ACME/dry-run・実hook/reload・自動実行が別承認待ち。既存Docker CLIのmissing-plugin warningsは終了コードや試験結果に影響せず、今回修正しない。
+
 ## 2026-10-09 22:34 JST: 最終受入のCloudWatch読取制約と初回定期実行待ち
 
 - `aws --profile ppe-deployer --region ap-northeast-1 cloudwatch describe-alarms --alarm-names ppe-production-backup-freshness-alarm` はDescribeAlarms不足によるAccessDenied（exit254）。アカウント確認は成功。既知の権限制約のためIAM変更や同一roleでの反復をせず、ユーザーのコンソール確認へ切り替え、ActionsEnabled=true・状態OKの回答を得た。
