@@ -1142,6 +1142,260 @@ S3 at rest, but is not the age private key.
 
 ### Production preparation after owner AWS confirmation (2026-10-09 12:38 JST)
 
+#### Development closeout and operations handoff (2026-10-09 22:37 JST)
+
+Backup development is closed for this work unit by owner instruction. Stages A–E
+configuration, the manual encrypted backup, isolated recovery and scheduled
+freshness checks are complete. No additional backup implementation is planned
+as a prerequisite for the next development task. The records below are dated
+evidence; earlier preparation blockers do not override the latest checkpoint.
+
+The following are **post-start operational checks**, not reasons to continue
+backup feature development:
+
+| Operational check | Latest evidence / next action |
+|---|---|
+| First daily automatic backup | Not yet due at the 22:34 checkpoint. Observed schedule: 2026-10-10 02:01:34 JST. Check after completion, initially around 02:10 JST: systemd start/end/exit0, new receipt timestamp, all three exact-version S3 objects, sizes/SHA-256/SSE-KMS/key and local hashes, plus app/MySQL health. |
+| CloudWatch alarm recovery to OK | Owner confirmed ActionsEnabled=true / OK during the final checkpoint. Retain this as an owner-console observation, not an API read. Operational follow-up should inspect State reason/history and confirm continued OK with genuine hourly FreshBackup=1, including after the first scheduled backup. |
+| Alarm notification path | Direct SNS test delivery was confirmed. Alarm-triggered SNS delivery is not yet verified; confirm on a genuine future transition or a separately approved safe monitoring test. Do not manufacture a backup failure or change alarm thresholds. |
+
+Keep both timers/configuration unchanged. API read permission limitations remain;
+use the owner's existing console rather than modifying IAM. If a backup fails,
+inspect receipt/local artifacts and known S3 versions before any separately
+approved retry; do not delete, restore or unconditionally rerun. Production DB,
+Volumes, immutable releases and the local-only age private identity remain
+protected. Populated-data/application recovery and scale drills remain future
+operational validation, not completed by the initial empty-business-data drill.
+
+Closeout changes are limited to the backup environment example, two regression
+test files and this deployment/error documentation. Runtime config/private keys
+are not commit inputs. No production actions or additional implementation are
+part of this closeout. Subsequent feature work follows the implementation
+roadmap independently; it must not modify the fixed backup operations implicitly.
+
+#### Final acceptance checkpoint (2026-10-09 22:34 JST)
+
+- Read-only SSM inspection reconfirmed account/region/instance via IMDS, all eleven fixed operations hashes and corrected config hash/root:root 0600. Both timers are enabled/loaded/active/waiting. No timer, alarm, IAM, S3 configuration or production data changes were made.
+- Daily backup has no LastTrigger/start/exit timestamp and no journal entries since timer activation. Its default success/exit0 is not execution evidence. **First scheduled backup remains HOLD (not yet due)**; next observed execution is **2026-10-10 02:01:34 JST**. Inspect after completion, initially around 02:10 JST; do not treat an in-progress run as failure or manually trigger/retry it.
+- Automatic freshness service last ran **22:00:07–22:00:13 JST**, Result=success/exit0; retained recent journal entries also show success at 20:01 and 21:01. Next observed freshness schedule **23:00:30 JST**.
+- Existing Stage B receipt still identifies the 17:20 recovery point. Read-only receipt validation and checksum-enabled HEAD on all three exact S3 versions passed: sizes, SHA-256 checksums/metadata, Version IDs, SSE `aws:kms` and specified KMS key all match. All three local encrypted artifacts/sidecars match receipt hashes and sizes. This validates the existing manual recovery point, not a new scheduled backup.
+- DescribeAlarms remains AccessDenied; no IAM changes/repeated role attempts. The owner confirmed **ActionsEnabled=true / state OK** in the console during this checkpoint. Stored CloudWatch state is owner-verified, not agent API-read. End-to-end alarm-triggered SNS delivery is still not established by the earlier direct SNS test.
+- Five production containers healthy; MySQL ID/start timestamp match the protected baseline, database Volume metadata and deployment state/events hashes match previous records. Student and teacher HTTPS login probes each returned 200 at 22:34 JST. No SQL writes, Flyway, manual backup, existing container/Volume modifications or service/timer configuration changes were performed.
+- Git review: four tracked modified files plus one untracked config regression test, all backup-specific: environment example, backup mock test, config regression test, deployment evidence and error report. Changes remain unstaged; `git diff --check` and both changed test scripts' syntax checks passed. Runtime config is ignored; no private age identity or credentials were added. No commit/push/staging was performed.
+- **Automatic scheduling may continue (GO); final automatic-backup acceptance remains HOLD only for the first scheduled run and its storage verification.** Next acceptance must correlate actual systemd execution/end status with the new receipt timestamp, all three new exact-version S3 objects and local hashes, then verify app/MySQL health. Do not approve a failed or partial upload as success.
+
+#### Current status: Stage D applied / Stage E timers active (2026-10-09 17:53 JST)
+
+This current record supersedes the configuration/notification/timer blockers in
+the historical Stage A–D preparation records below. It does not claim the first
+daily scheduled backup or the alarm's subsequent OK transition has completed.
+
+- Under separate approval, saved the old backup-only config as `/var/lib/ppe/backup-config-change-20261009-1741/operation.env.before`, then atomically updated `/var/lib/ppe/operation.env` with exactly two additions: `PPE_TLS_DIR=/var/lib/ppe/tls-private/current` and `PPE_ACME_DIR=/var/lib/ppe/acme`. No settings were removed. New config SHA256 `b116321d93fceaacdd20ea47d711bd8df9e555aa1d95f79eb69d0900cb12d26b`, root:root 0600. Compose parsing and unchanged DB selection passed. Immutable operations/release files were not modified.
+- Approved manual freshness check at `2026-10-09T08:42:48Z` succeeded, exit0, with FreshBackup=1 submission. One approved SNS test returned MessageId `455054b1-285b-5ae6-b803-37f383142d29`; the owner confirmed receipt. No new backup was executed.
+- CloudWatch/SNS readback APIs remain denied to SSO and instance roles. GetMetricData was also denied; integrated browser console access failed with ERR_ABORTED. No IAM changes were made. The owner confirmed BackupSuccess=1, FreshBackup=1, SNS delivery and the specified freshness alarm configuration in the console. EnableAlarmActions was denied for both existing roles; the owner enabled actions in the console, not via the agent.
+- At 17:52 JST both timers were still disabled/inactive. Under the owner's subsequent Stage E approval, revalidated IMDS target, eleven fixed payload hashes, corrected config hash/mode, receipt, DB identity, unit copies/no drop-ins, shared-lock availability and five healthy containers. Enabled/started only `ppe-backup-freshness.timer` and `ppe-backup.timer`; both are enabled, active, waiting.
+- Actual automatic freshness execution: 17:53:28–17:53:34 JST, systemd service Result=success, ExecMainStatus=0. Journal confirmed a complete versioned backup within the freshness window. This proves scheduled checker execution and successful metric submission, not an independent CloudWatch API readback.
+- Next schedules observed immediately after activation: freshness **2026-10-09 18:00:49 JST**, daily backup **2026-10-10 02:01:34 JST**. Daily backup service had no execution start timestamp; default Result=success/exit0 is not evidence that a scheduled backup ran. No manual dump was triggered to manufacture acceptance.
+- Protected before/after snapshots of existing container IDs/images/start times/mounts/status, database Volume metadata and deployment state/events hashes matched. Existing receipt revalidation passed. Student/teacher HTTPS login probes returned 200 at 17:53 JST. No production SQL writes, Flyway, existing container/Volume mutation or application deployment occurred.
+- Owner console evidence: alarm created 12:26 JST and entered ALARM at 12:28 JST from missing data before monitoring began; ActionsEnabled=true, current state remains ALARM. FreshBackup samples around 17:42 and 17:53 belong to the same hourly period, not two separate healthy periods. With Minimum/3600 seconds/2 of 3/missing=breaching, wait for normal hourly samples and inspect State reason/history. Do not alter thresholds, force alarm state or inject extra metrics to clear it. Future ALARM/OK transitions can now notify SNS; a direct SNS test does not prove end-to-end alarm-action delivery.
+- Scheduling configuration is **GO**. Full automatic-operation acceptance remains **HOLD / observation pending** until the alarm transitions to OK on genuine healthy periods and the first daily scheduled backup passes receipt/exact-version validation. First daily run creates new encrypted S3 objects as approved automatic operation; do not automatically retry a failed backup that may have uploaded artifacts. Continue read-only monitoring without additional settings changes.
+
+#### Stage A inactive installation accepted (2026-10-09 16:27 JST)
+
+- Explicit user approval covered SSM transfer, new backup operations/config/public recipient and four inactive units, daemon-reload and read-only acceptance. Fixed operations source: `ff4c1c36b911fc51be4b5915b3afd0b935606223`; archive SHA256: `88c0f55f9308acf392adbd4407dec4f364d34e2aa3206fd376862d9c54121de4`. Application release remains `0e2bfae5e23bc512f0b7cf844264d4d45a484ecc`.
+- SSM and IMDS confirmed account `024378233912`, region `ap-northeast-1`, instance `i-0ffd69e8f390bd396`. No existing backup units, destination files or related operation processes were found before installation.
+- Installed seven scripts and four source unit copies under `/var/lib/ppe/operations/ff4c1c36b911fc51be4b5915b3afd0b935606223`, root:root 0644 with containing directories 0700. New `backup-current` points to that directory. Four units installed root:root 0644 in `/etc/systemd/system`. New `/var/lib/ppe/operation.env` and `/var/lib/ppe/config/backup-age-recipient` are root:root 0600; config parent is 0700. Existing files were not overwritten.
+- Local and remote archive/config/public hashes, all eleven payload hashes, syntax, installed hashes/ownership/modes and pointer passed. `systemd-analyze verify --man=no` succeeded; `systemctl daemon-reload` succeeded. Four units loaded/inactive, two timers disabled, no drop-ins; both services' execution start timestamps were zero.
+- Before/after snapshots of all five container IDs/images/start times/mounts/status, Volume metadata, Docker image inventory, deployment.state/events hashes and local backup file inventory were identical. All five containers healthy. Both production HTTPS login endpoints returned 200 after installation.
+- No backup, SQL, Flyway, Docker mutation, timer/service start/enable, S3 write, metrics/notification publication or AWS configuration change was performed. S3 object inventory was not independently queried during this acceptance; no upload path was executed. Actual backup/S3/restore acceptance remains outside Stage A and requires separate approval.
+- First transfer failed because long base64 input exceeded terminal framing capacity; retained `/var/lib/ppe/backup-stage-a-ff4c1c36-20261009/operations.tar` is a partial 3,071-byte file. Short 76-character lines with paced transmission passed a 51,200-byte dummy local PTY test and fixed-file roundtrips before successful transfer into new `/var/lib/ppe/backup-stage-a-ff4c1c36-20261009-r2`. Both staging directories are retained; cleanup is not approved. See [error report](error-report.md) for failure and resolution evidence.
+
+#### Stage B manual backup storage accepted with monitoring caveat (2026-10-09 17:22 JST)
+
+- An initial invocation failed before DB dump/S3 PUT because the installed EnvironmentFile omitted `PPE_TLS_DIR` and `PPE_ACME_DIR`, which full Compose parsing requires even for `ps db` / `exec db`. After read-only diagnosis, user separately approved one retry. Existing nginx mounts supplied `/var/lib/ppe/tls-private/current` and `/var/lib/ppe/acme` as transient environment variables. No installed file, TLS asset, immutable release or unit was changed. The local EnvironmentFile example now includes these variables; **before timer activation, separately approve a reviewed persistent configuration update**. The current scheduled configuration alone still fails.
+- Approved retry started at `2026-10-09T08:20:35Z` (17:20:35 JST), exit0. `--single-transaction` dump and age encryption completed; source identity remained unchanged. Three versioned objects under `s3://ppe-production-mysql-backups-024378233912-ap-northeast-1-an/production/mysql/` passed checksum-enabled HEAD and receipt validation. Local encrypted copy, checksum and manifest remain root-only 0600 in `/var/lib/ppe/backups`; successful receipt is root-only 0600 in `/var/lib/ppe/state/last-successful-backup.receipt`.
+
+| Object basename | Bytes | Version ID |
+|---|---:|---|
+| `ppe-20261009T082037Z.O3vi1j.sql.age` | 110489 | `5hC9psnT52akVYEJ5U8JsSkeb5kkWI5R` |
+| `ppe-20261009T082037Z.O3vi1j.sql.age.sha256` | 102 | `GWJ7kr3cPbZcJ2zKFsaEg4i_leN7uDOh` |
+| `ppe-20261009T082037Z.O3vi1j.sql.age.manifest` | 994 | `tlm1am69kdmmyJ7nBYf5Od57MHRS1PDH` |
+
+- All three: SSE `aws:kms`, KMS key `arn:aws:kms:ap-northeast-1:024378233912:key/af2c55b8-109d-4c81-8a94-05def6e56047`, BucketKeyEnabled=true. Ciphertext SHA256 `40eaf6631dc12565aea674137a6ac52f10c9b75578cbeb0744418d4c14334f3d`; checksum-file SHA256 `605e157357691382253f641fb2443be6b9463ec09822f3ed55f488887a4a1102`; manifest SHA256 `81ea609ef9b193ae3bd377447e86f5695d795168acd55296c8f90c70f9f65291`. Local hashes match the receipt and S3 checksums/metadata; age file format checked without displaying payload. Decryption authentication / SQL restoration / restored data integrity remain Stage C, not yet verified.
+- `BackupSuccess=1` publication returned success within backup.sh, and receipt installation followed successfully. Independent stored datapoint inspection is **unconfirmed**: both SSO and EC2 role denied `cloudwatch:GetMetricStatistics`. Owner must verify `PPE/Backup / BackupSuccess / Project=ppe-production` around 17:20 JST in the console or authorize a read-only principal. Do not infer a observed datapoint from API submission success. S3 global listing likewise denied `s3:ListBucket`; exact-version HEAD of the three known objects succeeded.
+- Before/after protected snapshots matched for five container identities/images/status/start times/mounts, Volume metadata, image inventory and deployment state/events. Final five containers healthy and both HTTPS login endpoints200. EnvironmentFile/public-recipient/journal hashes remain unchanged; both timers disabled/inactive, services inactive. No DB/schema writes, Flyway, existing-container mutation, AWS configuration change, object overwrite/delete, key transfer or restore performed. Short-lived age containers, SQL reads and shared lock/receipt/ciphertext writes were the approved backup workload.
+- Stage C isolated restore may be planned for this exact version; actual execution requires separate approval. Stage B ciphertext storage passed, monitoring readback remains open, and timer enablement is blocked pending persistent Compose environment correction and later approval.
+
+#### Stage C isolated recovery accepted (2026-10-09)
+
+- Explicit user approval covered fixed-version retrieval and recovery into a new isolated local MySQL, not production restore. Receipt and checksum-enabled HEAD for the three stored objects were reverified. Data Version `5hC9psnT52akVYEJ5U8JsSkeb5kkWI5R`, 110489 bytes and SHA256 `40eaf6631dc12565aea674137a6ac52f10c9b75578cbeb0744418d4c14334f3d` matched the retained EC2 ciphertext byte-for-byte after download.
+- Local host age authenticated the entire file using the existing private identity on the Mac. The private identity was not copied, mounted in Docker or sent to EC2/S3/logs. No plaintext dump was persisted. SQL streamed into dedicated project `ppe-restore-c20261009-1723`, a new `mysql:8.0.44` container with `network_mode: none`, no published ports and a new dedicated Volume. Collision and empty-database guards passed.
+- SQL restore exit0 with no stderr; 64 tables restored, CHECK TABLE64/64 OK, 126 foreign-key constraints checked with zero orphan rows. Flyway V1-V23 all success. Full Flyway descriptions/scripts/checksums/status hash `85a685ac3f32343774e08b1bb3353a3b85e52d0c9fd1eeb08426dd40ed382f57` and all-table count report hash `bdb66da5cd8aa7b6b28d9744efa56a03709222f2dca0ae04b0c755645a023abb` matched separate read-only production aggregate queries after restoration. No migration execution or Flyway repair was used.
+- Row counts: flyway_schema_history23, consent_document_versions1, student_login_sequence1; remaining61 tables0, including users/tasks/code_logs/submissions/evaluations. This is a verified **initial-state** recovery, not evidence that populated student logs/submissions/evaluations were restored. Representative synthetic populated-data recovery remains to be tested independently before claiming full business-data protection.
+- Additional local negative checks: truncated ciphertext failed age authentication, and existing restore-isolated.sh refused a nonempty dedicated database. The dedicated test container/Volume and generated password were removed after acceptance; pre-existing local Docker resources remained unchanged. Encrypted recovery files and metadata-only reports remain private on the local PC.
+- Production remained five healthy containers, same DB ID/StartedAt/image, Volume identity, state/events hashes; both HTTPS login endpoints200. Production interactions were read-only SQL aggregates, HEAD/GetObject and SSM output streaming. No production SQL writes, AWS settings/object changes, secret-key transfer, timer activation or alarm activation.
+- Stage D preparation is GO, execution remains separately gated. Persistent backup EnvironmentFile correction and stored CloudWatch metric readback are still open; Stage C does not authorize enabling scheduled backup or notifications. Application E2E on the recovered DB, populated-data cases and recovery at production scale remain unverified.
+
+#### Stage D preparation / read-only monitoring review (2026-10-09 17:38 JST)
+
+**Preparation complete; production activation HOLD.** No production setting, unit,
+IAM, SNS or alarm was changed, no service was started, no backup or metric/SNS
+publication occurred during this review.
+
+Current independently verified state:
+
+- Eleven installed fixed-source payload files still match their checksums. The
+  current receipt is fresh and all three exact-version S3 objects verify.
+- Four units loaded/inactive, services root with WorkingDirectory `/var/lib/ppe`
+  and EnvironmentFile `/var/lib/ppe/operation.env`; both timers disabled.
+- Installed config still SHA256
+  `c15ba38d9f01666eced45e0b911c09f0bcb7dd9801fb1042976aced62cc72434`
+  and lacks `PPE_TLS_DIR` / `PPE_ACME_DIR`. Existing nginx mounts confirm
+  `/var/lib/ppe/tls-private/current` and `/var/lib/ppe/acme`.
+- Five production containers healthy; both HTTPS login endpoints200.
+- SSO and EC2 role both deny `cloudwatch:GetMetricStatistics`,
+  `cloudwatch:DescribeAlarms`, `sns:GetTopicAttributes`,
+  `sns:ListSubscriptionsByTopic`. Actual BackupSuccess/FreshBackup datapoints,
+  current alarm values/state and current subscription state are **unconfirmed**,
+  not absent. Previously owner-confirmed configuration below is not a new
+  independent verification.
+
+| Monitoring item | Implementation / previously confirmed intended setting |
+|---|---|
+| Namespace / dimension | `PPE/Backup`, `Project=ppe-production` |
+| BackupSuccess | Count1 only after three remote objects and temporary receipt verified; emitted before final receipt rename. Stage B submission succeeded; stored datapoint readback remains unconfirmed |
+| FreshBackup | Count1 after valid receipt / 3 exact-version HEADs and age <=93600 seconds (26h); Count0 + SNS attempt + exit1 if receipt verification fails |
+| Missing signals | Config/SSM failure produces no metric; metric submission failure exits before later SNS. Checker stopped also yields no signal. Missing-data alarm is required |
+| Backup timer | Daily02:00 Asia/Tokyo +0–300s randomized delay, Persistent=true |
+| Freshness timer | Hourly +0–60s delay, OnBootSec10min, Persistent=true |
+| Intended alarm | `ppe-production-backup-freshness-alarm`, FreshBackup, Minimum, period3600, <1, evaluation3/datapoints2, missing=breaching |
+| Intended SNS action | `arn:aws:sns:ap-northeast-1:024378233912:ppe-production-backup-alerts` |
+| Last owner confirmation | ActionsEnabled=false, email confirmed/test received; current values unconfirmed because read API denied |
+
+**Persistent config proposal.** Add only these two nonsecret variables to the
+backup-specific EnvironmentFile, not application/release/TLS configuration:
+
+```sh
+PPE_TLS_DIR=/var/lib/ppe/tls-private/current
+PPE_ACME_DIR=/var/lib/ppe/acme
+```
+
+Cause: Compose resolves required interpolation for all services even on db-only
+`ps`/`exec`; backup-only config template omitted required nginx/acme variables.
+Local ignored candidate `deploy/runtime/backup-operation.env` now includes them,
+mode0600, SHA256
+`b116321d93fceaacdd20ea47d711bd8df9e555aa1d95f79eb69d0900cb12d26b`.
+This differs intentionally from Stage A config; it is **not deployed**. The fixed
+operations archive/hash remains unchanged. Do not alter the approved Stage A
+manifest to pretend the candidate was already installed.
+
+`bash scripts/production/tests/backup-operation-config-test.sh` passed5 checks:
+correct read-only TLS/ACME mount paths, unchanged db recipe, missing TLS refusal
+and missing ACME refusal. Uses Compose config only, never up/exec/SQL. Extended
+Linux backup mocks passed exact BackupSuccess/FreshBackup metric shapes and
+missing-receipt Count0/SNS, config/metric failure missing signals, plus existing
+S3/SNS/download/locking failures. Mocks ran network-none without Docker socket.
+
+**Least-privilege observer access proposal (not applied).** Prefer a management
+observer principal or the appropriate IAM Identity Center permission set assigned
+to the operator, not the EC2 backup writer role. Do not directly edit the
+AWSReservedSSO-generated role. Exact CLI calls here need only the following;
+console discovery might need additional rights and is not included:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ReadMetricStatisticsInTokyo",
+      "Effect": "Allow",
+      "Action": "cloudwatch:GetMetricStatistics",
+      "Resource": "*",
+      "Condition": {"StringEquals": {"aws:RequestedRegion": "ap-northeast-1"}}
+    },
+    {
+      "Sid": "ReadOnlyThisBackupAlarm",
+      "Effect": "Allow",
+      "Action": "cloudwatch:DescribeAlarms",
+      "Resource": "arn:aws:cloudwatch:ap-northeast-1:024378233912:alarm:ppe-production-backup-freshness-alarm",
+      "Condition": {"StringEquals": {"aws:RequestedRegion": "ap-northeast-1"}}
+    },
+    {
+      "Sid": "ReadOnlyThisBackupTopic",
+      "Effect": "Allow",
+      "Action": ["sns:GetTopicAttributes", "sns:ListSubscriptionsByTopic"],
+      "Resource": "arn:aws:sns:ap-northeast-1:024378233912:ppe-production-backup-alerts",
+      "Condition": {"StringEquals": {"aws:RequestedRegion": "ap-northeast-1"}}
+    }
+  ]
+}
+```
+
+Metric statistics do not support a metric ARN resource restriction. `Resource:*`
+here permits metric reads across the Tokyo account, **not just PPE/Backup**;
+`cloudwatch:namespace` cannot safely be used to claim GetMetricStatistics is
+namespace-restricted. If this read breadth is unacceptable, have an authorized
+owner run the exact commands and provide only the requested redacted results.
+No ListMetrics/GetMetricData, write/enable/delete, Publish or IAM admin action is
+needed for this CLI review. DescribeAlarms is scoped to the one metric alarm;
+composite alarm inspection is deliberately excluded.
+See [CloudWatch permissions reference](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/permissions-reference-cw.html)
+and [DescribeAlarms reference](https://docs.aws.amazon.com/AmazonCloudWatch/latest/APIReference/API_DescribeAlarms.html).
+
+**Future validation and approval units (none executed now):**
+
+1. Approve persistent backup EnvironmentFile replacement only: read/check old
+   hash/owner0600, transfer reviewed candidate into fresh private staging, verify
+   new hash, retain private rollback copy, atomically replace only operation.env.
+   Verify Compose db selection and existing assets with read-only commands.
+   No service start/reload or app/TLS modification is necessary. If old hash
+   changed or the candidate diff is more than two variables, stop.
+2. Owner grants the observer read access above or supplies redacted API results.
+   Read BackupSuccess around08:20Z October9 and FreshBackup over the relevant
+   current window; metric absence must be distinguished from denial. Describe
+   alarm exact values/actions/state; confirm SNS email subscription without
+   logging the email address. SNS topic policy must permit CloudWatch alarm
+   publication; inspect that policy locally/redacted with GetTopicAttributes
+   (this review did not establish that permission).
+3. Approve one manual freshness **script** run using the existing receipt, not a
+   systemd unit/timer. It may submit FreshBackup1; if remote verification fails it
+   may submit0 and send a failure SNS notification. No new backup is created.
+   Read back emitted datapoint and require receipt verification, not metric alone.
+4. Approve one clearly identified SNS test message to the existing topic and
+   confirm email receipt. This verifies SNS delivery but not the CloudWatch path.
+   Do not intentionally fail production backup or emit fabricated BackupSuccess.
+   Missing/stale/config/metric failures are tested locally with mocks.
+5. For an alarm-to-SNS end-to-end test, separately approve a disposable test
+   metric/alarm tied to the same topic with explicit cleanup, or owner-approved
+   test of the actual alarm. Do not fake FreshBackup0 / SetAlarmState on the
+   production alarm merely to get a test email. Such resource changes are not
+   presently approved.
+6. Approve actual production alarm action enablement only after verifying live
+   configuration, topic authorization and healthy FreshBackup samples. Actions
+   disabled prevents notification, not evaluation: the alarm may already be
+   ALARM due to intentional missing data. Resolve/understand the state before
+   enablement; do not assume a one-off SNS test proves alarm delivery.
+
+**Stage E conditions:** reviewed persistent config installed; observer readback,
+SNS and alarm delivery accepted; current complete recovery receipt; sufficient
+space; no competing deploy/backup; unit hashes/paths/permissions correct;
+shared lock effective for participating deployments (legacy ops/manual SQL do
+not necessarily participate); approvals for both timer activations and alarm
+actions. Persistent timers may catch up immediately on activation, including a
+new backup/S3 writes: activation approval must expressly include that workload.
+Enable freshness and observe healthy samples before notification enablement;
+daily backup timing/catch-up requires a separate agreed window. Confirm next
+scheduled times and successful subsequent automatic executions, rather than
+considering enabled=accepted. Both timers remain disabled now.
+
+**Detection limits:** 26h age tolerance plus the hourly2-of3 alarm evaluation
+means a missed daily backup is not an immediate alert at02:00; exact latency
+depends on checker timing, sampling and CloudWatch missing-data evaluation.
+Checker shutdown is covered by breaching missing samples once notifications
+are enabled. SNS failure and checker-config failure still need independent
+alarm delivery. Alarm missing-data behavior is not proof of EC2/software
+availability or populated-data recovery coverage.
+
 This section supersedes earlier unconfirmed-resource reports and generic console
 examples for this installation. AWS facts below were **confirmed by the owner**,
 not independently re-read by this agent. No AWS or production writes were made
@@ -1524,10 +1778,11 @@ template parsing, Compose config validation and `git diff --check` also passed.
 The journal test's BSD-only permission assertion was made portable for Linux, and
 the standalone privilege test now supplies the required private state directory.
 
-Actual AWS PutObject/HeadObject checksum behavior, KMS/IAM policy enforcement,
-Parameter Store retrieval by the EC2 role, SNS delivery, missing-heartbeat alarm,
-live systemd schedule and full application-schema restore remain **unverified**
-and require approval-gated acceptance. Local mocks are not a substitute.
+At the time of the local-only tests, AWS storage/permissions, SNS delivery,
+monitoring and live scheduling/restoration were unverified. The subsequent
+[production checkpoints](#production-preparation-after-owner-aws-confirmation-2026-10-09-1238-jst)
+record the actual Stage A–E evidence and remaining post-start operational checks.
+Local mocks are not a substitute for those observations.
 
 ## Capacity planning
 

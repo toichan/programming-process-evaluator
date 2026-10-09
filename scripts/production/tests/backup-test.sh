@@ -27,7 +27,7 @@ while [[ "$1" = --* ]]; do
     case "$1" in --region) shift 2 ;; --no-cli-pager) shift ;; *) exit 99 ;; esac
 done
 service=$1; action=$2; shift 2
-key="" version="" body="" hex="" b64="" name="" destination="" query=""
+key="" version="" body="" hex="" b64="" name="" destination="" query="" metric_data=""
 while (( $# )); do
     case "$1" in
         --key) key=$2; shift 2 ;;
@@ -37,6 +37,7 @@ while (( $# )); do
         --checksum-sha256) b64=$2; shift 2 ;;
         --name) name=$2; shift 2 ;;
         --query) query=$2; shift 2 ;;
+        --metric-data) metric_data=$2; shift 2 ;;
         --*) shift 2 ;;
         *) destination=$1; shift ;;
     esac
@@ -86,7 +87,7 @@ sns/publish)
     echo message-id ;;
 cloudwatch/put-metric-data)
     [[ "${FAIL_STAGE:-}" != metric ]] || exit 20
-    printf 'metric\n' >> "$MOCK_ROOT/metrics" ;;
+    printf '%s\n' "$metric_data" >> "$MOCK_ROOT/metrics" ;;
 *) exit 98 ;;
 esac
 MOCK
@@ -126,6 +127,21 @@ bash "$scripts/backup.sh" > "$root/log" 2>&1
 test -s "$root/state/last-successful-backup.receipt"
 bash "$scripts/verify-backup-receipt.sh" "$root/state/last-successful-backup.receipt" >> "$root/log" 2>&1
 bash "$scripts/check-backup-freshness.sh" >> "$root/log" 2>&1
+grep -Fxq "MetricName=BackupSuccess,Dimensions=[{Name=Project,Value=$PPE_PROJECT}],Value=1,Unit=Count" "$root/metrics"
+grep -Fxq "MetricName=FreshBackup,Dimensions=[{Name=Project,Value=$PPE_PROJECT}],Value=1,Unit=Count" "$root/metrics"
+mv "$root/state/last-successful-backup.receipt" "$root/saved.receipt"
+if bash "$scripts/check-backup-freshness.sh" > "$root/log" 2>&1; then exit 1; fi
+grep -Fxq "MetricName=FreshBackup,Dimensions=[{Name=Project,Value=$PPE_PROJECT}],Value=0,Unit=Count" "$root/metrics"
+test -s "$root/notified"
+mv "$root/saved.receipt" "$root/state/last-successful-backup.receipt"
+metrics_before=$(sha256sum "$root/metrics")
+notifications_before=$(sha256sum "$root/notified")
+if FAIL_STAGE=metric bash "$scripts/check-backup-freshness.sh" > "$root/log" 2>&1; then exit 1; fi
+test "$metrics_before" = "$(sha256sum "$root/metrics")"
+test "$notifications_before" = "$(sha256sum "$root/notified")"
+if FAIL_STAGE=ssm bash "$scripts/check-backup-freshness.sh" > "$root/log" 2>&1; then exit 1; fi
+test "$metrics_before" = "$(sha256sum "$root/metrics")"
+test "$notifications_before" = "$(sha256sum "$root/notified")"
 source "$scripts/backup-common.sh"
 load_backup_config
 manifest_key=$(receipt_value "$root/state/last-successful-backup.receipt" manifest_key)

@@ -2,6 +2,74 @@
 
 秘密情報・実際の生徒データ・研究データは記載しない。解消後も履歴を保持する。
 
+## 2026-10-09 22:34 JST: 最終受入のCloudWatch読取制約と初回定期実行待ち
+
+- `aws --profile ppe-deployer --region ap-northeast-1 cloudwatch describe-alarms --alarm-names ppe-production-backup-freshness-alarm` はDescribeAlarms不足によるAccessDenied（exit254）。アカウント確認は成功。既知の権限制約のためIAM変更や同一roleでの反復をせず、ユーザーのコンソール確認へ切り替え、ActionsEnabled=true・状態OKの回答を得た。
+- 読み取り専用SSM検証はREMOTE_EXIT=0。両timer enabled/active(waiting)、鮮度チェック22:00:07〜22:00:13 JST成功。dailyはstart timestamp/履歴がなく、初回予定10月10日02:01:34 JSTのため未実行。実行待ちは障害ではなく、default exit0を実行成功と誤認しない。
+- 既存段階Bのreceipt・ローカル3成果物・S3固定3Versionのsize/SHA-256/SSE-KMS/キーは再照合PASS。本番5healthy、MySQL識別情報・Volume・deployment state/events確認、HTTPS各200。新規backup、SQL書込、設定変更は行わない。初回完了後の保存受入が残る。
+
+## 2026-10-09 17:42〜17:53 JST: 段階D適用・監視確認の権限制約と段階E開始
+
+- 承認内の対応: backup専用設定を退避し、TLS/ACMEの2変数だけ永続追加。差分・hash・0600・Compose解析/DB選択を確認。17:42:48 JSTの手動鮮度チェックはexit0、SNSテスト1通はPublish成功・ユーザー受信確認済み。新規backupなし。
+- 監視確認エラー: `cloudwatch:GetMetricData`もAccessDenied。AWSコンソールへのintegrated browser接続はERR_ABORTEDで確認できなかった。CLIによる`cloudwatch:EnableAlarmActions`はSSO role・EC2 roleの双方でAccessDenied。IAMは変更せず、同じ拒否操作を反復しない。ユーザー既存コンソールでメトリクス・設定・SNS配信確認後、通知を有効化した。エージェントのAPI読取確認とは区別する。
+- ユーザー確認: alarmは12:26 JST作成、12:28 JSTに監視開始前の欠損データによりALARMへ遷移。ActionsEnabled=trueとなったが17:53頃もALARM。17:42/17:53のFreshBackup=1は同一3600秒期間であり、2/3評価の複数正常期間が揃った証拠ではない。正常な毎時送信の蓄積とState reason/historyによるOK遷移の確認を待つ。欠損を誤魔化す送信・閾値変更・状態強制は行わない。
+- 段階E再検証: `bash -n stage-e-activate.sh`とSSM実行はexit0（REMOTE_EXIT=0）。両timerを承認範囲でenabled/active(waiting)にした。systemdによる鮮度チェック17:53:28〜17:53:34 JSTはResult=success/exit0。次回鮮度18:00:49 JST、初回daily予定10月10日02:01:34 JST。daily serviceは未実行でありdefault successを受入実績としない。
+- 保護確認: 既存5container healthy、ID/image/StartedAt/mounts・DB Volume・deployment state/eventsのsnapshot一致、既存receipt検証PASS、student/teacher HTTPS各200。残作業は実際の正常hourly期間でのalarm OK遷移と初回scheduled backupの保存結果。設定の追加変更や無条件のbackup再試行はしない。
+
+## 2026-10-09 17:38 JST: 段階D監視読み取り権限不足と準備検証
+
+- 読み取り調査: SSO `ppe-deployer` とEC2 instance roleの双方で BackupSuccess/FreshBackupの `cloudwatch:GetMetricStatistics`、対象alarmの `cloudwatch:DescribeAlarms`、対象SNSの `sns:GetTopicAttributes` / `sns:ListSubscriptionsByTopic` がAccessDenied/AuthorizationError。前者/後者それぞれ一度の確認とrole代替を試し、同一エラーの無条件反復はしない。実際のメトリクス、alarm、SNS購読の現在値は未確認。不存在と扱わない。
+- 原因・対応: エラー本文は各read actionのidentity-based Allow不足を示す。管理者observer用の最小読取ポリシー案と、所有者によるredacted確認の代替手段を作成。IAM/CloudWatch/SNSの変更・通知送信なし。
+- EC2で確認: 固定版11ファイルhash一致、既存receiptとexact-version HEADは成功。4unit loaded/inactive、2timer disabled。環境ファイルのTLS/ACME変数欠落を確認し、既存nginx mountと値を照合。本番ファイルhashは不変、5healthy、両HTTPS200。
+- ローカル検証: backup設定candidateへ2変数だけ追加、0600維持。新設定テスト5チェック成功（Compose mount2/DB recipe不変/必須変数欠落2拒否）。Linux network-none backup mocksもexact metric名/dimension/value、receipt欠落0/SNS、config/metric failureで信号欠落を含め成功。AWS実メトリクス・実SNS試験は今回未実施。
+- 未解決: 本番永続設定補完・observer readback・SNS/alarm delivery実試験・通知とtimer有効化はそれぞれ別承認待ち。段階Dの準備は完了、自動運用開始はHOLD。
+
+## 2026-10-09: 段階Cのローカル復元検証とテスト不備の修正
+
+- 対象: 固定S3 Version `5hC9psnT52akVYEJ5U8JsSkeb5kkWI5R` のローカル隔離MySQL復元。ciphertext・receipt・S3 HEAD/GetObject照合とhost age全体認証はPASS。本番は読み取り専用で、秘密鍵はローカルPCだけで使用。
+- 初回 `bash restore-and-validate.sh` は新規専用MySQL起動後、空DB確認SQLのcommand substitution内で誤ったescaped quoteにより `syntax error near unexpected token '('`、exit1。SQL import前のテストコード不備。修正後、専用project/Volume一致・DB空を再確認して同じ専用空DBだけへresume。復元と整合性検証はexit0、stderr0 bytes、64テーブル/126FK/23Flyway成功。
+- nonempty拒否テストの初回はchecksum sidecar未配置のため `Backup, identity or checksum is missing` で拒否された。正しいhashのローカルsidecarを追加し再検証すると `Refusing restore into a nonempty database` を確認。非空DBへのSQL importは発生していない。truncated ciphertextの認証失敗は期待どおりのnegative test。
+- Docker daemon利用は正常。既存ローカルCLIのmissing-plugin warningは復元障害ではなく、今回修正/削除していない。
+- 復元後の全table件数とFlyway metadata/checksumのreport hashは本番read-only queryと一致。専用テストcontainer/Volume/生成DB passwordと転送一時ログだけ清掃し、既存ローカル資産は維持。本番5healthy、HTTPS2件200、DB/Volume/journal不変。
+- 未検証: 業務テーブルは空の初期DBであり、実学習ログ・提出・評価を含む代表データ復元は未実施。定期設定補完とCloudWatch保存datapoint読取確認は段階Bから継続。段階Dの実変更には別承認が必要。
+
+## 2026-10-09 17:17〜17:20 JST: 段階Bの初回バックアップはCompose入力不足で失敗
+
+- 17:20〜17:22 JST再検証: ask_userで「一時環境変数を補って1回再実行する」の明示承認を得た。nginxの既存mountから確認済み2変数を当該実行環境だけへexportし再実行、exit0。暗号化ファイル110,489 bytes・checksum102 bytes・manifest994 bytesが新規S3 Version ID付きで保存され、SSE-KMS/指定キー/Bucket Key/hash/receiptとage形式を照合PASS。既存設定やimmutableファイルは変更せず、永続設定用のローカルexampleだけ2変数を追加。配置済みEnvironmentFileは未補完のためtimer有効化前に別承認で修正が必要。
+- 最終保護確認: 5コンテナhealthy、両HTTPS200、DB/Volume/画像inventory/journalのbefore/after snapshot一致、両timer disabled/inactive。復号・復元は未実施。
+- 監視の制約: BackupSuccess PutMetricDataは処理内で成功し、receipt保存も完了。ただしSSOとEC2 roleの両方で`cloudwatch:GetMetricStatistics`はAccessDenied、保存されたdatapointの独立読取は未確認。IAM変更・メトリクスの再送なし。S3既知3オブジェクトのexact-version HEADは成功しており、ListBucket不足と区別する。
+
+- 再開時の調査: 16:30頃開始したSSMセッションは結果が返らず、17:16の別SSM読み取り確認でバックアッププロセス・ローカル成果物・receiptなし、5コンテナhealthyを確認。停滞したローカルSSM transportを終了し、再度プロセス・成果物なしを確認。実行スクリプトはS3アップロード前にローカル暗号化ファイルを作成・保持するため、この停滞セッションでバックアップは開始されなかったと判断。接続初期化タイミングが原因の可能性はあるが未確定。transportの接続待機を10秒、echo無効後を3秒へ変更。
+- 事前確認の補正: Docker imageに`Config.Volumes`フィールドがなくGo template参照が失敗。読み取り検査だけをjqのoptional-field対応へ修正し、Volumes空・配置済み11ファイルと設定/公開鍵hash・インスタンスロールSSM値・5コンテナ・journal・空き容量の再確認はPASS。運用固定版は変更していない。
+- 実行: 17:17:48 JST（08:17:48Z）に固定版 `backup.sh` を実際に1回起動。`database-source`段階でComposeの補間エラー（`PPE_TLS_DIR` / `PPE_ACME_DIR` 未設定）、exit1。DB選択の前に失敗し、dump・age本暗号化・S3 PUT・BackupSuccess送信・receipt作成には到達していない。失敗trapのSNS Publishは試行されたが、配信結果は独立確認していない。
+- 原因・検証: backup-operation.envに全Compose解析で必須の2変数が含まれていない。ローカルdummy pathを環境変数として設定した `docker compose --env-file /dev/null -f compose.production.yml config --services` はPASS（コンテナ操作なし）。本番nginxの既存mountを読み取り、TLS=`/var/lib/ppe/tls-private/current`、ACME=`/var/lib/ppe/acme`を確認。読取シェル内だけの一時exportで既存DB IDのCompose選択はPASS。設定・TLS・immutable releaseの変更なし。
+- 成果物・保護対象: 失敗後もローカルbackups空、成功receiptなし、DB ID/image/StartedAt・Volume・journal不変、5コンテナhealthy。age公開鍵事前チェック用の一時コンテナと共有lockファイルは承認済みbackup処理として使用された。スキーマ・データ書き込み、Flyway、既存コンテナ再起動/再作成なし。
+- 読取権限の制約: SSO profileとEC2 roleの両方でS3 ListObjectsV2は`AccessDenied`（s3:ListBucket不足）。S3全体の既存/不完全成果物一覧は未確認。ただし今回の処理はPUTより前の段階で失敗し、アップロードされるローカル暗号化ファイルも存在しない。IAM変更は実施していない。
+- 対応・未解決: 新しいS3成果物を作るbackup再実行はユーザー条件に従い承認待ち。再実行案は既存mountから取得した2変数を当該実行環境へ追加するだけで、既存ファイルを上書きしない。定期運用用の永続設定補完は別途承認が必要。段階B未完了、CloudWatch BackupSuccess・S3保存・復元可能性は未確認。新規バックアップの無条件再実行は行っていない。
+
+## 2026-10-09 16:23 JST: 本番バックアップ段階AのSSM転送で停止
+
+- 16:27 JST解消: ユーザーが承認済み範囲内での安全な再試行を許可したため、残存物を読み取り確認（部分tar 3,071 bytes、0600）。旧stagingは不変とし、新規 `...-20261009-r2` へ転送。76文字のbase64短行化・0.01秒/行の送信と末尾改行を採用し、51,200-byteダミーのローカルPTY往復と実転送4入力のhash往復をPASSした後に再開。最初のローカルPTY検証は一括送信/末尾行欠落のためhash不一致となったが、実転送と同じpaced送信・末尾改行へ合わせて解消した。
+- 再検証: EC2側アーカイブ・設定・公開鍵hash、11ファイルhash、配置後hash/mode/owner、systemd verifyとdaemon-reloadが成功（remote exit0）。4unit loaded/inactive、2timer disabled、サービス実行開始timestamp0。保護対象before/after snapshot一致、両HTTPS login200。段階A完了。初回backup/復元/通知/timer起動は未実施。既存stagingや部分tarの削除・上書きなし。
+
+- 対象・手順: SSO再認証後、承認済み段階Aを再開。account `024378233912`、東京の対象EC2のrunning状態を確認。SSM内のIMDS identityもaccount/region/instance一致。事前確認は2回ともPASS。
+- 保護対象: 5コンテナhealthy、既存MySQL ID・image・StartedAtとVolumeの名前・作成日時は従前一致。releaseは `0e2bfae5e23bc512f0b7cf844264d4d45a484ecc`、journalはpublishedでstate/events hash一致。4unitはnot-found/inactive、配置先衝突と既存関連プロセスなし、バックアップディレクトリにファイルなし。
+- 配布物: 11ファイル・アーカイブ・設定・公開鍵hashはすべて一致。ローカル秘密鍵文字列検査・shell構文確認もPASS。秘密鍵は参照・転送していない。
+- 実行・期待: SSM Session Managerのecho無効シェルから、rootの新規専用stagingへbase64転送し、EC2側のSHA256検証後に非稼働配置する。
+- 実際: staging作成直後、最初のアーカイブを復号する `base64 --decode` が `base64: invalid input`、remote exit 1で停止。SSM clientはexit0だったがremote exit1を失敗と判定した。
+- 変更済み範囲: `/var/lib/ppe/backup-stage-a-ff4c1c36-20261009`（root専用0700）と、その中の部分的な `operations.tar`（umask077）が作成された。失敗後のサイズ・内容は未確認。設定・公開鍵・checksum manifestの転送、展開、運用ファイル/unit配置、symlink、daemon-reloadには到達していない。
+- 原因: ローカルのbase64出力の最大行長は68,268 bytes。TTYの長い入力行が転送時に切り詰められた可能性が高いが、remote部分ファイルの調査は未実施であり推測と区別する。
+- 対応・再検証: 承認条件に従い即停止。再試行・削除・ロールバック・バックアップ・Docker変更・SQL・Flyway・S3/AWS設定変更なし。今回の転送内容はログへ出力していない。短行base64転送のローカル再現検証、remote残存物の読み取り確認、新しいstagingでの再開について追加承認が必要。配置後受入は未実施。
+
+## 2026-10-09 16:17 JST: 本番バックアップ段階Aの事前確認で停止
+
+- 対象: 固定運用版 `ff4c1c36b911fc51be4b5915b3afd0b935606223` のSSM転送・非稼働配置。ユーザー承認範囲内でAWS対象確認から開始した。
+- 実行: `aws --profile ppe-deployer --region ap-northeast-1 --no-cli-pager sts get-caller-identity` と、同profile/regionの `ec2 describe-instances --instance-ids i-0ffd69e8f390bd396`（出力項目はaccount、instance ID、state、AZに限定）。
+- 期待結果: accountと対象インスタンスの一致を確認してからSSM事前確認へ進む。
+- 実際: 両読み取りAPIが `Error when retrieving token from sso: Token has expired and refresh failed` で失敗。コマンド終了コード255。原因はAWS CLIが報告したSSOトークン失効であり、本番稼働状態は未確認。
+- 影響・対応: SSM接続・転送・配置・daemon-reload・バックアップ・AWS設定変更は一切実施せず停止。自動再試行・削除・ロールバックなし。ローカルにはこの失敗記録のみ追記。
+- 再検証: 16:20のユーザー再認証連絡後にaccount/EC2/SSM事前確認は成功し、認証失効は解消した。その後の転送失敗と未完了範囲は上記16:23の記録を参照。
+
 ## 2026-10-08: 評価確認のプロトタイプ再現・受入
 
 - 初回パッチで新exportメソッドを既存CSV transaction内へ誤挿入しコンパイル失敗。クラス直下へ移して解消した。最終のclean全体392件は260成功/132明示skip/失敗・error0、WAR成功。対象DB26件は25成功/1 runtime gate skip、別認証HTTP1成功。旧XMLを混ぜず実行別reportを集計した。
