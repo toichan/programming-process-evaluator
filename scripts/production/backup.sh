@@ -69,6 +69,11 @@ else
     recipient=$(cat "$PPE_BACKUP_RECIPIENT_FILE")
 fi
 [[ "$recipient" =~ ^age1[a-z0-9]{58}$ ]] || { echo "Invalid age public recipient." >&2; exit 1; }
+if [[ -n "${PPE_BACKUP_DEPLOYMENT_ID:-}" ]]; then
+    [[ "$recipient" = "${PPE_BACKUP_RECOVERY_AGE_RECIPIENT:?}" ]] || {
+        echo "Backup recipient differs from the reviewed offline recovery identity." >&2; exit 1;
+    }
+fi
 recipient_file=$(mktemp "$PPE_STATE_DIR/.age-recipient.XXXXXX")
 printf '%s\n' "$recipient" > "$recipient_file"
 chmod 0444 "$recipient_file"
@@ -160,6 +165,15 @@ baseline=${PPE_BACKUP_BASELINE:-unspecified}
     printf 'format=1\nproject=%s\nrelease=%s\nbaseline=%s\ncreated=%s\nbucket=%s\nprefix=%s\nkms=%s\n' \
         "$project" "$release" "$baseline" "$created" "$PPE_BACKUP_S3_BUCKET" "$PPE_BACKUP_S3_PREFIX" "$PPE_BACKUP_KMS_KEY_ARN"
     printf 'source_container=%s\n' "${source_identity%%|*}"
+    if [[ -n "${PPE_BACKUP_DEPLOYMENT_ID:-}" ]]; then
+        [[ "${source_identity%%|*}" = "${PPE_BACKUP_SOURCE_CONTAINER:?}" ]] || {
+            echo "Deployment backup source identity differs." >&2; exit 1;
+        }
+        printf 'deployment_id=%s\nsource_release=%s\ntarget_release=%s\nsource_volume=%s\nsource_volume_created=%s\nhistory_hash=%s\ninventory_hash=%s\nrecovery_reference_hash=%s\n' \
+            "$PPE_BACKUP_DEPLOYMENT_ID" "$PPE_BACKUP_SOURCE_RELEASE" "$PPE_BACKUP_TARGET_RELEASE" \
+            "$PPE_BACKUP_SOURCE_VOLUME" "$PPE_BACKUP_SOURCE_VOLUME_CREATED" \
+            "$PPE_BACKUP_HISTORY_HASH" "$PPE_BACKUP_INVENTORY_HASH" "$PPE_BACKUP_RECOVERY_REFERENCE_HASH"
+    fi
     printf 'age_recipient=%s\n' "$recipient"
     printf 'data_key=%s\ndata_version=%s\ndata_hash=%s\ndata_size=%s\ndata_base64=%s\n' \
         "$data_key" "$data_version" "$hash" "$data_size" "$(openssl dgst -sha256 -binary "$target" | openssl base64 -A)"

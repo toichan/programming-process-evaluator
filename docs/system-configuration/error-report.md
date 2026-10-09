@@ -2,6 +2,43 @@
 
 秘密情報・実際の生徒データ・研究データは記載しない。解消後も履歴を保持する。
 
+## 2026-10-10 00:20以降 JST: デプロイ補強のローカル実装・回帰
+
+- 対象: production deployment/backup/receipt/TLS参照同期。AWS接続・本番変更なし。
+- 手順: cached Ubuntuのnetwork-none/read-only試験環境で既存shell回帰を実行。
+  初期baselineは成功。実装中、patchの対象行が存在しないため一部hunkのみ適用された。
+  適用済み部分を保持し、残りだけ正しい文脈で適用した。
+- fixture不整合: 同期helperの3引数API、必須backup環境変数
+  （state/backup directory/public recipient）、新しいattempt/history/receipt証跡、
+  初回回復用のattempt別証跡ディレクトリを旧fixtureが満たさず回帰exit1。
+  実装の安全条件は緩和せず、合成fixtureを契約に合わせて修正した。
+- 対応: exact inventory hashは文字列の想定順ではなく実helperで算出。
+  成功マーカー前に証跡保存が完了するようpublish順序も補強。
+  ローカルcached imageの調査で存在しない`/opt/ppe`を参照してexit1となったが、
+  Dockerfileから実際のtools作業ディレクトリ`/workspace`を確認した。
+- 影響: 一時fixtureとローカル作業ツリーのみ。既存本番/開発DB、証明書、
+  AWS設定、既存immutable releaseは変更していない。Git commit/push/mergeなし。
+- 再検証: deployment回帰、TLS回帰、Shell構文/呼出互換はexit0に復帰。
+  隔離実MySQLの暗号化復元・追加DDLデータ保持・部分DDL残存の確認はexit0。
+  意図的なS3/rename/DDL失敗は失敗系試験として保持し、実エラーと区別する。
+  最終検証範囲・件数はデプロイ手順のlocal acceptance記録に記載する。
+- 最終統合runner: 最初は`age-recipient-test.sh`への2引数不足でexit1。
+  合成age identity/public recipientを一時生成して渡すよう修正。
+  続くmacOS Bash 3実行は空配列とnounsetで`arguments[@]: unbound variable`。
+  EXIT cleanupがこの中断を誤ってexit0にしたため、完了扱いにしなかった。
+  配列なしの条件分岐と全スイート完了gateを追加し、途中中断は必ず非0にした。
+- 最終差分確認で補強: TLS設定のrename成功後のsync失敗でも両before-copyへ
+  復旧すること、旧版の7 image記録を停止前に確認すること、完了済みrollbackの
+  再実行でも稼働image/health/DB/設定/HTTPSを検証することを追加・確認。
+  旧app復旧後の再実行は明示承認・新attempt/backupが必須であることも検証。
+- 最終再検証（2026-10-10 00:52以降 JST）:
+  `PPE_HARDENING_TEST_OUTPUT_DIR=<owned-private-session-directory> bash scripts/production/tests/deployment-hardening-test.sh`
+  は18スイート・144 assertion/scenario groups成功、失敗0、skip0、exit0、
+  完了markerあり。`git diff --check`も成功。今回の隔離container/Volumeと合成鍵を
+  後片付けし、作業前からある20261008のtest Volumeは削除していない。
+- 未確認: 本番配置/更新、実S3権限、フル業務schemaの次回migration、
+  実HTTP/ブラウザー、LLM、本番再起動。別途承認・対象版の受入が必要。
+
 ## 2026-10-09 23:22以降 JST: TLS更新ローカル回帰テストのfixture権限
 
 - 対象・手順: `bash scripts/production/tests/tls-workflow-test.sh`。合成証明書とDocker/Certbotモックのみを使用、本番接続・ACME通信なし。

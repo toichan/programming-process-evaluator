@@ -15,6 +15,10 @@ write_state() {
             "$deployment_mode" "$deployment_release" "$deployment_previous" "$deployment_policy" "$next_phase"
         printf 'migration_baseline=%s\ntarget_migrations=%s\n' \
             "$migration_baseline" "$target_migrations"
+        printf 'deployment_id=%s\nhistory_hash=%s\ninventory_hash=%s\nreceipt_hash=%s\nmigration_attempted=%s\nrecovery_reference_hash=%s\napps_restored=%s\n' \
+            "${deployment_id:-}" "${baseline_history_hash:-}" "${baseline_inventory_hash:-}" \
+            "${deployment_receipt_hash:-}" "${migration_attempted:-no}" "${recovery_reference_hash:-}" "${apps_restored:-no}"
+        printf 'recovery_attempted=%s\n' "${recovery_attempted:-no}"
         printf 'updated_at=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
     } > "$temporary"
     chmod 0600 "$temporary"

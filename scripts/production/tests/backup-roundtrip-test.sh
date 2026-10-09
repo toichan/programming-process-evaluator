@@ -78,14 +78,18 @@ started_source=yes
 docker compose -p "$source_project" -f "$compose" up -d --no-deps --wait --wait-timeout 150 db >/dev/null
 docker compose -p "$source_project" -f "$compose" exec -T db sh /opt/ppe/db-admin.sh >/dev/null <<'SQL'
 CREATE TABLE ppe.rubrics (id BIGINT PRIMARY KEY, version VARCHAR(50) NOT NULL);
+CREATE TABLE ppe.users (id BIGINT PRIMARY KEY, role VARCHAR(16) NOT NULL, display_name VARCHAR(100) NOT NULL);
+CREATE TABLE ppe.code_logs (id BIGINT PRIMARY KEY, user_id BIGINT NOT NULL, code TEXT NOT NULL, FOREIGN KEY (user_id) REFERENCES users(id));
 CREATE TABLE ppe.submissions (id BIGINT PRIMARY KEY, code TEXT NOT NULL);
 CREATE TABLE ppe.evaluations (id BIGINT PRIMARY KEY, rubric_id BIGINT NOT NULL, submission_id BIGINT NOT NULL,
  snapshot JSON NOT NULL, FOREIGN KEY (rubric_id) REFERENCES rubrics(id), FOREIGN KEY (submission_id) REFERENCES submissions(id));
 INSERT INTO ppe.rubrics VALUES (1,'synthetic-old-v1'),(2,'synthetic-new-v2');
 INSERT INTO ppe.submissions VALUES (10,'print("合成データのみ")\nprint("追加行")'),(11,'print("second version")');
 INSERT INTO ppe.evaluations VALUES (20,1,10,'{"score":3,"definition":"旧版の合成根拠"}'),(21,2,11,'{"score":4,"definition":"new"}');
+INSERT INTO ppe.users VALUES (30,'student','synthetic student'),(31,'teacher','synthetic teacher');
+INSERT INTO ppe.code_logs VALUES (40,30,'synthetic edited code');
 SQL
-query="SELECT id,version FROM ppe.rubrics ORDER BY id; SELECT id,code FROM ppe.submissions ORDER BY id; SELECT id,rubric_id,submission_id,snapshot FROM ppe.evaluations ORDER BY id;"
+query="SELECT id,version FROM ppe.rubrics ORDER BY id; SELECT id,code FROM ppe.submissions ORDER BY id; SELECT id,rubric_id,submission_id,snapshot FROM ppe.evaluations ORDER BY id; SELECT id,role,display_name FROM ppe.users ORDER BY id; SELECT id,user_id,code FROM ppe.code_logs ORDER BY id;"
 printf '%s\n' "$query" | docker compose -p "$source_project" -f "$compose" exec -T db sh /opt/ppe/db-admin.sh > "$root/source.rows"
 docker run --rm --network none --read-only --user 0:0 -v "$root:/fixture" \
     --entrypoint /bin/sh ppe-backup:local -c \
@@ -102,6 +106,31 @@ PPE_PROJECT="$target_project" PPE_RESTORE_APPROVED=isolated-empty-db PPE_SECRETS
     bash "$scripts/restore-isolated.sh" "$root/backup.age" "$root/identity"
 printf '%s\n' "$query" | docker compose -p "$target_project" -f "$compose" exec -T db sh /opt/ppe/db-admin.sh > "$root/target.rows"
 cmp "$root/source.rows" "$root/target.rows"
+container_before=$(docker compose -p "$source_project" -f "$compose" ps --all -q db)
+volume_before=$(docker volume inspect --format '{{.CreatedAt}}' "${source_project}_database")
+docker compose -p "$source_project" -f "$compose" exec -T db sh /opt/ppe/db-admin.sh >/dev/null <<'SQL'
+ALTER TABLE ppe.submissions ADD COLUMN review_note VARCHAR(200) NULL;
+CREATE TABLE ppe.feature_settings (id BIGINT PRIMARY KEY, setting_value VARCHAR(100) NOT NULL);
+INSERT INTO ppe.feature_settings VALUES (1,'synthetic new feature');
+SQL
+printf '%s\n' "$query" | docker compose -p "$source_project" -f "$compose" exec -T db sh /opt/ppe/db-admin.sh > "$root/target.rows"
+cmp "$root/source.rows" "$root/target.rows"
+[[ "$container_before" = "$(docker compose -p "$source_project" -f "$compose" ps --all -q db)" \
+    && "$volume_before" = "$(docker volume inspect --format '{{.CreatedAt}}' "${source_project}_database")" ]]
+echo "PASS: additive MySQL migration preserves users, logs, submissions, evaluations, IDs and foreign keys without DB recreation"
+if docker compose -p "$source_project" -f "$compose" exec -T db sh /opt/ppe/db-admin.sh >/dev/null 2>&1 <<'SQL'
+CREATE TABLE ppe.partial_ddl_marker (id BIGINT PRIMARY KEY);
+ALTER TABLE ppe.nonexistent_table ADD COLUMN invalid_value INT;
+SQL
+then
+    echo "FAIL: partial DDL fixture unexpectedly succeeded." >&2; exit 1
+fi
+marker=$(printf "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='ppe' AND table_name='partial_ddl_marker';\n" |
+    docker compose -p "$source_project" -f "$compose" exec -T db sh /opt/ppe/db-admin.sh --skip-column-names)
+[[ "$marker" = 1 ]]
+printf '%s\n' "$query" | docker compose -p "$source_project" -f "$compose" exec -T db sh /opt/ppe/db-admin.sh > "$root/target.rows"
+cmp "$root/source.rows" "$root/target.rows"
+echo "PASS: real failed MySQL DDL leaves earlier DDL committed; original synthetic rows remain intact"
 if PPE_PROJECT="$target_project" PPE_RESTORE_APPROVED=isolated-empty-db PPE_SECRETS_DIR="$root" \
     PPE_COMPOSE_FILE="$compose" PPE_BACKUP_IMAGE=ppe-backup:local \
     bash "$scripts/restore-isolated.sh" "$root/backup.age" "$root/identity" >/dev/null 2>&1; then

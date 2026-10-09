@@ -395,6 +395,18 @@ for invalid in mode permissions missing duplicate secret shell missing-lineage c
     [[ "$status" != 0 && ! -e "$PPE_TEST_TRACE.certbot-arguments" && ! -e "$test_root/should-not-exist" ]]
     echo "PASS: wrapper rejects $invalid before Certbot runs"
 done
+if command -v flock >/dev/null 2>&1; then
+    reset_renewal
+    (
+        exec 8>>"$(dirname "$PPE_TLS_DIR")/.ppe-tls-operation.lock"
+        flock -n 8
+        if bash "$scripts/renew-tls.sh" "$test_root/tls.env" --dry-run-deploy > "$test_root/wrapper-locked.log" 2>&1; then exit 1; fi
+        [[ ! -e "$PPE_TEST_TRACE.certbot-arguments" ]]
+    )
+    echo "PASS: deployment TLS operation lock prevents renewal before Certbot or deploy hook runs"
+else
+    echo "SKIP: shared TLS operation flock contention requires Linux flock"
+fi
 if grep -F -f "$test_root/old.key" -f "$test_root/new.key" "$test_root/"*.log >/dev/null \
     || grep -F 'synthetic-secret-never-log' "$test_root/"*.log >/dev/null; then
     echo "FAIL: TLS test logs contain private key material or a secret value." >&2

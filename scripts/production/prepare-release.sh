@@ -2,6 +2,7 @@
 set -euo pipefail
 set +x
 umask 077
+source "$(dirname "$0")/source-manifest.sh"
 [[ "$#" = 2 ]] || { echo "Usage: bash prepare-release.sh COMMIT ABSOLUTE_RELEASE_ROOT" >&2; exit 1; }
 commit=$(git rev-parse --verify --end-of-options "$1^{commit}")
 [[ "$commit" =~ ^[0-9a-f]{40}$ ]] || { echo "Invalid commit." >&2; exit 1; }
@@ -41,5 +42,7 @@ for image in ppe-app ppe-tools ppe-db ppe-runner ppe-broker ppe-nginx ppe-backup
     docker image inspect --format '{{.Id}}' "$image:$commit" > "$release/$image.id"
 done
 printf '%s\n' "$commit" > "$release/commit"
+generate_source_manifest "$release/source" > "$release/source.sha256"
 printf '%s\n' "$commit" > "$release/READY"
+echo "Source manifest SHA-256: $(source_hash "$release/source.sha256")"
 echo "Commit-pinned release built and verified: $release"

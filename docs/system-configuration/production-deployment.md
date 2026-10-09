@@ -7,6 +7,220 @@ approval to collect research data or to execute the mutation commands in this
 runbook. See [preparation results and system-test plan](production-preparation-plan.md).
 Production business-flow acceptance and disaster restoration remain unverified.
 
+## Update hardening (2026-10-10 JST, local only)
+
+This section defines the **new repository contract**, not the version installed
+on EC2. The installed `de2b0d37...` deployment operations must not be used for the
+next update: they predate S3 receipt verification and the shared database lock.
+The application release, installed backup operations and accepted TLS operations
+remain unchanged. Production application and operations rollout require separate
+approval. No commit/push/merge is performed by this local implementation.
+
+### Required evidence before stopping the application
+
+- Prepare an immutable full-SHA release with `prepare-release.sh`. It records
+  seven image IDs, a complete `source.sha256` manifest and READY. Independently
+  pin the manifest digest as `PPE_SOURCE_MANIFEST_SHA256`; optionally use a
+  separately distributed `PPE_SOURCE_MANIFEST_FILE`. Changed, missing, added or
+  non-regular source assets fail verification. A hash is not a signature: obtain
+  the digest through the reviewed distribution channel, not from an untrusted
+  destination alone.
+- Preserve the previous release and all seven image-ID records needed by the
+  current rollback/operation contract. Missing legacy records/images are a
+  pre-stop blocker, not permission to fabricate records or retag existing images.
+  Confirm the actual installed old release's rollback eligibility before rollout.
+  Pin `PPE_PREVIOUS_SOURCE_MANIFEST_SHA256` and, for a legacy release without an
+  in-release manifest, `PPE_PREVIOUS_SOURCE_MANIFEST_FILE`. Generate that detached
+  manifest from the trusted Git archive and compare it with the existing source;
+  **do not add files to or rebuild/overwrite the immutable old release**.
+- Pin the full 64-character `PPE_RECOVERY_DB_CONTAINER_ID`, exact
+  `PPE_RECOVERY_DB_VOLUME_CREATED_AT` and `PPE_DB_RELEASE`. The DB recipe, image,
+  Compose config hash, health, project labels and named writable Volume must
+  match. Update and rollback never start/recreate/stop the DB or replace a Volume.
+  A DB image/recipe change needs a separate reviewed procedure.
+- Flyway validate/info and the exact applied version/script/checksum/success
+  inventory run before quiesce. Pending migrations are computed from the complete
+  version inventory, not merely an applied count. Repeatable/unrecognised/failed
+  history or duplicate versions fail closed. This deployment contract currently
+  supports only versioned SQL migrations. Flyway `validate` remains the authority
+  for comparing applied checksums with source SQL.
+- Pin existing private `PPE_BACKUP_OPERATION_ENV` and `PPE_TLS_OPERATION_ENV`
+  files. Their project, current release/Compose/DB references and credential,
+  TLS and ACME paths must agree with the selected existing runtime.
+  Secret-path rotation is outside this procedure.
+- Pin `PPE_TLS_OPERATION_WRAPPER` to the actual `certbot.service` wrapper.
+  Before adopting these deployment scripts, separately approve deployment of
+  the new wrapper with the **shared FD8 TLS operation lock**. Its bytes must
+  match the reviewed operations version; production preflight also verifies
+  service ExecStart and that Certbot is inactive. Merely putting an unused
+  wrapper elsewhere is insufficient. Existing accepted `3c416a2e...` TLS assets
+  are immutable; distribute a new independent operations version instead.
+  No certificate, Certbot directory, service schedule or timer enablement is
+  changed by update/rollback.
+- Set `PPE_BACKUP_RECOVERY_REFERENCE` to a private, owned, regular 0600 file:
+  `age_recipient=<approved-public-recipient>`, `restore_verified=yes`,
+  `custody_reference=<non-secret-offline-custody-and-rehearsal-reference>`.
+  This is an operator-reviewed reference to the offline age identity and a
+  successful restore rehearsal, **not the identity itself**. Never transfer the
+  private identity to EC2. The reference hash and recipient are bound to backup
+  evidence; the software cannot independently prove continued offline key custody.
+
+### Mandatory backup and migration gate
+
+The existing S3 backup implementation is reused. Each update receives a random
+32-hex deployment ID. Its receipt records the **source (currently published)
+release**, target release, full DB ID, named Volume/CreatedAt, baseline history
+hash, migration inventory hash, recovery-reference hash and public age recipient.
+It also retains data/checksum/manifest keys, exact S3 Version IDs, SHA-256, size,
+SSE-KMS and KMS identity. Scheduled receipts retain their existing format-1
+compatibility; extra fields are required only for deployment evidence.
+
+`PPE_BACKUP_REQUIRE_REMOTE=no` cannot bypass the update gate. Backup must complete
+all uploads, fixed-version HEAD checks, exact-version manifest download/content
+comparison and success-metric publication. The private receipt hash is persisted
+in format-2 deployment state and an attempt-specific `backup-<ID>/` evidence
+directory. A previous receipt is retained under its hash, not discarded. Backup
+failure/partial S3 uploads are preserved; they are not silently retried or deleted.
+The receipt and DB identity are checked again immediately before migration and
+on resume. The actual encrypted data is not downloaded/decrypted during every
+deployment; periodic isolated restore rehearsals remain necessary.
+
+If no SQL is pending, migration is skipped only after exact inventory and
+checksum validation; a fresh deployment backup is still mandatory. Before the
+first mutating Flyway call, `migration_attempted=yes` is synced to state.
+A failed or interrupted attempt that has not reached the validated complete
+target cannot be automatically retried, even when MySQL committed DDL without
+creating a failed Flyway row. Never use automatic `repair`, `clean`, DB restore
+or downgrade.
+
+### Failure, operation synchronization and acceptance
+
+- Before migration, a failure after quiesce attempts to restart only the verified
+  old app/runner, validates five service health/image IDs and both HTTPS smoke
+  checks, and records `apps_restored=yes`. Failure always remains nonzero; a
+  failed recovery is explicitly reported. Once old-app writes resume, that
+  receipt cannot authorise migration. A reviewed rerun must explicitly set
+  `PPE_RESTART_RECOVERED_UPDATE=yes` and creates a **new attempt and backup**,
+  preserving the abandoned attempt's state/receipt.
+  `recovery_attempted=yes` is persisted before any old-app start. Even failed
+  recovery may have resumed some writes, so it also requires a new attempt/
+  backup rather than reuse of the completed quiesce stage.
+- After migration begins, there is no automatic old-app or DB restoration.
+  Inspect the actual schema/history and choose reviewed forward repair or app
+  rollback. MySQL DDL is not a transaction-wide rollback. Restoring a DB requires
+  isolated restore/validation and a separately approved cutover; new writes
+  since the backup require an explicit RPO/data-loss decision.
+- App rollback requires `PPE_SCHEMA_POLICY=backward-compatible` and a private
+  `PPE_ROLLBACK_COMPATIBILITY_REFERENCE`. It contains `source_release`,
+  `target_release`, `source_container`, `history_hash` and `compatible=yes`,
+  bound to the **current ordered Flyway history**. That flag represents a human
+  compatibility review; the script cannot infer application/schema semantics.
+  The prior state and backup evidence are retained. The current DB is not undone.
+  Re-running an already completed rollback rechecks DB, operation references,
+  five running images/health and HTTPS; an old success marker does not hide drift.
+- Before publication, backup and TLS environment release/Compose references,
+  pinned DB source/release and backup image are synchronised. Unrelated settings
+  and all secret/TLS/ACME paths are preserved. Both private before-copies and a
+  journal remain under `operation-config-sync/<attempt-or-context-ID>/`.
+  Each rename is atomic; the two-file update is not globally atomic. A second
+  rename/durability failure restores both before-copies, reports nonzero and
+  preserves evidence (including when rename succeeded but `sync` failed).
+  Interrupted/failed recovery journals block further operations for manual
+  review. Restore the recorded before-copies or reconcile the selected generation,
+  verify current/state/config references, and only then clear the specific
+  reviewed stale lock/journal status; never delete deployment state or evidence.
+- Database FD9 serialises deployment and scheduled backup. FD8 serialises full
+  Certbot wrapper execution and deployment/rollback, preventing stale TLS
+  environment readers from reloading during configuration publication. Contention
+  fails visibly before renewal or deployment; timers are not disabled/rescheduled.
+  Check subsequent timer execution/alarms after maintenance, since a contended
+  scheduled job can report a failure and waits for its normal next execution.
+- Five service health and running image IDs, preserved DB identity, trusted HTTPS
+  `/health` and both login portals, operation references and evidence archival must
+  pass before publication. Keep the previous release. Authenticated business
+  flows and real LLM acceptance remain separate checks, not implied by smoke.
+
+### Local testing strategy and acceptance scope
+
+Reuse existing shell regressions with edits; add source-manifest, exact migration
+inventory and two-environment sync tests. Run Docker/AWS/Certbot/curl contract
+mocks inside cached Ubuntu with `--network none`, read-only repository mount and
+a private executable tmpfs. Deployment tests call the **actual** backup and
+receipt scripts with a shared mocked S3 API, rather than only replacing both
+helpers. They cover upload/HEAD/download failures, mandatory remote backup,
+unrecorded partial DDL, unsafe resume, image drift, sync failure and reviewed/
+incompatible rollback. Linux provides real `flock` and FD inheritance.
+
+Run `bash scripts/production/tests/backup-roundtrip-test.sh` on the local Docker
+daemon with unique `ppe-sim-*` / `ppe-restore-*` projects and synthetic secrets.
+It creates two isolated MySQL databases, checks encrypted dump/age restore,
+additive SQL preservation of user/log/submission/evaluation IDs/content/JSON/FKs,
+real partial-DDL persistence, container/Volume identity and nonempty-restore refusal,
+then removes **only its own** fixtures. This is a representative five-table
+fixture, not the complete V1-V23 business schema or a real future feature migration.
+Each future migration still requires its own existing-data rehearsal.
+
+No UI or application code changes are made. Live AWS/S3/KMS permissions, actual
+production Flyway/HTTPS/five-container update, full browser/business journeys,
+real LLM and host reboot are **unverified in this local phase**. The isolated
+real-MySQL and mocked orchestration layers must not be presented as production
+end-to-end acceptance.
+
+### Local acceptance record (2026-10-10 JST)
+
+Reproducible entrypoint: `bash scripts/production/tests/deployment-hardening-test.sh`.
+It requires a local Unix Docker daemon, the cached images listed in the runner
+and local age tools. Optional `PPE_HARDENING_TEST_OUTPUT_DIR` is an existing,
+owned, absolute 0700 directory for private logs. A temporary synthetic age
+identity is generated outside Git and deleted on exit; no production identity,
+credentials, data or AWS endpoint is used.
+
+Final command:
+
+```bash
+PPE_HARDENING_TEST_OUTPUT_DIR=/Users/t.toida/.copilot/session-state/d6d17c93-fe8b-4b00-b4d5-ce6bfb916c78/files/deployment-hardening-validation \
+  bash scripts/production/tests/deployment-hardening-test.sh
+```
+
+| Suite | PASS assertion/scenario groups | Exit | Skip |
+|---|---:|---:|---:|
+| source-manifest | 6 | 0 | 0 |
+| migration-preflight | 4 | 0 | 0 |
+| operation-config-sync | 11 | 0 | 0 |
+| deployment-state | 3 | 0 | 0 |
+| deployment-recovery | 57 | 0 | 0 |
+| backup | 2 | 0 | 0 |
+| database-lock | 4 | 0 | 0 |
+| migration-privilege-cleanup | 4 | 0 | 0 |
+| shell-invocation | 4 | 0 | 0 |
+| tls-workflow | 35 | 0 | 0 |
+| restore | 1 | 0 | 0 |
+| backup-systemd | 1 | 0 | 0 |
+| deployment-db-config-hash | 2 | 0 | 0 |
+| backup-operation-config | 1 | 0 | 0 |
+| age-recipient | 1 | 0 | 0 |
+| db-admin-binary-mode | 1 | 0 | 0 |
+| backup-roundtrip | 3 | 0 | 0 |
+| nginx-startup | 4 | 0 | 0 |
+| **Total: 18 suites** | **144** | **0** | **0** |
+
+These are printed assertion/scenario **groups**, not JUnit test-case counts;
+individual groups contain several rejection checks. The first twelve suites
+use isolated Linux contract mocks. The host suites exercise real Compose
+parsing, real age encryption/decryption, isolated MySQL backup/restore and DDL
+preservation, plus actual isolated Nginx startup/HTTPS/ACME routing. They do not
+update a real five-container application release or exercise live AWS.
+The initial runner failed because recipient-test arguments were missing.
+A subsequent macOS Bash 3 empty-array expansion aborted early and its EXIT
+cleanup incorrectly returned zero; it was not accepted as success. Synthetic
+key setup, array-free invocation and a completion gate fixed both issues;
+the final run reached its completion marker and all 18 suites exited zero.
+
+`git diff --check` passed. Current-run isolated containers/Volumes and temporary
+age identities were cleaned; the pre-existing `ppe-sim-update-20261008_database`
+Volume was left untouched. Existing unrelated/pre-task documentation changes
+were preserved. No commit, push, merge or production change was performed.
+
 ## Observed production record (2026-10-09 JST)
 
 Read-only EC2/SSM inspection at approximately 08:42–08:45 JST, supplemented by the
@@ -491,6 +705,40 @@ on both portal hosts without changing the Nginx container ID. Production wiring,
 ACME staging dry-run, production hook/reload and reboot acceptance remain
 unexecuted and require separate approval. No production or backup settings were
 changed for this work.
+
+2026-10-09 23:59 JST Phase 3 placement: the approved fixed main merge
+`3c416a2e0a36c0e800f26fc5f472834387cf1c3b` was installed separately from the app
+release; five hashes, dedicated paths-only configuration, wrapper `--check`,
+systemd verification and daemon-reload passed. The new ExecStart is loaded.
+The original enabled/active Certbot timer was recorded, stopped and temporarily
+disabled to prevent unapproved renewal (including after reboot). It remains
+disabled/inactive pending separately approved dry-run/hook testing and subsequent
+restoration. Certificate/key, five runtime containers, Volume, deployment state
+and backup settings are unchanged; both HTTPS login pages return trusted 200.
+See the [placement record and timer restoration plan](./tls-renewal-operation.md).
+
+2026-10-10 00:04:21–00:04:30 JST final acceptance: one explicitly approved
+staging `--dry-run-deploy` passed (exit0), including the real deploy hook,
+Nginx configuration validation and reload. Both HTTPS login pages returned
+trusted 200; served fingerprints and key/certificate match were verified.
+The active certificate expiry is unchanged (2027-01-06 16:22:08 JST), and five
+container identities/health plus protected DB/backup/deployment state are unchanged.
+Timer resumption remains HOLD: the persistent stamp predates the 12:00 UTC
+calendar event, so restart may catch up with random delay and cannot guarantee
+no immediate renewal invocation. Per the user's stop condition, the timer is
+still disabled/inactive; no stamp/schedule changes or further renewal were made.
+Automatic operation is not complete until an approved safe resumption.
+
+2026-10-10 00:08 JST resumption acceptance supersedes the preceding HOLD:
+the owner explicitly approved persistent catch-up; enable/start restored
+`certbot.timer` to enabled/active(waiting). Its automatic run at 00:08:17–00:08:18
+JST returned Result=success/exit0, correctly found the PPE certificate not yet
+due, and logged no errors (service warning/error entries0). Next observed
+execution is 2026-10-10 17:39:34 JST. Both public HTTPS portals, key/certificate
+match, five healthy unchanged containers and protected DB/backup/deployment
+state passed. No additional manual renew or dry-run was performed.
+TLS automatic renewal configuration is accepted as complete; future live
+expiry-triggered renewal and actual host reboot remain operational checks.
 
 The TLS directory is 0755/files 0444 for the nonroot proxy; its host parent is 0700.
 Do not place it under a public/shared parent. The locally generated dummy self-signed

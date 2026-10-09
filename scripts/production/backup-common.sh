@@ -146,6 +146,21 @@ verify_backup_receipt() {
         { backup_error "Backup receipt configuration/provenance mismatch."; return 1; }
     [[ "$(receipt_value "$file" age_recipient)" =~ ^age1[a-z0-9]{58}$ ]] ||
         { backup_error "Backup receipt lacks a valid public recipient identifier."; return 1; }
+    if [[ -n "${PPE_BACKUP_DEPLOYMENT_ID:-}" ]]; then
+        [[ "$PPE_BACKUP_DEPLOYMENT_ID" =~ ^[a-f0-9]{32}$ \
+            && "$(receipt_value "$file" age_recipient)" = "$PPE_BACKUP_AGE_RECIPIENT" \
+            && "$PPE_BACKUP_AGE_RECIPIENT" = "${PPE_BACKUP_RECOVERY_AGE_RECIPIENT:?}" \
+            && "$(receipt_value "$file" deployment_id)" = "$PPE_BACKUP_DEPLOYMENT_ID" \
+            && "$(receipt_value "$file" source_container)" = "${PPE_BACKUP_SOURCE_CONTAINER:?}" \
+            && "$(receipt_value "$file" source_release)" = "${PPE_BACKUP_SOURCE_RELEASE:?}" \
+            && "$(receipt_value "$file" target_release)" = "${PPE_BACKUP_TARGET_RELEASE:?}" \
+            && "$(receipt_value "$file" source_volume)" = "${PPE_BACKUP_SOURCE_VOLUME:?}" \
+            && "$(receipt_value "$file" source_volume_created)" = "${PPE_BACKUP_SOURCE_VOLUME_CREATED:?}" \
+            && "$(receipt_value "$file" history_hash)" = "${PPE_BACKUP_HISTORY_HASH:?}" \
+            && "$(receipt_value "$file" inventory_hash)" = "${PPE_BACKUP_INVENTORY_HASH:?}" \
+            && "$(receipt_value "$file" recovery_reference_hash)" = "${PPE_BACKUP_RECOVERY_REFERENCE_HASH:?}" ]] ||
+            { backup_error "Deployment backup identity or recovery reference mismatch."; return 1; }
+    fi
     if [[ -n "${PPE_BACKUP_RELEASE:-}" ]]; then
         [[ "$(receipt_value "$file" release)" = "$PPE_BACKUP_RELEASE" \
             && "$(receipt_value "$file" baseline)" = "${PPE_BACKUP_BASELINE:?}" ]] ||
@@ -170,4 +185,23 @@ verify_backup_receipt() {
             { backup_error "Malformed backup object receipt."; return 1; }
         verify_backup_object "$key" "$version" "$hex" "$size" "$b64" || return 1
     done
+    if [[ -n "${PPE_BACKUP_DEPLOYMENT_ID:-}" ]]; then
+        local remote expected
+        remote=$(mktemp "$PPE_STATE_DIR/.remote-manifest.XXXXXX") || return 1
+        expected=$(mktemp "$PPE_STATE_DIR/.receipt-manifest.XXXXXX") || { rm -f "$remote"; return 1; }
+        if ! backup_aws s3api get-object --bucket "$PPE_BACKUP_S3_BUCKET" \
+            --key "$(receipt_value "$file" manifest_key)" \
+            --version-id "$(receipt_value "$file" manifest_version)" --checksum-mode ENABLED "$remote" >/dev/null; then
+            rm -f "$remote" "$expected"
+            backup_error "Cannot retrieve exact deployment completion manifest."; return 1
+        fi
+        awk '!/^manifest_(key|version|hash|size|base64)=/' "$file" > "$expected"
+        if [[ "$(backup_hash "$remote")" != "$(receipt_value "$file" manifest_hash)" ]] \
+            || [[ "$(backup_size "$remote")" != "$(receipt_value "$file" manifest_size)" ]] \
+            || ! cmp -s "$remote" "$expected"; then
+            rm -f "$remote" "$expected"
+            backup_error "Remote completion manifest does not match deployment receipt."; return 1
+        fi
+        rm -f "$remote" "$expected"
+    fi
 }
