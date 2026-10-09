@@ -1,12 +1,20 @@
 [Unit]
 Description=Programming Process Evaluator encrypted database backup
 Requires=docker.service
-After=docker.service
+Wants=network-online.target
+After=docker.service network-online.target
 
 [Service]
 Type=oneshot
 User=root
 UMask=0077
 EnvironmentFile=/var/lib/ppe/operation.env
-WorkingDirectory=/opt/ppe/current/source
-ExecStart=/usr/bin/bash /opt/ppe/current/source/scripts/production/backup.sh
+WorkingDirectory=/var/lib/ppe
+ExecStart=/usr/bin/bash /var/lib/ppe/operations/backup-current/scripts/production/backup.sh
+Environment=AWS_REGION=ap-northeast-1 AWS_SHARED_CREDENTIALS_FILE=/dev/null AWS_CONFIG_FILE=/dev/null
+Environment=AWS_EC2_METADATA_DISABLED=false AWS_PAGER=
+Environment=PPE_OPERATION_APPROVAL=production-approved PPE_BACKUP_REQUIRE_REMOTE=yes
+Environment=DOCKER_HOST=unix:///var/run/docker.sock
+TimeoutStartSec=2h
+StandardOutput=journal
+StandardError=journal

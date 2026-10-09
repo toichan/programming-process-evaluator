@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 set +x
+source "$(dirname "$0")/database-lock.sh"
+acquire_database_lock
 
 project=${PPE_PROJECT:-ppe-production}
 compose=${PPE_COMPOSE_FILE:-compose.production.yml}

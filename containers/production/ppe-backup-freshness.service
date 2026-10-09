@@ -1,0 +1,17 @@
+[Unit]
+Description=Verify PPE versioned remote backup freshness
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+UMask=0077
+EnvironmentFile=/var/lib/ppe/operation.env
+WorkingDirectory=/var/lib/ppe
+Environment=AWS_REGION=ap-northeast-1 AWS_SHARED_CREDENTIALS_FILE=/dev/null AWS_CONFIG_FILE=/dev/null
+Environment=AWS_EC2_METADATA_DISABLED=false AWS_PAGER=
+ExecStart=/usr/bin/bash /var/lib/ppe/operations/backup-current/scripts/production/check-backup-freshness.sh
+TimeoutStartSec=5min
+StandardOutput=journal
+StandardError=journal

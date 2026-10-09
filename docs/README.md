@@ -12,6 +12,11 @@
 | 画面デザイン・操作イメージ | [画面プロトタイプ](../screen-flow-diagram/webapp/) |
 | 現在の実装順と進捗 | [実装ロードマップ](./system-configuration/implementation-roadmap.md) |
 | 機能別の作業結果・検証記録 | [機能別実装計画](./system-configuration/feature-plans/) |
+| 現在の本番構成・公開結果・運用と復旧 | [本番実測記録とrunbook](./system-configuration/production-deployment.md#observed-production-record-2026-10-09-jst)（2026-10-09、業務受入/研究開始の承認とは別） |
+| 研究開始前のデータ保護・S3/復元改善 | [バックアップ現状と改善計画](./system-configuration/production-deployment.md#backup-gap-and-improvement-plan) |
+| バックアップ実装・AWSコンソール設定・適用承認 | [Parameter Store/S3/KMS/SNS/systemdガイド](./system-configuration/production-deployment.md#backup-implementation-and-aws-console-guide-2026-10-09)（ローカル修正済み、本番未適用） |
+| 標準ルーブリック自動登録の設計 | [登録調査・版不変seed案](./system-configuration/deployment-readiness-assessment.md#e-標準ルーブリック自動登録の調査設計案2026-10-09)（未実装/本番未登録） |
+| 学生・教員・管理者・非機能の受入計画 | [本番システムテスト計画](./system-configuration/production-preparation-plan.md#本番システムテスト計画2026-10-09設計のみ)（業務テスト未実施） |
 
 ## 開発・設計
 

@@ -12,6 +12,7 @@ source "$scripts/deployment-state.sh"
 deployment_mode=$1
 release=$2
 verify_release "$release"
+export PPE_DB_SOURCE_DIR="$release/source"
 deployment_release=$PPE_RELEASE
 deployment_policy=${PPE_SCHEMA_POLICY:-initial}
 deployment_previous=""
@@ -40,15 +41,45 @@ database_table_count() {
 
 verify_existing_database() {
     local container metadata running health image db_project service oneoff config_hash mount
-    local expected_hash volume_metadata
+    local expected_hash volume_metadata db_release db_release_dir db_image_id
     [[ "${PPE_RECOVERY_DB_CONTAINER_ID:-}" =~ ^[0-9a-f]{12,64}$ \
         && -n "${PPE_RECOVERY_DB_VOLUME_CREATED_AT:-}" ]] || {
         echo "Pin PPE_RECOVERY_DB_CONTAINER_ID and PPE_RECOVERY_DB_VOLUME_CREATED_AT from trusted pre-recovery evidence before resuming." >&2
         return 1
     }
+    db_release=${PPE_DB_RELEASE:-$deployment_release}
+    [[ "$db_release" =~ ^[0-9a-f]{40}$ ]] || {
+        echo "PPE_DB_RELEASE must be a full release SHA." >&2
+        return 1
+    }
+    db_release_dir=$release
+    if [[ "$db_release" != "$deployment_release" ]]; then
+        db_release_dir="$(dirname "$release")/$db_release"
+        [[ -d "$db_release_dir" && -f "$db_release_dir/commit" && -f "$db_release_dir/READY" \
+            && "$(cat "$db_release_dir/commit")" = "$db_release" \
+            && "$(cat "$db_release_dir/READY")" = "$db_release" ]] || {
+            echo "Pinned database release is missing or its READY/commit manifest is invalid." >&2
+            return 1
+        }
+        local recipe
+        for recipe in Dockerfile.db init-db.sh db-admin.sh; do
+            [[ -f "$release/source/containers/production/$recipe" \
+                && -f "$db_release_dir/source/containers/production/$recipe" ]] || {
+                echo "Pinned database release recipe is incomplete: $recipe." >&2
+                return 1
+            }
+            cmp -s "$release/source/containers/production/$recipe" \
+                "$db_release_dir/source/containers/production/$recipe" || {
+                echo "Pinned database release recipe differs from target: $recipe." >&2
+                return 1
+            }
+        done
+    fi
+    export PPE_DB_SOURCE_DIR="$db_release_dir/source"
+    db_image_id=$(cat "$db_release_dir/ppe-db.id") || return 1
     container=$(dc ps --all -q db) || return 1
     [[ "$container" =~ ^[0-9a-f]{12,64}$ && "$container" = "$PPE_RECOVERY_DB_CONTAINER_ID"* ]] || {
-        echo "Recovery requires exactly the pinned existing DB container; no DB service was started." >&2
+        echo "Deployment requires exactly the pinned existing DB container; no DB service was started." >&2
         return 1
     }
     metadata=$(docker inspect --format \
@@ -57,9 +88,9 @@ verify_existing_database() {
     IFS='|' read -r running health image db_project service oneoff config_hash mount <<< "$metadata"
     [[ "$running" = true && "$health" = healthy && "$db_project" = "$PPE_PROJECT" \
         && "$service" = db && "$oneoff" = False \
-        && "$image" = "$(cat "$release/ppe-db.id")" \
+        && "$image" = "$db_image_id" \
         && "$mount" = "volume:${PPE_PROJECT}_database:true;" ]] || {
-        echo "Existing DB health, image, labels or persistent mount differ from the target; recovery stopped without DB lifecycle changes." >&2
+        echo "Existing DB health, pinned image, labels or persistent mount differ; deployment stopped without DB lifecycle changes." >&2
         return 1
     }
     expected_hash=$(dc config --hash db) || return 1
@@ -74,7 +105,7 @@ verify_existing_database() {
         echo "Existing DB volume identity differs; recovery will not create or replace it." >&2
         return 1
     }
-    echo "Recovery verified the existing healthy DB container and volume; DB up/start/recreate was skipped."
+    echo "Verified the pinned healthy DB container, image/config and volume; DB lifecycle was unchanged."
 }
 
 history_counts() {
@@ -176,7 +207,12 @@ stage_quiesce() {
 }
 
 stage_backup() {
+    export PPE_BACKUP_REQUIRE_REMOTE=yes
+    export PPE_BACKUP_RECEIPT_FILE="$PPE_STATE_DIR/deployment-backup.receipt"
+    export PPE_BACKUP_RELEASE="$deployment_release"
+    export PPE_BACKUP_BASELINE="$migration_baseline"
     bash "$scripts/backup.sh"
+    bash "$scripts/verify-backup-receipt.sh" "$PPE_BACKUP_RECEIPT_FILE"
 }
 
 stage_migration() {
@@ -310,8 +346,6 @@ else
         deployment_policy=$PPE_SCHEMA_POLICY
         current_step=backup-preflight
     fi
-    write_state prepared
-    record_event preflight started
 fi
 
 if [[ "$deployment_mode" = update && "$deployment_policy" != backward-compatible \
@@ -320,12 +354,35 @@ if [[ "$deployment_mode" = update && "$deployment_policy" != backward-compatible
     exit 1
 fi
 
-if [[ "$resuming" = true ]] && stage_complete database_complete; then
+if [[ "$deployment_mode" = update ]]; then
+    current_step=database-update-preflight
+    if ! verify_existing_database; then
+        exit 1
+    fi
+    export PPE_BACKUP_REQUIRE_REMOTE=yes
+    export PPE_BACKUP_RECEIPT_FILE="$PPE_STATE_DIR/deployment-backup.receipt"
+    export PPE_BACKUP_RELEASE="$deployment_release"
+    export PPE_BACKUP_BASELINE="$migration_baseline"
+    if [[ "$resuming" = true ]] && stage_complete backup_complete; then
+        current_step=backup-receipt-preflight
+        if ! bash "$scripts/verify-backup-receipt.sh" "$PPE_BACKUP_RECEIPT_FILE"; then
+            exit 1
+        fi
+    fi
+fi
+
+if [[ "$resuming" = false ]]; then
+    write_state prepared
+    record_event preflight started
+fi
+
+if [[ "$deployment_mode" = initial && "$resuming" = true ]] \
+    && stage_complete database_complete; then
     current_step=database-recovery-preflight
     if ! verify_existing_database; then
         exit 1
     fi
-else
+elif [[ "$deployment_mode" = initial ]]; then
     dc up -d --no-deps --wait --wait-timeout 120 db
 fi
 run_stage database stage_database

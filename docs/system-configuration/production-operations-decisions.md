@@ -1,5 +1,14 @@
 # 本番運用条件の決定テンプレート
 
+**2026-10-09の実態との区別:** 本書の2026-10-06/07回答・候補は意思決定の履歴であり、
+「未構築/未実装」等の記述を現在の本番状態として使用しない。
+実配備は東京EC2/t3.medium、`student.ppeval.net` / `teacher.ppeval.net`、
+SSM管理・TLS公開済み。現在の構成・確認範囲は[本番実測記録](./production-deployment.md#observed-production-record-2026-10-09-jst)が正本。
+この追記は規模の性能受入、バックアップ稼働、正式研究条件を承認済みにするものではない。
+以下の候補ドメインや保存期間/RPO等は、実測事実・承認済み方針・未確定案を区別して読む。
+未決のバックアップ政策は[改善計画](./production-deployment.md#backup-gap-and-improvement-plan)、
+業務受入は[テスト計画](./production-preparation-plan.md#本番システムテスト計画2026-10-09設計のみ)を参照。
+
 ## 目的
 
 この文書は、[開発からデプロイまでの全体手順](./development-and-deployment-flow.md) の「10. この文書だけでは確定していないこと」に挙げた本番運用上の未決事項を、実装と並行して決定・記録するための枠組みです。

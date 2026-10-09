@@ -8,6 +8,14 @@ dash=$(command -v dash) || { echo "dash is required to test Ubuntu /bin/sh compa
 test_root=$(mktemp -d "${TMPDIR:-/tmp}/ppe-shell-test.XXXXXX")
 trap 'rm -rf "$test_root"' EXIT
 mkdir -m 0700 "$test_root/bin"
+if ! command -v flock >/dev/null 2>&1; then
+    cat > "$test_root/bin/flock" <<'FLOCK'
+#!/bin/sh
+[ "$1" = -n ] && [ "$2" = 9 ] || exit 2
+exit 0
+FLOCK
+    chmod 0700 "$test_root/bin/flock"
+fi
 
 while IFS= read -r file; do
     read -r shebang < "$file"
@@ -70,6 +78,8 @@ chmod 0700 "$test_root/bin/sh" "$test_root/bin/docker"
 export PATH="$test_root/bin:$PATH" PPE_TEST_DASH="$dash"
 export PPE_PROJECT=ppe-sim-shell PPE_COMPOSE_FILE="$test_root/compose.yml"
 export PPE_SECRETS_DIR="$test_root/unused-secrets" PPE_OPERATION_DIR="$test_root/operations"
+export PPE_STATE_DIR="$PPE_OPERATION_DIR"
+mkdir -m 0700 "$PPE_STATE_DIR"
 export PPE_TEST_SUPER="$test_root/super" PPE_TEST_TRACE="$test_root/trace"
 
 for result in 0 17; do

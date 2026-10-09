@@ -1,6 +1,11 @@
 #!/bin/sh
-set -eu
+if [ -z "${BASH_VERSION:-}" ]; then
+    exec bash "$0" "$@"
+fi
+set -euo pipefail
 set +x
+source "$(dirname "$0")/database-lock.sh"
+acquire_database_lock
 : "${PPE_SECRETS_DIR:?Set PPE_SECRETS_DIR}"
 project=${PPE_PROJECT:-ppe-production}
 compose=${PPE_COMPOSE_FILE:-compose.production.yml}

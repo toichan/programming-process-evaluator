@@ -53,9 +53,9 @@ services:
       retries: 4
 
   db:
-    image: ppe-db:${PPE_RELEASE:-local}
+    image: ppe-db:${PPE_DB_RELEASE:-${PPE_RELEASE:-local}}
     build:
-      context: .
+      context: ${PPE_DB_SOURCE_DIR:-.}
       dockerfile: containers/production/Dockerfile.db
     restart: unless-stopped
     environment:

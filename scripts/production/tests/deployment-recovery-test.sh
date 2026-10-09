@@ -9,8 +9,12 @@ test_root=$(mktemp -d "${TMPDIR:-/tmp}/ppe-deploy-test.XXXXXX")
 trap 'rm -rf "$test_root"' EXIT
 chmod 0700 "$test_root"
 release="$test_root/releases/1111111111111111111111111111111111111111"
-mkdir -p "$release/source/src/main/resources/db/migration" "$release/source/scripts/production/tests"
+mkdir -p "$release/source/src/main/resources/db/migration" "$release/source/scripts/production/tests" \
+    "$release/source/containers/production"
 cp "$repo/compose.production.yml" "$release/source/compose.production.yml"
+for recipe in Dockerfile.db init-db.sh db-admin.sh; do
+    cp "$repo/containers/production/$recipe" "$release/source/containers/production/$recipe"
+done
 cp "$scripts/"*.sh "$release/source/scripts/production/"
 cp "$scripts/tests/"*.sh "$release/source/scripts/production/tests/"
 for helper in ensure-migration-privileges.sh migrate.sh; do
@@ -26,9 +30,36 @@ printf '%s\n' '1111111111111111111111111111111111111111' > "$release/READY"
 for image in ppe-app ppe-tools ppe-db ppe-runner ppe-broker ppe-nginx ppe-backup; do
     printf 'sha256:%064d\n' 1 > "$release/$image.id"
 done
+new_release="$test_root/releases/2222222222222222222222222222222222222222"
+cp -R "$release" "$new_release"
+printf '%s\n' '2222222222222222222222222222222222222222' > "$new_release/commit"
+cp "$new_release/commit" "$new_release/READY"
+for image in ppe-app ppe-tools ppe-db ppe-runner ppe-broker ppe-nginx ppe-backup; do
+    printf 'sha256:%064d\n' 2 > "$new_release/$image.id"
+done
+bad_manifest_release="$test_root/releases/4444444444444444444444444444444444444444"
+cp -R "$release" "$bad_manifest_release"
+printf '%s\n' '4444444444444444444444444444444444444444' > "$bad_manifest_release/commit"
+printf '%s\n' 'ffffffffffffffffffffffffffffffffffffffff' > "$bad_manifest_release/READY"
+bad_recipe_release="$test_root/releases/5555555555555555555555555555555555555555"
+cp -R "$release" "$bad_recipe_release"
+printf '%s\n' '5555555555555555555555555555555555555555' > "$bad_recipe_release/commit"
+cp "$bad_recipe_release/commit" "$bad_recipe_release/READY"
+printf '%s\n' '# pinned-only DB recipe drift' >> "$bad_recipe_release/source/containers/production/db-admin.sh"
 find "$release" -type f -exec shasum -a 256 '{}' \; > "$test_root/release-before.sha256"
 
 mkdir -p "$test_root/bin"
+test_bash=$(command -v bash)
+test_real_flock=yes
+if ! command -v flock >/dev/null 2>&1; then
+    test_real_flock=no
+    cat > "$test_root/bin/flock" <<'FLOCK'
+#!/bin/sh
+[ "$1" = -n ] && [ "$2" = 9 ] || exit 2
+exit 0
+FLOCK
+    chmod 0700 "$test_root/bin/flock"
+fi
 cat > "$test_root/bin/docker" <<'DOCKER'
 #!/usr/bin/env bash
 set -Eeuo pipefail
@@ -36,7 +67,12 @@ all="$*"
 printf '%s\n' "$all" >> "$PPE_FAKE_DOCKER_TRACE"
 case "$all" in
     "context inspect "*) printf 'unix:///var/run/docker.sock\n'; exit 0 ;;
-    "image inspect "*) image=${*: -1}; name=${image%%:*}; cat "$PPE_FAKE_RELEASE/$name.id"; exit 0 ;;
+    "image inspect "*)
+        image=${*: -1}; name=${image%%:*}; image_release=${image##*:}
+        image_release_dir="$(dirname "$PPE_FAKE_RELEASE")/$image_release"
+        cat "$image_release_dir/$name.id"
+        exit 0
+        ;;
     "volume inspect "*)
         if [[ "${PPE_FAKE_DB_CONDITION:-valid}" = missing-volume ]]; then exit 1; fi
         volume_project=$PPE_PROJECT
@@ -48,7 +84,8 @@ case "$all" in
         ;;
     "inspect "*)
         running=true; health=healthy; db_project=$PPE_PROJECT; service=db; oneoff=False
-        image=$(cat "$PPE_FAKE_RELEASE/ppe-db.id")
+        image_release_dir="$(dirname "$PPE_FAKE_RELEASE")/${PPE_FAKE_DB_RELEASE:-${PPE_FAKE_RELEASE##*/}}"
+        image=$(cat "$image_release_dir/ppe-db.id")
         config_hash=$(printf '%064d' 1)
         mount="volume:${PPE_PROJECT}_database:true;"
         case "${PPE_FAKE_DB_CONDITION:-valid}" in
@@ -96,7 +133,17 @@ case "$all" in
             *) printf '%064d\n' 1 ;;
         esac
         ;;
-    *"config --hash db") printf 'db %064d\n' 1 ;;
+    *"config --hash db")
+        source_dir=$(dirname "$PPE_COMPOSE_FILE")
+        if [[ -n "${PPE_DB_RELEASE:-}" && "$PPE_DB_RELEASE" != "$PPE_RELEASE" ]]; then
+            source_dir="$(dirname "$(dirname "$source_dir")")/$PPE_DB_RELEASE/source"
+        fi
+        [[ "${PPE_DB_SOURCE_DIR:-}" = "$source_dir" ]] || {
+            echo "DB build context was not derived from the verified release." >&2
+            exit 95
+        }
+        printf 'db %064d\n' 1
+        ;;
     *"run --rm --no-deps migrate gradle"*)
         printf 'Flyway validation successful.\n'
         ;;
@@ -134,18 +181,58 @@ exec "$PPE_TEST_DASH" "$@"
 SH
 chmod 0700 "$test_root/bin/sh"
 export PPE_TEST_DASH="$dash"
+printf '#!%s\n' "$test_bash" > "$test_root/bin/bash"
+cat >> "$test_root/bin/bash" <<'BASH'
+#!/usr/bin/env bash
+set -Eeuo pipefail
+case "${1:-}" in
+    "$PPE_TEST_BACKUP_SCRIPT")
+        [[ "${PPE_BACKUP_REQUIRE_REMOTE:-}" = yes \
+            && "${PPE_BACKUP_RECEIPT_FILE:-}" = "$PPE_STATE_DIR/deployment-backup.receipt" \
+            && "${PPE_BACKUP_RELEASE:-}" =~ ^[0-9a-f]{40}$ \
+            && "${PPE_BACKUP_BASELINE:-}" =~ ^[0-9]+$ ]] || {
+            echo "Backup did not receive deployment provenance and the inherited lock." >&2
+            exit 93
+        }
+        perl -e 'open my $fd, ">&=9" or exit 1; my @fd = stat($fd); my @path = stat($ARGV[0]); exit !(@fd && @path && $fd[0] == $path[0] && $fd[1] == $path[1])' \
+            "$PPE_STATE_DIR/database-operation.lock" || {
+            echo "Deployment did not inherit FD9 for the shared database lock." >&2
+            exit 93
+        }
+        printf '%s|%s\n' "$PPE_BACKUP_RELEASE" "$PPE_BACKUP_BASELINE" > "$PPE_BACKUP_RECEIPT_FILE"
+        printf 'backup\n' >> "$PPE_FAKE_DEPLOY_TRACE"
+        exit 0
+        ;;
+    "$PPE_TEST_RECEIPT_VALIDATOR")
+        [[ "$2" = "$PPE_BACKUP_RECEIPT_FILE" && -f "$2" \
+            && "$(cat "$2")" = "$PPE_BACKUP_RELEASE|$PPE_BACKUP_BASELINE" ]] || {
+            echo "Missing or mismatched deployment backup receipt." >&2
+            exit 94
+        }
+        printf 'receipt-validated\n' >> "$PPE_FAKE_DEPLOY_TRACE"
+        exit 0
+        ;;
+esac
+exec "$PPE_TEST_BASH" "$@"
+BASH
+chmod 0700 "$test_root/bin/bash"
+export PPE_TEST_BASH="$test_bash"
+export PPE_TEST_REAL_FLOCK="$test_real_flock"
 export PATH="$test_root/bin:$PATH"
 export PPE_FAKE_DOCKER_TRACE="$test_root/docker-trace"
+export PPE_FAKE_DEPLOY_TRACE="$test_root/deploy-trace"
+export PPE_TEST_BACKUP_SCRIPT="$scripts/backup.sh"
+export PPE_TEST_RECEIPT_VALIDATOR="$scripts/verify-backup-receipt.sh"
 export PPE_FAKE_RELEASE="$release"
 export PPE_FAKE_TARGET_MIGRATIONS=23
 export PPE_FAKE_MIGRATION_MODE=success
 
 run_deploy() {
-    local project=$1 point=${2:-}
+    local project=$1 point=${2:-} mode=${3:-initial} policy=${4:-initial} target_release=${5:-$release}
     export PPE_PROJECT=$project
     export PPE_OPERATION_APPROVAL=local-test
     export PPE_MAINTENANCE_APPROVED=yes
-    export PPE_SCHEMA_POLICY=initial
+    export PPE_SCHEMA_POLICY=$policy
     export PPE_STATE_DIR="$test_root/$project/state"
     export PPE_OPERATION_DIR="$PPE_STATE_DIR"
     export PPE_SECRETS_DIR="$test_root/secrets"
@@ -159,6 +246,7 @@ run_deploy() {
     export PPE_HTTPS_PORT=18443
     export PPE_SMOKE_CA_FILE="$test_root/dummy-ca.pem"
     export PPE_COMPOSE_FILE="$release/source/compose.production.yml"
+    export PPE_DB_SOURCE_DIR="$test_root/untrusted-caller-source"
     export PPE_FAKE_DB_STATE="$test_root/$project/database.state"
     export PPE_DEPLOYMENT_TEST_FAIL_AT=$point
     export PPE_RECOVERY_DB_CONTAINER_ID
@@ -170,8 +258,46 @@ run_deploy() {
     mkdir -p "$PPE_STATE_DIR" "$PPE_SECRETS_DIR" "$PPE_TLS_DIR" "$PPE_ACME_DIR"
     : > "$PPE_SMOKE_CA_FILE"
     chmod 0700 "$PPE_STATE_DIR"
-    bash "$scripts/deploy-release.sh" initial "$release"
+    if [[ "${PPE_TEST_LOCKED:-no}" = yes ]]; then
+        perl -e '
+            use Fcntl qw(LOCK_EX);
+            my ($lock_path, $log_path, @command) = @ARGV;
+            open my $lock, ">>", $lock_path or die $!;
+            flock($lock, LOCK_EX) or die $!;
+            my $pid = fork();
+            die $! unless defined $pid;
+            if (!$pid) {
+                close $lock;
+                open STDOUT, ">", $log_path or die $!;
+                open STDERR, ">&STDOUT" or die $!;
+                exec @command;
+                die $!;
+            }
+            waitpid($pid, 0);
+            exit($? >> 8);
+        ' "$PPE_STATE_DIR/database-operation.lock" "$test_root/lock-contention.log" \
+            "$PPE_TEST_BASH" "$scripts/deploy-release.sh" "$mode" "$target_release"
+    else
+        bash "$scripts/deploy-release.sh" "$mode" "$target_release"
+    fi
 }
+
+if [[ "$PPE_TEST_REAL_FLOCK" = yes ]]; then
+    project=ppe-sim-shared-lock
+    : > "$PPE_FAKE_DOCKER_TRACE"
+    if PPE_TEST_LOCKED=yes run_deploy "$project" "" initial > "$test_root/lock-contention.outer.log" 2>&1; then
+        echo "FAIL: deployment proceeded while the shared database lock was held" >&2; exit 1
+    fi
+    grep -q 'Another backup/deployment owns the database operation lock' "$test_root/lock-contention.log"
+    [[ ! -d "$PPE_STATE_DIR/deployment.lock" ]]
+    if grep -qv '^context inspect ' "$PPE_FAKE_DOCKER_TRACE"; then
+        echo "FAIL: contended deployment invoked Docker beyond the local endpoint approval check" >&2; exit 1
+    fi
+    [[ "$(stat -Lc '%a' "$PPE_STATE_DIR/database-operation.lock")" = 600 ]]
+    echo "PASS: deployment rejects real OS lock contention before any release or Compose operation"
+else
+    echo "SKIP: real flock contention test (flock is not installed); deployment lock inheritance is exercised by the backup mock"
+fi
 
 for point in before-migration after-migration before-app before-nginx before-smoke before-publish; do
     project="ppe-sim-${point}"
@@ -252,6 +378,8 @@ fi
     target_migrations=23
     write_state migration_started
     write_release_file "$PPE_STATE_DIR/current-release" "$deployment_previous"
+    printf '%s|%s\n' "$deployment_release" "$migration_baseline" \
+        > "$PPE_STATE_DIR/deployment-backup.receipt"
 )
 : > "$PPE_FAKE_DOCKER_TRACE"
 if ! PPE_SCHEMA_POLICY=backward-compatible PPE_DEPLOYMENT_TEST_FAIL_AT="" \
@@ -267,15 +395,157 @@ if grep -Eq ' (up|start|restart|stop|rm|create) (.* )?db$|volume (create|rm)|sto
 fi
 echo "PASS: interrupted update retains the existing DB and skips completed quiesce/backup stages"
 
+project=ppe-sim-update-fresh
+export PPE_PROJECT=$project
+export PPE_STATE_DIR="$test_root/$project/state"
+export PPE_FAKE_DB_STATE="$test_root/$project/database.state"
+mkdir -p "$PPE_STATE_DIR"
+chmod 0700 "$PPE_STATE_DIR"
+printf '%s\n' '3333333333333333333333333333333333333333' > "$PPE_STATE_DIR/current-release"
+printf '1 0\n' > "$PPE_FAKE_DB_STATE"
+: > "$PPE_FAKE_DOCKER_TRACE"
+: > "$PPE_FAKE_DEPLOY_TRACE"
+if run_deploy "$project" before-migration update backward-compatible \
+    > "$test_root/$project.first.log" 2>&1; then
+    echo "FAIL: fresh update failpoint unexpectedly succeeded" >&2; exit 1
+fi
+[[ -f "$PPE_STATE_DIR/deployment-backup.receipt" ]]
+grep -qx '1111111111111111111111111111111111111111|1' "$PPE_STATE_DIR/deployment-backup.receipt"
+[[ "$(cat "$PPE_FAKE_DEPLOY_TRACE")" = $'backup\nreceipt-validated' ]]
+[[ "$(sed -n 's/^phase=//p' "$PPE_STATE_DIR/deployment.state")" = migration_started ]]
+grep -q 'Injected local deployment failure at before-migration' "$test_root/$project.first.log"
+if grep -Eq ' (up|start|restart|rm|create) (.* )?db$|volume (create|rm)' "$PPE_FAKE_DOCKER_TRACE"; then
+    echo "FAIL: a fresh update invoked DB lifecycle or volume mutation" >&2; exit 1
+fi
+echo "PASS: fresh update verifies pinned DB read-only, requires remote backup receipt before migration, and never starts DB"
+
+project=ppe-sim-update-pinned-db
+export PPE_PROJECT=$project
+export PPE_STATE_DIR="$test_root/$project/state"
+export PPE_FAKE_DB_STATE="$test_root/$project/database.state"
+export PPE_DB_RELEASE=1111111111111111111111111111111111111111
+export PPE_FAKE_DB_RELEASE=$PPE_DB_RELEASE
+mkdir -p "$PPE_STATE_DIR"
+chmod 0700 "$PPE_STATE_DIR"
+printf '%s\n' '3333333333333333333333333333333333333333' > "$PPE_STATE_DIR/current-release"
+printf '1 0\n' > "$PPE_FAKE_DB_STATE"
+: > "$PPE_FAKE_DOCKER_TRACE"
+if run_deploy "$project" before-migration update backward-compatible "$new_release" \
+    > "$test_root/$project.log" 2>&1; then
+    echo "FAIL: pinned-DB app update failpoint unexpectedly succeeded" >&2; exit 1
+fi
+[[ "$(sed -n 's/^phase=//p' "$PPE_STATE_DIR/deployment.state")" = migration_started ]]
+grep -q 'Verified the pinned healthy DB container' "$test_root/$project.log"
+grep -q 'ps --all -q db' "$PPE_FAKE_DOCKER_TRACE"
+if grep -Eq ' (up|start|restart|rm|create) (.* )?db$|volume (create|rm)' "$PPE_FAKE_DOCKER_TRACE"; then
+    echo "FAIL: pinned-DB app update changed DB lifecycle or volume" >&2; exit 1
+fi
+echo "PASS: new app release proceeds when explicit older DB release pin has matching manifest, image and recipe"
+if ! run_deploy "$project" "" update backward-compatible "$new_release" \
+    > "$test_root/$project.resume.log" 2>&1; then
+    cat "$test_root/$project.resume.log" >&2
+    echo "FAIL: app update with pinned database could not complete" >&2; exit 1
+fi
+grep -qx 'phase=published' "$PPE_STATE_DIR/deployment.state"
+grep -qx '2222222222222222222222222222222222222222' "$PPE_STATE_DIR/current-release"
+if grep -Eq ' (up|start|restart|rm|create) (.* )?db$|volume (create|rm)' "$PPE_FAKE_DOCKER_TRACE"; then
+    echo "FAIL: pinned database resume changed DB lifecycle or volume" >&2; exit 1
+fi
+echo "PASS: pinned DB app update resumes to publication with the verified old build context"
+unset PPE_DB_RELEASE PPE_FAKE_DB_RELEASE
+
+for condition in wrong-image config-drift replaced-container replaced-volume; do
+    project="ppe-sim-update-preflight-$condition"
+    export PPE_PROJECT=$project
+    export PPE_STATE_DIR="$test_root/$project/state"
+    export PPE_FAKE_DB_STATE="$test_root/$project/database.state"
+    mkdir -p "$PPE_STATE_DIR"
+    chmod 0700 "$PPE_STATE_DIR"
+    printf '%s\n' '3333333333333333333333333333333333333333' > "$PPE_STATE_DIR/current-release"
+    printf '1 0\n' > "$PPE_FAKE_DB_STATE"
+    : > "$PPE_FAKE_DOCKER_TRACE"
+    if PPE_FAKE_DB_CONDITION=$condition run_deploy "$project" "" update backward-compatible \
+        > "$test_root/$project.log" 2>&1; then
+        echo "FAIL: fresh update accepted unsafe DB condition $condition" >&2; exit 1
+    fi
+    [[ ! -f "$PPE_STATE_DIR/deployment.state" && ! -f "$PPE_STATE_DIR/deployment-events.log" ]]
+    [[ ! -d "$PPE_STATE_DIR/deployment.lock" ]]
+    if grep -Eq 'exec |run |up |start |stop |restart |down |volume (create|rm)' "$PPE_FAKE_DOCKER_TRACE"; then
+        echo "FAIL: fresh update DB preflight $condition caused a mutation" >&2; exit 1
+    fi
+    echo "PASS: fresh update rejects pinned DB $condition before journal or service mutation"
+done
+
+for pin_case in missing wrong-manifest recipe-drift; do
+    project="ppe-sim-update-invalid-db-pin-$pin_case"
+    export PPE_PROJECT=$project
+    export PPE_STATE_DIR="$test_root/$project/state"
+    export PPE_FAKE_DB_STATE="$test_root/$project/database.state"
+    mkdir -p "$PPE_STATE_DIR"
+    chmod 0700 "$PPE_STATE_DIR"
+    printf '%s\n' '3333333333333333333333333333333333333333' > "$PPE_STATE_DIR/current-release"
+    printf '1 0\n' > "$PPE_FAKE_DB_STATE"
+    case "$pin_case" in
+        missing) pin_sha=6666666666666666666666666666666666666666 ;;
+        wrong-manifest) pin_sha=4444444444444444444444444444444444444444 ;;
+        recipe-drift) pin_sha=5555555555555555555555555555555555555555 ;;
+    esac
+    : > "$PPE_FAKE_DOCKER_TRACE"
+    if PPE_DB_RELEASE=$pin_sha PPE_FAKE_DB_RELEASE=$pin_sha \
+        run_deploy "$project" "" update backward-compatible "$new_release" \
+        > "$test_root/$project.log" 2>&1; then
+        echo "FAIL: update accepted invalid DB pin case $pin_case" >&2; exit 1
+    fi
+    [[ ! -f "$PPE_STATE_DIR/deployment.state" && ! -f "$PPE_STATE_DIR/deployment-events.log" ]]
+    case "$pin_case" in
+        missing|wrong-manifest) grep -q 'Pinned database release is missing or its READY/commit manifest is invalid' "$test_root/$project.log" ;;
+        recipe-drift) grep -q 'Pinned database release recipe differs from target' "$test_root/$project.log" ;;
+    esac
+    if grep -Eq 'exec |run |up |start |stop |restart |down |volume (create|rm)' "$PPE_FAKE_DOCKER_TRACE"; then
+        echo "FAIL: invalid DB pin $pin_case caused a database/service mutation" >&2; exit 1
+    fi
+    echo "PASS: invalid DB pin $pin_case fails before journal writes or service/DB lifecycle actions"
+done
+
+project=ppe-sim-update-missing-receipt
+export PPE_PROJECT=$project
+export PPE_STATE_DIR="$test_root/$project/state"
+export PPE_FAKE_DB_STATE="$test_root/$project/database.state"
+mkdir -p "$PPE_STATE_DIR"
+chmod 0700 "$PPE_STATE_DIR"
+printf '%s\n' '3333333333333333333333333333333333333333' > "$PPE_STATE_DIR/current-release"
+printf '1 0\n' > "$PPE_FAKE_DB_STATE"
+(
+    source "$scripts/deployment-state.sh"
+    deployment_mode=update
+    deployment_release=1111111111111111111111111111111111111111
+    deployment_previous=3333333333333333333333333333333333333333
+    deployment_policy=backward-compatible
+    migration_baseline=1
+    target_migrations=23
+    write_state migration_started
+)
+cp "$PPE_STATE_DIR/deployment.state" "$test_root/$project.state-before"
+: > "$PPE_FAKE_DOCKER_TRACE"
+if run_deploy "$project" "" update backward-compatible > "$test_root/$project.resume.log" 2>&1; then
+    echo "FAIL: old format-2 update without a backup receipt was accepted" >&2; exit 1
+fi
+cmp -s "$PPE_STATE_DIR/deployment.state" "$test_root/$project.state-before"
+grep -q 'Missing or mismatched deployment backup receipt' "$test_root/$project.resume.log"
+if grep -Eq 'exec |run |up |start |stop |restart |down |volume (create|rm)' "$PPE_FAKE_DOCKER_TRACE"; then
+    echo "FAIL: missing-receipt recovery mutated services or database" >&2; exit 1
+fi
+echo "PASS: format-2 update resume without a validated backup receipt fails closed before mutation"
+
 project=ppe-sim-other-release
 if run_deploy "$project" before-migration > "$test_root/other-release.first.log" 2>&1; then
     echo "FAIL: setup failpoint unexpectedly succeeded" >&2; exit 1
 fi
 cp "$PPE_STATE_DIR/deployment.state" "$test_root/state-before"
-other="$test_root/releases/2222222222222222222222222222222222222222"
+other="$test_root/releases/7777777777777777777777777777777777777777"
 mkdir "$other"
 ln -s "$release/source" "$other/source"
-printf '%s\n' '2222222222222222222222222222222222222222' > "$other/commit"
+printf '%s\n' '7777777777777777777777777777777777777777' > "$other/commit"
 cp "$other/commit" "$other/READY"
 for image in ppe-app ppe-tools ppe-db ppe-runner ppe-broker ppe-nginx ppe-backup; do
     cp "$release/$image.id" "$other/$image.id"

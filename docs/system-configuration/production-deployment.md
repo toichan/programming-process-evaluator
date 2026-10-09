@@ -1,8 +1,281 @@
 # Production deployment and continuous updates
 
-**In preparation; not a production deployment approval.** See the
-[phase results](production-preparation-plan.md). AWS resources, real student data
-and real Gemini requests have not been exercised.
+**Initial production deployment completed on 2026-10-09 JST.** The
+[observed production record](#observed-production-record-2026-10-09-jst) below
+supersedes the earlier preparation status. Infrastructure publication is not
+approval to collect research data or to execute the mutation commands in this
+runbook. See [preparation results and system-test plan](production-preparation-plan.md).
+Production business-flow acceptance and disaster restoration remain unverified.
+
+## Observed production record (2026-10-09 JST)
+
+Read-only EC2/SSM inspection at approximately 08:42–08:45 JST, supplemented by the
+approved deployment verification completed around 08:36 JST. This is a dated
+snapshot, not a continuously refreshed inventory. No backup, restore, user/seed
+registration, business-flow test, restart or AWS change was performed during this
+documentation investigation. SQL read only aggregate counts and configuration.
+The DB admin helper creates/removes a temporary private client-options file inside
+the DB container; it does not change business records or privileges.
+
+| Item | Confirmed value / limitation |
+|---|---|
+| AWS | `ap-northeast-1`, AZ `ap-northeast-1a`, EC2 `i-0ffd69e8f390bd396`, running, `t3.medium` |
+| Host | Ubuntu 24.04.5 LTS, x86_64; approximately 3832 MiB RAM, no swap |
+| IP / management | Public `13.112.85.237`, private `172.31.42.223`; SSM profile `ppe-deployer`, instance Online at deployment preflight |
+| EBS | Root `/dev/sda1`, volume `vol-011b21091f0e4acb1`, `DeleteOnTermination=true`. Host `/` is ext4, 19 GiB, approximately 8.7 GiB free. AWS EBS type/encryption/IOPS are **unconfirmed**: `DescribeVolumes` denied |
+| IAM / network | Instance profile `ProgrammingProcessEvaluatorEC2Role`; SG `sg-0574dda5308641e71`. SG rules and effective IAM policies **unconfirmed**; no permissions changed |
+| IMDS | Tokens required, hop limit 2, endpoint enabled, IPv6 metadata disabled |
+| Docker | Engine 29.8.2 / API 1.56; Compose v5.6.0; project `ppe-production` |
+| Application release | `0e2bfae5e23bc512f0b7cf844264d4d45a484ecc` under `/var/lib/ppe/releases/<SHA>/source` |
+| Operations code | `de2b0d37fb7ccb6ecae93ce81b2e01d230034e01` under `/var/lib/ppe/operations/<SHA>/scripts/production`; not the application release |
+| Journal | `/var/lib/ppe/state/deployment.state`: format 2, mode/policy `initial`, phase `published`, baseline 0, target 23, previous empty, updated `2026-10-08T23:35:58Z` (08:35:58 JST) |
+| Markers / locks | `current-release` equals application SHA; previous-release and deployment/migration locks absent at completion |
+| Journal evidence | SHA-256 `6ccb65ad9779073b43ae9cf21fba4a66716089864347dd3e0fbefc37cdfdaa16`; events `e12c2f06ddc511dfe114b9faa6de54d35a3f1c1b1fcb55891f3ba5d21c1def97` |
+| Private evidence | `/var/lib/ppe/operations/<operations-SHA>/evidence`: pre-deploy state/events, asset fingerprints and private deployment/validation logs; **not a DB backup** |
+| Secrets | Existing `/var/lib/ppe/secrets/release-<application-SHA>`, six file secrets; contents not inspected/output. Snapshot unchanged at completion |
+| TLS / ACME | `/var/lib/ppe/tls-private/current` mounted read-only at `/etc/nginx/tls`; `/var/lib/ppe/acme` mounted read-only at `/var/www/acme` |
+| Certificate | Let's Encrypt issuer YE2, SAN student.ppeval.net / teacher.ppeval.net, expires `2027-01-06 07:22:08 UTC`; key match confirmed during deployment |
+| DNS / HTTPS | Both DNS IPv4s matched EC2 at preflight. External trusted HTTPS `/health` exact `{"status":"ok"}` and each portal login HTTP 200 confirmed at completion; not re-run as a business test here |
+| App data | Aggregate counts at investigation: users/tasks/submissions/code_logs/rubrics/evaluations/survey_responses all 0. No initial admin or standard rubric registered. This is not a guarantee about future writes |
+| Backup | `/var/lib/ppe/backups` exists, mode 0700, but no matching backup artifacts found. No configured `operation.env` or loaded PPE backup unit; details below |
+
+#### Running services and persistence
+
+Effective container limits/mounts were checked with filtered inspect output;
+environment values and complete container inspection were not dumped.
+
+| Service / container suffix | Short ID | Health / restart count | Memory / CPU limit | Exposure / persistence |
+|---|---|---|---|---|
+| `db-1` | `cead40118ed8` | healthy / 0 | 512 MiB / 1 CPU | No host DB port; RW named database volume, RO secrets |
+| `docker-broker-1` | `dd5f3c4503ef` | healthy / 13 | 128 MiB / 0.5 CPU | Internal 2375, host Docker socket bind; counts include resolved missing-runtime failure |
+| `python-runner-1` | `134e92448530` | healthy / 0 | 128 MiB / 0.5 CPU | Internal 8090, RO token secret; no host Docker socket |
+| `app-1` | `d232e57a708b` | healthy / 0 | 640 MiB / 1 CPU | Tomcat internal 8080; WAR image, no development source bind |
+| `nginx-1` | `27b58ce9cbb1` | healthy / 0 | 64 MiB / 0.5 CPU | `0.0.0.0:80/443`; RO rootfs, RO TLS/ACME mounts |
+| `acme-bootstrap-1` | `42e4a7ca5a4f` | Exited(0) | Not a steady service | Remains stopped; not the public proxy |
+
+All five running services use `unless-stopped`. Docker json-file rotation is
+configured at 10 MiB × 3 files per container (live app/nginx checked). App rootfs is
+writable; Nginx rootfs is read-only. Broker remains a trusted root-equivalent host
+component, not VM isolation. All seven commit-tagged release image IDs matched
+their immutable `.id` records after deployment; none were rebuilt/retagged.
+
+MySQL is 8.0.44, schema `ppe`, utf8mb4 schema definitions. Actual settings:
+max_connections 40, InnoDB buffer pool 134217728 bytes, REPEATABLE-READ,
+binary logging ON, log_bin_trust_function_creators OFF, binlog expiration 2592000
+seconds. No non-InnoDB tables were returned for `ppe`.
+`ppe_app` runtime CRUD and `ppe_migrate` schema DDL separation is defined in
+[init-db.sh](../../containers/production/init-db.sh); migrator live grants were
+schema ALL and global USAGE, without SUPER. Runtime grants were not re-read here.
+Init scripts run only on an empty MySQL data directory; **do not initialize the
+existing volume** to apply a configuration change.
+
+Named volume `ppe-production_database`, local driver, created
+`2026-10-08T08:32:49Z`, is mounted RW at `/var/lib/mysql`; host storage is
+`/var/lib/docker/volumes/ppe-production_database/_data`. Full DB ID:
+`cead40118ed8a27ce90a8f745f7b69ed528355149c7412d2c95985b6e47872d8`,
+StartedAt `2026-10-08T08:32:49.719977603Z`. These remained unchanged after recovery.
+Local volume is **not independent of the EC2/EBS failure domain**.
+
+Networks checked: proxy internal `10.231.77.0/24` (proxy IP `10.231.77.10`);
+database internal `172.19.0.0/16`; broker internal `172.20.0.0/16`; execution
+internal `172.21.0.0/16`; edge `172.18.0.0/16` and outbound `172.22.0.0/16`
+non-internal. These dynamically allocated ranges must be rechecked before changes.
+
+Live Nginx config hash matches the release's
+[nginx.conf](../../containers/nginx/nginx.conf); `nginx -t` passed.
+TLS 1.2/1.3, HTTP 308 to HTTPS except ACME challenge, unknown host rejection,
+root redirect to role login, HSTS, forwarded-header overwrite and app proxy are
+configured. Access log is off; warning/error log goes to stderr. Only Nginx
+publishes host ports. Proxy timeout is 240 seconds; this is not an AI completion
+SLA. The host has `certbot.timer`, but correct renewal of the custom Certbot
+directory/hook and expiry alerting are **unverified**. No renewal/dry-run executed.
+TLS directory mode was observed 0755 and private Certbot config mode 0700;
+private-key file mode/ownership were not re-audited. Do not assume all TLS paths
+are 0700 or relax them recursively.
+
+Flyway has exactly 23 successful version rows V1–V23, failed rows 0; additional
+offline `flywayValidate flywayInfo` completed successfully at deployment finish.
+Schema success does not imply standard seed success: rubrics remain 0.
+
+#### What was deployed, and safe recovery from future failures
+
+1. Empty-DB preflight, pinned DB/container/volume/config/image/journal checks,
+   TLS/DNS/port/subnet checks and immutable source comparison preceded deployment.
+2. Operations-only archive was verified and placed separately. Initial migration
+   completed once; temporary SUPER was revoked. No initial backup was taken under
+   the explicitly approved empty-DB exception.
+3. Broker failed because `python:3.12-alpine` was absent. The approved official
+   runtime was subsequently pulled and checked, then the same journal resumed.
+   Flyway history/checksums were validated, not reapplied. App/runner/nginx became
+   healthy; Nginx reload and both internal/external TLS smoke succeeded.
+4. Python runtime: official `docker.io/library/python:3.12-alpine`, Python
+   3.12.15 / Alpine 3.24 / linux-amd64, no declared volumes.
+   Index RepoDigest `sha256:1b668429b3511ab407d8e00648891631b0b1a4d7e15e3ca70f38ab5b91ad4ab4`;
+   amd64 manifest `sha256:2055081c860db8c842b663415b795b026e7e5cc63b59c5193fcc9997713ea5b8`.
+   Nonroot/read-only/network-none constrained Python startup passed. The mutable
+   tag is not a future digest-lock policy; automatic provisioning remains a gap.
+
+For new changes, use the [update procedure](#normal-update-and-app-only-rollback)
+only after the [backup protection gate](#backup-gap-and-improvement-plan) is met.
+The historical empty-DB recovery instructions later in this document are **not
+instructions to reset today's published schema**. Do not rerun initial setup,
+overwrite this release or reuse the old pre-migration state hash as today's hash.
+
+On a failure, stop mutations, retain journal/event/log evidence, compare pinned
+DB/volume/image identity, check Flyway failures and partial DDL, and verify global
+migrator grants. Do not blindly retry, clean/repair, delete locks or edit state.
+When baseline/complete target is provable and the cause is repaired, approve
+same-release recovery separately; post-database-stage guards skip DB lifecycle.
+For application regression, app-only rollback needs a compatible previous release;
+this initial deployment has **no recorded previous-release fallback**.
+For data loss, follow the [isolated restore and cutover policy](#backup-and-restore),
+not app rollback or restore over the live DB. No current verified production
+backup means recovery from host/volume loss is not yet assured.
+
+## Backup gap and improvement plan
+
+The following inspection describes the **deployed operations commit de2b0d3**,
+not the newly edited local scripts. The
+[local implementation and console guide](#backup-implementation-and-aws-console-guide-2026-10-09)
+below supersedes its proposed 35-day S3 retention with a provisional 30-day rule.
+Nothing in this investigation has installed/enabled backup in production.
+
+#### Confirmed implementation versus actual EC2 setup
+
+| Required check | Implementation | Actual production evidence (2026-10-09) |
+|---|---|---|
+| Save destination | `backup.sh` requires absolute `PPE_BACKUP_DIR`; no default path | `/var/lib/ppe/backups` exists 0700, but configured destination **unconfirmed/unset in discovered configuration**. `/var/lib/ppe/operation.env` absent |
+| Existing files | `ppe-<UTC timestamp>-<PID>.sql.age`, sidecar `.sha256`, transient `.tmp` | **0 matching files** in root-filesystem `find / -xdev` and `/var/lib/ppe` search. No contents read. Other mounted filesystems/external stores not exhaustively searched |
+| Encryption | `age` recipient encryption, pipeline, no plaintext dump file; backup image | Code prepared, actual recipient/key custody and encryption of a production backup **unverified** |
+| Automatic schedule | Repository `ppe-backup.timer`: 02:00 Asia/Tokyo, random delay ≤300s, Persistent=true | PPE service/timer LoadState=not-found, inactive. No backup/ S3 schedule reference found in inspected cron/systemd files; root crontab retrieval returned nonzero (contents **unconfirmed**). `dpkg-db-backup.timer` is OS package metadata, not PPE MySQL |
+| Off-host copy | No S3 uploader in backup script/service | No discovered S3 upload config/job. AWS account bucket inventory/policies/remote backups **unconfirmed**, not evidence of account-wide absence |
+| Safe file check/download | Metadata, provenance and ciphertext checksum first; controlled transfer | No production file to download. No export/decryption attempted |
+
+The service template uses `/var/lib/ppe/operation.env` and
+`/opt/ppe/current/source/scripts/production/backup.sh`; **both paths are absent**.
+Actual releases and operations live under `/var/lib/ppe`, so merely enabling the
+template would not establish functioning backup. Image existence is not scheduling.
+Directory mode 0700 is not evidence of an encrypted filesystem; EBS encryption
+could not be confirmed with the current AWS read permissions.
+
+The [DB admin dump](../../containers/production/db-admin.sh) is logical SQL for
+all `ppe` tables, views as applicable, routines, triggers and events, with
+`--single-transaction --hex-blob --no-tablespaces --set-gtid-purged=OFF`.
+This covers learning logs/submissions/evaluations/users/credentials/survey data
+in that schema, **not** MySQL system users/grants, physical volume, TLS, secrets,
+release images or binaries. Secret/AES-key continuity and offline disaster
+bootstrap are separately required.
+InnoDB rows have a consistent snapshot; concurrent DDL is not covered by the
+transaction guarantee. Enforce a shared backup/deployment lock and DDL freeze.
+There is no backup lock in `backup.sh`; timer/manual/deployment jobs could overlap.
+
+Default retention is 14 days and minimum free space 1024 MiB.
+`find ... -mtime +14` removes matching ciphertext and sidecar after successful
+dump/hash; age is whole-day rounded (not an exact 14×24h deadline). It is not
+version-aware and has no minimum independently verified recovery-point guard.
+Failure detection is nonzero exit/pipefail/Docker stderr; no remote success-age
+check, alert delivery or restore gate is implemented. A completed encrypted file
+is renamed **before** checksum generation, so checksum failure can leave an
+artifact not ready for restoration. Nonempty/checksum alone proves neither SQL
+completeness nor successful restoration.
+
+Fresh update ordering is still DB Compose up → baseline → app/runner stop →
+backup → validate/migrate → broker/app/nginx → smoke → publish. A backup failure
+stops migration but does not automatically bring the quiesced app/runner back.
+Resume after `backup_complete` skips another backup; it must validate provenance,
+age and applicability before reuse. Post-database-stage recovery protection does
+not fix normal-update DB recreation risk.
+
+The preparation record reports a **local synthetic** isolated restore of V1–V23
+and a marker on 2026-10-08; see [phase 9](production-preparation-plan.md#results).
+This is not a current production dump restore test. EC2/volume-loss recovery is
+**not demonstrated**: no verified off-host PPE backup is recorded. Local binlogs
+(30-day expiration) do not provide off-host PITR by themselves.
+
+#### Safe inspection/obtaining a backup (future approved operation)
+
+Read-only metadata example, on EC2; no dump/restore or contents:
+
+```sh
+sudo find /var/lib/ppe/backups -maxdepth 1 -type f \
+  \( -name 'ppe-*.sql.age' -o -name 'ppe-*.sql.age.sha256' \) \
+  -printf '%f | %s bytes | mode=%m | %TY-%Tm-%TdT%TH:%TM:%TS\n'
+```
+
+Select one exact filename/version, verify its sidecar and independently protected
+manifest/provenance, size and timestamp in a private directory. Do not `cat` SQL,
+decrypt to terminal, paste ciphertext/base64 into chat, print private age keys,
+use public ACLs/presigned URLs in logs, or transfer research backups to ordinary
+developer machines. If files are moved, the current absolute-path sidecar format
+needs controlled filename verification; do not trust arbitrary paths in sidecars.
+Once approved off-host storage exists, an authorized restore operator may retrieve
+the exact object version to encrypted, access-controlled storage using
+`aws s3api get-object --bucket <approved-bucket> --key <exact-key> --version-id
+<approved-version> <private-output.sql.age>` and its protected manifest.
+This is **not configured or executed now**. SSM interactive access alone is not
+a reviewed binary-export mechanism; avoid stdout transfer. Retrieval authorization
+is separate from restore permission, and no plaintext file is needed.
+
+#### Prioritized improvements (proposal, not approved settings)
+
+| Priority | Work / acceptance before research use |
+|---|---|
+| P0 | Decide RPO/RTO/retention/key custodians and owner. Proposed starting point: RPO ≤24h, RTO ≤4h, plus a verified pre-update recovery point; these are **not approved SLA** |
+| P0 | Configure absolute backup/recipient/image paths using current operations layout, least privilege, private dirs and verified encryption. Install working timer only after manually approved backup and failure test |
+| P0 | Add external storage and confirm upload/checksum/encryption/object-version/provenance. Fail deployment if required local or remote backup validation fails |
+| P0 | Fix fresh-update ordering: read-only DB identity/config/health guard first; no DB recreation/start/upgrade until a verified backup protects the existing DB. DB-version changes need separate snapshot/compatibility/cutover plan |
+| P0 | Share exclusion lock across backup/deploy/DDL; quiesce writes and drain workers as appropriate. Abort safely on partial backup or space/upload failures; preserve recoverable service state |
+| P0 | Prove offline-key decryption and isolated restore with exact Flyway counts/checksums, row IDs/content/relationships, credential-key continuity, submissions/logs/evaluations. Record elapsed time, recovery source/version and RPO/RTO |
+| P0 | Synthetic old→new update tests retain rows, old rubric/proposed new rubric, evaluation snapshots, log IDs and references; injected failures leave old data intact. App rollback is not DB rollback |
+| P1 | Alert on command/upload failure, missing/stale object, disk pressure and failed restore tests; operator receives/test-acknowledges alert. Daily timer success alone is insufficient |
+| P1 | Formal host/volume-loss runbook: incident freeze, select trusted recovery point, replacement host/isolated volume, restore + validate, compatibility/secret checks, approved cutover, preserve original damaged evidence |
+| P1 | Retention cleanup only after remote verified points, with deletion-role separation. Scheduled restore drills and optional separately reviewed off-host binlog/PITR if RPO requires it |
+
+#### S3 candidate architecture and cost
+
+Proposed Tokyo private bucket dedicated to PPE backups with public access blocked,
+TLS-only bucket policy, versioning, SSE-KMS customer-managed key, and client-side
+age ciphertext retained. Object keys include project/release/UTC backup ID;
+publish manifest/commit marker only when dump, checksum and uploads are complete.
+Consider a separate account/admin boundary and S3 Object Lock after checking that
+WORM duration does not contradict research deletion obligations. Neither SSE-KMS
+nor versioning replaces client encryption or immutable/protected provenance.
+
+Separate IAM roles:
+
+- EC2 writer: `s3:PutObject` on exact backup prefix; `s3:ListBucket` with prefix
+  condition only if upload verification requires it; `s3:GetObject` only if
+  HEAD-based verification is used. Multipart uploader additionally needs narrowly
+  scoped `s3:AbortMultipartUpload`, `s3:ListMultipartUploadParts` and bucket
+  `s3:ListBucketMultipartUploads` as needed.
+- KMS writer: `kms:GenerateDataKey`; `kms:Decrypt` if required for multipart
+  upload, restricted to the bucket/S3 service encryption context in IAM/key policy.
+- Restore operator: exact-prefix `s3:GetObject`/`s3:GetObjectVersion`, conditional
+  ListBucket/ListBucketVersions when necessary, KMS Decrypt, offline age identity.
+  Do not inject restore credentials or the age private key into app/runner.
+  Verify container denial of IMDS; an instance profile is not per-container IAM
+  isolation and host/broker compromise can expose its role. Writer has no DeleteObject,
+  DeleteObjectVersion, lifecycle/bucket-policy edit or KMS administrative rights.
+- Retention administrator controls approved lifecycle/current **and noncurrent**
+  version expiry, aborted multipart cleanup and key retention. Keep decrypt keys
+  until all approved ciphertext retention ends; accidental KMS/key deletion makes
+  a stored backup unusable.
+
+Candidate retention for review: local 14 days, S3 daily 35 days, pre-update points
+through acceptance plus 35 days; long-term monthly archives only if separately
+approved. Reconcile with the [March 2027 research retention goal](production-operations-decisions.md)
+and latest consent/deletion policy; do not silently preserve all data indefinitely.
+No automatic archival/deletion settings have been applied.
+
+Cost is storage (ciphertext GiB × versions × duration), PUT/GET/LIST/multipart
+requests, KMS key and request charges, retrieval/transfer and monitoring.
+Illustration only: a 1-GiB daily full dump × 35 days is roughly 35 GiB before
+extra pre-update points/noncurrent versions; not an actual measured dump size.
+Begin with S3 Standard for quick recovery, evaluate infrequent-access/Glacier
+minimum-age/size/retrieval latency and charges against RTO before transition.
+Current Tokyo prices, traffic and budget are **unconfirmed**; estimate with AWS
+Pricing Calculator. Same-host backup and EBS DeleteOnTermination=true make this
+external recovery point a pre-research blocker, not an optional cost optimization.
 
 ## Boundaries
 
@@ -66,8 +339,15 @@ snapshots are never copied to a developer machine.
 
 ## Migration and recovery
 
+This standalone example is for approved empty initial/isolated setup, **not
+normal updates of the published DB**. New wrappers require the shared absolute
+private `PPE_STATE_DIR` for exclusion; use the guarded deployment workflow and
+verified backup for updates. Do not use this raw DB `up` command on existing
+production containers.
+
 ```sh
 export PPE_PROJECT=ppe-production
+export PPE_STATE_DIR=/var/lib/ppe/state
 export PPE_COMPOSE_FILE=compose.production.yml
 docker compose -p "$PPE_PROJECT" -f "$PPE_COMPOSE_FILE" up -d --wait db
 sh scripts/production/migrate.sh
@@ -532,12 +812,29 @@ expand/contract or otherwise backward compatible, then outside class hours:
 
 ```sh
 export PPE_SCHEMA_POLICY=backward-compatible
+# Future release's Compose must support the explicit DB pin. Do not edit old releases.
+export PPE_DB_RELEASE=<full-sha-owning-the-current-db-image>
 bash scripts/production/deploy-release.sh update \
   /var/lib/ppe/releases/<new-full-commit-sha>
 ```
 
-The update stops app/runner, creates an encrypted backup, validates applied
-checksums, migrates, restarts services, smoke-tests and publishes only after success.
+The deployed de2b0d3 script performs DB Compose `up` before backup and must not
+be used for normal updates containing research data. The locally improved script
+instead pins/checks the existing healthy DB, image/config/volume without starting
+or recreating it; records the baseline, quiesces app/runner, then requires a
+versioned, checksum-verified remote backup before validation/migration.
+An existing `backup_complete` journal is insufficient without a matching fresh
+receipt. The new Compose supports an explicit `PPE_DB_RELEASE` image pin so a new
+application SHA does not imply a DB image change (the DB build's revision label
+changes its image ID even if MySQL code is identical). The pinned immutable
+release manifest/image and DB Dockerfile/init/admin bytes must match, and effective
+DB Compose config must still match the live container. A DB image/config upgrade is deliberately refused and requires a separate
+backup/compatibility/cutover plan. Read-only guards can precede backup, but no
+DB lifecycle or migration write may. No production deployment of this fix occurred.
+The guard derives `PPE_DB_SOURCE_DIR` from the pinned immutable release to keep
+inactive build-context metadata stable across app releases; it does not accept an
+arbitrary build path or edit existing release Compose files.
+See the [implementation guide](#backup-implementation-and-aws-console-guide-2026-10-09).
 For rollback, pass the selected previously built release directory:
 
 ```sh
@@ -553,25 +850,24 @@ Do not use an app rollback to recover from destructive schema/data changes.
 ### Backup and restore
 
 Generate an `age` identity on a trusted offline admin workstation and store its
-private key separately from EC2. Install only its public recipient string in a
-0600 host file; set `PPE_BACKUP_RECIPIENT_FILE`. Keep the encrypted DB backup and
-SHA-256 sidecar in a 0700 directory on a separate encrypted filesystem, with
-`PPE_BACKUP_RETENTION_DAYS` (default 14) and `PPE_BACKUP_MIN_FREE_MIB` (default
-1024). The script fails before dump if space is insufficient and does not print
-database contents.
+private key separately from EC2. The new cloud mode fetches only the public
+recipient from Parameter Store; the legacy recipient file is now for guarded local
+tests only. Keep encrypted SQL/checksum/manifest in a 0700 directory, preferably on
+a separately protected encrypted filesystem. `PPE_BACKUP_MIN_FREE_MIB` defaults to
+1024. The new script does not delete local copies or S3 objects; S3 Lifecycle handles
+the provisional 30 days and reviewed local cleanup remains an operator task.
 
 ```sh
 bash scripts/production/backup.sh
 ```
 
-The script's backup-failure notification is currently the command's nonzero status
-and bounded Docker stderr; schedule it from systemd/cron with an operator-visible
-failure alert. Local backup alone is not off-host disaster recovery. After approval,
-copy `.sql.age` and `.sha256` to a separately administered S3 bucket with versioning,
-SSE-KMS, restrictive bucket policy and lifecycle retention. Grant only the required
-prefix `s3:PutObject`/`s3:GetObject` and KMS use to the instance role; do not grant
-delete. Confirm object encryption/versioning and restore an object into a fresh
-isolated DB regularly.
+The new implementation fails on dump/encryption/upload/verification/metric errors,
+notifies SNS when its configuration is available, and needs an independent
+CloudWatch missing-heartbeat alarm for host/job/configuration failures.
+Completion requires ciphertext, checksum and completion manifest uploads with
+exact object versions, SHA-256/size/SSE-KMS verification. No automatic restore or
+retry occurs. AWS role, bucket, alarms and systemd must be configured and tested
+after approval; script existence does not make production backup operational.
 
 `restore-isolated.sh` accepts only an explicitly approved empty `ppe-restore-*`
 project. It verifies SHA-256 and age decryption before writing, and refuses a
@@ -584,6 +880,365 @@ production disaster restore must be a separate approved runbook with outage
 declaration, data-loss/RPO review, point-in-time source selection, restore to a
 replacement isolated volume, integrity checks and explicit cutover; restoring over
 the active DB is not automated.
+
+## Backup implementation and AWS console guide (2026-10-09)
+
+**Local implementation only. No AWS writes, production dump/restore/deployment,
+unit installation or secret changes were performed.** AWS metadata queries confirmed
+the running EC2 and its instance profile `ProgrammingProcessEvaluatorEC2Role`.
+The current SSO profile denied DescribeParameters, ListBuckets, ListAliases,
+ListTopics, DescribeAlarms and GetInstanceProfile. Existing bucket/key/topic/alarm
+inventory and effective instance-role policy are **unconfirmed**. Do not infer their
+absence; the owner must inspect the console first. Reuse only a compliant private
+backup prefix/key/topic; never repurpose a bucket that permits app/public access.
+
+### Implementation contract
+
+- [backup.sh](../../scripts/production/backup.sh) streams InnoDB single-transaction
+  `ppe` dump directly to the existing age container, never a plaintext SQL file.
+  It refuses non-InnoDB base tables and verifies DB container/project/healthy
+  volume identity before and after the dump; it never starts a missing DB.
+  It supports cloud mode by default; non-cloud mode is restricted to explicitly
+  approved `ppe-sim-*`/`ppe-preparation-*` local tests on a Unix Docker endpoint.
+- [backup-common.sh](../../scripts/production/backup-common.sh) fetches five
+  parameters individually, validates values without sourcing/executing config,
+  refuses access-key/profile environment credentials for the writer, verifies
+  versioned S3 object checksums and issues bounded, generic notifications.
+  Database credential retrieval remains unchanged; existing snapshots are reused.
+- Linux [database-lock.sh](../../scripts/production/database-lock.sh) uses
+  nonblocking `flock` on private `PPE_STATE_DIR/database-operation.lock`.
+  Deploy/rollback/backup/manual migrate/privilege-cleanup share it. Descriptor 9
+  is inherited only when its inode matches; children do not unlock the parent.
+  Timer contention returns failure, not silent skip. No unconditional retry.
+  Existing journal/deployment/migration stale-lock checks remain relevant.
+  All operators must use the same state directory; arbitrary manual SQL/old
+  immutable scripts do not acquire this new lock and must not run concurrently.
+- Data, checksum and completion manifest are uploaded in that order with
+  `PutObject --if-none-match '*'`, a unique key and explicit SHA256/SSE-KMS key ARN.
+  Each exact version is checked with HeadObject/checksum-mode ENABLED.
+  A partial upload leaves local ciphertext and any uploaded orphan objects, but
+  no successful receipt; no DeleteObject/cleanup/retry is attempted.
+  Single PUT is deliberately limited to **4 GiB per object**. Larger dumps fail
+  explicitly and require a separately reviewed multipart implementation.
+- Atomic private receipts record release/baseline/UTC time and remote object
+  versions/sizes/hashes, source DB ID and public age recipient for key-custodian
+  lookup. Old identities must remain recoverable for their retained backups.
+  [verify-backup-receipt.sh](../../scripts/production/verify-backup-receipt.sh)
+  checks configuration/provenance/freshness (default 26h) and all three remote
+  objects, including on deployment resume. It does not claim SQL recoverability.
+  A successful CloudWatch metric precedes receipt publication; any publication
+  error returns failure. Repeated backup runs use new IDs, not overwrite.
+- New systemd templates use `/var/lib/ppe/operations/backup-current/scripts/production`,
+  not the nonexistent `/opt/ppe/current/source`. `backup-current` is a separately
+  approved operations-only symlink to verified new tooling, **not the app release**.
+  Units run as root because host Docker socket access is root-equivalent. They
+  use instance-role credentials, no credential/config files, private umask,
+  systemd journal output and timeout; installing them is an explicit ongoing-job
+  approval, not automatic approval of deployment commands.
+- Daily backup keeps the existing 02:00 Asia/Tokyo timer, ≤5m random delay,
+  Persistent=true. Hourly [freshness check](../../scripts/production/check-backup-freshness.sh)
+  verifies receipt age and remote existence/integrity and publishes FreshBackup.
+  Daily failures attempt SNS; host death, missing unit, retrieval failure and SNS
+  failure require **independent CloudWatch alarms**, not only the local checker.
+- Daily configuration must match `current-release`; mismatch fails visibly rather
+  than mislabelling a backup. After future application updates, refresh the
+  reviewed operation.env application pointers/backup image, retaining the explicit
+  `PPE_DB_RELEASE` of the existing DB, and verify timer configuration.
+  DB quiesce failure or backup failure in update does not automatically restart
+  app/runner: inspect journal, preserve DB, obtain a reviewed resume/recovery decision.
+
+SNS is used for immediate detailed failure category; CloudWatch metrics/alarms are
+used for missing/stale success. CloudWatch Logs alone cannot detect a stopped host
+that emits no log. The existing Agent memory/disk settings are not silently modified.
+The systemd journal must have bounded retention; verify host journald persistence
+before relying on local logs. SNS delivery/subscription and alarm actions need
+actual post-approval tests. A monitoring outage is an error, not success.
+
+### Parameter Store registration list
+
+Console region: **Asia Pacific (Tokyo) / ap-northeast-1**. Open Systems Manager →
+Application Tools → Parameter Store (navigation labels may vary). Search each
+exact name before creating; **do not overwrite an existing parameter**. If present,
+verify owner/intended use privately and stop for review on mismatch.
+Choose Standard tier, String, plain text input. These five values are configuration
+or a **public** encryption recipient, not passwords; SecureString is unnecessary.
+
+| Exact name | Value entered by owner | Where to obtain it |
+|---|---|---|
+| `/programming-process-evaluator/prod/backup/s3-bucket` | Exact approved bucket name, not ARN/URL | S3 bucket overview |
+| `/programming-process-evaluator/prod/backup/s3-prefix` | `production/mysql` (no leading/trailing slash) | Dedicated approved backup prefix; align policies/lifecycle |
+| `/programming-process-evaluator/prod/backup/age-recipient` | One `age1…` public recipient | Trusted offline key custodian, `age-keygen -y` on private identity; never enter private identity |
+| `/programming-process-evaluator/prod/backup/kms-key-arn` | Full Tokyo customer-managed KMS **key ARN**, not alias | KMS key details |
+| `/programming-process-evaluator/prod/backup/sns-topic-arn` | Tokyo Standard SNS topic ARN | SNS topic details |
+
+Region, 02:00 schedule, local absolute directories, immutable release/image pointers,
+26h freshness window and metric namespace are local/systemd settings in
+[backup-operation.env.example](../../containers/production/backup-operation.env.example);
+do not add unnecessary SSM parameters. This file is a review example, not a file
+to source or blindly install. Future updates require pointer review.
+
+**Age private identity must never be stored under these parameters, on the normal
+EC2 instance, in its backups, in app secrets or in Git.** Keep it in an independently
+controlled encrypted offline vault with a separate recovery copy and responsible
+custodian. Store no access keys. An EC2 role able to decrypt S3 KMS ciphertext
+still cannot decrypt age without this separate identity. A customer KMS key protects
+S3 at rest, but is not the age private key.
+
+### Console procedure (owner work; not executed)
+
+1. **Inventory first.** In EC2 → Instances → target instance → Security, follow the
+   IAM role link. Confirm its actual role name (instance profile name alone is not
+   proof). In IAM review existing attached/inline policies and trust relationship.
+   Inspect S3, KMS, SNS and CloudWatch in Tokyo. Do not broaden the deployer SSO
+   role just to bypass this investigation's denied list permissions.
+2. **KMS.** If no suitable key exists, KMS → Customer managed keys → Create key:
+   symmetric, Encrypt/decrypt, single-region Tokyo. Choose a descriptive alias
+   such as `alias/ppe-backup`; select a distinct human administrator, not EC2.
+   Enable rotation if policy allows. Record key ARN privately. Preserve administrator
+   access and review key policy delegation to IAM; the writer policy alone works
+   only if the key policy permits that account/role. The writer needs GenerateDataKey
+   and Decrypt **via S3 only**, context restricted to the backup prefix. Recovery
+   role needs Decrypt via S3, not KMS administration. Do not schedule key deletion.
+3. **S3.** Reuse a suitable bucket or S3 → Create bucket, general purpose, Tokyo,
+   globally unique name, Object Ownership bucket-owner-enforced/ACL disabled,
+   all Block Public Access ON, versioning enabled. Default encryption: SSE-KMS,
+   approved key, **Bucket Key disabled** for the supplied object-ARN encryption
+   context policy. Enabling Bucket Keys requires a separately reviewed bucket-ARN
+   context and weaker prefix isolation; do not enable silently.
+4. **S3 permissions.** Bucket → Permissions → Bucket policy:
+   merge the [policy example](../../containers/production/backup-bucket-policy.json)
+   after replacing ACCOUNT_ID/BUCKET_NAME/KEY_ID and matching prefix.
+   Preserve any existing controls; do not replace a reused bucket policy wholesale.
+   Require TLS, explicit aws:kms and exact key. No public access or app credentials.
+5. **S3 retention.** Bucket → Management → Create lifecycle rule, prefix
+   `production/mysql/`, expire current versions at **30 days**, permanently expire
+   noncurrent versions 1 day after becoming noncurrent; remove expired delete
+   markers with a separate rule; abort incomplete multipart after 1 day.
+   [JSON template](../../containers/production/backup-lifecycle.json) describes this.
+   With unique keys, current expiration normally creates a delete marker on day30,
+   then noncurrent physical deletion is approximately day31 plus asynchronous
+   processing. This is **not exact 30-day guaranteed physical erasure**.
+   Stop if research policy requires a strict deadline. No Object Lock is enabled
+   by this proposal; review immutability versus deletion obligations separately.
+6. **SNS.** Reuse a suitable Standard topic or SNS → Topics → Create topic →
+   Standard, e.g. `ppe-backup-alerts`. Create Email subscription for the owner;
+   open confirmation mail and confirm. Record topic ARN. Grant writer Publish only
+   to this topic. If customer SNS SSE-KMS is required, its extra key permissions
+   must be designed separately.
+   For a new topic carrying only generic operational messages, SNS SSE is not
+   required by this template (TLS transport is used). If a reused topic already
+   has SSE, preserve it and review the extra KMS publisher/alarm permissions;
+   do not disable encryption to make a failed test pass.
+   Console publish of a generic test message and recipient receipt require
+   explicit approval because they are AWS writes.
+7. **IAM writer role.** IAM → actual EC2 role → Permissions → Create inline policy →
+   JSON. Use [writer policy](../../containers/production/backup-writer-policy.json),
+   replace placeholders/prefix, validate, review and add with owner approval.
+   It grants five exact GetParameter ARNs, prefix PutObject/GetObjectVersion,
+   narrow KMS operations, SNS Publish and namespace-constrained PutMetricData.
+   Explicit delete deny prevents other identity policies from accidentally granting
+   recovery-point deletion. No list-buckets, list-prefix, Parameter writes,
+   lifecycle edit, key administration, multipart or AccessKey creation is needed.
+   HeadObject with version uses GetObjectVersion; this also permits ciphertext
+   download, since IAM cannot distinguish HEAD from GET here. Age keeps plaintext
+   inaccessible without the offline identity.
+8. **Restore role.** Use a separate human SSO/assumable recovery role with only
+   `s3:GetObjectVersion` on the same prefix and `kms:Decrypt` via S3/context.
+   The operator selects exact keys/versions from the protected inventory/manifest.
+   Add prefix-scoped ListBucket/ListBucketVersions only if console browsing is
+   required. Do not grant restore credentials/private age identity to the writer.
+   Existing broad role grants and app/broker access to IMDS must be audited;
+   an instance role is not per-container isolation.
+9. **Parameter Store.** Create/verify the five String parameters from the table.
+   Do not change any of the existing six application secret parameters.
+10. **CloudWatch alarms.** After approved acceptance publishes metrics, CloudWatch →
+    Metrics → All metrics → `PPE/Backup` → Project=`ppe-production`.
+    Create `ppe-backup-freshness`: FreshBackup, Minimum, period1h, threshold <1,
+    2 of2 datapoints, missing data **breaching**, action approved SNS topic.
+    It catches stale/failed hourly checks and complete host/job silence.
+    Add `ppe-backup-daily-success`: BackupSuccess, Sum, period1day, threshold <1,
+    2 of2 datapoints, missing breaching, same SNS. No OK metric should be published
+    by a failed backup. Review the initial insufficient-data/alarm transition.
+    SNS actions must also be enabled and IAM/topic policy must permit CloudWatch.
+11. **Disk/host monitoring.** Confirm existing EC2 reachability and disk alarms.
+    Add/approve disk-free threshold with headroom beyond 1 GiB, memory/CPU credits
+    as needed. No local pruning is automatic in the new script; growth needs a
+    reviewed cleanup procedure after remote points are proven recoverable.
+
+Never paste private keys, backup contents, passwords or credential files into
+console logs/chat. Template JSON must contain no placeholder before installation;
+the console guide is not permission to install it now.
+
+### Cost and readiness
+
+Provisional retention changed from the earlier proposal to 30 days at owner request.
+Budget items: full encrypted dump GiB × retention/versions, S3 PUT/HEAD/GET,
+SSE-KMS key/GenerateDataKey/Decrypt requests (including hourly receipt verification),
+two custom metrics/two alarms, SNS email/publish and restore data transfer.
+Example only: daily 1 GiB × about31 days ≈31 GiB plus pre-update/orphan objects;
+actual encrypted DB size and current Tokyo prices are **unconfirmed**.
+Use AWS Pricing Calculator and account budgets; disabling Bucket Keys favors
+prefix isolation but increases KMS requests. Start S3 Standard to avoid archive
+restore delay/minimum-duration surprises. No AWS resource cost was incurred by
+local mocked tests; local Docker CPU/disk cost is separate.
+
+### Approval-gated production installation
+
+1. Review this code, commit/tag a **new operations version**, preserve old application
+   release and seven image IDs; do not modify the deployed de2b0d3 directory.
+   Recheck healthy DB/volume/current release/journal, available disk, IAM/config.
+2. After owner console changes and explicit installation approval, verify an
+   operations-only archive, place it in a new private `/var/lib/ppe/operations/<new-ops-SHA>`,
+   then atomically point `backup-current` to it. Ensure Linux bash/flock, AWS CLI v2
+   supporting checksum-mode and conditional PutObject, OpenSSL, Docker and age image
+   exist. Do not rebuild or retag the existing release images.
+3. Install a reviewed root-owned 0600 `/var/lib/ppe/operation.env` using the example,
+   with exact immutable release/Compose/image/secret/state/backup paths.
+   Unit files point only to operations outside the release. Refuse existing files
+   with unexpected content; no overwrite-by-default installation script is provided.
+4. With explicit **backup-write approval**, run one service manually and verify
+   its nonzero/zero status, private receipt, three exact S3 object versions,
+   checksums/encryption, `BackupSuccess`, journal and recipient notifications.
+   Run the read-only freshness service to publish initial `FreshBackup` before
+   selecting that metric in the console.
+   Do not proceed just because a `.sql.age` file exists. Upload/metric failure
+   requires diagnosis; leave ciphertext intact, no blind retry.
+5. With separate isolated-restore approval, complete the drill below and prove
+   data/credential-key continuity. Run synthetic update/failure regressions before
+   normal update using this tooling. Do not restart production DB to test them.
+6. After monitoring acceptance, install both service/timer pairs under
+   `/etc/systemd/system`, daemon-reload, enable/start the two timers.
+   Verify `systemctl list-timers`, next 02:00 Tokyo execution, unit exits/journal,
+   hourly FreshBackup, notification delivery and missing-heartbeat alarm.
+   Persistent=true may cause an immediate missed daily run on activation;
+   include that backup write in the approval.
+7. Resume/restore remain manual approved operations. Existing legacy journals
+   without a matching receipt must stop, not be edited or treated as backed up.
+   Agree a fresh protected pre-migration backup under the new lock if schema is
+   demonstrably at baseline; partial DDL/history needs separate recovery review.
+   If service is already quiesced, keep it so until review; do not restart it blindly.
+
+### S3 download and isolated restoration drill
+
+[download-backup.sh](../../scripts/production/download-backup.sh) retrieves the
+exact completion manifest/version, verifies its hash/KMS and referenced object
+versions, downloads ciphertext/checksum to a **new** 0700 directory and normalizes
+the sidecar basename after validating it. It never decrypts or writes DB.
+It uses a 30-day retrieval age by default; older retained points need explicit
+policy review. A completion manifest lives next to the backup and is not an
+independent signature: retain the trusted version inventory separately.
+
+After retrieval/isolated-write approvals only, on a controlled recovery host:
+
+```sh
+# Use the separate recovery SSO role; no AWS access keys and no production Docker context.
+export AWS_REGION=ap-northeast-1
+export PPE_PROJECT=ppe-production
+export PPE_BACKUP_S3_BUCKET=<approved-bucket>
+export PPE_BACKUP_S3_PREFIX=production/mysql
+export PPE_BACKUP_KMS_KEY_ARN=<exact-key-arn>
+bash scripts/production/download-backup.sh <exact-manifest-key> <exact-version> \
+  /private/recovery/point-YYYYMMDD
+# Prepare a separate empty DB with its own secrets/volume before this command.
+export PPE_PROJECT=ppe-restore-YYYYMMDD PPE_RESTORE_APPROVED=isolated-empty-db
+export PPE_COMPOSE_FILE=/private/isolated/compose.production.yml
+export PPE_SECRETS_DIR=/private/isolated/secrets
+export PPE_BACKUP_IMAGE=<verified-age-image>
+bash scripts/production/restore-isolated.sh \
+  /private/recovery/point-YYYYMMDD/backup.sql.age /private/offline/age-identity
+```
+
+The identity must be a regular 0600/0400 file retrieved by its custodian from the
+separate vault, used only on the isolated recovery host, mounted read-only into
+the transient age container, never printed. Do not transfer it to the production
+EC2. The script checks actual Docker DB project/volume identity, emptiness, SHA256,
+and full age authentication before streaming plaintext directly into isolated
+MySQL. If SQL restore later fails, partial data may remain in **that isolated DB**;
+quarantine it, diagnose, and obtain approval for a new empty isolated volume.
+Do not call Flyway clean/repair or automatically destroy/retry the failed restore.
+
+Required drill test matrix (synthetic data first; production-derived data only in
+an independently approved private recovery environment):
+
+| Check | Preparation/action | Required evidence |
+|---|---|---|
+| Full logical data | Seed synthetic users, old/new submissions, code_logs, survey/consent, custom/standard rubrics, scores, pending/completed evaluation | Pre-backup ID/content/FK manifest against restored DB; 100% expected rows/IDs/content, no orphan refs |
+| Schema integrity | Exact source release migrations, routines/triggers/events | Flyway applied rows/checksums/failures match source; validate only, no reapply |
+| Historical meaning | Old evaluation snapshot/rubric/prompt/model and teacher custom row | Old hashes/IDs/scores/scale labels unchanged; no remapping to new standard |
+| Encryption/keys | Correct/wrong/missing private identity, modified ciphertext/checksum | Authentication/tamper refusal before DB write; credential AES-key restoration separately verified without output |
+| Restore guards | Production project, wrong mount, nonempty isolated DB, bad file modes | Refusal and original DB hashes unchanged |
+| Failure handling | Simulated dump/age/PUT/HEAD/checksum/KMS/metric/config failures | Nonzero exit, no success receipt/publication, local ciphertext retained, notification/alarm observed |
+| Isolation/update | Synthetic pre-update dump, upgrade/rollback failure in another project | Existing records/Flyway history/volume retained, no DB recreation, partial history refuses resume |
+| Disaster/time | Recovery from S3 with original host unavailable | No original EC2 dependency for keys/source/images; measured RPO/RTO and successful read-only application checks |
+| Repeatability | Repeat drill into a second newly approved empty isolated DB | Same record/relationship/hash results; never overwrite previous restored DB |
+
+Backup dumps cover `ppe`, not MySQL accounts/grants, images, TLS, secret snapshots
+or credential AES key. Disaster bootstrap and secure continuity of those assets
+remain necessary. S3 existence/checksum alone is **not** a completed restore drill.
+
+### Local verification record
+
+- [backup-test.sh](../../scripts/production/tests/backup-test.sh): mocked SSM/S3/
+  SNS/CloudWatch/Docker, success/partial failures/remote mismatches/versioning,
+  download corruption, stale/provenance/credential rejection, actual Linux flock
+  exclusion and inherited descriptor. No network or AWS calls.
+- [restore-test.sh](../../scripts/production/tests/restore-test.sh): isolated restore
+  and production/wrong mount/nonempty/tampered ciphertext/wrong identity/private
+  file-mode refusal with Docker mocked.
+- [backup-systemd-test.sh](../../scripts/production/tests/backup-systemd-test.sh):
+  systemd-analyze syntax/dependency validation with inert Docker unit fixture;
+  no service installation/start. Initial validation without this fixture reported
+  absent docker.service inside the test container, not a production service failure.
+- [backup-roundtrip-test.sh](../../scripts/production/tests/backup-roundtrip-test.sh):
+  real local MySQL dump and existing age image, fresh `ppe-sim-*` source and
+  `ppe-restore-*` target, exact row IDs/code/JSON/old-new rubric references/FKs and
+  nonempty second-restore refusal. Test-only volumes/containers were removed.
+  This fixture does not represent the full V1–V23 application-schema acceptance.
+- Separate real age encrypt/decrypt roundtrip and modified-ciphertext rejection
+  passed with a disposable local identity, without outputting it.
+- Targeted existing regressions also passed: deployment recovery/state,
+  POSIX-to-Bash invocation, migration SUPER cleanup, and secret retrieval.
+  Update tests cover missing/invalid remote receipt, preflight refusal without
+  journal changes, new app with old DB pin, partial Flyway history, no duplicate
+  migration, and unchanged immutable release assets.
+- [deployment-db-config-hash-test.sh](../../scripts/production/tests/deployment-db-config-hash-test.sh)
+  passed with real local Compose config (no daemon mutations): old DB image/context
+  are preserved across new app paths. The installed Compose excludes build context
+  from its service hash, so the test separately checks the rendered context.
+
+Linux unit/mock tests use the already installed local
+`mcr.microsoft.com/playwright:v1.51.1-noble` image (bash/OpenSSL/flock/systemd-analyze),
+read-only repository mount, network none and executable private tmpfs, no Docker
+socket. macOS itself has no Linux flock/systemd. Real database roundtrip uses only
+its guarded local Docker endpoint; no production context or existing DB is used.
+
+```sh
+docker run --rm --network none --read-only \
+  --tmpfs /tmp:rw,exec,nosuid,nodev,size=128m \
+  -v "$PWD:/work:ro" -w /work --entrypoint /bin/bash \
+  mcr.microsoft.com/playwright:v1.51.1-noble -c \
+  'bash scripts/production/tests/backup-test.sh &&
+   bash scripts/production/tests/restore-test.sh &&
+   bash scripts/production/tests/backup-systemd-test.sh &&
+   bash scripts/production/tests/database-lock-test.sh &&
+   bash scripts/production/tests/deployment-recovery-test.sh &&
+   bash scripts/production/tests/deployment-state-test.sh &&
+   bash scripts/production/tests/shell-invocation-test.sh &&
+   bash scripts/production/tests/migration-privilege-cleanup-test.sh &&
+   bash scripts/production/test-fetch-secrets.sh'
+bash scripts/production/tests/backup-roundtrip-test.sh
+bash scripts/production/tests/deployment-db-config-hash-test.sh
+```
+
+All commands above passed in the final local run. Shell parse checks, JSON
+template parsing, Compose config validation and `git diff --check` also passed.
+The journal test's BSD-only permission assertion was made portable for Linux, and
+the standalone privilege test now supplies the required private state directory.
+
+Actual AWS PutObject/HeadObject checksum behavior, KMS/IAM policy enforcement,
+Parameter Store retrieval by the EC2 role, SNS delivery, missing-heartbeat alarm,
+live systemd schedule and full application-schema restore remain **unverified**
+and require approval-gated acceptance. Local mocks are not a substitute.
 
 ## Capacity planning
 

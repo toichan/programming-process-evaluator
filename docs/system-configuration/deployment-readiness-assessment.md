@@ -2,6 +2,14 @@
 
 調査日: 2026-10-06（JST）
 
+**2026-10-09追記:** 以下の初回調査表は当時の履歴であり、現在の本番状態ではない。
+初回HTTPS公開・V1〜V23・5サービスhealthyの確認は
+[本番実測記録](./production-deployment.md#observed-production-record-2026-10-09-jst)、
+業務受入は[本番システムテスト計画](./production-preparation-plan.md#本番システムテスト計画2026-10-09設計のみ)、
+現在のバックアップ不足は[改善計画](./production-deployment.md#backup-gap-and-improvement-plan)を参照する。
+公開済みを研究データ収集許可・全機能受入完了とは扱わない。
+標準ルーブリックの自動登録は本書末尾の設計案であり、実装・本番登録は未実施。
+
 ## 目的・既存文書との役割分担
 
 機能開発の完了を待たず、卒業研究用の**単一EC2**へ配置するために、人が決める条件と実装・運用準備を整理する。これは本番構成の実装、AWS構築、本番公開の承認、侵入試験の結果ではない。
@@ -519,3 +527,110 @@ Q22: 分かる利用量 / 未定
 | Step 11 | 運用点検・繰返し更新・研究終了処理 | 授業前点検、監視/費用/backup/restore、schema互換更新。保持満了時は研究抽出/backupを含め廃棄確認 |
 
 Step1〜3と機能開発は今から並行可能。Step4〜7は必要な組織承認・安全条件を満たした合成データ検証であり、全機能完成待ちではない。Step9〜10の公開承認を、検証環境へ配置できたことと混同しない。
+
+## E. 標準ルーブリック自動登録の調査・設計案（2026-10-09）
+
+**設計のみ。本番登録・seed実行・コード/SQL変更はしていない。**
+対象アプリは `0e2bfae5e23bc512f0b7cf844264d4d45a484ecc`、
+運用スクリプトは `de2b0d37fb7ccb6ecae93ce81b2e01d230034e01`。
+この領域の調査コードは対象releaseと同じ内容であることをGit差分で確認。
+本番のrubrics/evaluationsは読み取り集計でともに0だったが、今後の登録時にも
+既存評価・教員作成データが存在する前提で保護する。
+
+### 現行データ・定義・初期化
+
+| 対象 | 確認した実装・一次資料 |
+|---|---|
+| 定義の正本 | [思考力・判断力・表現力](../rubric/思考力・判断力・表現力_ルーブリック_0805.md)、[主体的に学習に取り組む態度](../rubric/主体的に学習に取り組む態度_ルーブリック_0805.md)。評価文言は転記・創作しない |
+| 識別 | [StandardRubric](../../src/main/java/entity/StandardRubric.java): title=`生徒共通標準ルーブリック`、version=`0805-2026-v1`固定、2領域、4+2観点、各5段階。資料見出しは2026.7.30、filenameは0805、DB版は上記。日付から新versionを推測しない |
+| 読み込み | [StandardRubricSource](../../src/main/java/control/student/StandardRubricSource.java)がMarkdownをパース。NFCファイル名照合、表/件数/尺度検証あり |
+| DB | [V1](../../src/main/resources/db/migration/V1__create_initial_schema.sql): rubrics→rubric_dimensions→rubric_criteria→criterion_levels。title+version、領域code、観点code、段階値の一意制約。標準登録は1/2/6/30行、system author NULL |
+| Flyway | [V15](../../src/main/resources/db/migration/V15__allow_system_rubric_author.sql)がauthor NULLを許可。[V17](../../src/main/resources/db/migration/V17__support_teacher_prompt_workflow.sql)は登録済み標準版を一部NULL下書き課題へ関連付けるのみ。定義をINSERTするmigrationではない |
+| 登録 | [registerStandardRubric](../../build.gradle)→[Bootstrap](../../src/main/java/control/student/StandardRubricBootstrap.java)→[DAO](../../src/main/java/dao/StandardRubricDao.java)。単一transactionで登録。一致時はno-op、不一致/状態違いは例外・rollback、上書きしない |
+| 現在のdeploy | [deploy-release.sh](../../scripts/production/deploy-release.sh)にrubric stageなし。運用手順でmigration後の手動tools taskを案内。Flyway完了とseed完了は独立 |
+| app起動 | [LifecycleListener](../../src/main/java/lib/mysql/DataSourceLifecycleListener.java)はDB/worker初期化のみ、標準登録しない。[tools Dockerfile](../../containers/production/Dockerfile)には正本Markdownを同梱 |
+| 開発seed | [DemoDataBootstrap](../../src/main/java/control/dev/DemoDataBootstrap.java)も標準を登録するが、ローカルDB限定・合成利用者等作成用。本番では利用禁止 |
+| 教師側利用 | [TeacherTaskDao](../../src/main/java/dao/TeacherTaskDao.java)は登録済み標準を新規課題に要求。[TeacherPromptDao](../../src/main/java/dao/TeacherPromptDao.java)は権限内の下書きを標準へ関連付ける。手動seed自体はtasksを更新しない |
+| UI | [StudentRubricControl](../../src/main/java/control/student/StudentRubricControl.java)はDBの固定標準を表示。現仕様は共通標準で、教師の任意ルーブリック編集UIは未実装/対象外。DB上の任意rubric行はそれでも保護対象 |
+
+既存registerはtitle+versionをFOR UPDATEで検査するが、DB一意制約だけで同時起動時の
+両方の成功まで保証するものではない。存在しない行の競合/deadlock等は明示失敗とし、
+同時seedはdeployment lockで排除する。DB再起動・repair等で解決しない。
+既存行のauthor、criterion_code/description/weight、尺度min/max/label等は現在の
+`find()`モデルに全て含まれないため、「一致」はDB全属性の完全一致保証ではない。
+新設計ではowner/provenanceと意味に影響する全属性を比較し、既存の教員作成行を
+標準扱いで取り込まない。これは調査で得た改善要件であり、今回の修正ではない。
+
+### 過去評価との関連と版不変の必要性
+
+- tasksとevaluationsはrubric_idを保持。evaluation_scoresはcriterion_id/
+  dimension_id/criterion_level_idを参照し、結果にはmetric名・説明等も保存される。
+  行をin-place更新すると、過去結果の表示・根拠の意味が変わり得る。
+- [EvaluationQueueDao](../../src/main/java/dao/EvaluationQueueDao.java)は評価要求時に
+  rubric IDとversion、prompt/modelを固定する。失敗再試行も元評価のrubricを使う。
+- [EvaluationWorkerDao](../../src/main/java/dao/EvaluationWorkerDao.java)はworker実行時に
+  DB定義を読み、ルーブリックを含むtask_snapshotを保存する。queue投入時と実行時の
+  間に定義変更があるとversion文字列だけでは保護できない。保存snapshotは入力追跡の
+  根拠だが、全表示・再試行がsnapshotだけを読む保証ではない。
+- 既存コードは標準version定数を1つに限定。新しい版を追加するにはparser/entity、
+  DAOのfind/active選択、課題作成/改訂、prompt生成、student表示、評価queue/
+  retry/preview/teacher表示を横断して版指定・pinを確認する必要がある。
+  定数だけ変更して自動移行する設計は不可。
+- **旧版は削除・内容更新しない。** 旧tasks/evaluationsの参照先を一括付け替えない。
+  最新既定版と利用可能な旧版を区別する。現queueはactiveを要求するので、旧課題が
+  使う版を不用意にarchivedへ変更すると評価開始が止まる。既定の切替とstatus変更は
+  同義にしない。再評価は明示的な新評価履歴として保存し旧評価を保持する。
+- モデル/外部AIの非決定性があるため再実行で同一点数を保証しない。
+  「再現性」は使用定義・prompt/model・入力・応答・根拠を復元でき、
+  過去結果の意味が変わらないこととする。
+
+### 方式比較
+
+| 方式 | 長所 | 懸念 | 判断 |
+|---|---|---|---|
+| Flyway SQL seed | schemaと同じchecksum/履歴、1回適用 | MarkdownからSQLを二重管理しやすい。rollback困難なDDLとデータ投入の境界、author/既存衝突を慎重に扱う必要 | schema追加・制約はFlyway、新しい定義の値は主方式にしない |
+| 版管理されたdeploy seed | 正本Markdown/parser/既存DAOを再利用、transaction/no-op、失敗をdeploy stageで記録 | seed版/内容hash/競合/旧課題との参照の設計、journal拡張が必要 | **推奨** |
+| app起動時登録 | deploy後の手動忘れを減らす | 複数app同時起動、通常runtimeによる暗黙DB書込、workerとの競合、起動障害とseed障害が混ざる | 採用しない。readiness確認のみ候補 |
+
+### 提案する要件と処理順
+
+追加実装前の提案要件。業務仕様の承認・更新後に実装する。
+
+| ID | 要件 / 受入条件 |
+|---|---|
+| REQ-016 | 初回migration後・app/worker起動前にrelease内の承認済み定義を登録。1/2/6/30行と内容を検証する |
+| REQ-017 | 同一seed版・同一canonical内容hashの再deployはno-opで、rubric IDと関連行ID不変。競合実行は排他または明示停止 |
+| REQ-018 | 同一identityに別内容/owner/不正状態/欠損行があれば原因を記録して停止。REPLACE/削除/上書きupsert/「既存なら成功」禁止 |
+| REQ-019 | 教員作成・編集rubric、既存tasks/evaluations/scores/入力snapshotは更新・削除しない。参照ID/内容hash不変を実DBで比較 |
+| REQ-020 | 標準変更は承認済み新versionの追加。旧版・利用中定義は不変、既定切替は新規課題向けの明示操作。過去の結果が新定義で再解釈されない |
+| REQ-021 | transaction失敗は部分登録を残さず、stage/release/seed版/エラー分類を秘密なしで記録。失敗時公開しない、無条件再試行しない |
+| REQ-022 | journalのseed完了とDBの内容検証を両方確認。DBcommit後/記録前に中断しても再開で同一内容を確認しno-op。古いformat=2 journalを手動編集せず互換設計する |
+| REQ-023 | 全version選択経路とqueueのpin、旧評価表示・明示再評価をテスト。1回目/2回目/旧→新更新で旧評価のID・点数・尺度文言・snapshot不変 |
+
+候補手順: 非破壊DB preflight → 書込/DDL調整と**検証済みbackup** →
+schema migration/validate → `seed_started` → release toolsによる
+版付きseed + DB再検証 → `seed_complete` → app/worker → readiness/smoke → publish。
+新規initialとupdateの双方に適用する。published直後の今回のDBへ登録するのは、
+schemaが既に存在するため**別途承認・backup付きの保守作業**とする。
+今回の空DB時backup例外を今後へ流用しない。
+
+実装候補はsystem-only stable key、seed version、canonical内容hash、source commit、
+DB rubric ID、登録時刻を保存するseed registry/manifestとunique制約。
+schemaは新Flywayで追加し、既存SQL/immutable releaseは変更しない。
+author NULLだけをowner識別に使わず、既存データの誤認・教師行との衝突を拒否する。
+同じ定義を別versionとして重複投入する場合の扱いはレビューで明示する。
+承認済み新基準がまだないため、v2の評価基準や新しい点数体系は作らない。
+
+### 検証計画・実装開始条件
+
+既存の[SourceTest](../../src/test/java/control/student/StandardRubricSourceTest.java)、
+[DatabaseTest](../../src/test/java/control/student/StandardRubricDatabaseTest.java)を
+隔離MySQLで拡張する。これらはDBテスト用の破壊的cleanupがあるため、本番実行禁止。
+seed無し初回、同一定義の再実行、故意の不一致・欠損・別owner、同時実行、
+commit直前/直後の中断、2版共存、教員custom行、旧/新tasks・評価・pending queueを用意し、
+失敗時0部分行、成功時重複0、旧データ/関連ID不変を照合する。
+定義変更試験は合成fixtureのみで、承認済み標準の正本は変更しない。
+
+必要な合意: 標準版の新規課題への既定切替方法、既存課題は旧版固定、
+再評価の明示承認、seed失敗時の公開停止、バックアップ要件。
+この文書の提案は設計レビュー用であり、本番登録や実装の追加承認を待つ。
