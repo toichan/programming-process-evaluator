@@ -2,6 +2,22 @@
 
 秘密情報・実際の生徒データ・研究データは記載しない。解消後も履歴を保持する。
 
+## 2026-10-10 07:47 JST: GitHub hosted CI初回受入
+
+- 対象: CI run `38000948714`、commit `95477afa96acd8d7c6651bd114583d1fb943906d`。
+- 手順: CI専用ブランチへのpushでJava/Shell jobを実行。
+- 期待: 両job成功、18 Shell suites完了、artifact保存。
+- 実結果: Java/buildと両artifact保存は成功。Shellは15スイート成功後、
+  db-admin-binary-mode-testが`output/arguments: Permission denied`、exit2で停止。
+  残り2スイートは未実施。失敗runを受入成功として扱わない。
+- 原因: Linux bind mount上の合成MySQL client出力がroot所有/0600で、
+  runnerユーザーのgrepから読めない。macOS Dockerの共有方式では再現しなかった。
+- 対応: root実行が必要なfixtureは維持し、コンテナ内でテスト出力1ファイルの
+  所有者を呼出元UID/GIDへ戻す。本番DB-admin・安全機構・秘密情報扱いは変更なし。
+- 影響: disposable hosted runnerと合成fixtureのみ。AWS・本番への接続なし。
+- 再検証: ローカル対象テストと構文検証後、追加commitをpushして全CIを再実行する。
+- 未確認: 修正版のhosted runner受入結果は後続runで確認する。
+
 ## 2026-10-10 07:34 JST: CI導入の初回ローカル検証
 
 - 対象: AWSに接続しないJava/Shell CI。既存本番・開発DBの操作なし。
