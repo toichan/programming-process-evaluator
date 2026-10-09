@@ -61,6 +61,14 @@ docker compose down
 
 DB データは名前付きボリュームに保持されます。DB データも削除する場合は、対象を確認したうえで `docker compose down -v` を実行してください。
 
+## CI（AWS接続なし）
+
+[CI workflow](.github/workflows/ci.yml)はpushとPull RequestでJava 21 /
+Gradle 8.10.2のbuild・JUnit、Shell構文、デプロイ回帰18スイートを実行します。
+AWS認証、本番Secrets、本番DB・EC2接続、デプロイは行いません。
+個別環境が必要なJUnitのskipと、Shellの必須依存関係・ローカル実行方法は
+[CI運用手順](docs/system-configuration/continuous-integration.md)を参照してください。
+
 ## ドキュメント
 
 仕様、設計、現在の実装状況、機能別の検証記録は[docs/README.md](docs/README.md)から参照できます。

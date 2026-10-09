@@ -2,6 +2,37 @@
 
 秘密情報・実際の生徒データ・研究データは記載しない。解消後も履歴を保持する。
 
+## 2026-10-10 07:34 JST: CI導入の初回ローカル検証
+
+- 対象: AWSに接続しないJava/Shell CI。既存本番・開発DBの操作なし。
+- 手順: Java21/Gradle8.10.2 containerで
+  `gradle --no-daemon clean build --warning-mode all`、
+  `bash scripts/ci/run-shell-tests.sh <new-private-session-directory>`。
+- 期待: Javaの非opt-inテスト成功、Shell回帰18スイート成功。
+- 実結果: Gradleは392件中6失敗/132skip、exit1。
+  AuthenticationFilterTestのrequest proxyがboolean `isSecure()`にnullを返し、
+  現行HTTPS判定でNullPointerException。Shellは2スイート成功後、
+  operation-config-sync-testでexit1。
+- 原因: CI専用Shell imageにホストUIDのpasswd entryがなく、非root実行時の
+  `id -un`を使う所有者検証を満たせない。Java側は既存fixture不足。
+- 対応: テストrequestをsecureとして明示し、test-only imageへ実行UIDを登録。
+  本番AuthenticationFilter、HTTPS要求、所有者検証、deploy/backup安全条件は不変。
+  従来のShell runner既定image/root実行も保持し、CI image選択時だけ非root実行。
+- 再検証: 対応後に全Java/Shell回帰を再実行する。結果はCI手順の検証記録へ記載。
+- 第2回検証: Javaは107スイート/392件、260成功/0失敗/132skip、build exit0。
+  Shellは11スイート成功後、backup-systemd-testで`systemd-analyze: command not found`
+  （exit127）。従来Linux imageが提供していたunit構文検証用systemdをCI専用imageに
+  追加する。systemdを起動せず、inert fixtureに対するverifyのみ実行する。
+- 第3回Shell検証: systemd導入後のtimer定義verifyが`Asia/Tokyo`を解釈できずexit1。
+  最小Ubuntu imageにはtzdataが含まれなかった。CI専用imageへtzdataを追加し、
+  OnCalendarや本番timer定義は変更しない。
+- 最終再検証（07:39〜07:40 JST）: unit verify単独exit0、その後18スイート/
+  144 assertion groups、失敗0/skip0、統合wrapper exit0。
+  全JUnitは上記260成功/132skip/失敗0を維持。fixture不足・依存不足は解消。
+  ローカルDockerの古いCLI plugin警告とGradleのWarPluginConvention非推奨警告は
+  検証を妨げない既存警告として残す。GitHub実runnerは未確認。
+- 未解決: GitHub hostedでの初回実行はpush後に必要。今回commit/pushなし。
+
 ## 2026-10-10 00:20以降 JST: デプロイ補強のローカル実装・回帰
 
 - 対象: production deployment/backup/receipt/TLS参照同期。AWS接続・本番変更なし。

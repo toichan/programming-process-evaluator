@@ -7,6 +7,7 @@
 | 目的 | 正本・入口 |
 |---|---|
 | 開発環境の起動と日常操作 | [リポジトリREADME](../README.md)、[AGENTS.md](../AGENTS.md) |
+| GitHub Actions CI・テスト依存・skip範囲 | [AWS接続なしのCI運用手順](./system-configuration/continuous-integration.md) |
 | 機能要件・制約・優先度 | [機能仕様書](./function-specification.md) |
 | 画面と画面間の導線 | [画面遷移図](./screen-flow-diagram.md) |
 | 画面デザイン・操作イメージ | [画面プロトタイプ](../screen-flow-diagram/webapp/) |

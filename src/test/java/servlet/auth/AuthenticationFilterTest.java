@@ -145,6 +145,7 @@ class AuthenticationFilterTest {
 							case "getRequestURI" -> "/ppe" + path;
 							case "getServerName" -> host;
 							case "getServerPort" -> 8080;
+							case "isSecure" -> true;
 							case "getMethod" -> method;
 							case "getQueryString" -> "view=list&q=%E9%AB%98%E6%A0%A1";
 							case "getSession" -> user == null ? null : session;

@@ -1,0 +1,95 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  AWS_EC2_METADATA_DISABLED: "true"
+  AWS_SHARED_CREDENTIALS_FILE: /dev/null
+  AWS_CONFIG_FILE: /dev/null
+
+jobs:
+  java:
+    name: Java build and tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    container:
+      image: gradle:8.10.2-jdk21
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: "1"
+      DB_NAME: ppe_ci_no_database
+      DB_USER: synthetic_ci
+      DB_PASSWORD: synthetic-ci-not-a-real-secret
+      PPE_ENV: simulation
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Build and run JUnit
+        run: gradle --no-daemon clean build --warning-mode all
+      - name: Summarize JUnit results
+        if: ${{ always() }}
+        shell: bash
+        run: bash scripts/ci/summarize-junit.sh build/test-results/test >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload test reports
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: junit-reports
+          path: |
+            build/reports/tests/test/
+            build/test-results/test/
+          if-no-files-found: error
+          retention-days: 7
+
+  shell:
+    name: Shell syntax and deployment regressions
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Install test-only tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y age jq curl openssl util-linux dash perl
+      - name: Check Shell syntax and CI harness
+        run: |
+          bash scripts/ci/check-shell-syntax.sh
+          bash scripts/ci/tests/reporting-test.sh
+          bash scripts/ci/tests/runner-gates-test.sh
+      - name: Prepare isolated test images
+        run: bash scripts/ci/prepare-shell-tests.sh
+      - name: Run all deployment regressions
+        run: bash scripts/ci/run-shell-tests.sh "$RUNNER_TEMP/ppe-ci-shell-results"
+      - name: Publish Shell summary
+        if: ${{ always() }}
+        run: |
+          if test -f "$RUNNER_TEMP/ppe-ci-shell-results/summary.txt"; then
+            echo '```text' >> "$GITHUB_STEP_SUMMARY"
+            cat "$RUNNER_TEMP/ppe-ci-shell-results/summary.txt" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Shell regression runner did not produce results." >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+      - name: Upload synthetic test logs
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: shell-regression-results
+          path: |
+            ${{ runner.temp }}/ppe-ci-shell-results/*.log
+            ${{ runner.temp }}/ppe-ci-shell-results/summary.txt
+          if-no-files-found: error
+          retention-days: 7

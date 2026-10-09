@@ -2,6 +2,11 @@
 
 調査日: 2026-10-06（JST）
 
+**2026-10-10 CI追記:** 本書の「workflowなし」は調査時点の記録。
+AWS接続なしのCI workflowをローカル実装・検証した。
+[CI運用手順](./continuous-integration.md)に対象テスト・skip・検証結果を記載する。
+GitHub実行はpush後に確認する。AWS向けCD/OIDC/本番承認は今回未実装。
+
 **2026-10-09追記:** 以下の初回調査表は当時の履歴であり、現在の本番状態ではない。
 初回HTTPS公開・V1〜V23・5サービスhealthyの確認は
 [本番実測記録](./production-deployment.md#observed-production-record-2026-10-09-jst)、
