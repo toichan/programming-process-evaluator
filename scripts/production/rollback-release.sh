@@ -5,6 +5,8 @@ set +x
 scripts=$(cd "$(dirname "$0")" && pwd)
 source "$scripts/operation-common.sh"
 source "$scripts/deployment-state.sh"
+source "$scripts/database-preflight.sh"
+source "$scripts/sync-operation-config.sh"
 [[ "${PPE_SCHEMA_POLICY:-}" = backward-compatible ]] || {
     echo "Rollback requires an explicit compatibility review of the CURRENT database." >&2
     exit 1
@@ -26,6 +28,7 @@ current_step=preflight
 
 fresh_rollback=true
 recovering_failed_update=false
+already_active_rollback=false
 if [[ -f "$state_file" ]]; then
     [[ "$(state_value format)" = 2 ]] || { echo "Unknown deployment state format; stop for manual review." >&2; exit 1; }
     old_mode=$(state_value mode)
@@ -37,8 +40,7 @@ if [[ -f "$state_file" ]]; then
             exit 1
         }
         if [[ "$old_mode" = rollback && "$deployment_release" = "$active_before" ]]; then
-            echo "This rollback release is already active."
-            exit 0
+            already_active_rollback=true
         fi
     elif [[ "$old_mode" = rollback && "$old_release" = "$deployment_release" ]]; then
         deployment_previous=$(state_value previous)
@@ -67,6 +69,57 @@ on_failure() {
 trap on_failure ERR
 
 dc config --quiet
+verify_source_manifest "$release" "${PPE_SOURCE_MANIFEST_FILE:-$release/source.sha256}"
+verify_existing_database
+preflight_operation_configs "$release" "$PPE_DB_SOURCE_DIR" "${PPE_DB_RELEASE:-$deployment_release}"
+verify_operation_resource_paths
+verify_tls_operation_wrapper
+if [[ "$already_active_rollback" = true ]]; then
+    verify_operation_configs "$release" "$PPE_DB_SOURCE_DIR" "${PPE_DB_RELEASE:-$deployment_release}"
+    verify_five_services
+    bash "$scripts/smoke.sh"
+    echo "This rollback release is already active and verified."
+    exit 0
+fi
+active_context="$(dirname "$release")/$active_before"
+if ! verify_operation_configs "$active_context" "$PPE_DB_SOURCE_DIR" "${PPE_DB_RELEASE:-$deployment_release}" >/dev/null 2>&1; then
+    if [[ "$recovering_failed_update" != true || $(stage_index "$old_phase") -lt 90 ]] \
+        || ! verify_operation_configs "$(dirname "$release")/$old_release" "$PPE_DB_SOURCE_DIR" "${PPE_DB_RELEASE:-$deployment_release}"; then
+        echo "Operation references disagree with the recorded rollback source." >&2; exit 1
+    fi
+fi
+if [[ "$recovering_failed_update" = true ]]; then
+    [[ "$(state_value migration_attempted)" != yes ]] || {
+        : "${PPE_ROLLBACK_COMPATIBILITY_REFERENCE:?Review partial/current schema compatibility before app rollback}"
+    }
+    cp "$state_file" "$PPE_STATE_DIR/failed-update-$(date -u +%Y%m%dT%H%M%SZ)-$$.state"
+fi
+: "${PPE_ROLLBACK_COMPATIBILITY_REFERENCE:?Pin a private reviewed CURRENT schema compatibility reference}"
+[[ "$PPE_ROLLBACK_COMPATIBILITY_REFERENCE" = /* && -f "$PPE_ROLLBACK_COMPATIBILITY_REFERENCE" \
+    && ! -L "$PPE_ROLLBACK_COMPATIBILITY_REFERENCE" \
+    && -z "$(find "$PPE_ROLLBACK_COMPATIBILITY_REFERENCE" -prune \( ! -perm 0600 -o ! -user "$(id -u)" \) -print)" ]] || {
+    echo "Rollback compatibility reference is missing or unsafe." >&2; exit 1;
+}
+reference_value() {
+    awk -F '=' -v k="$1" '$1==k {n++; value=$2} END {if(n!=1) exit 1; print value}' "$PPE_ROLLBACK_COMPATIBILITY_REFERENCE"
+}
+current_history_hash=$(dc exec -T db sh /opt/ppe/db-admin.sh --skip-column-names <<'SQL' | openssl dgst -sha256 | awk '{print $NF}'
+SELECT CONCAT(COALESCE(version,''),'|',script,'|',COALESCE(checksum,''),'|',success)
+FROM ppe.flyway_schema_history ORDER BY installed_rank;
+SQL
+)
+[[ "$(reference_value source_release)" = "$active_before" \
+    && "$(reference_value target_release)" = "$deployment_release" \
+    && "$(reference_value source_container)" = "$PPE_RECOVERY_DB_CONTAINER_ID" \
+    && "$(reference_value history_hash)" = "$current_history_hash" \
+    && "$(reference_value compatible)" = yes ]] || {
+    echo "Rollback review does not match the CURRENT DB and selected release." >&2; exit 1;
+}
+if [[ -f "$state_file" ]]; then
+    state_evidence="$PPE_STATE_DIR/state-before-rollback-$(source_hash "$state_file")"
+    [[ ! -L "$state_evidence" ]] || { echo "Unsafe rollback evidence path." >&2; exit 1; }
+    cp "$state_file" "$state_evidence"
+fi
 if [[ "$fresh_rollback" = true ]]; then
     write_state prepared
     record_event preflight started
@@ -121,7 +174,7 @@ stage_nginx() {
     dc exec -T nginx nginx -t
     dc exec -T nginx nginx -s reload
 }
-stage_smoke() { bash "$scripts/smoke.sh"; }
+stage_smoke() { verify_five_services; verify_existing_database; bash "$scripts/smoke.sh"; }
 
 run_stage quiesce stage_quiesce
 run_stage broker stage_broker
@@ -133,6 +186,8 @@ if ! stage_complete published; then
     write_state publish_started
     record_event publish started
     run_failpoint before-publish
+    sync_operation_configs "$release" "$PPE_DB_SOURCE_DIR" "${PPE_DB_RELEASE:-$deployment_release}"
+    verify_operation_configs "$release" "$PPE_DB_SOURCE_DIR" "${PPE_DB_RELEASE:-$deployment_release}"
     publish_state "$deployment_release" backward-compatible
     write_state published
     record_event publish complete

@@ -2,7 +2,26 @@
 
 ## 状態と承認境界
 
-2026-10-09のPhase 2はローカル実装・試験のみ。本番適用は未実施。
+### 2026-10-10: app更新との連携補強（ローカルのみ）
+
+デプロイ/rollback時にTLS専用環境のrelease・Compose・DB参照を同期するため、
+リポジトリ版wrapperは配信ディレクトリの親にある
+`.ppe-tls-operation.lock`をFD8で取得し、環境読込からCertbot終了まで保持する。
+デプロイ側も同じlockを保持する。競合時はCertbot/ACME/hookを起動せず非0終了する。
+既存hookの`.ppe-tls-renew-lock`と併用し、証明書配置の復旧契約は維持する。
+
+これは本番配置済み`3c416a2e...`の受入記録を変更するものではない。
+そのimmutable資産を上書きせず、新しい固定版へwrapperを配置し、
+serviceの実際のExecStart・wrapper hash・環境パスを確認する別途承認が必要。
+デプロイのproduction preflightは未対応wrapperや稼働中Certbotを拒否する。
+Certbotのconfig/work/log、証明書・秘密鍵、ACME webroot、timer scheduleは変更しない。
+環境同期・途中失敗時の復旧は[デプロイ補強契約](production-deployment.md#update-hardening-2026-10-10-jst-local-only)を参照。
+
+2026-10-09のPhase 2はローカル実装・試験済み。Phase 3の本番配置・
+非稼働設定検証は同日23:59 JSTに完了。2026-10-10 00:04 JSTに承認済みの
+hook付きstaging dry-run 1回と本番hook/reload受入に成功。
+00:07 JSTの追加承認後、00:08 JSTにtimerをenabled/activeへ復帰。
+追いつき実行exit0と次回予定を確認し、自動更新設定の受入完了。
 既存のCertbot 2.9.0、`ppeval` lineage、`certbot.timer`を継続する。
 初回発行スクリプトは再実行しない。AWSリソース・IAM・本番DB・
 immutable application release・バックアップ設定を変更しない。
@@ -10,7 +29,117 @@ immutable application release・バックアップ設定を変更しない。
 本番適用には、専用運用資産と環境ファイル・service drop-inの配置、
 `daemon-reload`、既存timerが修正serviceを自動実行することへの承認が必要。
 ACME staging通信を伴うdry-run、配信用コピー更新とNginx reloadは別途承認が必要。
-timerの再設定・再起動、Nginx停止・再起動、EC2再起動はこの手順に含めない。
+2026-10-09 23:56 JSTの承認により、実更新試験まで予期せぬ自動起動を防ぐため
+timerを一時停止・無効化した。元のenabled/activeを記録し、
+試験成功後に明示承認のもと復帰する。timerのschedule編集、
+Nginx停止・再起動、EC2再起動はこの手順に含めない。
+
+## Phase 3配置記録（2026-10-09 23:59〜2026-10-10 00:00 JST）
+
+- 対象: account `024378233912`、region `ap-northeast-1`、
+  instance `i-0ffd69e8f390bd396`をIMDSで直前再確認。
+- 配布元: main/#44 merge `3c416a2e0a36c0e800f26fc5f472834387cf1c3b`。
+  Phase 2の5配布ファイル・手順・テストと一致、作業前worktree clean。
+- 配布archive SHA-256:
+  `9f73584e4dfbb1e373c8338f6ef45c835cc49522fb6bad1120a17678f5f8b6e2`。
+  SSM対話session経由で転送し、EC2でもarchiveと5ファイルを照合PASS。
+  証明書・秘密鍵・実設定はarchiveへ含めず、S3転送なし。
+- 固定配置先: `/var/lib/ppe/tls-operations/3c416a2e0a36c0e800f26fc5f472834387cf1c3b`。
+  root:root、directories 0700、files 0600。
+  `current`は当該固定版への新規symlink。既存app releaseは変更しない。
+- 専用設定: `/var/lib/ppe/tls-operation.env`、root:root 0600。
+  SHA-256 `aefef315760963173dda5ef7e353be3c23035f7510d3bba6706c103fb6dfc158`。
+  app/DB releaseともに`0e2bfae5e23bc512f0b7cf844264d4d45a484ecc`。
+  既存secret snapshotのパスだけを参照し、secretの値を含めない。
+- drop-in: `/etc/systemd/system/certbot.service.d/ppe-renewal.conf`、
+  root:root 0644、SHA-256
+  `533a1c7a126d78523504842fffc78365bf69124e2540bb0183d2ef3ceeb269af`。
+  専用設定/drop-inは同一filesystemのstagingからhard linkで新規配置。
+  既存ファイルの上書きなし。
+- private退避・記録:
+  `/var/lib/ppe/tls-stage3-3c416a2e-20261010-placement/before`。
+  root:root 0700、systemd元定義・renewal設定・配信ペア・timer/runtime記録は0400。
+  秘密鍵はEC2内だけでコピー、表示・外部転送なし。元ファイルとのcmp PASS。
+- 実行結果: wrapper `--check`、`systemd-analyze verify --man=no certbot.service`、
+  `systemctl daemon-reload` PASS。SSM本処理と独立した読取再検証はいずれも
+  `REMOTE_EXIT=0`。新ExecStartは`/bin/bash`から固定運用版wrapper/専用設定を呼ぶ。
+  serviceはinactive/dead。renew/hook/reloadは未実行。
+- timerは作業前enabled/active(waiting)、予定2026-10-10 04:30:24 JST、
+  `Persistent=yes`。stop/disable後はdisabled/inactive(dead)で次回予定なし。
+  schedule/unit本体を編集せず、再起動してもtimerが自動再開しない状態で待機。
+- 保護確認: 前後5コンテナのID/image/StartedAt/health/mounts、DB Volume、
+  deployment state、Compose、backup設定hashとbackup timers状態が一致。
+  配信証明書・秘密鍵、Certbot renewal設定、vendor service/timer本文もcmp一致。
+  配置開始後のcertbot.service journal entriesは0、Certbot process/hook lockなし。
+  student/teacher正式login各HTTPS200・信頼検証成功。期限2027-01-06 16:22:08 JST不変。
+- 残り: ACME staging + active証明書hook反映を1回の`--dry-run-deploy`で
+  検証する別承認と、成功後のtimer復帰承認。通常renew/実再起動試験は未実施。
+
+## 最終検証記録（2026-10-10 00:04 JST）
+
+- 00:02 JSTのユーザー承認に従い、直前のaccount/instance/region、
+  5ファイルhash・専用設定・drop-in、5healthy、timer disabled/inactive、
+  既存配信ペアとprivate退避一致、lockなしを確認。
+- `renew-tls.sh /var/lib/ppe/tls-operation.env --dry-run-deploy`を
+  **00:04:21〜00:04:30 JSTに1回のみ**実行、exit0。
+  `all simulated renewals succeeded`とhookの構文検査/reload成功メッセージを確認。
+  Certbot logで`acme-staging-v02.api.letsencrypt.org`の使用を読取確認。
+  本番ACMEによる実発行・更新、追加dry-runは行わない。
+- 実行記録は配置staging内の`dry-run-once`（0700）、`output.log`はroot:root 0600。
+  attemptディレクトリを新規作成する方式で、同じ実行スクリプトの再実行を拒否。
+  ログ全量・秘密情報は表示しない。
+- hook退避: `/var/lib/ppe/tls-private/.ppe-tls-before-renew.7QE7o9`。
+  directory 0700、退避秘密鍵0400。配置時の退避・更新前ペアとのcmp一致。
+  dry-runはactive証明書を再配信し、staging証明書は配置しない。
+- student/teacher正式login各HTTPS200・信頼検証成功。
+  公開HTTPSで配信されたfingerprintは配信ファイルと一致。
+  SHA-256 fingerprint
+  `FF:11:34:28:29:DA:BD:A0:CF:07:DA:3C:01:DC:7E:F5:74:C9:53:84:8E:48:51:7E:B2:60:8A:30:2D:84:83:5A`、
+  期限2027-01-06 16:22:08 JSTは不変。証明書/秘密鍵の公開鍵一致。
+- runtime snapshot前後一致: 5healthy、container ID/image/StartedAt/mounts、
+  DB Volume、deployment state、Compose、backup設定hash・backup timers状態。
+  Nginx停止・再起動・再作成、DB/アプリ/backup設定変更なし。
+- 本試験と独立した読取確認はいずれも`REMOTE_EXIT=0`。
+- **timer復帰HOLD**: 永続stampは2026-10-09 08:14:23 UTC（17:14:23 JST）、
+  calendarは00/12 UTC、`Persistent=true`、`RandomizedDelaySec=43200`。
+  stampより後の12:00 UTC（21:00 JST）のcalendar eventが経過しているため、
+  再開するとcatch-upの対象になり得る。以前の04:30:24 JST予定が保持される保証や、
+  最初の起動が即時にならない保証はない。ユーザーの「予期せぬ即時起動の
+  可能性があるなら再開しない」条件に従い、enable/startは実行しない。
+- calendarのみの次回基準は2026-10-10 00:00 UTC（09:00 JST）だが、
+  停止中のため**有効な次回実行予定はない**。基準時刻と実行予定を混同しない。
+- 残作業: 想定内のcatch-up通常renew実行を含むtimer再開の追加承認を得るか、
+  別承認のもとcatch-up回避方法を検討する。stampを書換え/削除しない、
+  Persistent/scheduleも勝手に変更しない。実更新テストは成功したが
+  自動運用再開は未完了。試験を再実行する必要はない。
+
+## timer復帰・自動運用受入（2026-10-10 00:08 JST）
+
+- ユーザーは00:07 JSTにPersistent catch-upを了承し、timer復帰を承認。
+  対象IMDS、5ファイルhash、専用設定/drop-in、ExecStart、renewal設定、
+  配信ペア/退避、両HTTPS、5healthy、lockなしを直前に確認。
+- `systemctl enable certbot.timer`、`systemctl start certbot.timer`を各1回実行。
+  手動renew、追加dry-run、schedule/stamp変更、Nginx停止・再起動なし。
+- timerによる追いつき実行: **00:08:17〜00:08:18 JST**、
+  `Result=success`、`ExecMainStatus=0`（exit0）。
+  `ExecMainCode=1`はsystemdのCLD_EXITEDでありexit1ではない。
+- 当該Certbot実行ログは証明書が`not yet due for renewal`であることを確認。
+  当該ログsectionにERROR/CRITICAL/Tracebackなし、当該service journalの
+  warning/error entriesは0。秘密情報を含むログ全量は表示しない。
+  本実行では期限前のため証明書更新・hook再実行を行わない。
+- 最終timerは**enabled/active(waiting)**、
+  次回予定 **2026-10-10 17:39:34 JST（08:39:34 UTC）**。
+  ランダム遅延を含む観測値であり、将来の各回の固定実行時刻ではない。
+- 両正式login HTTPS200、trust検証成功、公開fingerprintと配信ファイル一致。
+  証明書・秘密鍵の公開鍵一致、Certbot管理証明書と配信証明書一致、
+  配置前ペアとのcmp一致。期限2027-01-06 16:22:08 JST不変。
+- 5コンテナhealthy、ID/image/StartedAt/mounts、DB Volume、
+  deployment state、Compose、backup設定hash・backup timers状態は前後一致。
+  復帰と独立したログ読取確認の両方で`REMOTE_EXIT=0`。
+- **受入判定: TLS自動更新設定は完了**。正しいlineageの自動処理、
+  staging実更新試験、本番hook/reload、HTTPS、永続unit有効化を確認。
+  将来の本番ACMEでの期限到来時実更新と実EC2再起動は今回実施していない。
+  運用ではtimer/service結果、証明書期限、private退避容量を継続確認する。
 
 ## 資産・契約
 
@@ -115,19 +244,16 @@ systemctl list-timers --all certbot.timer
 ```
 
 `--check`はDocker設定解析のみ。service startを行わない。
-drop-inを読み込むと既存active timerの次回実行から新しい更新経路が動く。
-この自動実行の影響も配置承認の対象として説明する。
+実更新試験前はtimerを停止・無効化しておく。drop-inを読み込み、
+後でtimerを復帰すると次回から新しい更新経路が動く。
+復帰時に`Persistent=true`による未実行分の即時/遅延起動があり得るので、
+復帰自体を実更新の承認範囲として説明する。
 
 ## 限定更新試験（外部通信・reload別承認後）
 
-最初はhookを実行しないACME staging dry-runを1回:
-
-```sh
-sudo /bin/bash /var/lib/ppe/tls-operations/current/scripts/production/renew-tls.sh \
-  /var/lib/ppe/tls-operation.env --dry-run
-```
-
-成功後、active証明書の配信用コピー更新・reloadを伴う試験を1回:
+2026-10-09の依頼はdry-run 1回。実行直前に別承認を得て、
+ACME staging検証とactive証明書の配信用コピー更新・reloadを
+同一のhook付きdry-run 1回で検証する。通常dry-runを重ねて実行しない。
 
 ```sh
 sudo /bin/bash /var/lib/ppe/tls-operations/current/scripts/production/renew-tls.sh \
@@ -139,6 +265,20 @@ hook対象lineage/SANと配信fingerprintを照合し、両ドメインのHTTPS�
 HTTP redirect、Nginx/container health、container ID/StartedAt、
 DB/Volume/stateが不変であることを確認する。設定永続化の確認は実再起動試験とは
 区別する。実EC2再起動は今回の承認範囲外。
+
+試験成功後、両HTTPS/health/配信fingerprint/退避と保護情報を確認し、
+復帰承認を得て元のenabled/activeへ戻す:
+
+```sh
+sudo systemctl enable certbot.timer
+sudo systemctl start certbot.timer
+systemctl is-enabled certbot.timer
+systemctl is-active certbot.timer
+systemctl list-timers --all certbot.timer
+```
+
+2026-10-10 00:08 JSTに追加承認のもと実行済み（上記復帰記録参照）。
+失敗時はtimer disabled/inactiveを維持し、秘密情報を除外して原因を調査する。
 
 ## 復旧・保護
 

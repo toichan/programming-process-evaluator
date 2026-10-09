@@ -44,7 +44,7 @@ backup_aws s3api get-object --bucket "$PPE_BACKUP_S3_BUCKET" --key "$key" \
 cp "$stage/manifest" "$stage/receipt"
 printf 'manifest_key=%s\nmanifest_version=%s\nmanifest_hash=%s\nmanifest_size=%s\nmanifest_base64=%s\n' \
     "$key" "$version" "$hash" "$size" "$b64" >> "$stage/receipt"
-unset PPE_BACKUP_RELEASE PPE_BACKUP_BASELINE
+unset PPE_BACKUP_RELEASE PPE_BACKUP_BASELINE PPE_BACKUP_DEPLOYMENT_ID
 export PPE_BACKUP_MAX_AGE_SECONDS=${PPE_BACKUP_MAX_AGE_SECONDS:-2592000}
 verify_backup_receipt "$stage/receipt"
 for kind in data checksum; do

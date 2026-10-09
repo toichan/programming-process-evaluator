@@ -123,6 +123,13 @@ else
 fi
 MOCK
 chmod 0700 "$root/bin/aws" "$root/bin/docker"
+if [[ -n "${PPE_BACKUP_MOCK_EXPORT_DIR:-}" ]]; then
+    [[ "$PPE_BACKUP_MOCK_EXPORT_DIR" = /* && -d "$PPE_BACKUP_MOCK_EXPORT_DIR" \
+        && ! -L "$PPE_BACKUP_MOCK_EXPORT_DIR" \
+        && -z "$(find "$PPE_BACKUP_MOCK_EXPORT_DIR" -prune \( ! -perm 0700 -o ! -user "$(id -u)" \) -print)" ]] || exit 1
+    cp "$root/bin/aws" "$PPE_BACKUP_MOCK_EXPORT_DIR/aws"
+    exit 0
+fi
 bash "$scripts/backup.sh" > "$root/log" 2>&1
 test -s "$root/state/last-successful-backup.receipt"
 bash "$scripts/verify-backup-receipt.sh" "$root/state/last-successful-backup.receipt" >> "$root/log" 2>&1
@@ -144,6 +151,31 @@ test "$metrics_before" = "$(sha256sum "$root/metrics")"
 test "$notifications_before" = "$(sha256sum "$root/notified")"
 source "$scripts/backup-common.sh"
 load_backup_config
+export PPE_BACKUP_DEPLOYMENT_ID=11111111111111111111111111111111
+export PPE_BACKUP_SOURCE_RELEASE="$PPE_RELEASE" PPE_BACKUP_TARGET_RELEASE=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+export PPE_BACKUP_SOURCE_CONTAINER="$(printf 'a%.0s' {1..64})"
+export PPE_BACKUP_SOURCE_VOLUME="${PPE_PROJECT}_database"
+export PPE_BACKUP_SOURCE_VOLUME_CREATED=2026-01-01T00:00:00Z
+export PPE_BACKUP_HISTORY_HASH="$(printf '1%.0s' {1..64})"
+export PPE_BACKUP_INVENTORY_HASH="$(printf '2%.0s' {1..64})"
+export PPE_BACKUP_RECOVERY_REFERENCE_HASH="$(printf '3%.0s' {1..64})"
+export PPE_BACKUP_RECOVERY_AGE_RECIPIENT="$PPE_BACKUP_AGE_RECIPIENT"
+bash "$scripts/backup.sh" > "$root/log" 2>&1
+bash "$scripts/verify-backup-receipt.sh" "$root/state/last-successful-backup.receipt" >> "$root/log" 2>&1
+for field in deployment_id source_container source_release target_release source_volume source_volume_created history_hash inventory_hash recovery_reference_hash age_recipient; do
+    cp "$root/state/last-successful-backup.receipt" "$root/tampered.receipt"
+    sed "s/^${field}=.*/${field}=wrong/" "$root/tampered.receipt" > "$root/state/invalid.receipt"
+    if bash "$scripts/verify-backup-receipt.sh" "$root/state/invalid.receipt" > "$root/log" 2>&1; then
+        echo "FAIL: accepted mismatched deployment receipt field $field" >&2; exit 1
+    fi
+done
+if FAIL_STAGE=corrupt-download bash "$scripts/verify-backup-receipt.sh" "$root/state/last-successful-backup.receipt" > "$root/log" 2>&1; then
+    echo "FAIL: accepted corrupted remote deployment manifest" >&2; exit 1
+fi
+echo "PASS: actual S3 backup/receipt chain binds attempt, source/target, DB, recipient and exact remote manifest"
+unset PPE_BACKUP_DEPLOYMENT_ID PPE_BACKUP_SOURCE_RELEASE PPE_BACKUP_TARGET_RELEASE \
+    PPE_BACKUP_SOURCE_CONTAINER PPE_BACKUP_SOURCE_VOLUME PPE_BACKUP_SOURCE_VOLUME_CREATED \
+    PPE_BACKUP_HISTORY_HASH PPE_BACKUP_INVENTORY_HASH PPE_BACKUP_RECOVERY_REFERENCE_HASH PPE_BACKUP_RECOVERY_AGE_RECIPIENT
 manifest_key=$(receipt_value "$root/state/last-successful-backup.receipt" manifest_key)
 bash "$scripts/download-backup.sh" "$manifest_key" v1 "$root/downloads/success" >> "$root/log" 2>&1
 test -s "$root/downloads/success/backup.sql.age"

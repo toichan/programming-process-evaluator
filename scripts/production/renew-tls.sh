@@ -11,6 +11,16 @@ case "$mode" in renew|--check|--dry-run|--dry-run-deploy) ;; *) fail "Invalid TL
 [[ -f "$environment" && ! -L "$environment" ]] || fail "TLS environment must be a regular, non-symlink file."
 [[ -n "$(find "$environment" -prune -user "$(id -un)" -perm 0600 -print)" ]] \
     || fail "TLS environment must be owned by the executing user with mode 0600."
+lock_tls_dir=$(awk -F '=' '$1=="PPE_TLS_DIR" {n++; value=$2} END {if(n!=1) exit 1; print value}' "$environment") \
+    || fail "TLS lock directory is missing or duplicated."
+[[ "$lock_tls_dir" =~ ^/[a-zA-Z0-9_./:-]+$ && "$lock_tls_dir" != *'/../'* ]] \
+    || fail "Invalid TLS lock directory."
+lock_parent=$(dirname "$lock_tls_dir")
+[[ -d "$lock_parent" && ! -L "$lock_parent" && ! -L "$lock_parent/.ppe-tls-operation.lock" ]] \
+    || fail "Unsafe TLS operation lock."
+exec 8>>"$lock_parent/.ppe-tls-operation.lock"
+chmod 0600 "$lock_parent/.ppe-tls-operation.lock"
+flock -n 8 || fail "Deployment owns the TLS operation lock; renewal was not attempted."
 
 required=(PPE_PROJECT PPE_RELEASE PPE_DB_RELEASE PPE_DB_SOURCE_DIR PPE_COMPOSE_FILE
     PPE_SECRETS_DIR PPE_TLS_DIR PPE_ACME_DIR PPE_CERTBOT_CONFIG_DIR
@@ -28,6 +38,7 @@ while IFS= read -r line || [[ -n "$line" ]]; do
     if printenv "$name" >/dev/null; then fail "Duplicate TLS environment variable."; fi
     export "$name=$value"
 done < "$environment"
+[[ "$PPE_TLS_DIR" = "$lock_tls_dir" ]] || fail "TLS lock path changed while reading configuration."
 for name in "${required[@]}"; do
     value=$(printenv "$name") || fail "Required TLS environment variable is missing."
     [[ -n "$value" ]] || fail "Required TLS environment variable is missing."
