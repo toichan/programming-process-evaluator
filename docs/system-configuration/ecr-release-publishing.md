@@ -49,8 +49,9 @@ main以外は両jobをskipしAWS資格情報を取得しない。
    loadする。layer descriptorのpathも既知形式だけに限定して実entryと照合する。
    ロード後のImage IDも照合する。buildやtarget側scriptの実行はしない。
 7. OIDCで既存publisher roleを3600秒取得。8repositoryの同tagをすべて事前確認し、
-   **既存tagが1つでもあれば失敗**。DescribeImagesのexit254かつ完全な
-   `ImageNotFoundException`だけを未存在として扱う。403/timeout/通信失敗等は拒否する。
+   **既存tagが1つでもあれば失敗**。DescribeImagesのTAGGED一覧を自動paginationで
+   取得し、成功したJSON応答に対象tagがないことを確認する。
+   CLI例外文字列を未存在扱いせず、403/timeout/通信失敗/不正JSON等は拒否する。
 8. 7 imageをpush。各imageについてECRが返す**manifest digest**を取得し、
    registryからmanifest raw bytesを再取得してhash照合。そのconfig digestが
    事前検証Image IDと一致することを確認し、config blobも再取得してhash/byte数/
