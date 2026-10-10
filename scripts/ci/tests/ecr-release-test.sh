@@ -225,9 +225,26 @@ gate() { bash "$scripts/ecr-ci-gate.sh" "$1" "$2" "$root/gate-$count"; }
 expect_fail gate short HEAD
 expect_fail gate "$(printf '%040d' 0)" HEAD
 GITHUB_REF=refs/heads/feature expect_fail gate "$sha" HEAD
-# Valid commit, but not reachable from the selected main boundary.
-older=$(git rev-parse HEAD^)
-expect_fail gate "$sha" "$older"
+# A synthetic parent boundary requires no checkout history or author configuration.
+parent=$(printf 'Synthetic ancestry fixture\n' |
+    GIT_AUTHOR_NAME=Fixture GIT_AUTHOR_EMAIL=fixture@example.invalid \
+    GIT_COMMITTER_NAME=Fixture GIT_COMMITTER_EMAIL=fixture@example.invalid \
+    git commit-tree "$(git rev-parse 'HEAD^{tree}')")
+expect_fail gate "$sha" "$parent"
+git clone --quiet --depth 1 --no-checkout "file://$repo" "$root/shallow"
+(
+    cd "$root/shallow"
+    [[ "$(git rev-parse --is-shallow-repository)" = true ]]
+    image_build_target "$sha" HEAD
+    parent=$(printf 'Synthetic shallow ancestry fixture\n' |
+        GIT_AUTHOR_NAME=Fixture GIT_AUTHOR_EMAIL=fixture@example.invalid \
+        GIT_COMMITTER_NAME=Fixture GIT_COMMITTER_EMAIL=fixture@example.invalid \
+        git commit-tree "$(git rev-parse 'HEAD^{tree}')")
+    if bash "$scripts/ecr-ci-gate.sh" "$sha" "$parent" "$root/shallow-gate" > "$root/shallow.log" 2>&1; then
+        echo "Shallow checkout accepted a nonmain SHA." >&2; exit 1
+    fi
+    grep -q 'Invalid SHA or main ancestry' "$root/shallow.log"
+)
 TEST_CASE=ci-failure expect_fail gate "$sha" HEAD
 TEST_CASE=missing-check expect_fail gate "$sha" HEAD
 TEST_CASE=check-failure expect_fail gate "$sha" HEAD

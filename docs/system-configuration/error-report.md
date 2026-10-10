@@ -2,6 +2,24 @@
 
 秘密情報・実際の生徒データ・研究データは記載しない。解消後も履歴を保持する。
 
+## 2026-10-10 18:25 JST: PR49 ECR mock試験のshallow checkout
+
+- 対象: CI run `38041320507`、Shell harness検証step、PR49。
+- 発生: `2026-10-10T09:25:33Z`（18:25:33 JST）、image準備前。
+- 期待: `bash scripts/ci/tests/ecr-release-test.sh`が既定のdepth1 checkoutで成功。
+- 実結果: `fatal: ambiguous argument 'HEAD^'`。祖先拒否fixtureが実repositoryの
+  親commitを要求し、shallow checkoutでは取得できなかった。初回CIを成功扱いしない。
+- 対応: `git commit-tree`で独立した合成親境界を生成し、実履歴への依存を除去。
+  depth1/no-checkoutのlocal cloneで有効HEADと合成main外境界の拒否も回帰検証する。
+  CI fetch-depth、本番実装、保存契約は変更しない。
+- 再検証: `bash scripts/ci/tests/ecr-release-test.sh`は通常checkoutと
+  `git clone --depth 1 file://...`の実depth1 checkoutで両方exit0
+  （各38負例＋正常系、追加のshallow ancestry回帰成功）。
+  `bash scripts/ci/check-shell-syntax.sh`は70件exit0、
+  actionlint対象3workflowと`git diff --check`もexit0。
+  hosted再実行は親工程で別途確認する。
+- 影響: 合成テストのみ。AWS/registry/本番接続なし。
+
 ## 2026-10-10 JST: ECR保存のローカル故障注入検証
 
 - 対象: `bash scripts/ci/tests/ecr-release-test.sh`（完全合成fixture、外部接続なし）。
