@@ -25,6 +25,11 @@
   秘密鍵0600、隔離project・非空DB復元拒否などの本番安全条件は不変。
 - CI状態確認curlで一時DNS解決失敗（exit6）。GitHub MCP経由でrun結果を取得し、
   本番/AWSの設定変更やCI無条件再実行は行わなかった。
+- 第3回run `38030149236`: 合成secret修正により両DB起動は成功。
+  age復号でidentity読取permission denied。restoreはrootかつcap-drop ALLなので、
+  host所有0600の鍵を読めない。fixtureのidentityは生成元root所有0600を維持する
+  （上記のidentity所有者変更は撤回）。cleanupは0700親directoryの所有者がunlinkする。
+  restoreの権限・capability制限を緩和せず再検証する。
 
 ## 2026-10-10 07:34 JST: CI導入の初回ローカル検証
 
