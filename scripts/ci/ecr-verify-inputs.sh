@@ -30,8 +30,9 @@ for image in app tools db runner broker nginx backup; do
         length==1 and .[0].RepoTags==$tags and ($tags|length)==1 and
         (.[0].Config|test("^(blobs/sha256/)?[a-f0-9]{64}(\\.json)?$")) and
         (.[0].Layers|type=="array" and length>0 and
-          all(type=="string" and test("^(blobs/sha256/[a-f0-9]{64}|[a-f0-9]{64}/layer\\.tar)$")) and
-          length==(unique|length))' "$work/docker-manifest.json" >/dev/null || exit 1
+          all(type=="string" and test("^(blobs/sha256/[a-f0-9]{64}|[a-f0-9]{64}/layer\\.tar)$")))' "$work/docker-manifest.json" >/dev/null || {
+        echo "Invalid Docker save manifest for $image." >&2; exit 1;
+    }
     while IFS= read -r layer; do
         [[ "$(grep -Fxc "$layer" "$work/archive-names")" = 1 ]] || exit 1
     done < <(jq -r '.[0].Layers[]' "$work/docker-manifest.json")

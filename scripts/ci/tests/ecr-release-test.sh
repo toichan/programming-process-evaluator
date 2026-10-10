@@ -302,6 +302,20 @@ exec "$real_git" "\$@"
 MOCK
 chmod 0700 "$root/bin/git"
 bash "$scripts/ecr-verify-inputs.sh" "$sha" "$root/input" "$root/good-gate/ci.json" "$root/verify" > "$root/verify.log"
+# Docker deduplicates blob files but may reference the same empty layer twice.
+cp "$root/input/app.tar" "$root/app.tar.good"
+jq '.[0].Layers += [.[0].Layers[0]]' "$root/state/archive-app/manifest.json" > "$root/repeated-manifest.json"
+cp "$root/repeated-manifest.json" "$root/state/archive-app/manifest.json"
+tar -cf "$root/input/app.tar" -C "$root/state/archive-app" manifest.json \
+    "$(jq -r '.[0].Config' "$root/repeated-manifest.json")" \
+    "$(jq -r '.[0].Layers[0]' "$root/repeated-manifest.json" | sed 's|/layer.tar$||')"
+ecr_release_transfer "$root/input" "$sha"
+bash "$scripts/ecr-verify-inputs.sh" "$sha" "$root/input" "$root/good-gate/ci.json" "$root/verify-repeated" > "$root/repeated.log"
+tar -rf "$root/input/app.tar" -C "$root/state/archive-app" manifest.json
+ecr_release_transfer "$root/input" "$sha"
+expect_fail bash "$scripts/ecr-verify-inputs.sh" "$sha" "$root/input" "$root/good-gate/ci.json" "$root/verify-duplicate-$count"
+cp "$root/app.tar.good" "$root/input/app.tar"
+ecr_release_transfer "$root/input" "$sha"
 cp "$root/input/source.tar" "$root/source.good"
 printf corrupt >> "$root/input/source.tar"
 ecr_release_transfer "$root/input" "$sha"
