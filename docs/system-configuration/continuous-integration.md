@@ -98,6 +98,21 @@ summary/skipを確認する。ローカルの成功だけでActions実行済み�
 
 ## 今後
 
+### main限定のOIDC認証テスト
+
+[認証テストworkflow](../../.github/workflows/aws-oidc-auth-test.yml)は既存CIと独立し、
+workflow_dispatchのみで起動する。main以外では認証jobをskipする。
+job権限はcontents:readとid-token:writeのみ。checkout・repositoryコード実行・
+GitHub Secrets参照は行わない。固定SHAのconfigure-aws-credentialsで
+PPEGitHubECRPublisherRoleを900秒引き受け、STSのAccountとsessionを含むARNを完全照合する。
+session policyで全操作をDenyし、そのDenyでも許可不要で呼べるGetCallerIdentityだけを
+使う。role本体のECR権限やtrustは変更しない。token・資格情報・UserIdは出力せず、
+成功時のみSummaryを記録する。ECR Push/Pull、本番操作は行わない。
+
+PRでは既存Java/Shell CIだけを確認し、認証テストを実行しない。
+mainへの別承認のmerge後、さらに手動実行の指示を受けてmainから起動する。
+Account/ARN照合とSummaryの成功を確認するまでは、実OIDC疎通は未検証とする。
+
 Actionsはfull SHA固定。base imageはversion tag固定でありdigest固定ではない。
 cache共有や追加credentialは今回導入しない。main required checksやbranch protection
 はGitHub側の別承認作業。Pages/Copilotは独立workflowで、このCIの成功に含めない。

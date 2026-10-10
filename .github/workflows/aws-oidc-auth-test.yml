@@ -1,0 +1,52 @@
+name: AWS OIDC authentication test
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  authenticate:
+    name: Verify main-only AWS OIDC identity
+    if: ${{ github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      AWS_EC2_METADATA_DISABLED: "true"
+      AWS_SHARED_CREDENTIALS_FILE: /dev/null
+      AWS_CONFIG_FILE: /dev/null
+    steps:
+      - name: Configure short-lived OIDC credentials
+        uses: aws-actions/configure-aws-credentials@61815dcd50bd041e203e49132bacad1fd04d2708 # v5.1.1
+        with:
+          aws-region: ap-northeast-1
+          role-to-assume: arn:aws:iam::024378233912:role/PPEGitHubECRPublisherRole
+          audience: sts.amazonaws.com
+          allowed-account-ids: "024378233912"
+          role-session-name: ppe-oidc-${{ github.run_id }}-${{ github.run_attempt }}
+          role-duration-seconds: 900
+          unset-current-credentials: true
+          output-credentials: false
+          retry-max-attempts: 3
+          action-timeout-s: 120
+          inline-session-policy: >-
+            {"Version":"2012-10-17","Statement":[{"Effect":"Deny","Action":"*","Resource":"*"}]}
+      - name: Verify expected AWS account and assumed role
+        shell: bash
+        run: |
+          set -euo pipefail
+          identity=$(aws sts get-caller-identity --region ap-northeast-1 --output json)
+          expected_arn="arn:aws:sts::024378233912:assumed-role/PPEGitHubECRPublisherRole/ppe-oidc-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          jq -e --arg expected_arn "$expected_arn" \
+            '.Account == "024378233912" and .Arn == $expected_arn' \
+            <<< "$identity" > /dev/null
+          {
+            echo '## AWS OIDC authentication verified'
+            echo '- Ref: refs/heads/main'
+            echo '- Account: 024378233912'
+            echo '- Role: PPEGitHubECRPublisherRole'
+            echo '- Only STS identity verification was performed; no ECR or production operations.'
+          } >> "$GITHUB_STEP_SUMMARY"
