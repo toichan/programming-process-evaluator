@@ -124,6 +124,20 @@ jobs:
           bash scripts/ci/ecr-publish.sh "$TARGET_SHA" "$GITHUB_WORKSPACE/.ecr-transfer/images" \
             "$GITHUB_WORKSPACE/.ecr-transfer/ci.json" "$GITHUB_WORKSPACE/.ecr-published"
           cat .ecr-published/summary.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Preserve verified publication reports
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ecr-release-report-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            .ecr-published/assets/release.json
+            .ecr-published/assets/ci.json
+            .ecr-published/assets/images.tsv
+            .ecr-published/assets/transfer.json
+            .ecr-published/oci-manifest.json
+            .ecr-published/summary.md
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
       - name: Remove local authentication and images
         if: ${{ always() }}
         run: |
