@@ -68,6 +68,7 @@ jobs:
           bash scripts/ci/check-shell-syntax.sh
           bash scripts/ci/tests/reporting-test.sh
           bash scripts/ci/tests/runner-gates-test.sh
+          bash scripts/ci/tests/ecr-release-test.sh
       - name: Prepare isolated test images
         run: bash scripts/ci/prepare-shell-tests.sh
       - name: Run all deployment regressions

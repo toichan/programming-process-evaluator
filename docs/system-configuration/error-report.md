@@ -2,6 +2,40 @@
 
 秘密情報・実際の生徒データ・研究データは記載しない。解消後も履歴を保持する。
 
+## 2026-10-10 18:25 JST: PR49 ECR mock試験のshallow checkout
+
+- 対象: CI run `38041320507`、Shell harness検証step、PR49。
+- 発生: `2026-10-10T09:25:33Z`（18:25:33 JST）、image準備前。
+- 期待: `bash scripts/ci/tests/ecr-release-test.sh`が既定のdepth1 checkoutで成功。
+- 実結果: `fatal: ambiguous argument 'HEAD^'`。祖先拒否fixtureが実repositoryの
+  親commitを要求し、shallow checkoutでは取得できなかった。初回CIを成功扱いしない。
+- 対応: `git commit-tree`で独立した合成親境界を生成し、実履歴への依存を除去。
+  depth1/no-checkoutのlocal cloneで有効HEADと合成main外境界の拒否も回帰検証する。
+  CI fetch-depth、本番実装、保存契約は変更しない。
+- 再検証: `bash scripts/ci/tests/ecr-release-test.sh`は通常checkoutと
+  `git clone --depth 1 file://...`の実depth1 checkoutで両方exit0
+  （各38負例＋正常系、追加のshallow ancestry回帰成功）。
+  `bash scripts/ci/check-shell-syntax.sh`は70件exit0、
+  actionlint対象3workflowと`git diff --check`もexit0。
+  hosted再実行は親工程で別途確認する。
+- 影響: 合成テストのみ。AWS/registry/本番接続なし。
+
+## 2026-10-10 JST: ECR保存のローカル故障注入検証
+
+- 対象: `bash scripts/ci/tests/ecr-release-test.sh`（完全合成fixture、外部接続なし）。
+- 期待: remote manifest digest不一致を拒否し、complete OCI markerをpublishしない。
+- 実結果: 初回故障注入で`Expected rejection (digest-mismatch): publish`、exit1。
+  合成publisherがdigest不一致後も先へ進むことを試験が検出した。
+- 対応: 重要なdigest/config/identity/OCI検証とpush/HTTP失敗に明示的な
+  exit/returnを追加。`set -e`のみで安全判定を継続させない。
+- 再検証: 同じ故障注入を含むmock suiteで負例38件と正常7image/OCI byte
+  roundtripがPASS。実AWS・実registry・本番環境への影響なし。
+- 追加のtool確認コマンドでは`command -v shellcheck`が非0（未インストール）。
+  その後の`&&`検証は実行されなかったため、shellcheckを要求しない独立コマンドで
+  actionlint/構文/mockを再実行して成功。shellcheck自体の実行済みとは扱わない。
+- 未確認: 実OIDC/ECR/hosted転送/OCI HTTP受入は別承認後。時刻の秒単位は未記録、
+  タイムゾーンはJST。故障注入では秘密情報を生成・出力していない。
+
 ## 2026-10-10 15:50 JST: 隔離amd64ビルドのbuilder選択
 
 - 対象: Phase 2 Step 1、ローカルCI専用イメージビルド。

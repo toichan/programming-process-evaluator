@@ -1,0 +1,140 @@
+name: Publish complete ECR release
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: Exact full main SHA with successful push/main CI
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: ecr-release-publishing
+  cancel-in-progress: false
+
+env:
+  AWS_EC2_METADATA_DISABLED: "true"
+  AWS_SHARED_CREDENTIALS_FILE: /dev/null
+  AWS_CONFIG_FILE: /dev/null
+  AWS_PAGER: ""
+
+jobs:
+  build:
+    if: ${{ github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      artifact_id: ${{ steps.export.outputs.artifact-id }}
+      artifact_digest: ${{ steps.export.outputs.artifact-digest }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Require native amd64 daemon and exact successful main CI
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_SHA: ${{ inputs.commit_sha }}
+        run: |
+          source scripts/ci/ecr-release-common.sh
+          ecr_release_platform
+          bash scripts/ci/ecr-ci-gate.sh "$TARGET_SHA" refs/remotes/origin/main "$GITHUB_WORKSPACE/.ecr-ci"
+      - name: Credentialless build and validated image export
+        env:
+          TARGET_SHA: ${{ inputs.commit_sha }}
+        run: |
+          bash scripts/ci/build-production-images.sh \
+            "$TARGET_SHA" refs/remotes/origin/main "$GITHUB_WORKSPACE/.ecr-build" --export-release
+          mkdir -m 0700 "$GITHUB_WORKSPACE/.ecr-transfer"
+          mv "$GITHUB_WORKSPACE/.ecr-build/export" "$GITHUB_WORKSPACE/.ecr-transfer/images"
+          cp "$GITHUB_WORKSPACE/.ecr-ci/ci.json" "$GITHUB_WORKSPACE/.ecr-transfer/ci.json"
+      - name: Export immutable same-run transfer artifact
+        id: export
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ecr-transfer-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .ecr-transfer/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
+      - name: Build summary
+        if: ${{ always() }}
+        run: |
+          if test -f .ecr-build/summary.md; then
+            cat .ecr-build/summary.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  publish:
+    needs: build
+    if: ${{ github.ref == 'refs/heads/main' && needs.build.result == 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Download and require immutable artifact bytes and identity
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_ID: ${{ needs.build.outputs.artifact_id }}
+          ARTIFACT_DIGEST: ${{ needs.build.outputs.artifact_digest }}
+        run: |
+          bash scripts/ci/ecr-download-transfer.sh "$ARTIFACT_ID" "$ARTIFACT_DIGEST" \
+            "$GITHUB_WORKSPACE/.ecr-download"
+          mv .ecr-download/bundle .ecr-transfer
+      - name: Recheck exact CI, archive hashes, source and configs before OIDC
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_SHA: ${{ inputs.commit_sha }}
+        run: |
+          source scripts/ci/ecr-release-common.sh
+          ecr_release_platform
+          bash scripts/ci/ecr-ci-gate.sh "$TARGET_SHA" refs/remotes/origin/main "$GITHUB_WORKSPACE/.ecr-ci"
+          cmp .ecr-ci/ci.json .ecr-transfer/ci.json
+          bash scripts/ci/ecr-verify-inputs.sh "$TARGET_SHA" "$GITHUB_WORKSPACE/.ecr-transfer/images" \
+            "$GITHUB_WORKSPACE/.ecr-transfer/ci.json" "$GITHUB_WORKSPACE/.ecr-verified"
+      - name: Configure ECR-only OIDC publisher credentials
+        uses: aws-actions/configure-aws-credentials@61815dcd50bd041e203e49132bacad1fd04d2708 # v5.1.1
+        with:
+          aws-region: ap-northeast-1
+          role-to-assume: arn:aws:iam::024378233912:role/PPEGitHubECRPublisherRole
+          allowed-account-ids: "024378233912"
+          audience: sts.amazonaws.com
+          role-session-name: ppe-ecr-${{ github.run_id }}-${{ github.run_attempt }}
+          role-duration-seconds: 3600
+          unset-current-credentials: true
+          output-credentials: false
+          retry-max-attempts: 3
+          action-timeout-s: 120
+      - name: Publish and independently verify complete release
+        env:
+          TARGET_SHA: ${{ inputs.commit_sha }}
+        run: |
+          bash scripts/ci/ecr-publish.sh "$TARGET_SHA" "$GITHUB_WORKSPACE/.ecr-transfer/images" \
+            "$GITHUB_WORKSPACE/.ecr-transfer/ci.json" "$GITHUB_WORKSPACE/.ecr-published"
+          cat .ecr-published/summary.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Remove local authentication and images
+        if: ${{ always() }}
+        run: |
+          rm -f .ecr-published/curl-auth .ecr-published/docker-config/config.json
+          if test -d .ecr-transfer/images; then
+            for image in app tools db runner broker nginx backup; do
+              if test -f ".ecr-transfer/images/$image.json"; then
+                id=$(jq -r '.[0].Id' ".ecr-transfer/images/$image.json")
+                if [[ "$id" =~ ^sha256:[a-f0-9]{64}$ ]]; then
+                  docker image rm --force "$id" >/dev/null 2>&1 || true
+                fi
+              fi
+            done
+          fi
