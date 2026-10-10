@@ -64,6 +64,7 @@ on_failure() {
 }
 trap on_failure ERR
 
+load_operation_network_config
 dc config --quiet
 
 database_table_count() {

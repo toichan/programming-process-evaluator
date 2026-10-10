@@ -2,6 +2,105 @@
 
 秘密情報・実際の生徒データ・研究データは記載しない。解消後も履歴を保持する。
 
+## 2026-10-10 21:08–21:18 JST: 一回限定のECR本番update失敗・別承認で旧releaseへ復旧
+
+### 再発防止修正のローカル検証（本番変更なし）
+
+- Dockerfileでrunner directory0755/file0644を固定。
+  本番Compose UID65532/read-only/security条件の実Docker testを既存Shell CIへ追加。
+  入力mode0600でもread/health成功、無認証execute401、再起動後healthy。
+- deploy/rollbackの共通TLS network読込を追加し、既存bind/portをprocessへ継承。
+  未設定/重複/不正値、呼出側/backupとの不一致は明示拒否。
+  実nginxでdeploy/rollback相当の再作成後にHostIp0.0.0.0と両TLS host疎通を確認。
+  app_started/no-migrationから既存rollbackがDB lifecycleなしで旧へ戻る回帰を追加。
+- local Shell: syntax73files、19suites/157assertion groups、fail0/skip0、
+  reporting/runner gates/ECR tests成功。
+- Java最初のoffline試験はFlyway13.9.0 plugin cache欠落でexit1。
+  ソース変更でなく依存取得不足のため、network有効でCI同一Gradle8.10.2/JDK21
+  `gradle --no-daemon clean build --warning-mode all`へ再試行しexit0。
+  JUnit107suites/392tests/260passed/132既存opt-in skip、fail0/error0。
+- runner新test初回はinternal-only networkでpublish portがnullになりcurl exit3。
+  runner自体はhealthyだった。専用test networkとloopback ephemeral portへ修正し
+  再実行exit0。test resourcesをcleanup、production network/securityを変更しない。
+- Phase 2はまだ未完了。既存失敗releaseを上書きせず、次の承認後に
+  修正main SHAから新規ECR releaseを公開・取得して本番受入する。
+
+### 別承認の緊急復旧と再検証
+
+- 2026-10-10 21:14:07 JST、ユーザーが旧releaseサービス復帰を明示承認。
+  DB/Volume/migration禁止、非root・既存セキュリティ条件維持。
+- 既存rollbackの未完了update経路を調査。current旧のため既存新→旧referenceは不一致。
+  実際のcurrent旧→target旧、同一DB/full ID/履歴hash・migration_attempted=no・
+  旧7Image IDを照合した現在schema reviewを、別root0600referenceに正直に記録。
+  既存reference/journalを書き換えて事前条件を迂回せず、rollback既存証跡退避を利用。
+- SSM ba561ee9-c433-4808-95bb-f929a9decb7f、rollback本体exit0、
+  21:15:16–21:16:36 JST（80秒）。broker/runner/app/nginxを旧imageへ再作成。
+  DBは再作成・再起動せず。5healthy、旧Image IDs、runner65532/app10001を確認。
+  postcheckでVolume完全一致、ordered history hash不変、Secrets/全release hash不変。
+  state mode=rollback/release=旧/previous=旧/phase=published/current=旧。
+- 公開HTTP確認wrapperはcurl exit7、SSMはFailedだがrollback本体失敗ではない。
+  EC2/Mac/browserすべて公開接続拒否。local TLS smokeは200。
+  原因: operation.envにPPE_BIND_ADDRESSがなく、nginx再作成時にCompose既定127.0.0.1。
+  停止前の同nginxは0.0.0.0:80/443、既存TLS envに同公開bind/portsを確認。
+- c089ea5c-cae3-4c21-9bfa-bb3b7b37596b: 既存TLS envからbind/portsをprocessだけへ復元、
+  共通DB/TLS/deployment locksで排他、旧imageのnginxのみno-deps再作成、exit0。
+  新規SG/EC2/security変更なし、operation/TLS envとstateのhash不変、DB/Volume保護再検証。
+- 21:18:43 JST公開health/login4件200、21:18:53 JST外部Mac4件200。
+  TLS認証を維持、healthはstatus ok。ブラウザーで生徒・教師ログイン画面描画成功。
+  旧5サービスhealthy、restart0を確認（nginx最後の再作成も既存verify_five_services成功）。
+- maintenance開始21:08:49→公開復旧確認21:18:43: 9分54秒。
+  厳密な連続観測による停止時間ではない。サービス復旧済みで停止し、
+  新releaseのroot0600問題修正/再deployは未実施。Phase 2は未完了。
+- 残課題: 新runner file modeとproduction非root起動検証、operations呼出時の
+  公開bind引継ぎ検証。今回これらの実装修正には着手しない。
+
+### 元のupdate失敗時点の記録
+
+- 承認範囲: instance i-0ffd69e8f390bd396、operations86936306...、
+  target2f48c898...、previous0e2bfae5...の一回update。再deploy/明示rollback/DB復元は禁止。
+- 実行直前: 既存Mac age鍵の固定ciphertext再認証/recipient一致成功。
+  reference hash・READY/7IDs・DB/Volume・現在履歴照合成功。
+  SSM preflight `21497962-9fdf-4d41-a6f6-c0e98a0c0d4d` success、
+  実Flyway validate/info exit0、applied23/pending0。業務アカウントはadmin1件のみ。
+- 実update command `48f0e438-90d2-45f6-a6c0-379693c3210e`:
+  `bash /var/lib/ppe/operations/86936306ecaf587a84544f45e6bb57d3a49304f4/scripts/production/deploy-release.sh update /var/lib/ppe/releases/2f48c898f7cb9ebdf00809f1b83488a6f1b9811f`。
+  12:08:14–12:11:06 UTC（21:08:14–21:11:06 JST）、172秒、exit1。
+  待機CLIのMax attempts exceededはcommandがInProgressだったためであり、
+  deployを再実行したものではない。最終SSM status Failed。
+- 段階: app/runner停止→fresh S3 backup成功→checksum/fixedVersion receipt成功→
+  pending0でmigration実行skip→broker更新healthy→app段階でrunner依存性失敗。
+- 原因（実測）: `python3: can't open file '/runner/runner.py': [Errno 13] Permission denied`。
+  `docker cp ...:/runner/runner.py - | tar -tvf -`でroot:root0600を確認。
+  runtime Compose User65532:65532には読めない。image User0:0の起動試験では
+  このproduction user override不整合を検出できない。ビルド時mode由来の詳しい追跡は未実施。
+- 復旧状況: phase=app_started、migration_attempted=no、apps_restored=no、
+  recovery_attempted=no、current-releaseは旧0e2b...。
+  組込み復帰はmigration前の早期段階だけで、今回のapp段階では動作していない。
+  旧app自動復旧済みと扱わない。明示rollback/再deploy/DB復元は未実行。
+- 21:12:08 JST: 新appはCreated/not running、新runnerはrestarting/unhealthy、
+  新broker healthy。旧nginx/DBは同じID/起動時刻でhealthy。
+  student health/login504、teacher health/login502。停止は継続中で終了時刻未確定。
+  quiesce開始21:08:49から21:12:25の観測時点まで216秒のmaintenance進行。
+- DB保護: container cead401...とimage/start不変、Volume metadata完全一致。
+  ordered Flyway hash d37fe252...不変。migration SQL未実行、DB/Volume削除・復元なし。
+  Secrets/全既存release hashes不変、backup/TLS envは旧release参照のまま。
+- fresh backup: deployment ID be90333cf86d7e5f55c5deb9e573279b、
+  ciphertext111284bytes、dataVersion Gf7SMRlL5BBOxVpoXluksUXx.3X2Jp3Y、
+  checksumVersion6Bl.pn3cX1E4PGsR7q.Qm99cEJGk1LuJ、
+  manifestVersionQ5ACOsyX1yduU6Ib09h_FXH9cSp.FxZP。
+  21:10:00–21:10:20 JSTで完了。receiptを保持し、復号試験は過去固定Versionであり、
+  このfresh backupを新たに復元したとは記載しない。
+- read-only検査の初回はCreated appにHealth keyがなくGo templateでexit1。
+  jqによるmissing-field対応に修正した観測command
+  `f8fc6738-d76d-402f-9f76-1a595f9946ba`はsuccess、DB/Volume/HTTPSを確認。
+  permission metadata command `152537d9-7922-455b-af55-4d97edfeeb6e` success。
+- 対応: 依頼どおり失敗報告で停止。現在のサービス復旧は別途明示承認が必要。
+  runtime userをrootに変更する回避やimmutable image/tag上書きは行わない。
+  将来修正はproduction非root起動テスト＋Dockerfileの明示file modeをPR/CI経由で行う。
+  target変更・再公開・再deployは今回承認に含まれない。
+- Phase 2: 未完了。教師機能/preview受入はアプリ停止と教師アカウントなしで未実施。
+  private host evidence `/var/lib/ppe/operations-evidence/phase2-update-20261010-2106`。
+
 ## 2026-10-10 20:39 JST: EC2取得のSSM環境とDocker29 ID互換性
 
 - 対象: 本番EC2のECR取得のみ。deploy/rollback/migrationは未実行。

@@ -166,6 +166,70 @@ source manifest pin・backup/TLS gateを満たす。DB downgrade/自動復元は
 
 ## 検証と完了条件
 
+### 2障害の最小修正と再deploy前提（2026-10-10）
+
+- runner Dockerfileはコピー後のdirectory0755/file0644を明示する。
+  CI checkout/転送/umask由来で入力runner.pyが0600でも、production UID65532が読める。
+  Composeの非root/read-only/cap drop/token条件は変更しない。
+- deploy/rollbackは最初のCompose config前に、既存TLS operation envから
+  PPE_BIND_ADDRESS/PPE_HTTP_PORT/PPE_HTTPS_PORTを固定allowlist parserで読込む。
+  呼出側/backup envに指定がなければ既存TLS値を継承する。指定済みで不一致なら拒否。
+  TLS側の欠落/重複/不正値も拒否し、localhostへの黙示fallbackは使わない。
+  envをsource/evalせず、ファイルや他の設定を書換えない。
+- 本番の既存TLS設定0.0.0.0:80/443を再利用する。localhostを意図した隔離環境も、
+  TLS envに明示された値を使う。公開設定をコードへhardcodeしない。
+- regression: 0600入力から実Docker build→UID65532/read-only起動/health/401拒否/再起動、
+  実nginx再作成deploy/rollback相当→公開bind保持/両ホストTLS疎通、
+  app_started/no-migration失敗→現在schema reviewで既存rollback→旧サービス・履歴維持。
+- この修正は既存immutable image/releaseを修正しない。旧2f48...を再deployしない。
+  次回は修正を含むmain固定SHAの必須CI成功→新しい一意releaseをECR公開・再取得し、
+  新operations・source/registry/config/daemon identity・pending0・fresh backup・
+  更新後schemaのrollback referenceを再確認する。公開/EC2配置/再deployは別途承認。
+- 組込み自動復帰は従来どおりmigration前の早期段階限定。app_started時の自動復帰を
+  今回拡大せず、現在DB互換性を確認して明示承認のrollbackを使う。
+
+### 本番update実行結果（2026-10-10 21:12 JST、失敗・停止）
+
+**Phase 2は未完了。今回の一回限定updateはexit1。別承認の緊急rollbackで21:18:43 JSTに旧releaseの公開サービス復旧を確認した。**
+詳細は[失敗・復旧状態の記録](./error-report.md)を参照。
+承認済みoperations86936306.../target2f48...を一度のみ実行した。
+preflight/Flyway validate/info・pending0・fresh S3 backup/receipt照合は成功。
+SQL migrationは実行せず、DB/container/Volume/historyは維持した。
+新runnerの`/runner/runner.py`がroot-owned0600であり、production User65532が読めず、
+runner unhealthy→新app未起動→app_startedで停止。旧nginxはhealthyでもサイトは502/504。
+current release/backup/TLS envは旧release、runtimeは混在しており公開完了ではない。
+組込み旧app復帰はこの段階で未実行。再deploy/明示rollback/DB復元は行っていない。
+fresh backupとstate・immutable image/旧releaseを保持。
+当初の停止状態は以下の緊急復旧で解消した。新releaseの修正・再公開・再deployは未着手。
+
+### 緊急復旧受入（2026-10-10 21:18 JST）
+
+- 21:14:07 JSTのユーザー承認に基づき旧release0e2bfae5...へ復帰。
+  既存`rollback-release.sh`のincomplete update経路を使用。
+  現在marker旧→target旧の実DB履歴照合referenceを別root0600ファイルに記録し、
+  既存新→旧referenceを改変せず使用条件の違いを維持した。
+- SSM `ba561ee9-c433-4808-95bb-f929a9decb7f`:
+  rollback本体exit0、21:15:16–21:16:36 JST（80秒）。
+  5サービスの旧Image ID/healthy、非root runner/app、DB/container/start/Volume/history不変、
+  Secrets/immutable release hash不変、state rollback/published/current旧を確認。
+  失敗update journalは既存rollbackの退避証跡で保持。
+- wrapperの公開HTTP確認はexit7。原因はoperation.envにbind指定がなく、
+  nginxを既定127.0.0.1で再作成したこと。local TLS smokeは200でも公開接続は拒否。
+  停止前のnginx27b58...は0.0.0.0:80/443、既存tls-operation.envも同設定。
+- SSM `c089ea5c-cae3-4c21-9bfa-bb3b7b37596b`:
+  既存TLS envからbind/portだけをprocessへ設定し、共通DB/TLS/deployment locksを保持して
+  `dc up -d --no-deps --wait --wait-timeout 60 nginx`のみ実行、exit0。
+  既存の公開bindへ戻したもので、新規の公開範囲拡大やSG変更ではない。
+  operation.env/tls-operation.env/state/Secrets/全release hash不変。
+- 21:18:43 JSTホストから公開health/login全4件200、health本文status ok。
+  21:18:53 JST外部Macでも全4件200。TLS検証を無効化せず、
+  生徒/教師ログインフォームのブラウザー描画も確認。
+- 停止処理開始21:08:49から公開復旧確認21:18:43まで9分54秒。
+  連続monitorはないため厳密な障害開始/終了ではなくmaintenance開始→復旧確認時間。
+- 新release反映は取り消され、旧release5サービスへ復帰。DB削除/復元/migration、
+  IAM/EC2/Secrets変更なし、旧/new releaseとbackupを保持。
+  復旧をもって停止。Phase 2成功とは扱わず、新release修正・再deployは次指示待ち。
+
 ### 本番EC2取得受入（2026-10-10 JST）
 
 - PR #53と最小ECR read IAM適用済み。Docker29/containerd ID互換修正は

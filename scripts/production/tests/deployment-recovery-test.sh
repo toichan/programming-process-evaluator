@@ -78,6 +78,12 @@ cat > "$test_root/bin/docker" <<'DOCKER'
 set -Eeuo pipefail
 all="$*"
 printf '%s\n' "$all" >> "$PPE_FAKE_DOCKER_TRACE"
+if [[ "$all" = compose* ]]; then
+    [[ "${PPE_BIND_ADDRESS:-}" = 127.0.0.1 && "${PPE_HTTP_PORT:-}" = 18180 \
+        && "${PPE_HTTPS_PORT:-}" = 18443 ]] || {
+        echo "Compose lost the reviewed TLS bind/port settings." >&2; exit 89;
+    }
+fi
 case "$all" in
     *"up -d --no-deps --wait --wait-timeout 100 python-runner app")
         [[ "${PPE_FAKE_OLD_APP_FAIL:-no}" != yes || "$PPE_RELEASE" != 3333333333333333333333333333333333333333 ]] || exit 1
@@ -362,9 +368,11 @@ run_deploy() {
             else
                 printf 'PPE_CERTBOT_CONFIG_DIR=%s\nPPE_CERTBOT_WORK_DIR=%s\nPPE_CERTBOT_LOG_DIR=%s\n' \
                     "$test_root/certbot-config" "$test_root/certbot-work" "$test_root/certbot-logs" >> "$environment"
+                printf 'PPE_BIND_ADDRESS=127.0.0.1\nPPE_HTTP_PORT=18180\nPPE_HTTPS_PORT=18443\n' >> "$environment"
             fi
         fi
     done
+    unset PPE_BIND_ADDRESS PPE_HTTP_PORT PPE_HTTPS_PORT
     if [[ "${PPE_TEST_LOCKED:-no}" = yes ]]; then
         perl -e '
             use Fcntl qw(LOCK_EX);
@@ -860,6 +868,38 @@ if PPE_FAKE_RUNNING_IMAGE=wrong PPE_SCHEMA_POLICY=backward-compatible \
 fi
 [[ "$state_before" = "$(source_hash "$PPE_STATE_DIR/deployment.state")" ]]
 echo "PASS: repeated completed rollback refuses running-image drift"
+
+project=ppe-sim-app-started-recovery
+export PPE_PROJECT=$project PPE_STATE_DIR="$test_root/$project/state"
+export PPE_FAKE_DB_STATE="$test_root/$project/database.state"
+mkdir -p "$PPE_STATE_DIR" "$test_root/$project/remote"
+chmod 0700 "$PPE_STATE_DIR"
+printf '%s\n' "${previous_release##*/}" > "$PPE_STATE_DIR/current-release"
+printf '23 0\n' > "$PPE_FAKE_DB_STATE"
+export MOCK_ROOT="$test_root/$project"
+unset PPE_FAKE_RUNNING_IMAGE PPE_FAKE_FAIL_TLS_INSTALL
+if run_deploy "$project" before-app update backward-compatible > "$test_root/app-started-failure.log" 2>&1; then
+    echo "FAIL: app-started failpoint did not stop update" >&2; exit 1
+fi
+grep -qx phase=app_started "$PPE_STATE_DIR/deployment.state"
+grep -qx migration_attempted=no "$PPE_STATE_DIR/deployment.state"
+grep -qx "${previous_release##*/}" "$PPE_STATE_DIR/current-release"
+export PPE_SOURCE_MANIFEST_SHA256="$(source_hash "$previous_release/source.sha256")"
+export PPE_ROLLBACK_COMPATIBILITY_REFERENCE="$PPE_STATE_DIR/current-schema-review"
+printf 'source_release=%s\ntarget_release=%s\nsource_container=%s\nhistory_hash=%s\ncompatible=yes\n' \
+    "${previous_release##*/}" "${previous_release##*/}" "$PPE_RECOVERY_DB_CONTAINER_ID" \
+    "$history_hash" > "$PPE_ROLLBACK_COMPATIBILITY_REFERENCE"
+unset PPE_BIND_ADDRESS PPE_HTTP_PORT PPE_HTTPS_PORT PPE_DEPLOYMENT_TEST_FAIL_AT
+: > "$PPE_FAKE_DOCKER_TRACE"
+PPE_SCHEMA_POLICY=backward-compatible bash "$scripts/rollback-release.sh" "$previous_release" \
+    > "$test_root/app-started-recovery.log" 2>&1
+grep -qx phase=published "$PPE_STATE_DIR/deployment.state"
+grep -qx mode=rollback "$PPE_STATE_DIR/deployment.state"
+grep -qx "${previous_release##*/}" "$PPE_STATE_DIR/current-release"
+[[ "$(cat "$PPE_FAKE_DB_STATE")" = '23 0' ]]
+[[ -n "$(find "$PPE_STATE_DIR" -name 'failed-update-*.state' -print)" ]]
+if grep -Eq 'run --rm --no-deps migrate$| (up|stop|rm|restart) (.* )?db$' "$PPE_FAKE_DOCKER_TRACE"; then exit 1; fi
+echo "PASS: app_started/no-migration failed update recovers old broker/runner/app/nginx using TLS network pins and current-schema review without DB lifecycle"
 unset PPE_TEST_USE_REAL_BACKUP FAIL_STAGE PPE_DB_RELEASE PPE_FAKE_DB_RELEASE
 
 find "$release" -type f -exec shasum -a 256 '{}' \; > "$test_root/release-after.sha256"

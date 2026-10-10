@@ -138,6 +138,33 @@ assert_config_pin "$PPE_BACKUP_OPERATION_ENV" "$old_sha" "$old_sha" "$TEST_BASE/
 assert_config_pin "$PPE_TLS_OPERATION_ENV" "$old_sha" "$old_sha" "$TEST_BASE/db-old"
 echo "PASS: sync to a prior release restores its app and database pins"
 
+(
+    unset PPE_BIND_ADDRESS PPE_HTTP_PORT PPE_HTTPS_PORT
+    load_operation_network_config
+    [[ "$PPE_BIND_ADDRESS:$PPE_HTTP_PORT:$PPE_HTTPS_PORT" = 0.0.0.0:80:443 ]]
+    [[ ! -e "$TEST_BASE/injected" ]]
+)
+echo "PASS: missing caller/backup network settings inherit reviewed TLS public bind without sourcing config"
+for scenario in caller-conflict backup-conflict missing-bind duplicate-port invalid-port unsafe-bind; do
+    setup_case "network-$scenario"
+    (
+        unset PPE_BIND_ADDRESS PPE_HTTP_PORT PPE_HTTPS_PORT
+        case "$scenario" in
+            caller-conflict) export PPE_BIND_ADDRESS=127.0.0.1 ;;
+            backup-conflict) printf 'PPE_HTTPS_PORT=8443\n' >> "$PPE_BACKUP_OPERATION_ENV" ;;
+            missing-bind) sed '/^PPE_BIND_ADDRESS=/d' "$PPE_TLS_OPERATION_ENV" > "$TEST_BASE/changed"; mv "$TEST_BASE/changed" "$PPE_TLS_OPERATION_ENV" ;;
+            duplicate-port) printf 'PPE_HTTP_PORT=80\n' >> "$PPE_TLS_OPERATION_ENV" ;;
+            invalid-port) sed 's/PPE_HTTPS_PORT=443/PPE_HTTPS_PORT=65536/' "$PPE_TLS_OPERATION_ENV" > "$TEST_BASE/changed"; mv "$TEST_BASE/changed" "$PPE_TLS_OPERATION_ENV" ;;
+            unsafe-bind) printf 'PPE_BIND_ADDRESS=$(touch /tmp/injected)\n' >> "$PPE_TLS_OPERATION_ENV" ;;
+        esac
+        chmod 0600 "$PPE_TLS_OPERATION_ENV"
+        if load_operation_network_config > "$TEST_BASE/network.log" 2>&1; then
+            echo "Accepted unsafe network config: $scenario" >&2; exit 1
+        fi
+    )
+    echo "PASS: network config rejects $scenario before Compose lifecycle actions"
+done
+
 setup_case tls_hook_lock
 mkdir "$TEST_BASE/paths/.ppe-tls-renew-lock"
 if preflight_operation_configs "$TEST_BASE/releases/$new_sha" "$TEST_BASE/db-new" "$new_sha" \
