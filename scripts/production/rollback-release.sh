@@ -68,6 +68,7 @@ on_failure() {
 }
 trap on_failure ERR
 
+load_operation_network_config
 dc config --quiet
 verify_source_manifest "$release" "${PPE_SOURCE_MANIFEST_FILE:-$release/source.sha256}"
 verify_existing_database

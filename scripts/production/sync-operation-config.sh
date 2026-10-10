@@ -7,6 +7,47 @@
 # or TLS/ACME lifecycle commands are run here.
 set +x
 
+load_operation_network_config() {
+    local name value bind http_port https_port
+    _operation_config_validate_env_file "${PPE_TLS_OPERATION_ENV:-}" TLS || return 1
+    _operation_config_parse "$PPE_TLS_OPERATION_ENV" tls || return 1
+    bind=${_opcfg_PPE_BIND_ADDRESS:-}
+    http_port=${_opcfg_PPE_HTTP_PORT:-}
+    https_port=${_opcfg_PPE_HTTPS_PORT:-}
+    [[ -n "$bind" && "$bind" =~ ^[a-zA-Z0-9.:_-]+$ ]] || {
+        _operation_config_fail "TLS operation environment requires an explicit valid bind address."
+        return 1
+    }
+    for value in "$http_port" "$https_port"; do
+        [[ "$value" =~ ^[1-9][0-9]{0,4}$ ]] && (( value <= 65535 )) || {
+            _operation_config_fail "TLS operation environment requires explicit valid HTTP/HTTPS ports."
+            return 1
+        }
+    done
+    _operation_config_validate_env_file "${PPE_BACKUP_OPERATION_ENV:-}" Backup || return 1
+    _operation_config_parse "$PPE_BACKUP_OPERATION_ENV" backup || return 1
+    for name in PPE_BIND_ADDRESS PPE_HTTP_PORT PPE_HTTPS_PORT; do
+        case "$name" in
+            PPE_BIND_ADDRESS)
+                value=$bind
+                [[ -z "${PPE_BIND_ADDRESS:-}" || "$PPE_BIND_ADDRESS" = "$value" ]] \
+                    && [[ -z "${_opcfg_PPE_BIND_ADDRESS:-}" || "$_opcfg_PPE_BIND_ADDRESS" = "$value" ]] ;;
+            PPE_HTTP_PORT)
+                value=$http_port
+                [[ -z "${PPE_HTTP_PORT:-}" || "$PPE_HTTP_PORT" = "$value" ]] \
+                    && [[ -z "${_opcfg_PPE_HTTP_PORT:-}" || "$_opcfg_PPE_HTTP_PORT" = "$value" ]] ;;
+            PPE_HTTPS_PORT)
+                value=$https_port
+                [[ -z "${PPE_HTTPS_PORT:-}" || "$PPE_HTTPS_PORT" = "$value" ]] \
+                    && [[ -z "${_opcfg_PPE_HTTPS_PORT:-}" || "$_opcfg_PPE_HTTPS_PORT" = "$value" ]] ;;
+        esac || {
+            _operation_config_fail "Caller/backup network settings disagree with the reviewed TLS operation environment."
+            return 1
+        }
+    done
+    export PPE_BIND_ADDRESS="$bind" PPE_HTTP_PORT="$http_port" PPE_HTTPS_PORT="$https_port"
+}
+
 _operation_config_fail() {
     printf '%s\n' "$1" >&2
     return 1
@@ -47,7 +88,7 @@ _operation_config_parse() {
         _opcfg_PPE_SECRETS_DIR _opcfg_PPE_TLS_DIR _opcfg_PPE_ACME_DIR \
         _opcfg_PPE_STATE_DIR _opcfg_PPE_BACKUP_DIR _opcfg_PPE_BACKUP_RECIPIENT_FILE \
         _opcfg_PPE_CERTBOT_CONFIG_DIR _opcfg_PPE_CERTBOT_WORK_DIR \
-        _opcfg_PPE_CERTBOT_LOG_DIR
+        _opcfg_PPE_CERTBOT_LOG_DIR _opcfg_PPE_BIND_ADDRESS _opcfg_PPE_HTTP_PORT _opcfg_PPE_HTTPS_PORT
 
     while IFS= read -r line || [[ -n "$line" ]]; do
         if [[ "$line" =~ ^([A-Z_][A-Z0-9_]*)=(.*)$ ]]; then
@@ -57,7 +98,7 @@ _operation_config_parse() {
                 PPE_PROJECT|PPE_RELEASE|PPE_DB_RELEASE|PPE_DB_SOURCE_DIR|PPE_COMPOSE_FILE|\
                 PPE_BACKUP_IMAGE|PPE_SECRETS_DIR|PPE_TLS_DIR|PPE_ACME_DIR|PPE_STATE_DIR|\
                 PPE_BACKUP_DIR|PPE_BACKUP_RECIPIENT_FILE|PPE_CERTBOT_CONFIG_DIR|\
-                PPE_CERTBOT_WORK_DIR|PPE_CERTBOT_LOG_DIR)
+                PPE_CERTBOT_WORK_DIR|PPE_CERTBOT_LOG_DIR|PPE_BIND_ADDRESS|PPE_HTTP_PORT|PPE_HTTPS_PORT)
                     [[ "$seen" != *$'\n'"$name"$'\n'* ]] || {
                         _operation_config_fail "Duplicate required assignment in operation environment."
                         return 1

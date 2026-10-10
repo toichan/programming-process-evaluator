@@ -20,12 +20,12 @@ if (( status != 0 )); then
     exit "$status"
 fi
 count=$(grep -c ' PASS exit=0 assertion-groups=' "$output/runner.log" || true)
-if [[ "$count" != 18 ]] || grep -Eq '^SKIP:|skipped=[1-9][0-9]*' "$output/"*.log; then
-    echo "Shell regressions incomplete: require 18 suites and zero skips." | tee -a "$output/summary.txt"
+if [[ "$count" != 19 ]] || grep -Eq '^SKIP:|skipped=[1-9][0-9]*' "$output/"*.log; then
+    echo "Shell regressions incomplete: require 19 suites and zero skips." | tee -a "$output/summary.txt"
     exit 1
 fi
 if ! grep -q '^Deployment hardening regression completed;' "$output/runner.log"; then
     echo "Shell regression completion marker is missing." | tee -a "$output/summary.txt"
     exit 1
 fi
-echo "Shell CI: 18 suites passed, zero skips." | tee -a "$output/summary.txt"
+echo "Shell CI: 19 suites passed, zero skips." | tee -a "$output/summary.txt"

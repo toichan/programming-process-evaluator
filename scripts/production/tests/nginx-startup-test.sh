@@ -256,3 +256,36 @@ for backup in "$test_root"/.ppe-tls-before-renew.*; do
 done
 [[ "$backup_count" = 1 ]]
 echo "PASS: real deploy hook serves the renewed certificate on both hosts without recreating Nginx and retains the private old pair"
+
+source "$repo/scripts/production/sync-operation-config.sh"
+export PPE_TLS_OPERATION_ENV="$test_root/tls-operation.env"
+export PPE_BACKUP_OPERATION_ENV="$test_root/backup-operation.env"
+for file in "$PPE_TLS_OPERATION_ENV" "$PPE_BACKUP_OPERATION_ENV"; do
+    printf 'PPE_PROJECT=%s\nPPE_RELEASE=%040d\nPPE_DB_RELEASE=%040d\nPPE_DB_SOURCE_DIR=%s\nPPE_COMPOSE_FILE=%s\nPPE_SECRETS_DIR=%s\nPPE_TLS_DIR=%s\nPPE_ACME_DIR=%s\n' \
+        "$project" 1 1 "$repo" "$repo/compose.production.yml" "$test_root/unused-secrets" \
+        "$test_root/tls" "$test_root/acme" > "$file"
+done
+printf 'PPE_CERTBOT_CONFIG_DIR=%s\nPPE_CERTBOT_WORK_DIR=%s\nPPE_CERTBOT_LOG_DIR=%s\nPPE_BIND_ADDRESS=0.0.0.0\nPPE_HTTP_PORT=80\nPPE_HTTPS_PORT=443\n' \
+    "$test_root/certbot-config" "$test_root/certbot-work" "$test_root/certbot-log" >> "$PPE_TLS_OPERATION_ENV"
+printf 'PPE_BACKUP_IMAGE=ppe-backup:%040d\nPPE_STATE_DIR=%s\nPPE_BACKUP_DIR=%s\nPPE_BACKUP_RECIPIENT_FILE=%s\n' \
+    1 "$test_root/state" "$test_root/backup" "$test_root/recipient" >> "$PPE_BACKUP_OPERATION_ENV"
+for phase in deploy rollback; do
+    unset PPE_BIND_ADDRESS PPE_HTTP_PORT PPE_HTTPS_PORT
+    load_operation_network_config
+    docker compose --env-file /dev/null -p "$project" -f "$repo/compose.production.yml" config --format json |
+        jq --slurpfile current "$test_root/compose.json" '
+            .services.nginx.ports as $ports |
+            $current[0] | .services.nginx.ports = ($ports | map(del(.published)))' > "$test_root/public-compose.json"
+    mv "$test_root/public-compose.json" "$test_root/compose.json"
+    dc up -d --no-deps --force-recreate --wait --wait-timeout 30 nginx
+    container=$(dc ps -q nginx)
+    docker inspect "$container" | jq -e '.[0].HostConfig.PortBindings |
+        .["80/tcp"][0].HostIp == "0.0.0.0" and .["443/tcp"][0].HostIp == "0.0.0.0"' >/dev/null
+    port=$(docker inspect "$container" | jq -r '.[0].NetworkSettings.Ports["443/tcp"][0].HostPort')
+    for role in student teacher; do
+        response=$(curl --noproxy '*' --cacert "$lineage/fullchain.pem" -fsS --max-time 5 \
+            --resolve "$role.ppeval.net:$port:127.0.0.1" "https://$role.ppeval.net:$port/health")
+        [[ "$response" = synthetic-upstream ]]
+    done
+    echo "PASS: $phase recreation inherits TLS public bind without caller variables; both HTTPS hosts remain reachable"
+done

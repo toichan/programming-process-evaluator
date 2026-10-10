@@ -8,8 +8,8 @@ cp "$scripts/run-shell-tests.sh" "$root/scripts/ci/"
 cat > "$root/scripts/production/tests/deployment-hardening-test.sh" <<'FIXTURE'
 #!/usr/bin/env bash
 set -euo pipefail
-count=18
-[[ "$CI_SYNTHETIC_RUNNER_CASE" != incomplete ]] || count=17
+count=19
+[[ "$CI_SYNTHETIC_RUNNER_CASE" != incomplete ]] || count=18
 for ((i = 1; i <= count; i++)); do
     printf 'suite-%s PASS exit=0 assertion-groups=1 skipped=0\n' "$i"
     echo "PASS: synthetic only" > "$PPE_HARDENING_TEST_OUTPUT_DIR/suite-$i.log"
@@ -22,7 +22,7 @@ esac
 echo 'Deployment hardening regression completed; synthetic only.'
 FIXTURE
 CI_SYNTHETIC_RUNNER_CASE=success bash "$root/scripts/ci/run-shell-tests.sh" "$root/success" > "$root/result"
-grep -q 'Shell CI: 18 suites passed, zero skips.' "$root/result"
+grep -q 'Shell CI: 19 suites passed, zero skips.' "$root/result"
 for scenario in incomplete skipped failure no-marker; do
     status=0
     CI_SYNTHETIC_RUNNER_CASE="$scenario" bash "$root/scripts/ci/run-shell-tests.sh" "$root/$scenario" \

@@ -6,6 +6,7 @@ RUN apk add --no-cache docker-cli
 
 WORKDIR /runner
 COPY runner.py /runner/runner.py
+RUN chmod 0755 /runner && chmod 0644 /runner/runner.py
 
 ENV PYTHONDONTWRITEBYTECODE=1
 USER 0:0
