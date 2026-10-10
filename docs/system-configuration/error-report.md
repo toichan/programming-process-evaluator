@@ -1379,3 +1379,98 @@
   正規化ComposeのBroker設定からruntimeを読み、既存Docker pullで明示取得する。
   Broker検証・必須CI・権限は緩和しない。専用test資産は失敗時もcleanup済み。
   再検証は同じ20 suites必須CIで行う。本番には変更していない。
+
+## 2026-10-10 23:09–23:12 JST: ef55 READY追加検証wrapperの修正
+
+- ECR公開run38057866136と取得SSM a766249fは成功、releaseはREADY。
+  追加の読み取り検証SSM35fb2a30は`PPE_STATE_DIR: unbound variable`でexit1。
+  source-manifest helperが専用証跡directoryを必要とするためwrapperで指定し、
+  SSM abd225d2でexit0、7ID/ソース/DB/Volume/履歴/既存資産/backup照合が成功。
+- 実image file mode追加調査SSM72f134aaはctrの圧縮layer contentが見つからずexit2。
+  Docker29/containerd上ではmanifest/configは残るが、当該圧縮layer blobはない。
+  `docker image save`でもmanifest.jsonが参照するlayerを含まず、SSM5f90edb6はexit2。
+  boundedなexport一覧調査a5c2c737でmanifest/indexのみのexportを確認した。
+  いずれも起動操作ではなくimageの読み取りで、専用一時archiveはcleanup済み。
+- 既存のECR Registry helperを使い固定layer digestのblobを読み直し、hash照合後に
+  modeを調査する。daemon設定やrunning containerには変更せず、
+  検証結果はrunbookへ記録する。失敗した調査をmode検証成功とは扱わない。
+- 再検証SSM `c1a642f9-ea4b-4b9a-87e1-4b7e3b0f6996` exit0。
+  全layer hash照合後、上位layerのapp launcher/Tomcat設定/runner.pyがroot:root0644、
+  app config UID10001と起動コマンドを確認。Registry authと一時layerはcleanup済み。
+  [READY受入記録](./ecr-manual-deployment.md#pr-57修正後releaseの公開取得受入2026-10-10-2314-jst)を参照。
+
+## 2026-10-11 03:24 JST: ef55本番updateのnginx起動失敗
+
+- 承認: 2026-10-11T00:11:04+09:00、固定ef55 releaseへのupdate1回。
+  AWS SSO認証の期限切れで確認コマンドがexit255となり、update開始前で認証更新を待った。
+  認証更新後にaccount・非root読み取り検証成功を確認して進めた。
+- preflight SSM02f90bbeはexit0。既存DB/Volume/旧7images、全23SQL一致、
+  Flyway validate/info pending0、private recovery reference、専用rollback reference、
+  fresh S3 backupを確認。app/Tomcat/Runnerは実10001/65532で読込可能だった。
+- update SSM `885ab0ca-fd12-4f02-bb75-77e46d1b2526`を1回のみ実行。
+  開始03:20:47、終了03:24:03 JST（196秒）、exit1、stage=nginx。
+  期待は5healthy/HTTPS200/current新release。実際は新app/runner/broker healthy、
+  新nginx UID101がrestarting/unhealthy、両HTTPSは接続拒否（curl7/HTTP000）。
+- 実nginxエラー:
+  `open() "/etc/nginx/nginx.conf" failed (13: Permission denied)`。
+  公開bindは0.0.0.0:80/443を維持。app UID10001/Runner UID65532は正常。
+  nginx Dockerfileの通常COPYがprivate source modeを保持する可能性が高いが、
+  当該ファイルowner/modeと親権限の直接調査はまだ行っていない。
+  前回統合testの0600入力はapp/tools buildに限定され、nginx buildは通常contextだった。
+  nginx側の権限回帰を確認済み・解消済みとは扱わない。
+- DB container/StartedAt/ImageとVolume全文・history hash・Secrets・release hashesは不変。
+  migration_attempted=no。deployment.stateはupdate/ef55/nginx_started、
+  currentは旧0e2bfaeのまま。自動復帰条件はphase index<=40のため今回は対象外。
+  apps_restored=no/recovery_attempted=no。再deploy・明示rollback・DB復元は実施しない。
+- 停止後のdeployment backupも111284bytesで固定S3 Version/checksum/KMS検証成功。
+  data version `RvJAOPqvpQV6Uea81HNGUCZMORwrzV_K`、
+  checksum version `KdO1aRbH7NOqvJDFRMNKRRqIlDy2c2l8`、
+  manifest version `Fi2eyH3m1QgeZDGfapeyCuFV2vTsPZBO`。
+  receipt hash `3fbe0c1cf1dc5fac295459f8a9284b552b486aa6ca236745604f181adc477645`。
+- 失敗調査SSM86435120は実証拠を取得後、journal filename誤りでexit2。
+  正本deployment-events.logへ修正しSSM3cc73732でexit0、03:25:18 JST時点の状態を確認。
+  外部Macからも両HTTPS接続拒否を確認。認証受入・合成preview・教師fixture作成は未実施。
+- 必要な復旧は別承認で旧releaseへのapp系rollback。
+  現在marker旧→target旧に一致するCURRENT-schema referenceをレビューし、
+  既存rollbackの不完全update復帰条件、公開bind、DB pinを確認して使用する。
+  ef55→旧referenceをそのまま旧→旧の証拠と偽らない。Phase 2未完了。
+- 2026-10-11のドキュメント整理で、横断的な原因仮説と将来の改善A〜Dを
+  [技術的負債](./ecr-deployment-debt.md#ecrビルド経路の権限障害と改善保留2026-10-11-jst)へ集約した。
+  P0復旧/P1機能追加/P2基盤改善の順で実装保留。nginx直接原因の追加調査・修正は未実施。
+
+### 2026-10-11 07:11 JST: ef55失敗から旧releaseへの緊急復旧成功
+
+- ユーザーの明示承認で、旧`0e2bfae5e23bc512f0b7cf844264d4d45a484ecc`への
+  アプリ系復旧のみ実施。AWS認証/account024378233912/東京/指定EC2 SSM Onlineを確認。
+- 07:08:27 JSTの事前確認SSM `da91ae53-30b8-4772-bb4b-51dff788a28f` exit0。
+  未完了update/nginx_started/migration_attempted=noは前回と一致。
+  nginxは同Permission deniedでrestart232回に増加していた。旧7images保持、
+  DB container/Image/StartedAt、Volume全文、23Flyway履歴、Secrets/既存資産、
+  recovery reference/backup checksum/KMSは一致。新旧23SQLもbyte一致。
+- 配置済みef55 operationsのrollback/common/state/config-syncはレビューしたローカルとhash一致。
+  既存rollbackのCURRENT旧・target旧・未完了update復帰条件を確認。
+  新→旧referenceを流用せず、CURRENT旧→旧の実レビューを
+  `/var/lib/ppe/config/rollback-incomplete-ef55-20261011-0706.reference`へ記録。
+  hash `029394fc33e62c795244316b637d4c51d66f5b6410624f045a9f2bc61820421d`。
+- rollback SSM `bf6a0193-5a1e-472b-9816-99191928c002`を1回のみ実行しexit0。
+  開始07:08:52、完了07:11:23 JST（151秒）。
+  既存スクリプトがapp/Runner停止、旧broker/Runner/app/nginx再作成、
+  nginx設定検査/reload、smoke、state publishを実施。設定ファイル自体は変更しない。
+  DB lifecycle/migration/restore、イメージbuild/ECR公開、新release再deployは未実施。
+- 事後SSM `d71f0627-b930-4ce8-81d5-82094669ee0b` exit0、07:11:36 JST確認:
+  旧5サービスすべてrunning/healthy/restart0、各Image IDが旧release記録と一致。
+  app UID10001、Runner UID65532、nginx UID101。bind0.0.0.0:80/443、
+  nginx -t成功。新releaseのアプリ系コンテナは旧imageのコンテナへ置換済み。
+- DB container `cead40118ed8a27ce90a8f745f7b69ed528355149c7412d2c95985b6e47872d8`、
+  Image `77f34eeebbd0f55ecae70cdb7aa45f302bb64b2887ec31efc8d14a2e34597715`、
+  StartedAt2026-10-08T08:32:49.719977603Z、Volume全文、履歴hash、
+  Secrets/既存release/既存backupは復旧前後で不変。DB restart0。
+- current旧、state rollback/旧/previous旧/published/migration_attempted=no。
+  失敗update証跡は既存rollbackが保存し、stateを手編集・削除していない。
+- 両HTTPS health/loginはEC2側200。外部Macも07:11:37 JSTにlogin200/health status ok。
+  共有ブラウザーで両ログイン画面のID/password/form表示を確認。認証操作・業務データ作成はしない。
+- 停止時間は連続監視していないため厳密値不明。
+  update quiesce開始03:21:21〜外部復旧確認07:11:37 JSTの区間は3時間50分16秒。
+  これは保守・障害区間の目安であり、全区間の連続HTTPS停止を実測した値ではない。
+- **旧releaseの復旧成功、Phase 2の新release受入は未完了**。
+  nginx原因確定/修正、最終ECR image試験、基盤改善は保留し、復旧後は停止する。

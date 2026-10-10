@@ -4,8 +4,10 @@
 
 - 決定日: 2026-10-10 JST。
 - 決定者・根拠: 開発者・研究実施者本人の「半自動デプロイ方式の正式採用」指示。
-- 状態: **ECR保存は実Push/再取得受入済み。EC2取得adapterを既存releaseへ接続し、
-  IAM適用・本番受入は別承認待ち**。詳細は[保存契約](./ecr-release-publishing.md)と
+- 状態（2026-10-11更新）: **ECR保存/EC2取得・READY・最小Pull IAMは受入済み。
+  新releaseの本番updateは3回失敗し、旧release復旧済み。Phase 2未完了で開発を一時終了**。
+  今後はcodeの機能開発を優先し、再開条件は[引継ぎ](./production-deployment.md#phase-2-pause-and-development-handoff-2026-10-11-jst)を参照。
+  詳細は[保存契約](./ecr-release-publishing.md)と
   [半手動runbook](./ecr-manual-deployment.md)。
 - 理由: 開発時間、運用コスト、研究上の優先順位を踏まえ、本番反映の判断を人間に残す。
 - 本書は今後の成果物生成・配布・本番反映の前提。以前のGHCR推奨案、
@@ -119,9 +121,9 @@ EC2受入は不完全な7 image集合を拒否し、全照合後にのみrelease
 | Step 1 | 認証なし7 image隔離buildのhosted受入済み | 既存run `38034067035`の受入。今回のexport/保存workflowは別のhosted受入が必要 |
 | Step 2 | 保存契約/既存8repo・OIDC publisher roleを前提化 | 容量/費用、保持/削除と保護release、tag immutability等の運用受入を別途確認。今回IAM変更なし |
 | Step 3 | ECR非公開保存（実Push/再取得受入済み） | run 38045471493、SHA 2f48c898f7cb9ebdf00809f1b83488a6f1b9811f。7 image/OCI保存照合成功 |
-| Step 4 | 小さなEC2取得adapter | [半手動runbook](./ecr-manual-deployment.md)。digest pull/ID/source照合→既存release。IAM適用・EC2受入は別承認 |
+| Step 4 | EC2取得adapter・IAM適用/READY受入済み | [半手動runbook](./ecr-manual-deployment.md)。固定digest pull/ID/source照合→既存release。起動受入とは別 |
 | Step 5 | 既存回帰の再利用 | 取得mock異常系＋既存Java/Shell/deploy/rollback gate。大規模な新検証基盤は[残課題](./ecr-deployment-debt.md)へ延期 |
-| Step 6 | 本番初回手動deploy（未承認・未実施） | Step 5受入、対象version/DB/backup/復旧/停止時間確認後、人間の明示承認・実行 |
+| Step 6 | ECR本番updateは3回失敗、旧release復旧済み。受入未完了・一時終了 | nginx修正/全7image権限確認/最終ECR image実起動/復旧条件検証を次回前提とし、人間の別承認で再開 |
 
 既存Step 1のhosted受入を、新しいexport/保存経路の受入と混同しない。
 実際の保存・本番受入・deployは依存工程の受入と承認を省略しない。
@@ -157,3 +159,7 @@ workflow/scripts/testsと関連文書を実装する。Step 1には任意export�
 ECR読取りIAM案の承認、その適用後の本番取得/deployの別承認へ進む。
 包括的hardening・高度な検証は残課題として保持するが、今回の必須工程へ追加しない。
 本番health/DB維持/rollback準備の受入後にPhase 2を完了とし、機能開発へ戻る。
+
+2026-10-11の新指示では、**Phase 2完了を機能開発再開の条件にしない**。
+旧release正常稼働を維持し、ECR新release受入は未完了のままcodeへ戻る。
+これは残課題を解決済みとする判断ではない。次回本番更新条件と負債を維持する。
