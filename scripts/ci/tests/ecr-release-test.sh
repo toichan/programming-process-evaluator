@@ -89,7 +89,9 @@ set -euo pipefail
 echo "$1 $2 $TEST_CASE" >> "$TEST_ROOT/aws-calls"
 if [[ "$1 $2" = "sts get-caller-identity" ]]; then
     [[ "$TEST_CASE" != oidc-failure ]] || exit 1
-    if [[ "$TEST_CASE" = wrong-account ]]; then
+    if [[ "${TEST_ECR_ACQUIRE:-}" = yes ]]; then
+        echo '{"Account":"024378233912","Arn":"arn:aws:sts::024378233912:assumed-role/ProgrammingProcessEvaluatorEC2Role/i-synthetic"}'
+    elif [[ "$TEST_CASE" = wrong-account ]]; then
         echo '{"Account":"000000000000","Arn":"arn:aws:sts::024378233912:assumed-role/PPEGitHubECRPublisherRole/ppe-ecr-12345-1"}'
     else
         echo '{"Account":"024378233912","Arn":"arn:aws:sts::024378233912:assumed-role/PPEGitHubECRPublisherRole/ppe-ecr-12345-1"}'
@@ -130,19 +132,44 @@ case "$1 $2" in
   "context inspect") echo unix:///synthetic.sock;;
   "info --format") echo linux/x86_64;;
   "image inspect")
+    if [[ "$3" = --format && "$4" = '{{.Id}}' && "$5" = ppe-*:* ]]; then
+      image=${5#ppe-}; image=${image%%:*}
+      [[ -f "$TEST_ROOT/state/tag-$image" ]] || exit 1
+      jq -r '.[0].Id' "$TEST_ROOT/input/$image.json"
+      exit 0
+    fi
+    if [[ "$3" = ppe-*:* ]]; then
+      image=${3#ppe-}; image=${image%%:*}
+      if [[ "$TEST_CASE" = acquire-tag-collision ]]; then
+        jq '.[0].Id="sha256:"+("0"*64)' "$TEST_ROOT/input/$image.json"
+      elif [[ -f "$TEST_ROOT/state/tag-$image" ]]; then cat "$TEST_ROOT/input/$image.json"
+      else exit 1; fi
+      exit 0
+    fi
     for image in app tools db runner broker nginx backup; do
       id=$(jq -r '.[0].Id' "$TEST_ROOT/input/$image.json")
       if [[ "$3" = "$id" || "$3" = *"/ppe/$image@sha256:"* ]]; then
-        if [[ "$TEST_CASE" = pulled-id-mismatch && "$3" = *"@sha256:"* ]]; then
+        if [[ ( "$TEST_CASE" = pulled-id-mismatch || "$TEST_CASE" = acquire-id-mismatch ) && "$3" = *"@sha256:"* ]]; then
           jq '.[0].Id="sha256:"+("0"*64)' "$TEST_ROOT/input/$image.json"
         else cat "$TEST_ROOT/input/$image.json"; fi
         exit 0
       fi
     done
     exit 1;;
-  "image rm"|"load -i"|"logout "*|"pull --platform") ;;
+  "image rm"|"load -i"|"logout "*) ;;
+  "pull --platform")
+    if [[ "$TEST_CASE" = acquire-partial-pull && "${*: -1}" = *'/ppe/db@'* ]]; then exit 43; fi;;
   "login --username") cat >/dev/null; echo login >> "$TEST_ROOT/docker-calls";;
-  "tag "*) ;;
+  "image ls")
+    if [[ "$TEST_CASE" = acquire-tag-collision ]]; then echo "ppe-app:$TEST_SHA"; fi
+    for image in app tools db runner broker nginx backup; do
+      if [[ -f "$TEST_ROOT/state/tag-$image" ]]; then echo "ppe-$image:$TEST_SHA"; fi
+    done;;
+  "tag "*)
+    if [[ "$3" = ppe-*:* ]]; then
+      image=${3#ppe-}; image=${image%%:*}
+      touch "$TEST_ROOT/state/tag-$image"
+    fi;;
   "push "*)
     image=${2#*/ppe/}; image=${image%%:*}
     echo "$image" >> "$TEST_ROOT/pushes"
@@ -375,3 +402,81 @@ grep -Fq 'ARTIFACT_ID: ${{ needs.build.outputs.artifact_id }}' "$workflow"
 grep -Fq 'bash scripts/ci/ecr-download-transfer.sh "$ARTIFACT_ID" "$ARTIFACT_DIGEST"' "$workflow"
 grep -Fq 'bash scripts/ci/tests/ecr-release-test.sh' "$repo/.github/workflows/ci.yml"
 echo "ECR release: $count negative scenarios; exact CI, transfer/source/config, complete 7-image publish/OCI byte roundtrip and OIDC wiring PASS (mock only)."
+
+# Consume the existing producer fixture through the small host adapter.
+export TEST_ECR_ACQUIRE=yes PPE_ECR_ACQUISITION_APPROVAL=yes
+layer=$(jq -r '.layers[0].digest' "$root/state/releases.manifest")
+mkdir "$root/acquire-assets" "$root/acquired"
+tar -xf "$root/state/blob-${layer#sha256:}" -C "$root/acquire-assets"
+# Small committed-source stand-in keeps acquisition failures cheap and deterministic.
+mkdir "$root/acquire-source"
+cp "$repo/compose.production.yml" "$root/acquire-source/compose.production.yml"
+printf 'synthetic source\n' > "$root/acquire-source/検証.txt"
+tar -cf "$root/acquire-assets/source.tar" -C "$root/acquire-source" .
+generate_source_manifest "$root/acquire-source" > "$root/acquire-assets/source.sha256"
+jq --arg archive "$(source_hash "$root/acquire-assets/source.tar")" \
+    --arg manifest "$(source_hash "$root/acquire-assets/source.sha256")" \
+    '.ci.repository="toichan/programming-process-evaluator" |
+     .source={archiveSha256:$archive,manifestSha256:$manifest}' \
+    "$root/acquire-assets/release.json" > "$root/acquire-real-repo.json"
+cp "$root/acquire-real-repo.json" "$root/acquire-assets/release.json"
+cp "$root/acquire-assets/release.json" "$root/acquire-manifest.good"
+acquire_fixture() {
+    tar -cf "$root/acquire.tar" -C "$root/acquire-assets" .
+    layer="sha256:$(source_hash "$root/acquire.tar")"
+    cp "$root/acquire.tar" "$root/state/blob-${layer#sha256:}"
+    jq -nc --arg layer "$layer" '{architecture:"amd64",os:"linux",config:{},
+        rootfs:{type:"layers",diff_ids:[$layer]}}' > "$root/acquire.config"
+    config="sha256:$(source_hash "$root/acquire.config")"
+    cp "$root/acquire.config" "$root/state/blob-${config#sha256:}"
+    jq -nc --arg config "$config" --arg layer "$layer" \
+        --argjson config_size "$(wc -c < "$root/acquire.config" | tr -d ' ')" \
+        --argjson layer_size "$(wc -c < "$root/acquire.tar" | tr -d ' ')" \
+        '{schemaVersion:2,mediaType:"application/vnd.oci.image.manifest.v1+json",
+          config:{mediaType:"application/vnd.oci.image.config.v1+json",digest:$config,size:$config_size},
+          layers:[{mediaType:"application/vnd.oci.image.layer.v1.tar",digest:$layer,size:$layer_size}]}' > "$root/state/releases.manifest"
+    acquire_digest="sha256:$(source_hash "$root/state/releases.manifest")"
+}
+acquire() {
+    bash "$scripts/../production/prepare-ecr-release.sh" "$sha" "$1" "$root/acquired"
+}
+acquire_fixture
+TEST_CASE=success acquire "$acquire_digest" > "$root/acquire-success.log"
+[[ "$(cat "$root/acquired/$sha/commit")" = "$sha" && "$(cat "$root/acquired/$sha/READY")" = "$sha" ]]
+for image in app tools db runner broker nginx backup; do
+    [[ "$(cat "$root/acquired/$sha/ppe-$image.id")" = "$(jq -r '.[0].Id' "$root/input/$image.json")" ]]
+done
+verify_hash=$(source_hash "$root/acquired/$sha/source.sha256")
+PPE_STATE_DIR="$root" PPE_SOURCE_MANIFEST_SHA256="$verify_hash" \
+    verify_source_manifest "$root/acquired/$sha"
+sed -n '/^verify_release() {/,/^}/p' "$scripts/../production/operation-common.sh" > "$root/verify-release.sh"
+source "$root/verify-release.sh"
+project=ppe-sim-ecr-contract
+PPE_STATE_DIR="$root" PPE_SOURCE_MANIFEST_SHA256="$verify_hash" verify_release "$root/acquired/$sha"
+[[ "$PPE_RELEASE" = "$sha" && "$PPE_COMPOSE_FILE" = "$root/acquired/$sha/source/compose.production.yml" ]]
+# Repeat must preserve an immutable existing directory.
+expect_fail acquire "$acquire_digest"
+[[ "$(source_hash "$root/acquired/$sha/source.sha256")" = "$verify_hash" ]]
+rm -rf "$root/acquired/$sha"
+TEST_CASE=success acquire "$acquire_digest" > "$root/acquire-reuse.log"
+rm -rf "$root/acquired/$sha"
+rm "$root/state/tag-"*
+expect_fail acquire "sha256:$(printf '%064d' 0)"
+for scenario in acquire-id-mismatch acquire-tag-collision acquire-partial-pull oidc-failure; do
+    TEST_CASE=$scenario expect_fail acquire "$acquire_digest"
+    [[ ! -e "$root/acquired/$sha" && ! -e "$root/state/tag-app" ]]
+done
+jq '.images|=.[0:6]' "$root/acquire-manifest.good" > "$root/acquire-assets/release.json"
+acquire_fixture
+expect_fail acquire "$acquire_digest"
+cp "$root/acquire-manifest.good" "$root/acquire-assets/release.json"
+acquire_fixture
+ln -s release.json "$root/acquire-assets/unsafe-link"
+acquire_fixture
+expect_fail acquire "$acquire_digest"
+rm "$root/acquire-assets/unsafe-link"
+acquire_fixture
+PPE_ECR_ACQUISITION_APPROVAL=no expect_fail acquire "$acquire_digest"
+[[ -z "$(find "$root/acquired" -mindepth 1 -print)" ]]
+! grep -Eq 'compose|restart|prune' "$root/docker-calls"
+echo "ECR acquisition: normal/reused identical tags -> legacy verify_release/READY/IDs/source contract PASS; 9 rejection scenarios PASS; no deploy/DB/compose calls (mock only)."

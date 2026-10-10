@@ -2,6 +2,29 @@
 
 秘密情報・実際の生徒データ・研究データは記載しない。解消後も履歴を保持する。
 
+## 2026-10-10 20:12 JST: ローカルJava21 toolchain未導入
+
+- 対象: 合成CI環境変数を指定した `gradle --no-daemon clean build --warning-mode all`。
+- 期待: 既存JUnit/build成功。実結果: host Gradle8.14がJava21 installationを検出できずexit1。
+- 原因: macOS hostに要求toolchainがない。コードエラーではない。
+- 対応: 既存CIと同じ `gradle:8.10.2-jdk21` imageを`docker run --rm --pull never`で使用し、
+  repo mount・合成DB設定・専用一時Gradle homeで同コマンドを再実行。host設定変更なし。
+- 再検証: build exit0、107 suites/392 tests/260 passed/0 failures/0 errors/132 skipped。
+  opt-in DB/HTTP/browser/APIのskipは未受入のまま。
+- 影響: ローカル検証のみ。本番/AWS/IAM変更なし。
+
+## 2026-10-10 20:05 JST: ECR取得fixtureの日本語source path誤拒否
+
+- 対象: `bash scripts/ci/tests/ecr-release-test.sh`、新しい取得adapterの正常系。
+- 期待: 正常な既存source archiveを展開し、source manifestを照合する。
+- 実結果: producerの40負例は成功したが、adapterがsource展開前にexit1。
+- 原因: macOS BSD tarの非UTF-8 localeでは、既存日本語pathをbackslash octalへ
+  エスケープして一覧表示する。基本安全チェックがその表記を不正pathとして拒否した。
+- 対応: 一覧取得をUTF-8 localeに固定し、traversal/backslash/link拒否は維持。
+  正常取得fixtureにも日本語fileを含めて再発を検証する。
+- 再検証: producer40負例と取得正常/8負例がexit0。source全hash・既存release形式を照合。
+- 影響: mockのみ。本番・AWS・IAM・既存releaseへの変更なし。
+
 ## 2026-10-10 19:24 JST: ECRタグpreflightのCLIエラー文字列依存
 
 - 対象: run `38044600086`、10:24:41 UTC。
