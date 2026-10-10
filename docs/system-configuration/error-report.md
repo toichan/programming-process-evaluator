@@ -2,6 +2,20 @@
 
 秘密情報・実際の生徒データ・研究データは記載しない。解消後も履歴を保持する。
 
+## 2026-10-10 18:59 JST: hosted Docker saveの共有layer参照を誤拒否
+
+- 対象: ECR保存run `38043160459`、09:59:40 UTCの認証前入力検証。
+- 期待: 正常なlinux/amd64 Docker save archiveを検証し、OIDC認証へ進む。
+- 実結果: exit1、OIDC/Pushは未実行。8リポジトリのimage数はすべて0。
+- 原因: 実app manifestは15 layer参照、14 unique blob。空layerの同一digestを
+  2回参照する正当なDocker archiveを、Layers配列のunique制約が誤拒否した。
+  artifactのZIP SHA検証は成功。HTTP Rangeでarchiveのmanifestを調査した。
+- 対応: layer参照の重複だけを許可。archive entryの重複、リンク、traversal、
+  参照先ファイルの存在・一意性、config/Image ID検証は維持する。
+- 再検証: 同一layerを2回参照する正常fixtureと、重複archive entryを拒否する
+  負例を追加。修正PR・main CI後に新しい固定SHAで再実行する。
+- 影響: 完成release/部分imageとも未保存。本番・IAM変更なし。
+
 ## 2026-10-10 JST: 初回ECR保存前の公開レポートartifact不足
 
 - 対象: PR49マージ後のworkflow静的確認（実ECR保存は未実行）。
