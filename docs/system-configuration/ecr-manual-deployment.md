@@ -166,6 +166,134 @@ source manifest pin・backup/TLS gateを満たす。DB downgrade/自動復元は
 
 ## 検証と完了条件
 
+### 本番EC2取得受入（2026-10-10 JST）
+
+- PR #53と最小ECR read IAM適用済み。Docker29/containerd ID互換修正は
+  [PR #54](https://github.com/toichan/programming-process-evaluator/pull/54)で通常merge。
+  operations SHA `86936306ecaf587a84544f45e6bb57d3a49304f4`、
+  [main CI](https://github.com/toichan/programming-process-evaluator/actions/runs/38049532721)成功。
+- 対象EC2 `i-0ffd69e8f390bd396`へSSMで接続。新operationsは独立directoryに配置し、
+  active operations/TLS/backup pointerを変更していない。
+- source `2f48c898f7cb9ebdf00809f1b83488a6f1b9811f`、
+  OCI `sha256:c74336a48d003c4ebc1a363c0c9219931718b14ceda0d9684226c3266958e78e`を取得。
+  7/7固定digest Pull・config bytes hash/byte一致・platform/revisionを検証。
+  source manifest hash `9989fc3ca412f304359e900bc6ec2442b7debc687a34092c7d0ee27e78ba5095`。
+  新release READYと既存`verify_release`実関数の読込成功。
+- 既存DBの実`verify_existing_database`成功。container/image/config hash/Volume
+  CreatedAtは既存値を維持可能。旧/新migration filesはbyte同一。
+  DB 64 tables、V1–V23成功、failed0。Flyway validate/infoの実container実行は
+  今回行わず、デプロイ承認後の既存gateへ残す。
+- 既存7rollback imageは旧release IDと一致。backup receiptの固定S3 Versionと
+  checksum/freshness検証成功。TLS wrapperは新operationsとbyte同一、
+  5service healthy、両HTTPS 302、証明書期限2027-01-06 UTC。
+- 取得のSSM command `8b83b9f4-a448-44d8-8f23-d27927258862` success。
+  READY/DB互換性確認 `65ca2918-47a6-4f3a-a8fa-d12f6e5e2f50` success。
+  private host evidenceは`/var/lib/ppe/operations-evidence/ecr-acquisition-8b0e8fe-20261010`。
+- **本番デプロイ未実行・未承認**。取得受入時点ではrecovery/rollback referenceが
+  未確認だった。その後の最小確認と人間の個別承認は次節に記録する。
+  receipt検証成功を復号/DB復元試験成功と読み替えない。
+- 想定停止はupdate開始後のapp/runner停止～backup/検証/health間。
+  仮に5–15分のmaintenanceを確保するが未実測であり保証値ではない。
+  pending SQLは静的差分上なし。DB自動rollbackは禁止。
+- 最終比較 command `bc163eb6-e4dc-4f16-901a-d43d515b19ac` success:
+  既存container IDs/images/StartedAt/restart count、Volume metadata、
+  state/Secrets/TLS/既存release/environment hashes、DB schema履歴が取得前と一致。
+  稼働5service healthy、両HTTPS 302。disk 19G/used10G/free8.4G（55%）。
+  DB全行checksumは取得しておらず、通常アプリからの書込みを含む全データ不変の証明ではない。
+  作業コマンドからのDB操作はread-only SQLのみ。
+  本受入は20:34–20:50 JST、約16分（CI待機と互換修正を含む）。
+
+### 最終reference確認と承認境界（2026-10-10 JST）
+
+- 既存[Stage C実復元記録](./production-deployment.md#stage-c-isolated-recovery-accepted-2026-10-09)
+  とprivate local記録を確認。固定S3 data Version
+  `5hC9psnT52akVYEJ5U8JsSkeb5kkWI5R`、ciphertext SHA256
+  `40eaf6631dc12565aea674137a6ac52f10c9b75578cbeb0744418d4c14334f3d`。
+  実隔離MySQLに64テーブル復元、CHECK TABLE64/64、FK126件孤児0、
+  V1–V23成功が記録されている。大部分の業務テーブルは空だった。
+- 過去runnerが参照した既存Mac age identityの所有者/0600権限を確認。
+  同一ciphertextを`age --decrypt ... > /dev/null`で再認証しexit0。
+  導出した公開recipientは過去receiptと現在EC2 recipientに一致。
+  秘密鍵を表示/転送せず、平文保存・新DB restoreは行っていない。
+  AWS KMS key Enabled、S3 Versioning Enabled/SSE-KMSを読み取り確認したが、
+  **KMSだけでは別レイヤーのage暗号文を復号できない**。
+- 人間は「既存Mac鍵＋実復元証跡」を今回のrecovery referenceの根拠として承認。
+  Mac独立のoffline予備コピーは未確認で、その不備を解決済みとはしない。
+  新規root-owned0600 regular file:
+  `/var/lib/ppe/config/recovery-reference-20261010`、
+  SHA256 `505b05e736901aca40a97367d1ff7ba4e5384b78b1657517e5395b8a5a942bcf`。
+  `restore_verified=yes`は過去の実初期状態restoreを参照する。
+  `independent_offline_duplicate_verified=no`、`populated_business_data_restore_verified=no`
+  も明記。鍵そのものはEC2に配置していない。
+- 旧/新migration bytes同一。追加処理は提出物/評価/アンケートの参照・export、
+  保存しないPython preview、既存audit_logsへのexport監査記録が中心。
+  schema変更・既存データ変換なし。人間がこの差分と現在履歴に限定した互換性を承認。
+  新規root-owned0600 file:
+  `/var/lib/ppe/config/rollback-2f48c898-to-0e2bfae5-20261010.reference`、
+  SHA256 `378f4d64545ee0462662cff16b7a79872f46063c48adadfe6ae59f1b002d81b3`。
+  source=新2f48...、target=旧0e2b...、DB ID=既存cead...、
+  現在ordered version/script/checksum/success hash=
+  `d37fe2524686316e388419148694b57b50fc36927ffe89ec1c5e9620e4729475`。
+  デプロイ後の履歴が変わればreferenceは無効で再レビューする。DB downgrade許可ではない。
+- 既存referenceがあると偽らず、上記2件を個別承認後に新規作成した。
+  SSM command `2f5abda4-12f8-4f28-9584-1bc5d6b62069` success。
+  env/release/state/Volumeを書き換えず、実行時の変数で指定する。
+- 旧READY/7image IDと新READY/source/7image IDを再確認。
+  旧sourceの既存detached manifest
+  `/var/lib/ppe/operations-evidence/phase5-step-a-7087770d-20261010/old-release-source.sha256`
+  の独立local hashは
+  `d3c55dd1114e974d390f8e10637d13d20a043611f608b859f38dd227d8ba04d3`。
+  同じ内容のobserved manifestを既存verify_source_manifestで検証成功。
+  旧immutable release内へmanifestを追加していない。
+
+#### 次の本番承認で許可を求める範囲
+
+単一EC2/上記sourceとoperationsに限る一回の`update`、授業外maintenance、
+既存app/runner停止、fresh S3 backup、Flyway validate/infoとpending0時のmigration skip、
+app系更新、health/HTTPSとDB/Volume維持確認、既存backup/TLS参照の同期。
+pending SQL・履歴/ID/reference drift・backup失敗があれば独断で続行しない。
+変更後の代表的な認証UI/合成Python preview確認も含める。
+Gemini実API呼出し、IAM/EC2設定変更、DB復元/削除、Volume削除は含めない。
+rollbackは別途明示承認と現在履歴照合を要求する。
+
+実行予定コマンド（**未実行。本番承認後のみ**、root Bash/SSM）:
+
+```bash
+set -Eeuo pipefail
+set +x
+export HOME=/root DOCKER_HOST=unix:///var/run/docker.sock
+# Existing reviewed key=value config: export data, never eval/source it.
+while IFS= read -r line; do
+  [[ "$line" =~ ^[A-Z][A-Z0-9_]*= ]] || continue
+  export "$line"
+done < /var/lib/ppe/operation.env
+export PPE_BACKUP_OPERATION_ENV=/var/lib/ppe/operation.env
+export PPE_TLS_OPERATION_ENV=/var/lib/ppe/tls-operation.env
+export PPE_TLS_OPERATION_WRAPPER=/var/lib/ppe/tls-operations/current/scripts/production/renew-tls.sh
+export PPE_DB_RELEASE=0e2bfae5e23bc512f0b7cf844264d4d45a484ecc
+export PPE_RECOVERY_DB_CONTAINER_ID=cead40118ed8a27ce90a8f745f7b69ed528355149c7412d2c95985b6e47872d8
+export PPE_RECOVERY_DB_VOLUME_CREATED_AT=2026-10-08T08:32:49Z
+export PPE_SOURCE_MANIFEST_SHA256=9989fc3ca412f304359e900bc6ec2442b7debc687a34092c7d0ee27e78ba5095
+export PPE_PREVIOUS_SOURCE_MANIFEST_FILE=/var/lib/ppe/operations-evidence/phase5-step-a-7087770d-20261010/old-release-source.sha256
+export PPE_PREVIOUS_SOURCE_MANIFEST_SHA256=d3c55dd1114e974d390f8e10637d13d20a043611f608b859f38dd227d8ba04d3
+export PPE_BACKUP_RECOVERY_REFERENCE=/var/lib/ppe/config/recovery-reference-20261010
+export PPE_ROLLBACK_COMPATIBILITY_REFERENCE=/var/lib/ppe/config/rollback-2f48c898-to-0e2bfae5-20261010.reference
+printf '%s\n' \
+  '505b05e736901aca40a97367d1ff7ba4e5384b78b1657517e5395b8a5a942bcf  /var/lib/ppe/config/recovery-reference-20261010' \
+  '378f4d64545ee0462662cff16b7a79872f46063c48adadfe6ae59f1b002d81b3  /var/lib/ppe/config/rollback-2f48c898-to-0e2bfae5-20261010.reference' |
+  sha256sum --check --status
+export PPE_SCHEMA_POLICY=backward-compatible
+export PPE_OPERATION_APPROVAL=production-approved PPE_MAINTENANCE_APPROVED=yes
+bash /var/lib/ppe/operations/86936306ecaf587a84544f45e6bb57d3a49304f4/scripts/production/deploy-release.sh \
+  update /var/lib/ppe/releases/2f48c898f7cb9ebdf00809f1b83488a6f1b9811f
+```
+
+想定maintenanceは5–15分の仮枠で未実測。health失敗時も成功扱いせずstateを保持。
+pre-migration失敗では既存scriptの旧app復帰処理、migration開始後は自動復元なし。
+DB/schemaが互換なら明示承認後の既存app rollbackを選ぶ。
+切替後の確認は5service健康/ID、外部HTTPS、current/state/env一致、DB container/Volume、
+Flyway履歴、認証・変更画面・合成preview。OS/全ブラウザー/実Gemini受入は完了扱いしない。
+
 既存`bash scripts/ci/tests/ecr-release-test.sh`へ取得fixtureを追加する。
 producerのOCI資産から既存READY/7ID/source形式までの正常フロー、固定digest不一致、
 Pull後ID不一致、不足、tag衝突、途中Pull失敗、既存release再実行拒否、リンク拒否、

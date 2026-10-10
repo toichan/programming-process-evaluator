@@ -20,6 +20,21 @@
 - 再検証: classic/containerdの正常系とlocal config改変/descriptor不一致拒否を
   既存mockへ追加。実EC2再受入は修正CI/通常merge後に記録する。
 - 影響: サービス/DB/Volume/state/Secretsの変更なし。Pull済みappは保持。
+- 解消確認: PR #54/main `86936306ecaf587a84544f45e6bb57d3a49304f4`の
+  Java/Shell CI成功後、SSM command `8b83b9f4-a448-44d8-8f23-d27927258862`
+  で7/7取得・検証・READY成功。`65ca2918-47a6-4f3a-a8fa-d12f6e5e2f50`で
+  既存verify_release/DB no-recreation契約成功。
+
+### 同受入のローカルCLI・SSM配布エラー
+
+- 2026-10-10 20:41 JST: `gh pr create`はhostにgh未導入でexit127。
+  既存git credential helperの認証を秘密値非表示で使用し、GitHub REST APIで
+  PR #54を作成。認証権限やrepository設定変更なし。
+- 2026-10-10 20:46 JST: operations配布SSM command
+  `0e79988d-fe0c-4877-9038-3e39c11fe1fa`はBash shebang欠落により
+  `set: Illegal option -o pipefail`、exit2。最初のsetで停止し配置変更なし。
+  明示Bash shebang付きcommand `12a4ed6d-9b2c-4512-93a4-9beaa9d7190e`で
+  新directoryへの配布・archive hash・syntax検証成功。
 
 ## 2026-10-10 20:12 JST: ローカルJava21 toolchain未導入
 

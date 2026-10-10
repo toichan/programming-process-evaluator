@@ -7,6 +7,13 @@ approval to collect research data or to execute the mutation commands in this
 runbook. See [preparation results and system-test plan](production-preparation-plan.md).
 Production business-flow acceptance and disaster restoration remain unverified.
 
+**2026-10-10 status:** ECR acquisition and the exact-release recovery/rollback
+references have now been accepted; application deployment remains unapproved.
+See the [current ECR acceptance and reference pins](./ecr-manual-deployment.md#最終reference確認と承認境界2026-10-10-jst).
+The earlier preparation/install statuses below are historical, not instructions
+to reinstall completed operations. The Stage C record proves initial-state
+restoration only, not populated research-data recovery.
+
 ## Update hardening (2026-10-10 JST, local only)
 
 This section defines the **new repository contract**, not the version installed
