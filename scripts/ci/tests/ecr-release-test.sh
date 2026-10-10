@@ -130,19 +130,29 @@ set -euo pipefail
 [[ "$1" != --config ]] || shift 2
 case "$1 $2" in
   "context inspect") echo unix:///synthetic.sock;;
-  "info --format") echo linux/x86_64;;
+  "info --format")
+    if [[ "$3" = '{{json .DriverStatus}}' ]]; then
+      if [[ "${TEST_CONTAINERD:-no}" = yes ]]; then echo '[["driver-type","io.containerd.snapshotter.v1"]]'
+      else echo '[]'; fi
+    else echo linux/x86_64; fi;;
   "image inspect")
     if [[ "$3" = --format && "$4" = '{{.Id}}' && "$5" = ppe-*:* ]]; then
       image=${5#ppe-}; image=${image%%:*}
       [[ -f "$TEST_ROOT/state/tag-$image" ]] || exit 1
-      jq -r '.[0].Id' "$TEST_ROOT/input/$image.json"
+      if [[ "${TEST_CONTAINERD:-no}" = yes ]]; then
+        printf 'sha256:'; openssl dgst -sha256 "$TEST_ROOT/state/$image.manifest" | awk '{print $NF}'
+      else jq -r '.[0].Id' "$TEST_ROOT/input/$image.json"; fi
       exit 0
     fi
     if [[ "$3" = ppe-*:* ]]; then
       image=${3#ppe-}; image=${image%%:*}
       if [[ "$TEST_CASE" = acquire-tag-collision ]]; then
         jq '.[0].Id="sha256:"+("0"*64)' "$TEST_ROOT/input/$image.json"
-      elif [[ -f "$TEST_ROOT/state/tag-$image" ]]; then cat "$TEST_ROOT/input/$image.json"
+      elif [[ -f "$TEST_ROOT/state/tag-$image" ]]; then
+        if [[ "${TEST_CONTAINERD:-no}" = yes ]]; then
+          digest="sha256:$(openssl dgst -sha256 "$TEST_ROOT/state/$image.manifest" | awk '{print $NF}')"
+          jq --arg digest "$digest" '.[0].Id=$digest' "$TEST_ROOT/input/$image.json"
+        else cat "$TEST_ROOT/input/$image.json"; fi
       else exit 1; fi
       exit 0
     fi
@@ -151,6 +161,11 @@ case "$1 $2" in
       if [[ "$3" = "$id" || "$3" = *"/ppe/$image@sha256:"* ]]; then
         if [[ ( "$TEST_CASE" = pulled-id-mismatch || "$TEST_CASE" = acquire-id-mismatch ) && "$3" = *"@sha256:"* ]]; then
           jq '.[0].Id="sha256:"+("0"*64)' "$TEST_ROOT/input/$image.json"
+        elif [[ "${TEST_CONTAINERD:-no}" = yes ]]; then
+          digest="sha256:$(openssl dgst -sha256 "$TEST_ROOT/state/$image.manifest" | awk '{print $NF}')"
+          [[ "$TEST_CASE" != acquire-containerd-descriptor-mismatch ]] || digest="sha256:$(printf '%064d' 0)"
+          jq --arg digest "$digest" --arg ref "$3" \
+            '.[0].Id=$digest|.[0].Descriptor={digest:$digest}|.[0].RepoDigests=[$ref]' "$TEST_ROOT/input/$image.json"
         else cat "$TEST_ROOT/input/$image.json"; fi
         exit 0
       fi
@@ -177,6 +192,19 @@ case "$1 $2" in
     touch "$TEST_ROOT/state/$image.pushed";;
   *) exit 1;;
 esac
+MOCK
+cat > "$root/bin/ctr" <<'MOCK'
+#!/usr/bin/env bash
+set -euo pipefail
+[[ "${*:1:6}" = "--address /run/containerd/containerd.sock --namespace moby content get" ]] || exit 1
+for image in app tools db runner broker nginx backup; do
+  if [[ "${*: -1}" = "$(jq -r '.[0].Id' "$TEST_ROOT/input/$image.json")" ]]; then
+    cat "$TEST_ROOT/state/$image.config"
+    [[ "$TEST_CASE" != acquire-containerd-config-mismatch ]] || printf 'corrupt'
+    exit 0
+  fi
+done
+exit 1
 MOCK
 cat > "$root/bin/curl" <<'MOCK'
 #!/usr/bin/env bash
@@ -477,6 +505,17 @@ expect_fail acquire "$acquire_digest"
 rm "$root/acquire-assets/unsafe-link"
 acquire_fixture
 PPE_ECR_ACQUISITION_APPROVAL=no expect_fail acquire "$acquire_digest"
+TEST_CONTAINERD=yes TEST_CASE=success acquire "$acquire_digest" > "$root/acquire-containerd.log"
+for image in app tools db runner broker nginx backup; do
+    [[ "$(cat "$root/acquired/$sha/ppe-$image.id")" = "sha256:$(source_hash "$root/state/$image.manifest")" ]]
+done
+TEST_CONTAINERD=yes PPE_STATE_DIR="$root" PPE_SOURCE_MANIFEST_SHA256="$verify_hash" verify_release "$root/acquired/$sha"
+rm -rf "$root/acquired/$sha"
+rm "$root/state/tag-"*
+for scenario in acquire-containerd-config-mismatch acquire-containerd-descriptor-mismatch; do
+    TEST_CONTAINERD=yes TEST_CASE=$scenario expect_fail acquire "$acquire_digest"
+    [[ ! -e "$root/acquired/$sha" && ! -e "$root/state/tag-app" ]]
+done
 [[ -z "$(find "$root/acquired" -mindepth 1 -print)" ]]
 ! grep -Eq 'compose|restart|prune' "$root/docker-calls"
-echo "ECR acquisition: normal/reused identical tags -> legacy verify_release/READY/IDs/source contract PASS; 9 rejection scenarios PASS; no deploy/DB/compose calls (mock only)."
+echo "ECR acquisition: classic/containerd/reused tags -> legacy verify_release/READY/IDs/source contract PASS; 11 rejection scenarios PASS; no deploy/DB/compose calls (mock only)."

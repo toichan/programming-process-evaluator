@@ -2,6 +2,25 @@
 
 秘密情報・実際の生徒データ・研究データは記載しない。解消後も履歴を保持する。
 
+## 2026-10-10 20:39 JST: EC2取得のSSM環境とDocker29 ID互換性
+
+- 対象: 本番EC2のECR取得のみ。deploy/rollback/migrationは未実行。
+- 初回: SSM Run CommandにHOMEがなくadapter line6でexit1。認証前でtarget未作成。
+  SSMプロセスにだけHOME=/rootを指定して再実行。永続環境を変更しない。
+- 再実行: ECR認証・OCI/source検証・app digest Pullは成功したが、
+  `Pulled Image ID mismatch: app`でexit1。release/production tagは作成せずcacheだけ保持。
+- 原因: EC2 Docker29.8.2はcontainerd store。inspect Idはmanifest digest
+  `sha256:5f93878a...`であり、publisher classic storeのconfig ID
+  `sha256:024480db...`と異なる。local containerd config bytesのSHA256は
+  期待config IDと実測一致した。データ破損ではなくstorage backendのID契約差。
+- 対応: 新しいPRでcontainerd storeを明示判定。固定manifest Descriptor/RepoDigestsに
+  加えてlocal config bytesのhash/元configとのbyte一致を必須とする。
+  既存releaseのppe-*.idにはdaemon IDを記録し、公開config IDは別記録で維持する。
+  Docker daemon/store設定・旧tag・release・DBを変更して回避しない。
+- 再検証: classic/containerdの正常系とlocal config改変/descriptor不一致拒否を
+  既存mockへ追加。実EC2再受入は修正CI/通常merge後に記録する。
+- 影響: サービス/DB/Volume/state/Secretsの変更なし。Pull済みappは保持。
+
 ## 2026-10-10 20:12 JST: ローカルJava21 toolchain未導入
 
 - 対象: 合成CI環境変数を指定した `gradle --no-daemon clean build --warning-mode all`。

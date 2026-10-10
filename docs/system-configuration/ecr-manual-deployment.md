@@ -31,11 +31,19 @@ privateな一時Docker/curl設定のみを使用する。長期キー・profile�
    選択sourceからscriptを実行せず、レビュー済みoperations側のhelperを使用する。
 5. 7 imageのraw manifest digest・config digest/size/revision/platformを検証し、
    `repository@sha256:...`でPullする。Pull後Image IDをmanifestと照合する。
+   classic storeでは`.Id`がconfig digest。Docker 29のcontainerd storeでは`.Id`が
+   manifest digestのため、Descriptor/RepoDigestsを固定digestと照合し、
+   `ctr --address /run/containerd/containerd.sock --namespace moby content get <config digest>`
+   のlocal config bytesのhashと元ECR config bytesを照合する。
+   標準host socket/namespaceと既存ctrを要求し、daemon設定変更やID照合の省略は行わない。
 6. 全7件成功後、`ppe-<name>:<SHA>`の既存tagを全件確認する。
    同じSHAで異なるIDなら拒否する。同一IDのtagは変更しない。
 7. 不足するlocal tagを作成し、IDを再照合する。既存release directoryは必ず拒否する。
    新規directoryを排他的に作成し、`source/`、`source.sha256`、`commit`、
    7個の`ppe-*.id`と参考用`ecr-release.json`/`ecr-release.digest`を配置する。
+   `ppe-*.id`は既存deploy/rollbackが比較する**daemon local ID**。
+   `ecr-image-identities.tsv`にregistry digest/config Image ID/daemon IDを別列で記録し、
+   公開manifestのconfig Image IDをmanifest digestへ書き換えない。
    **READYは最後に作成**する。複雑なreceipt形式は追加しない。
 
 取得によりDocker cache/layersと新規local tag/releaseが増えるが、running container、
@@ -56,7 +64,7 @@ OPS=/var/lib/ppe/operations/<REVIEWED_OPERATIONS_SHA>
 SHA=2f48c898f7cb9ebdf00809f1b83488a6f1b9811f
 DIGEST=sha256:c74336a48d003c4ebc1a363c0c9219931718b14ceda0d9684226c3266958e78e
 RELEASE_ROOT=/var/lib/ppe/releases
-PPE_ECR_ACQUISITION_APPROVAL=yes \
+HOME=/root PPE_ECR_ACQUISITION_APPROVAL=yes \
   bash "$OPS/scripts/production/prepare-ecr-release.sh" "$SHA" "$DIGEST" "$RELEASE_ROOT"
 ```
 

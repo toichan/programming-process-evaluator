@@ -46,6 +46,13 @@ trap 'echo "ECR preparation failed at line $LINENO." >&2' ERR
 work=$(mktemp -d "$root/.ecr-stage.XXXXXX")
 mkdir "$work/docker-config" "$work/assets" "$work/release" "$work/release/source"
 dc=(docker --config "$work/docker-config")
+containerd_store=false
+docker info --format '{{json .DriverStatus}}' > "$work/driver-status.json"
+jq -e 'type=="array"' "$work/driver-status.json" >/dev/null
+if jq -e 'any(.[]; .==["driver-type","io.containerd.snapshotter.v1"])' "$work/driver-status.json" >/dev/null; then
+    containerd_store=true
+    command -v ctr >/dev/null
+fi
 aws sts get-caller-identity "${aws_args[@]}" --output json > "$work/identity.json"
 jq -e '.Account=="024378233912" and
     (.Arn|test("^arn:aws:sts::024378233912:assumed-role/ProgrammingProcessEvaluatorEC2Role/[^/]+$"))' "$work/identity.json" >/dev/null
@@ -98,6 +105,7 @@ if find "$work/release/source" -type f \( -name '.env' -o -name '.env.production
     echo "Sensitive file names found in release source; review before preparation." >&2; exit 1
 fi
 
+printf 'image\tregistry_digest\tconfig_image_id\tdaemon_image_id\n' > "$work/release/ecr-image-identities.tsv"
 for image in app tools db runner broker nginx backup; do
     image_digest=$(jq -r --arg name "$image" '.images[]|select(.name==$name)|.digest' "$manifest")
     id=$(jq -r --arg name "$image" '.images[]|select(.name==$name)|.imageId' "$manifest")
@@ -112,8 +120,24 @@ for image in app tools db runner broker nginx backup; do
     "${dc[@]}" pull --platform linux/amd64 "$registry/ppe/$image@$image_digest"
     "${dc[@]}" image inspect "$registry/ppe/$image@$image_digest" > "$work/image.json"
     image_build_metadata "$work/image.json" "$sha"
-    [[ "$(jq -r '.[0].Id' "$work/image.json")" = "$id" ]] || { echo "Pulled Image ID mismatch: $image" >&2; exit 1; }
-    printf '%s\n' "$id" > "$work/release/ppe-$image.id"
+    daemon_id=$(jq -r '.[0].Id' "$work/image.json")
+    if [[ "$containerd_store" = true ]]; then
+        # Docker's containerd store exposes the manifest as Id, not the config.
+        jq -e --arg digest "$image_digest" --arg ref "$registry/ppe/$image@$image_digest" \
+            '.[0] | .Id==$digest and .Descriptor.digest==$digest and
+             (.RepoDigests|index($ref)!=null)' "$work/image.json" >/dev/null || {
+            echo "Pulled containerd image identity mismatch: $image" >&2; exit 1;
+        }
+        ctr --address /run/containerd/containerd.sock --namespace moby content get "$id" > "$work/local-config.json"
+        [[ "sha256:$(source_hash "$work/local-config.json")" = "$id" ]] &&
+            cmp -s "$work/config.json" "$work/local-config.json" || {
+            echo "Pulled containerd config Image ID mismatch: $image" >&2; exit 1;
+        }
+    else
+        [[ "$daemon_id" = "$id" ]] || { echo "Pulled Image ID mismatch: $image" >&2; exit 1; }
+    fi
+    printf '%s\n' "$daemon_id" > "$work/release/ppe-$image.id"
+    printf '%s\t%s\t%s\t%s\n' "$image" "$image_digest" "$id" "$daemon_id" >> "$work/release/ecr-image-identities.tsv"
 done
 
 # Check every old tag before creating any new deployment tag.
@@ -128,7 +152,8 @@ for image in app tools db runner broker nginx backup; do
 done
 for image in app tools db runner broker nginx backup; do
     if ! grep -Fxq "ppe-$image:$sha" "$work/tags"; then
-        "${dc[@]}" tag "$(cat "$work/release/ppe-$image.id")" "ppe-$image:$sha"
+        image_digest=$(jq -r --arg name "$image" '.images[]|select(.name==$name)|.digest' "$manifest")
+        "${dc[@]}" tag "$registry/ppe/$image@$image_digest" "ppe-$image:$sha"
     fi
     "${dc[@]}" image inspect "ppe-$image:$sha" > "$work/tagged.json"
     [[ "$(jq -r '.[0].Id' "$work/tagged.json")" = "$(cat "$work/release/ppe-$image.id")" ]] || exit 1
