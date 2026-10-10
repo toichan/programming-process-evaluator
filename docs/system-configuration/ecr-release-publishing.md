@@ -139,7 +139,7 @@ OCI asset upload/download不一致、ZIP改変/同runでないartifact/余分ent
 CIのworkflow/event/branch/job SHA/attempt不一致、S3以外のredirect拒否を確認する。
 正常7件→OCI byte roundtripに加え、合成Tokyo S3 redirectへの別requestでregistry認証を
 転送しないことも確認する。実S3接続ではない。
-既存CIのShell harness stepに追加し、runner起動回帰追加後の19 deployment suites/zero skipを要求する。
+既存CIのShell harness stepに追加し、app/runner起動回帰追加後の20 deployment suites/zero skipを要求する。
 
 ローカル結果（2026-10-10 JST）:
 

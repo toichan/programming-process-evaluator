@@ -1276,3 +1276,106 @@
 - 最終教師回帰は保存XMLで34成功/4skip/失敗0（38件、exit0）。以前のメモの41件集計は誤りで、XMLを正とする。評価回帰47件と共通テストが重複するので、独立テスト数として合算しない。既存のGradle非推奨/SLF4J notice、エディターのGson解決問題は実Gradle compile/WAR成功と区別した。
 - 生成POSTは今回25（200:19/503:5/404:1）、直前の原因調査を含む累計42（200:22/503:16/404:1/timeout:3）。GET計2は別。実生徒データ・APIキー値・実利用者passwordを出力していない。課題10/11の主要metadata hashは不変。大人数負荷・品質校正・本番予算/quota・実データ送信は未検証/別承認。
 - 後片付け: 18082専用appを停止した際、stdin保持pipelineが停止猶予195秒後にexit137となった。受入中のAPI/DB失敗ではなく、隔離server終了時の結果として記録する。listener除去後、今回作成した2schema/そのgrantだけを削除し、残存各0、共有8080/無関係18081の稼働と課題10/11の主要metadata hash不変を再確認した。
+
+## 2026-10-10 21:55–22:04 JST: 修正release取得後の読み取り検証手順の誤り
+
+- 対象: fixed SHA `043d875d760a080b8cff552b1f81ee8d47e5dc31`のECR公開/EC2 READY確認。
+  GitHub publication `38053545658`と既存EC2取得adapterはともにexit0で成功。
+- ECR確認: `aws ecr describe-images`の手入力tag形式が実workflowと異なり、
+  `ImageNotFoundException`（exit254）。既存publisherの
+  `sha-SHA-gha-RUN-ATTEMPT`を確認し、正しいtagで8 repositoriesを照合して成功。
+  追加dispatch/再Push/上書きはしていない。
+- report確認: artifact rootの`release.json`を`jq`で参照してfile not found。
+  artifact実構造の`assets/release.json`を既存schema validatorへ渡しexit0。
+- source照合: SSM `8cca5bde-23a2-4983-b81b-11493f7ee60d`はtrusted manifest hash未指定でexit1。
+  `b25dec48-6da2-4cc4-9b5a-e31b4d218e71`は既存helperへsource directoryを渡したため
+  「Release source differs from its complete hash manifest」でexit1。
+  helperはrelease directoryを受けるAPIであり、実source改変ではなかった。
+  authenticated publication manifestのhashを固定し正しいdirectoryで再実行した
+  `c33f3191-e0a4-48e0-ac12-cf000193fd77`はexit0、全source/7 image/旧サービス/DB/Volume/stateを再照合。
+- 運用参照調査: 過去の要約にあった未存在`/var/lib/ppe/backup-current`の
+  `readlink`/`ls`を使ったSSM `17075d7f-7845-410f-83b4-6d99d23c0ca3`（exit1）、
+  `1f68ad5c-106a-40a7-8ea6-33c9f91a5e23`（exit2）は調査途中で停止。
+  推測名`ppe-tls-renew.timer`はinactiveだったが、実TLS更新timerではない。
+  authoritativeな運用envと全timer一覧へ切り替えた
+  `b6253e67-d263-4cc1-a0da-e1dd9ce4c684`はexit0、旧backup/TLS release pinと
+  `certbot.timer`の次回/前回scheduleを確認。TLS更新を実行したわけではない。
+- 影響: いずれも読み取り検証wrapper/ローカル照合の手順誤り。
+  deploy/rollback/migration/コンテナ再起動、DB/Volume/env/Secretsの変更はない。
+  失敗結果を受入成功へ読み替えず、修正後の個別実測を記録した。
+- 未解決: 新SHA→旧SHAのrollback reference配置と本番update/認証後受入は別承認待ち。
+  詳細は[再公開・取得受入](./ecr-manual-deployment.md#修正済みreleaseの再公開ec2取得受入2026-10-10-2204-jst)。
+
+## 2026-10-10 22:12 JST: 修正release updateのapp launcher読み取り拒否
+
+- 対象: `043d875d760a080b8cff552b1f81ee8d47e5dc31`、既存deploy-release.sh update、
+  明示承認に基づく1回のみの実行。SSM `587c55c7-d249-4d32-8620-fce6133fc156`。
+- 期待: 新5サービスhealthy、DB維持、公開HTTPS、current/state published。
+- 実際: 22:09:23–22:12:31 JST（188秒）でexit1、app_started。
+  UID10001のappログは
+  `sh: 0: cannot open /usr/local/bin/ppe-app: Permission denied`。
+  起動launcherへの読み取り拒否。ファイル所有/modeの詳細は未確認であり、
+  0600等の具体的modeを今回のログだけから断定しない。
+- 影響: 新appはrestarting/unhealthy、生徒・教師loginはHTTP504。
+  新RunnerはUID65532でhealthy、broker healthy、旧nginx/DB healthy。
+  nginxの公開bindは0.0.0.0:80/443。前回Runner権限障害とlocalhost bind障害は
+  今回確認した範囲では再発していない。
+- 保全: DB container/起動時刻/image/Volume/Flyway hash、既存release/Secrets不変、
+  migration_attempted=no。fresh encrypted S3 backup/固定Version/checksum/receipt成功。
+  current marker旧、state新release app_started。自動復帰なし。
+- 対応: 読み取り調査のみ。再deploy/明示rollback/DB復元/root起動/権限変更をせず停止。
+  AWS waiter初回はMax attempts exceeded（同じcommandがInProgress）だったが、
+  新commandでdeployを再実行せず同一commandの最終exit1を確認した。
+- 再検証: SSM `dda872b2-83d9-4480-8aed-c7c8eab2bdb4`は保全/HTTP確認exit0、
+  `703dcc4d-e2b0-4325-99bb-033f58d6c76e`は安全に抽出したappエラー、
+  fresh receipt再照合、公衆bind確認exit0。製品のdeploy失敗を成功扱いしない。
+- 未解決: 本番サービス停止継続、旧サービスへの復旧は別承認待ち。
+  app修正/再deploy、認証後教師受入・合成previewは未実施。Phase 2未完了。
+
+## 2026-10-10 22:19 JST: 2回目update後の緊急復旧完了
+
+- 承認: 22:15:56 JST、旧releaseのアプリ系サービス復旧のみ。
+  修正済みoperationsの既存rollbackを実行した
+  SSM `9474f560-b72c-4117-a393-09c35f0d19a4`はexit0、
+  22:16:43–22:18:58 JST、135秒。
+- 結果: 旧5サービスhealthy・旧Image ID、current/state rollback published一致、
+  nginx0.0.0.0:80/443維持。EC2からhealth/login4件HTTP200、Mac両login200、
+  browser両ログインフォーム表示。新imageは稼働していない。
+- 保全: DB ID/StartedAt/image/Volume/Flyway hash、release/Secrets不変。
+  DB操作・migration・復元、IAM変更、root回避、新release修正/再deployなし。
+  maintenance開始22:09:58→公開復旧確認22:18:59の記録区間は9分1秒。
+- 実行手順エラー: 最初のSSM send-commandはcommentが100文字を超え
+  ValidationException（exit254）でAWS側受付前に拒否された。
+  commentだけを短縮して送信成功。最初の拒否では復旧commandは実行されていない。
+  標準waiterはInProgressでMax attempts exceededとなったが、
+  同一commandの完了を確認し、rollbackを重複実行していない。
+- 状態: サービス復旧済み。新app launcher Permission deniedは未修正、
+  Phase 2未完了。詳細は[復旧記録](./ecr-manual-deployment.md#2回目update後の旧サービス復旧2026-10-10-2219-jst)。
+
+## 2026-10-10 22:22–22:25 JST: app権限修正のローカル回帰
+
+- 原因再現: 修正前mainのsourceを0600で実build。UID10001の実entrypointは
+  `cannot open /usr/local/bin/ppe-app: Permission denied`、exit2。
+  root:root0600のlauncher/Tomcat2設定、親0755を実imageで確認。
+  source umaskを緩めずCOPY側で0644を固定した。
+- 初回統合test: 専用local Docker DBのV11 migrationがMySQL1419でexit1。
+  production migrate.shが行う一時SUPER grant/revokeをtestが再現していなかった。
+  同じgrant/revokeを専用合成DBに限定して追加し、次の実runでV1〜V23適用/
+  validate、UID10001 app/UID65532 runner/実5サービスhealthy・両HTTPS formが成功。
+  production migration/DBには接続していない。
+- 初回test資産名: Compose configの正規化済みnetwork/volume名が
+  `ppe-production_*`として残った。初回ログでは新規作成され、cleanupで除去済み。
+  次回以降はconfigの明示nameを削除し、専用`ppe-sim-app-*`projectへ限定した。
+  localの当該volume/network残存0を確認。EC2のproduction資産とは別daemon。
+- Docker Desktopの無効optional CLI plugin警告は既存の非fatal警告。
+  実Docker daemon/build/healthは機能している。失敗を成功扱いせず原因と再検証を記録する。
+
+## 2026-10-10 22:39 JST: PR #57の統合test準備漏れ
+
+- 必須Shell CI run38056149799でapp-startup-test exit1。
+  Brokerは`A pre-pulled runtime image without volumes is required.`で起動拒否。
+  ローカルでは既存python:3.12-alpine cacheがあり見えなかったが、クリーンCIにはない。
+- testがproduction Composeのruntime imageを事前取得していなかった。
+  正規化ComposeのBroker設定からruntimeを読み、既存Docker pullで明示取得する。
+  Broker検証・必須CI・権限は緩和しない。専用test資産は失敗時もcleanup済み。
+  再検証は同じ20 suites必須CIで行う。本番には変更していない。

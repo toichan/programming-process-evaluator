@@ -408,3 +408,211 @@ schema互換性をexit0で確認した。これはEC2での実Pull検証では�
 
 見積もりの短縮を理由に未完了gateを飛ばさない。本番サービス停止・更新とDB migrationは
 その具体的な対象・変更・復旧方法を提示してから承認を得る。
+
+## 修正済みreleaseの再公開・EC2取得受入（2026-10-10 22:04 JST）
+
+今回は公開・独立operations配置・取得・読み取り検証だけを実施した。
+deploy/rollback、稼働中containerの再起動・再作成、migration、DB/Volume変更、
+IAM/EC2設定変更、Secrets/運用env変更は実施していない。Phase 2は本番update受入待ち。
+
+| 項目 | 実測・証跡 |
+|---|---|
+| 固定source / operations | `043d875d760a080b8cff552b1f81ee8d47e5dc31`（PR #56 merge後） |
+| 必須main push CI | [38052842862](https://github.com/toichan/programming-process-evaluator/actions/runs/38052842862)、Java/Shell両方success。公開manifest内CI evidenceとも一致 |
+| 新規公開 | [38053545658](https://github.com/toichan/programming-process-evaluator/actions/runs/38053545658)、attempt 1、success。dispatchは1回のみ |
+| 一意tag | `sha-043d875d760a080b8cff552b1f81ee8d47e5dc31-gha-38053545658-1` |
+| OCI資産 | `024378233912.dkr.ecr.ap-northeast-1.amazonaws.com/ppe/releases@sha256:59277cdb20fd1aa96a91554cd4dac56ab6f1b4514bcd4e1f469b4aa60ff4691c` |
+| source manifest SHA-256 | `51ea6a99738e3f9abce68af9abb2c0f16fd82f8322ce03712e2594fe31bc428f` |
+| 配置 | `/var/lib/ppe/operations/043d875d760a080b8cff552b1f81ee8d47e5dc31`へ固定Git由来runtime scriptのみ独立配置。転送archive SHA-256 `6549b950d5b0f40faacfd3f67b824401bff6f36a467963203e61f26e64044c05`。既存TLS wrapper bytesも一致 |
+| EC2取得 | 既存adapter、SSM `26b1d3bb-88a5-476d-ab9b-27a77c550b66`、exit0、22:00:28 JSTにREADY。7件のregistry/config/daemon identityを別々に照合 |
+| 最終照合 | SSM `c33f3191-e0a4-48e0-ac12-cf000193fd77`、exit0。source全量hash、7 local tags/IDs、旧5container ID/Image/StartedAt/health、Volume詳細、旧release/config/Secrets/env/state hashを照合 |
+| Runner実Pull layer | SSM `b24520ca-0d27-403b-a088-f269894c3169`、exit0。directory `0755`、root-owned runner.py `0644`。本番相当ComposeのUIDは`65532:65532`。本番で新runnerを起動してはいない |
+| nginx | 新operationsのhelperで既存TLS envを読み取り、公開bind `0.0.0.0:80/443`を保持するtarget Composeを検証。現在の旧nginxも同じ公開bind |
+| DB | 既存container `cead40118ed8a27ce90a8f745f7b69ed528355149c7412d2c95985b6e47872d8`、起動時刻`2026-10-08T08:32:49.719977603Z`不変。`ppe-production_database`詳細不変 |
+| Flyway | 履歴hash `d37fe2524686316e388419148694b57b50fc36927ffe89ec1c5e9620e4729475`不変。新旧23 SQL filesがbyte一致。今回Flyway実validate/info/migrateは実行していない |
+| 旧サービス | db/broker/runner/app/nginx全healthy、current=`0e2bfae5e23bc512f0b7cf844264d4d45a484ecc`。state=`rollback/published`のまま。生徒・教師のHTTPS login/health計4件HTTP200、health=`ok` |
+| Backup/TLS | 既存version固定backup receiptをremote checksum/size/freshnessで検証。ローカルage鍵mode/owner/recipient一致。backup/freshness timerと実TLS更新timer `certbot.timer`のscheduleを確認。両証明書期限2027-01-06 07:22:08 UTC |
+| 既存運用参照 | backup/TLS envのrelease/DB pinは旧releaseのまま。TLS operations currentは`7087770dff68c2f21d4f5607cc474397e639f885`。変更していない |
+| ディスク | EC2残り8.1 GiB（取得前8.4 GiB）。ECR各image表示容量の単純合計約1.02 GB、共有layerによる実課金/増分とは異なる |
+
+7 imageのregistry digest（全件検証済み、config Image IDとの混同禁止）:
+
+| Image | Registry manifest digest |
+|---|---|
+| app | `sha256:594122357580bde3d1fd1036161c09b7342a350643eae3f00b869a0a9f00e1cb` |
+| tools | `sha256:84657ddc343cdf276bdadf5364a9b88f834d810a2006997b33071183475fb758` |
+| db | `sha256:2256156aa18170fcd0c1ed218f85f77ff7b03da79fe0850546a659d2d40cb598` |
+| runner | `sha256:ca6de7b1e9b1d566cdab3be386babda976a78fe103751d56fab6593bb78c11c4` |
+| broker | `sha256:d275a6aacde873e1898f04bb9ea548010470ec4f4c4d99ec8f7a1dac366caf4e` |
+| nginx | `sha256:a20f78b34796b02498168e5ba5733c81c4a055d5bb09c0a14bb77dcf77ac4048` |
+| backup | `sha256:dd44f7e0fac215bf65a4f9372a7b5d1febc8ccaf57775d5a4e15300a1d5db40a` |
+
+### 次の明示承認に必要な範囲
+
+- 新operationsと新READY releaseは上表の固定SHA/digestに限定。旧releaseは保持し、
+  DBは旧releaseへpinしたまま、既存updateを1回だけ実行する。
+- `/var/lib/ppe/config/recovery-reference-20261010`の既存hashは一致。
+  独立オフライン鍵複製・学習データ入り復元試験は引き続き未検証。
+- **新SHA→旧SHAのrollback compatibility referenceは未配置**。
+  既存`rollback-2f48c898-to-0e2bfae5-20261010.reference`は失敗した別release向け、
+  emergency referenceは旧→旧向けであり、今回へ流用しない。
+  今回の新旧SQL byte一致・実DB履歴・旧7 imageを根拠に、新組合せのreviewと
+  新規referenceの配置を明示承認範囲へ含める。既存referenceを書き換えない。
+- 実行直前に既存preflight、鍵/reference/history/Image ID、Flyway validate/infoを再確認し、
+  pendingや差分があれば停止。既存処理でfresh S3 backupとreceiptを作成・検証する。
+- DB/Volume維持、5サービスhealth、公開HTTPS、認証後の教師機能・合成Python preview、
+  current/state/backup/TLS参照を受入する。Gemini実APIは禁止。
+- 想定maintenanceは約2–5分、health timeoutで延びる可能性がある。
+  再デプロイ・DB復元・明示rollbackは独断で行わない。app_started以降の失敗で
+  自動復帰しない既存境界は維持されているため、その場合は復旧承認を得る。
+
+EC2証跡は`/var/lib/ppe/operations-evidence/phase2-fixed-release-20261010/`に保存。
+取得済みreleaseの`ecr-image-identities.tsv`がregistry/config/daemonの完全な対応表。
+既存失敗releaseは保持したままで、今回の対象として使用しない。
+
+## 修正済みreleaseの本番update失敗（2026-10-10 22:14 JST）
+
+2026-10-10 22:07 JSTの明示承認により、上記固定releaseへ既存deployを**1回のみ**
+実行した。結果は失敗。Phase 2は未完了であり、本番サービスは復旧していない。
+再デプロイ・明示rollback・DB復元は実行せず、読み取り調査後に停止した。
+
+- 直前preflight: SSM `6df054b6-c440-45b8-bd3e-fe3bfb971a0e`、exit0。
+  実Flyway validate/info成功、applied23/pending0、新旧23 SQL byte一致、
+  新旧7 image保持、DB/Volume/source/既存reference一致。
+- 新規reference: `/var/lib/ppe/config/rollback-043d875d-to-0e2bfae5-20261010.reference`、
+  root-owned mode0600。source新SHA、target旧SHA、実DB ID/履歴hash、
+  23 SQL一致・実validate成功をreview basisに記録した。
+  SHA-256 `ae64350e0d43458ee9388a16d9a4e1305f41a4765e0aceee72fe18bab24e4ee4`。
+  **未公開updateからの緊急復旧ではcurrent markerが旧SHAのため、この新→旧referenceを
+  旧→旧のcurrent-schema reviewとして流用しない。**
+- 本番update: SSM `587c55c7-d249-4d32-8620-fce6133fc156`、exit1。
+  22:09:23–22:12:31 JST、188秒。deployment ID
+  `3b3f70b0c4917e98bcf3b3b3d5153620`、`phase=app_started`、
+  `migration_attempted=no / apps_restored=no / recovery_attempted=no`。
+- Runner: 新imageでUID65532、healthy、RestartCount0。前回runner.py権限障害は
+  今回の本番起動で再発していない。
+- app: 新image、UID10001で再起動を繰り返す。実ログ
+  `sh: 0: cannot open /usr/local/bin/ppe-app: Permission denied`。
+  app起動launcherの読み取り拒否が今回の直接の失敗原因。
+  この時点でroot起動・chmod・image変更による回避は行っていない。
+- broker: 新imageでhealthy。nginx: 旧imageのままhealthy、
+  公開bindは`0.0.0.0:80/443`を維持。app upstreamは利用不能で、
+  生徒・教師HTTPS loginはいずれもHTTP504。
+- DB: 旧container ID/起動時刻/image/Volume詳細、Flyway履歴hash、
+  全既存releaseとSecrets hash不変。SQL migration未実行。
+- Fresh backup: 111,284 ciphertext bytes、data Version
+  `aQDW2R4bzJ1gwS8JRGbmdS9d.rsiDigv`、checksum Version
+  `JILT0w96khdM0HEna_ZDpDcS64WJS1ox`、manifest Version
+  `CDluGp_Psc7etSAMZv.Y0B7mZjYK9mxZ`。
+  既存deployによる作成・検証成功、失敗後もSSM
+  `703dcc4d-e2b0-4325-99bb-033f58d6c76e`でremote receipt/checksum/Version/freshness再確認exit0。
+- current markerは旧SHAのまま。stateは新SHAの未完了updateであり、
+  現在は新broker/runner、起動失敗の新app、旧nginx/DBの混在状態。
+  markerだけを根拠に「旧サービス復旧済み」と判断しない。
+- 教師・生徒accountは存在せず、active admin1件のみ。
+  教師認証後フロー・合成Python previewは失敗後に実行していない。
+- 継続中の停止時間はまだ確定できない。188秒はdeployコマンドの所要時間であり、
+  サービス停止時間の完了値ではない。旧サービス復旧には新しい明示承認が必要。
+
+証跡は`/var/lib/ppe/operations-evidence/phase2-fixed-update-20261010-2207/`。
+追加インフラ開発・修正・再実行には着手していない。
+
+## 2回目update後の旧サービス復旧（2026-10-10 22:19 JST）
+
+22:15:56 JSTの緊急復旧承認に基づき、修正済みoperationsの既存rollbackを使用して
+旧release `0e2bfae5e23bc512f0b7cf844264d4d45a484ecc`へ復帰した。
+SSM `9474f560-b72c-4117-a393-09c35f0d19a4`は**exit0**、
+rollback実行22:16:43–22:18:58 JST（135秒）。
+
+- 実行前にcurrent旧、state新update/app_started/migration_attempted=no、
+  DB ID/起動時刻/Volume/履歴hash、新旧23 SQL一致、旧7 image、
+  既存release/Secrets hashと新→旧reference hashを再照合した。
+- 既存rollbackはこの未公開updateの復旧に対応する。ただしreferenceのsourceは
+  actual current markerを検証するため、新→旧referenceを流用せず、
+  今回の状態に基づく旧→旧current-schema referenceを新規作成・検証した。
+  `/var/lib/ppe/config/rollback-incomplete-fixed-update-20261010-2215.reference`、
+  root-owned0600、SHA-256
+  `662aac6ba4c033f9e02aaa7f299c0acddf5b58302054a085cfbc289d4b4e2fcd`。
+  失敗update journalは既存rollbackの保存処理で保持した。
+- app/runner/brokerを旧imageへ復帰。nginxは旧containerのまま設定検証/reload、
+  `0.0.0.0:80/443`を維持。DB containerは再起動・再作成していない。
+- 5サービスhealthy・旧Image ID一致。current旧、state
+  `mode=rollback / release=旧 / previous=旧 / phase=published / migration_attempted=no`。
+  新releaseのimageは稼働していない。旧backup/TLS/DB pinも維持。
+- DB ID・起動時刻・image・Volume詳細・Flyway履歴hash、
+  既存release/Secrets hashは復旧前後不変。DB migration/復元/削除なし。
+- 22:18:59 JSTにEC2から生徒/教師healthとlogin計4件HTTP200、health=`ok`。
+  続いてMacから両HTTPS login HTTP200、共有browserで両ログインフォーム表示を確認。
+- maintenance開始journal22:09:58→公開復旧確認22:18:59は**9分1秒**。
+  これは記録されたmaintenance開始から確認までの区間であり、
+  連続監視で測った全リクエストの厳密な停止時間ではない。
+- 新app launcher権限障害は未修正。Phase 2は未完了。
+  復旧完了後に停止し、新release修正・再deploy・追加インフラ開発には着手していない。
+
+復旧証跡は同じ`phase2-fixed-update-20261010-2207`配下の
+`emergency-rollback.log`、`emergency-state-before`、reference hash、
+DB/Volume前後照合と`emergency-public-verified`に保持。
+
+## app launcher権限障害の修正と隔離起動回帰（2026-10-10）
+
+今回の修正作業では本番EC2へ接続・変更していない。復旧済み旧releaseを維持し、
+修正後releaseの公開・取得・本番updateは別承認とする。
+
+### 直接原因と最小修正
+
+公開処理は`umask 077`でGit archiveを展開する。修正前Dockerfileの通常COPYは
+入力ファイルmodeを引き継ぐため、root所有`0600`の`/usr/local/bin/ppe-app`を作り、
+UID10001の`sh /usr/local/bin/ppe-app`が読み取り拒否になった。
+同じ入力ではroot所有Tomcat `context.xml`/`server.xml`も0600になる。
+本番Composeにlauncherを覆うmountはなく、親`/usr`/`usr/local`/`usr/local/bin`は0755。
+ローカルで修正前のfixed mainを0600入力としてビルドし、UID10001の同一entrypointで
+Permission denied・exit2を再現し、launcher/configのroot:root0600と親0755を確認した。
+
+[production Dockerfile](../../containers/production/Dockerfile)のCOPYに
+`--chmod=0644`を指定した。対象はapp/tools launcherとTomcatの2設定ファイルのみ。
+owner root、app USER10001:10001、entrypoint/CMD、secret読込、capability、networkは維持。
+launcherは`sh`が読むためexecute bitを追加せず、root起動への回避もしない。
+
+### 新しい必須起動回帰
+
+[app-startup-test.sh](../../scripts/production/tests/app-startup-test.sh)を既存Shell runnerへ追加し、
+20 suites/zero skipを要求する。Docker build成功だけではPASSにしない。
+
+- input sourceを0600へ正規化して実app/tools imageをbuild。launcherと両設定が
+  root所有0644・UID10001で読めること、親ディレクトリとmount、entrypoint/CMDを照合。
+- production Composeからserviceを抽出し、実DB/broker/runner/app/nginxとtools migrationを
+  専用project/network/volumeで起動。app UID10001/runner UID65532、secret fileの構造、
+  service依存、cap_drop/no-new-privileges、runner read-onlyを維持する。
+- 実MySQLへV1〜V23を適用/validate（専用の合成DBのみ）。
+  productionと同じmigration用一時SUPER grant/revokeを実施する。
+- test-only secret/certificateを使用。Gemini keyは合成値でAPI呼出しはない。
+  5サービスhealthy、appのrestart0、HTTPS health=`ok`、両実login formを確認。
+- 無認証runner execution401、合成DB rowの保存・proxy再作成後の再読込、
+  nginx0.0.0.0 bind維持、DB container維持を確認。既存deploy/rollback/recoveryと
+  nginx TLS回帰も引き続き必須。
+- testはlocal Unix Dockerのみを許可。環境変更はtest image名・namespace・subnet・
+  synthetic secrets・ephemeral host portsに限定し、終了時に専用資産だけを削除する。
+
+本番再デプロイ前には、修正merge後の固定main CIから新しいECR releaseを作る。
+今回失敗した043d875 releaseはimmutableのまま保持し、上書き・再利用しない。
+新組合せのrollback review、実READY/source/ID、鍵/backup/TLS/DB履歴を確認してから、
+別の明示承認で本番updateへ進む。Phase 2の本番受入完了とはまだ扱わない。
+
+### ローカル検証結果
+
+- CI同条件のGradle 8.10.2/JDK21 containerで
+  `gradle --no-daemon clean build --warning-mode all`: exit0、29秒。
+  JUnit107 suites/392 tests、260 passed/0 failure/0 error/132 skipped。
+  skipは既存opt-in DB/HTTP/browser/実API testであり、今回のShell統合testとは別。
+- `bash scripts/ci/run-shell-tests.sh <専用結果ディレクトリ>`: exit0、
+  20 suites/161 assertion groups/zero skips。新app-startup-testの4 groups、
+  Runner起動、nginx TLS/public bind、58 groupsのdeployment recoveryを含む。
+- `bash scripts/ci/check-shell-syntax.sh`: 74 files PASS。
+  `bash scripts/ci/tests/reporting-test.sh`、
+  `bash scripts/ci/tests/runner-gates-test.sh`、
+  `bash scripts/ci/tests/ecr-release-test.sh`: 全exit0。
+  ECR publish40拒否/acquisition11拒否等はmock検証で、実ECR公開ではない。
+- 実Docker/Compose起動・両HTTPS login HTMLは確認済み。
+  Node.jsはPATH上にないため今回の隔離環境でbrowser renderingは未確認。
+  HTTP200だけでなく実HTMLのpassword inputとhealth JSONを照合した。
+  test終了時に専用container/network/volume/imageをcleanup済み。

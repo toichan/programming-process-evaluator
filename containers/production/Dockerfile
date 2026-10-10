@@ -11,7 +11,7 @@ FROM build AS tools
 ARG PPE_GIT_COMMIT=uncommitted
 LABEL org.opencontainers.image.revision=$PPE_GIT_COMMIT
 ENV GRADLE_USER_HOME=/opt/gradle-cache
-COPY containers/production/secrets-entrypoint.sh /usr/local/bin/ppe-tools
+COPY --chmod=0644 containers/production/secrets-entrypoint.sh /usr/local/bin/ppe-tools
 ENTRYPOINT ["sh", "/usr/local/bin/ppe-tools"]
 CMD ["gradle", "--offline", "--no-daemon", "flywayMigrate", "flywayValidate", "flywayInfo"]
 
@@ -23,9 +23,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl \
     && groupadd -g 10001 ppe && useradd -u 10001 -g ppe -d /usr/local/tomcat ppe \
     && chown -R ppe:ppe /usr/local/tomcat
 COPY --from=build --chown=ppe:ppe /workspace/build/libs/ROOT.war /usr/local/tomcat/webapps/ROOT.war
-COPY containers/production/context.xml /usr/local/tomcat/conf/context.xml
-COPY containers/production/server.xml /usr/local/tomcat/conf/server.xml
-COPY containers/production/secrets-entrypoint.sh /usr/local/bin/ppe-app
+COPY --chmod=0644 containers/production/context.xml /usr/local/tomcat/conf/context.xml
+COPY --chmod=0644 containers/production/server.xml /usr/local/tomcat/conf/server.xml
+COPY --chmod=0644 containers/production/secrets-entrypoint.sh /usr/local/bin/ppe-app
 RUN mkdir /tmp/war-check && cd /tmp/war-check && jar xf /usr/local/tomcat/webapps/ROOT.war \
     && sed -i '/<http-only>true<\/http-only>/a\            <secure>true</secure>' WEB-INF/web.xml \
     && jar uf /usr/local/tomcat/webapps/ROOT.war WEB-INF/web.xml \

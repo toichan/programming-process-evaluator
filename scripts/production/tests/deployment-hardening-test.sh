@@ -62,7 +62,7 @@ for suite in source-manifest-test migration-preflight-test operation-config-sync
     echo "$suite PASS exit=0 assertion-groups=$passed skipped=$skipped"
 done'
 for suite in deployment-db-config-hash-test backup-operation-config-test age-recipient-test \
-    db-admin-binary-mode-test backup-roundtrip-test nginx-startup-test runner-startup-test; do
+    db-admin-binary-mode-test backup-roundtrip-test nginx-startup-test runner-startup-test app-startup-test; do
     code=0
     if [[ "$suite" = age-recipient-test ]]; then
         command -v age >/dev/null
