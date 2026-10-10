@@ -34,6 +34,8 @@ cleanup() {
 trap cleanup EXIT
 for secret in db_password db_root_password db_migration_password; do
     printf 'synthetic-test-only-1234567890\n' > "$root/$secret"
+    # The MySQL entrypoint drops to its own UID before reading mounted secrets.
+    chmod 0444 "$root/$secret"
 done
 cat > "$compose" <<'YAML'
 services:
@@ -92,8 +94,10 @@ SQL
 query="SELECT id,version FROM ppe.rubrics ORDER BY id; SELECT id,code FROM ppe.submissions ORDER BY id; SELECT id,rubric_id,submission_id,snapshot FROM ppe.evaluations ORDER BY id; SELECT id,role,display_name FROM ppe.users ORDER BY id; SELECT id,user_id,code FROM ppe.code_logs ORDER BY id;"
 printf '%s\n' "$query" | docker compose -p "$source_project" -f "$compose" exec -T db sh /opt/ppe/db-admin.sh > "$root/source.rows"
 docker run --rm --network none --read-only --user 0:0 -v "$root:/fixture" \
+    --env "TEST_OUTPUT_UID=$(id -u)" --env "TEST_OUTPUT_GID=$(id -g)" \
     --entrypoint /bin/sh ppe-backup:local -c \
-    'umask 077; age-keygen -o /fixture/identity 2>/dev/null; age-keygen -y /fixture/identity > /fixture/recipient; chmod 0444 /fixture/recipient'
+    'umask 077; age-keygen -o /fixture/identity 2>/dev/null; age-keygen -y /fixture/identity > /fixture/recipient;
+     chmod 0444 /fixture/recipient; chown "$TEST_OUTPUT_UID:$TEST_OUTPUT_GID" /fixture/identity /fixture/recipient'
 docker compose -p "$source_project" -f "$compose" exec -T db sh /opt/ppe/db-admin.sh --dump |
     docker run --rm -i --network none --read-only -v "$root/recipient:/run/recipient:ro" \
         ppe-backup:local -R /run/recipient > "$root/backup.age"

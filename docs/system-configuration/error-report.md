@@ -17,6 +17,14 @@
 - 影響: disposable hosted runnerと合成fixtureのみ。AWS・本番への接続なし。
 - 再検証: ローカル対象テストと構文検証後、追加commitをpushして全CIを再実行する。
 - 未確認: 修正版のhosted runner受入結果は後続runで確認する。
+- 第2回run `38001241672`: DB client修正は成功、16スイート完了後に
+  backup-roundtrip-testのMySQL初期起動がexit2で停止（test wrapper exit1）。
+  MySQL entrypointは非root UIDへ切り替えてsecretを読むが、fixtureが0600を使用。
+  合成secretは本番注入方式と同じ0444にし、親directoryは0700を維持する。
+  同fixture内でroot生成されるage identity/recipientも呼出元所有へ戻す。
+  秘密鍵0600、隔離project・非空DB復元拒否などの本番安全条件は不変。
+- CI状態確認curlで一時DNS解決失敗（exit6）。GitHub MCP経由でrun結果を取得し、
+  本番/AWSの設定変更やCI無条件再実行は行わなかった。
 
 ## 2026-10-10 07:34 JST: CI導入の初回ローカル検証
 
