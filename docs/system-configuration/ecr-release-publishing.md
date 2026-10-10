@@ -70,6 +70,11 @@ Summaryの成功は最終再取得の成功後にのみ記録する。
 OIDC失敗後のpublish stepは実行されない。認証config/tokenはprivate file/stdinのみで扱い、
 argv/log/artifactに出力せず、終了時にlocal config/tagと署名付きdownload URLを削除する。
 
+公開成功時は別途 `ecr-release-report-<run ID>-<attempt>` を7日保存する。
+release.json、ci.json、images.tsv、transfer.json、OCI manifest、summaryだけを
+明示的に選択し、Docker archive、WAR、source archive、認証設定は含めない。
+1日保存のjob間転送artifact（Docker archiveを含む）とは区別する。
+
 ## release.json schema 1
 
 [validator](../../scripts/ci/ecr-release-common.sh)は未知key、欠落key、数不足・重複、

@@ -2,6 +2,16 @@
 
 秘密情報・実際の生徒データ・研究データは記載しない。解消後も履歴を保持する。
 
+## 2026-10-10 JST: 初回ECR保存前の公開レポートartifact不足
+
+- 対象: PR49マージ後のworkflow静的確認（実ECR保存は未実行）。
+- 期待: ECR再取得検証後の公開結果をGitHub artifactにも保存する。
+- 実結果: job間転送artifactのみ存在し、公開結果の保存stepが欠落していた。
+- 対応: 成功時のみ、6つのレポートファイルを明示選択して7日保存するstepを追加。
+  Docker/WAR/source archiveと認証ファイルは公開レポートに含めない。
+- 再検証: actionlint、既存mock回帰、修正PRとマージ後のCIで確認する。
+- 影響: 初回実Push前に発見。本番・IAM・ECR設定への変更なし。
+
 ## 2026-10-10 18:25 JST: PR49 ECR mock試験のshallow checkout
 
 - 対象: CI run `38041320507`、Shell harness検証step、PR49。
