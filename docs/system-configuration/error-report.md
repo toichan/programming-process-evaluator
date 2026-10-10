@@ -2,6 +2,71 @@
 
 秘密情報・実際の生徒データ・研究データは記載しない。解消後も履歴を保持する。
 
+## 2026-10-10 07:47 JST: GitHub hosted CI初回受入
+
+- 対象: CI run `38000948714`、commit `95477afa96acd8d7c6651bd114583d1fb943906d`。
+- 手順: CI専用ブランチへのpushでJava/Shell jobを実行。
+- 期待: 両job成功、18 Shell suites完了、artifact保存。
+- 実結果: Java/buildと両artifact保存は成功。Shellは15スイート成功後、
+  db-admin-binary-mode-testが`output/arguments: Permission denied`、exit2で停止。
+  残り2スイートは未実施。失敗runを受入成功として扱わない。
+- 原因: Linux bind mount上の合成MySQL client出力がroot所有/0600で、
+  runnerユーザーのgrepから読めない。macOS Dockerの共有方式では再現しなかった。
+- 対応: root実行が必要なfixtureは維持し、コンテナ内でテスト出力1ファイルの
+  所有者を呼出元UID/GIDへ戻す。本番DB-admin・安全機構・秘密情報扱いは変更なし。
+- 影響: disposable hosted runnerと合成fixtureのみ。AWS・本番への接続なし。
+- 再検証: ローカル対象テストと構文検証後、追加commitをpushして全CIを再実行する。
+- 未確認: 修正版のhosted runner受入結果は後続runで確認する。
+- 第2回run `38001241672`: DB client修正は成功、16スイート完了後に
+  backup-roundtrip-testのMySQL初期起動がexit2で停止（test wrapper exit1）。
+  MySQL entrypointは非root UIDへ切り替えてsecretを読むが、fixtureが0600を使用。
+  合成secretは本番注入方式と同じ0444にし、親directoryは0700を維持する。
+  同fixture内でroot生成されるage identity/recipientも呼出元所有へ戻す。
+  秘密鍵0600、隔離project・非空DB復元拒否などの本番安全条件は不変。
+- CI状態確認curlで一時DNS解決失敗（exit6）。GitHub MCP経由でrun結果を取得し、
+  本番/AWSの設定変更やCI無条件再実行は行わなかった。
+- 第3回run `38030149236`: 合成secret修正により両DB起動は成功。
+  age復号でidentity読取permission denied。restoreはrootかつcap-drop ALLなので、
+  host所有0600の鍵を読めない。fixtureのidentityは生成元root所有0600を維持する
+  （上記のidentity所有者変更は撤回）。cleanupは0700親directoryの所有者がunlinkする。
+  restoreの権限・capability制限を緩和せず再検証する。
+- 第4回run `38030357685`: age-recipient-testがexit1
+  (`Invalid recipient checksum accepted.`)。末尾を常にqへ置換するfixtureは、
+  ランダム生成recipientの末尾がqのとき有効な入力のままになる。
+  qの場合だけpへ変更し、必ず異なるchecksumになるよう修正する。
+  checksum拒否のassertionと本番recipient検証は変更しない。
+
+## 2026-10-10 07:34 JST: CI導入の初回ローカル検証
+
+- 対象: AWSに接続しないJava/Shell CI。既存本番・開発DBの操作なし。
+- 手順: Java21/Gradle8.10.2 containerで
+  `gradle --no-daemon clean build --warning-mode all`、
+  `bash scripts/ci/run-shell-tests.sh <new-private-session-directory>`。
+- 期待: Javaの非opt-inテスト成功、Shell回帰18スイート成功。
+- 実結果: Gradleは392件中6失敗/132skip、exit1。
+  AuthenticationFilterTestのrequest proxyがboolean `isSecure()`にnullを返し、
+  現行HTTPS判定でNullPointerException。Shellは2スイート成功後、
+  operation-config-sync-testでexit1。
+- 原因: CI専用Shell imageにホストUIDのpasswd entryがなく、非root実行時の
+  `id -un`を使う所有者検証を満たせない。Java側は既存fixture不足。
+- 対応: テストrequestをsecureとして明示し、test-only imageへ実行UIDを登録。
+  本番AuthenticationFilter、HTTPS要求、所有者検証、deploy/backup安全条件は不変。
+  従来のShell runner既定image/root実行も保持し、CI image選択時だけ非root実行。
+- 再検証: 対応後に全Java/Shell回帰を再実行する。結果はCI手順の検証記録へ記載。
+- 第2回検証: Javaは107スイート/392件、260成功/0失敗/132skip、build exit0。
+  Shellは11スイート成功後、backup-systemd-testで`systemd-analyze: command not found`
+  （exit127）。従来Linux imageが提供していたunit構文検証用systemdをCI専用imageに
+  追加する。systemdを起動せず、inert fixtureに対するverifyのみ実行する。
+- 第3回Shell検証: systemd導入後のtimer定義verifyが`Asia/Tokyo`を解釈できずexit1。
+  最小Ubuntu imageにはtzdataが含まれなかった。CI専用imageへtzdataを追加し、
+  OnCalendarや本番timer定義は変更しない。
+- 最終再検証（07:39〜07:40 JST）: unit verify単独exit0、その後18スイート/
+  144 assertion groups、失敗0/skip0、統合wrapper exit0。
+  全JUnitは上記260成功/132skip/失敗0を維持。fixture不足・依存不足は解消。
+  ローカルDockerの古いCLI plugin警告とGradleのWarPluginConvention非推奨警告は
+  検証を妨げない既存警告として残す。GitHub実runnerは未確認。
+- 未解決: GitHub hostedでの初回実行はpush後に必要。今回commit/pushなし。
+
 ## 2026-10-10 00:20以降 JST: デプロイ補強のローカル実装・回帰
 
 - 対象: production deployment/backup/receipt/TLS参照同期。AWS接続・本番変更なし。

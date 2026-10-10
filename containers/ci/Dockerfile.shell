@@ -1,0 +1,10 @@
+FROM ubuntu:24.04
+ARG TEST_UID=1001
+RUN apt-get update \
+    && DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y \
+        bash coreutils curl dash diffutils findutils grep jq openssl perl sed systemd tzdata util-linux \
+    && rm -rf /var/lib/apt/lists/*
+RUN if ! getent passwd "$TEST_UID" >/dev/null; then \
+        useradd --no-create-home --uid "$TEST_UID" ppe-ci; \
+    fi
+WORKDIR /work

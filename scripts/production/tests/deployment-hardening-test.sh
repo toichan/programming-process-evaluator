@@ -9,7 +9,7 @@ endpoint=$(docker context inspect --format '{{.Endpoints.docker.Host}}')
     echo "Hardening tests require a local Unix Docker endpoint." >&2; exit 1;
 }
 docker info >/dev/null
-image=mcr.microsoft.com/playwright:v1.51.1-noble
+image=${PPE_HARDENING_TEST_IMAGE:-mcr.microsoft.com/playwright:v1.51.1-noble}
 docker image inspect "$image" ppe-db:local ppe-backup:local >/dev/null
 output=${PPE_HARDENING_TEST_OUTPUT_DIR:-}
 temporary=no
@@ -36,7 +36,11 @@ cleanup() {
 }
 trap cleanup EXIT
 trap 'exit 1' HUP INT TERM
-docker run --rm --pull never --network none --read-only \
+user_arguments=(--user 0:0)
+if [[ -n "${PPE_HARDENING_TEST_IMAGE:-}" ]]; then
+    user_arguments=(--user "$(id -u):$(id -g)")
+fi
+docker run --rm --pull never --network none --read-only "${user_arguments[@]}" \
     --tmpfs /tmp:rw,exec,nosuid,nodev,size=128m \
     --mount "type=bind,source=$repo,target=/work,readonly" \
     --mount "type=bind,source=$output,target=/output" \

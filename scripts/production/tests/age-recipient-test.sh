@@ -60,7 +60,9 @@ if (unset PPE_BACKUP_AGE_RECIPIENT; PPE_BACKUP_RECIPIENT_FILE="$root/invalid"; l
 printf 'not-an-age-recipient\n' > "$root/invalid"
 if (unset PPE_BACKUP_AGE_RECIPIENT; PPE_BACKUP_RECIPIENT_FILE="$root/invalid"; load_backup_config) \
     2>"$root/error"; then echo "Invalid recipient accepted." >&2; exit 1; fi
-printf '%s\n' "${PPE_BACKUP_AGE_RECIPIENT%?}q" > "$root/invalid"
+checksum_suffix=q
+[[ "$PPE_BACKUP_AGE_RECIPIENT" != *q ]] || checksum_suffix=p
+printf '%s\n' "${PPE_BACKUP_AGE_RECIPIENT%?}$checksum_suffix" > "$root/invalid"
 if age -R "$root/invalid" </dev/null >/dev/null 2>"$root/error"; then
     echo "Invalid recipient checksum accepted." >&2; exit 1;
 fi

@@ -23,13 +23,15 @@ MYSQL
 chmod 0700 "$test_root/bin/mysql"
 
 docker run --rm --name "$container" --network none --read-only --user 0:0 \
+    --env "TEST_OUTPUT_UID=$(id -u)" --env "TEST_OUTPUT_GID=$(id -g)" \
     --tmpfs /tmp:rw,noexec,nosuid,size=1m \
     --mount "type=bind,src=$test_root/secrets,dst=/run/secrets,readonly" \
     --mount "type=bind,src=$test_root/bin,dst=/test-bin,readonly" \
     --mount "type=bind,src=$test_root/output,dst=/out" \
     --mount "type=bind,src=$repo/containers/production/db-admin.sh,dst=/test/db-admin.sh,readonly" \
     --entrypoint sh "${PPE_DB_ADMIN_TEST_IMAGE:-mysql:8.0.44}" \
-    -c 'PATH="/test-bin:$PATH" sh /test/db-admin.sh --execute "SELECT 1"'
+    -c 'PATH="/test-bin:$PATH" sh /test/db-admin.sh --execute "SELECT 1" &&
+        chown "$TEST_OUTPUT_UID:$TEST_OUTPUT_GID" /out/arguments'
 
 grep -q -- '--batch' "$test_root/output/arguments"
 grep -q -- '--binary-mode' "$test_root/output/arguments"
