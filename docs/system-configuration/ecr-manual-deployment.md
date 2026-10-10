@@ -11,8 +11,11 @@ ECR公開の実受入はsource SHA `2f48c898f7cb9ebdf00809f1b83488a6f1b9811f`、
 で成功した。OCI release digestは
 `sha256:c74336a48d003c4ebc1a363c0c9219931718b14ceda0d9684226c3266958e78e`。
 7 imageのregistry manifest/config/Pull後ID、OCI資産の再取得を確認済み。
-**EC2 Pull権限の適用、EC2での取得、本番更新・ヘルスチェックは未承認・未実施**。
-この文書を本番受入済みの記録として扱わない。
+その後の別承認でEC2 Pull権限適用・取得/READYは受入済み。
+ただし3回のECR updateは権限障害で失敗し、2026-10-11 07:11 JSTに旧releaseへ復旧した。
+**ECR新releaseの本番受入/Phase 2は未完了のまま一時終了**し、機能開発へ戻る。
+[現状・次回更新の入口](./production-deployment.md#phase-2-pause-and-development-handoff-2026-10-11-jst)と
+末尾の失敗/復旧記録を参照。過去の承認・コマンド例を次回実行許可として再利用しない。
 
 ## Phase A/B: 人間が選択したreleaseの取得と検証
 
@@ -616,3 +619,157 @@ launcherは`sh`が読むためexecute bitを追加せず、root起動への回�
   Node.jsはPATH上にないため今回の隔離環境でbrowser renderingは未確認。
   HTTP200だけでなく実HTMLのpassword inputとhealth JSONを照合した。
   test終了時に専用container/network/volume/imageをcleanup済み。
+
+## PR #57修正後releaseの公開・取得受入（2026-10-10 23:14 JST）
+
+2026-10-10 22:59 JSTの承認範囲で、新規ECR公開、別operations配置、取得とREADY検証のみを
+実施した。本番update/rollback、Compose up/down、稼働container変更、DB migration、
+DB/Volume復元・削除、IAM/Secrets変更は実施していない。Phase 2全体は本番受入前。
+
+### 新releaseの固定値
+
+- source/operations: `ef55edb79cae870d0c1238ae05273c9f34651a0e`。
+  [main CI38057213746](https://github.com/toichan/programming-process-evaluator/actions/runs/38057213746)
+  のpush/main・Java/Shell成功とremote main一致を確認。
+- [公開run38057866136](https://github.com/toichan/programming-process-evaluator/actions/runs/38057866136)、
+  attempt1、workflow_dispatchを1回実行し成功。
+  tag `sha-ef55edb79cae870d0c1238ae05273c9f34651a0e-gha-38057866136-1`。
+- OCI release digest:
+  `sha256:064d14460bdef569c33f87f42ad8bf7a18e1d265a331f71e0c2ca96afce8a34a`。
+- source manifest hash:
+  `34389d6e53e8cc1ec91e382a384bf0051a291c75ec2614c2512d50b72244d740`。
+- small publication report artifact11672230486（4587 bytes）を取得。
+  artifact SHA256 `4007b0169f73d762d2f77c7f87405042fae4d7497c7c23d4022baa8f9cd0f1e9`、
+  OCI raw hash/schema/source/workflow/run/7-image inventoryを照合。
+  2.38GB transfer artifactはローカルへ取得していない。
+
+| image | registry manifest digest（sha256） | 検証 |
+|---|---|---|
+| app | `940e5036436dbeca08d71d392a25f0a9963c42c6f372ea1f263dd4b0b8ff21f8` | PASS |
+| tools | `e31d7e9162a84c90aeb6eebc741ec5707e50e6c7fbd3f94caccf8d7c47264e7d` | PASS |
+| db | `63c2f210f2d52f2366492d223e22f9be0f5511fb4c33d5c1208fb4614b35b868` | PASS |
+| runner | `bdef0fc7188ea93692652e336d46eb7c06b6885e126b9eb5a10831de013380ec` | PASS |
+| broker | `4050f4ec46d8ef3c99928ee585a86774489e6110eb334ea275aee63fb7f2da3a` | PASS |
+| nginx | `b863c5ce2ec5acfc782003b4139c94f0a63b8e8280692a084b1db1cbe55bf8f2` | PASS |
+| backup | `d882492eb304d1eb7cb2c816c394fc4908f265c8b7493d6fd6f8a16d6e2eec43` | PASS |
+
+公開workflowとEC2の既存adapterが各config Image ID/revision/linux-amd64、
+manifest/config bytesとPull後IDを照合した。Docker29/containerdのlocal IDは
+manifest digestなので、config IDとは別の列で保持する。照合省略・manifest書換えはない。
+
+### EC2での受入
+
+- instance `i-0ffd69e8f390bd396`、SSM Online、account024378233912を確認。
+- 新operationsを`/var/lib/ppe/operations/ef55edb79cae870d0c1238ae05273c9f34651a0e`へ
+  排他的に配置。archive hash
+  `7e8268473ac0912edf650fe3d27b441937cce016f6e41f7db28ede3ce227ff37`を検証。
+  adapter/deploy/rollback/common/network helperは前operationsとbyte一致。
+  active backup/TLS wrapper参照は変更していない。
+- 取得SSM `a766249f-83ed-449a-bf2a-10423c33da6d` exit0。
+  host instance roleでECR認証し固定digestから7イメージ取得。
+  `/var/lib/ppe/releases/ef55edb79cae870d0c1238ae05273c9f34651a0e/READY`はsource SHA。
+- 最終照合SSM `abd225d2-d647-401f-b228-f89b861e26b2` exit0。
+  取得前後で旧5containerのID/image/StartedAt/healthy、Volume全文、
+  deployment.state/current/previous/env/Secrets/既存releaseのhashが一致。
+- 実file mode照合SSM `c1a642f9-ea4b-4b9a-87e1-4b7e3b0f6996` exit0。
+  fixed ECR layerをhash確認して順番に読み、最終app launcher/Tomcat2設定/
+  runner.pyのroot所有0644を確認。app config USER10001/entrypoint/CMDも一致。
+  新imageのcontainerは起動していない。隔離Compose起動受入はPR #57のCI記録を参照。
+- deploy/rollbackのnetwork helperを含み、target Compose生成で
+  nginx0.0.0.0:80/443・Runner UID65532を確認。running nginxも同bind。
+- 生徒/教師のHTTPS healthとlogin4/4は200、ブラウザー両login formを再読込確認。
+  current旧release、stateはrollback/旧release/published/migration_attempted=noのまま。
+- DB container `cead40118ed8a27ce90a8f745f7b69ed528355149c7412d2c95985b6e47872d8`、
+  Volume `ppe-production_database`（CreatedAt2026-10-08T08:32:49Z）を維持。
+  64tables、23履歴success、履歴hash
+  `d37fe2524686316e388419148694b57b50fc36927ffe89ec1c5e9620e4729475`一致。
+  新旧のV1〜V23 SQLは全byte一致。Flyway containerの実行/migrationは今回行っていない。
+- 取得後空き7.9GiB。backup/certbot timer active、TLS期限2027-01-06、
+  7日以内失効なし。旧7imageと過去失敗releaseは保持。
+
+### backup・新旧rollback準備と次の承認
+
+既存S3 backup receiptの固定Version ID・checksum/KMS・鮮度を再検証した。
+111284bytes、data version `aQDW2R4bzJ1gwS8JRGbmdS9d.rsiDigv`、
+checksum version `JILT0w96khdM0HEna_ZDpDcS64WJS1ox`、
+manifest version `CDluGp_Psc7etSAMZv.Y0B7mZjYK9mxZ`。
+これは旧→043d875失敗update時のbackupであり、**今回のef55 update用fresh backupではない**。
+既存recovery reference hash505b05e7…と過去2rollback reference hashは不変。
+ローカル復号鍵ファイルの存在・所有者・0600を確認（秘密値は未出力、未転送）。
+既存restore受入の独立offline copy/実データ入り業務restore未確認は引き続き保留。
+
+新`ef55edb…`→旧`0e2bfae…`referenceは今回作成・配置していない。
+レビュー材料はactual DB ID/Volume/history hash、新旧23SQL一致、旧7image retained、
+新source manifest hashとREADY証跡。過去referenceを新組合せの証跡として再利用しない。
+
+次に承認が必要なのは、この固定SHA/digestから旧releaseへの互換性レビューと
+当該組合せreferenceの作成・配置、fresh S3 backup、Flyway validate/infoによる
+pending0確認、既存deploy-release.shによるupdate1回と受入。
+DB保持、nginx公開bind、旧image維持を条件とし、想定外migrationでは停止する。
+明示rollback/DB復元/Gemini/IAM/Secrets変更/別releaseへの反映は別承認。
+READYは本番update承認または本番受入完了を意味しない。
+
+## ef55本番update失敗・停止記録（2026-10-11 03:25 JST）
+
+00:11 JSTの明示承認に基づき、固定ef55/OCI064d1446…のupdateを
+既存deploy-release.shで1回実行した。結果は**失敗、Phase 2未完了**。
+追加開発・再deploy・明示rollback・DB復元は行わず停止する。
+
+### 実施と現在状態
+
+- preflight SSM `02f90bbe-5fd1-403b-a35a-cf1551540880` exit0。
+  READY/source/7 IDs/旧資産/DB pin/env/TLS wrapperを照合、
+  実Flyway validate/info success・applied23/pending0、新旧23SQL全byte一致。
+- 新→旧専用reference
+  `/var/lib/ppe/config/rollback-ef55edb7-to-0e2bfae5-20261011.reference`を作成・照合。
+  hash `5140b21a1f55862f8e413bb6838024eb5f22275ed205fb124ac23bf683410a07`。
+  既存復号鍵0600とrecovery reference hash505b05e7…の利用可能性・一致を確認。
+- update前fresh backup、さらに既存deployのquiesce後fresh backupが共に成功。
+  後者deployment ID `51eb57823a3f5642680195eca2118f66`、
+  data111284bytes、data Version `RvJAOPqvpQV6Uea81HNGUCZMORwrzV_K`。
+  checksum/KMS/completion manifestとreceiptを失敗後も再検証済み。
+- actual nonroot読み取りSSM `e789a674-5ff9-4e80-a58e-5ba46ec05c7c` exit0。
+  app/TomcatはUID10001、RunnerはUID65532、対象file0644を確認。
+- update SSM `885ab0ca-fd12-4f02-bb75-77e46d1b2526`、03:20:47〜03:24:03 JST、
+  **196秒、exit1、nginx_started**。quiesce開始03:21:21 JST。
+  03:25:18 JSTの読み取り確認でも外部サービスは停止中で、停止終了時刻は未確定。
+  exact outageは連続監視していないためquiesce時刻と区別する。
+- 新broker/app/Runner healthy、app USER10001/Runner USER65532、restart0。
+  新nginx USER101はPermission deniedでrestarting/unhealthy。
+  実エラーは`/etc/nginx/nginx.conf`のopen拒否。bind0.0.0.0:80/443は維持。
+  生徒/教師HTTPSはHTTP000/curl7（接続拒否）、内部app healthはstatus ok。
+- DB container/Volume/23Flyway履歴は全不変、migration_attempted=no。
+  Secrets/既存releaseは不変。currentは旧0e2bfae、stateはupdate/ef55/nginx_started。
+  backup/TLS operation.envはpublishへ到達していないため旧参照のまま。
+  built-in recovery条件外（nginx stage）でapps_restored/recovery_attemptedはno。
+- 教師アカウント0件が判明し、合成教師/最小データ作成の追加承認を受けたが、
+  update失敗により作成・認証機能受入・合成previewは未実施。
+
+### 次の復旧に必要な承認
+
+旧release `0e2bfae5e23bc512f0b7cf844264d4d45a484ecc`へのapp系復旧だけを
+別途明示承認する必要がある。既存rollbackはcurrent旧・incomplete update・target旧に
+対応するが、referenceのsource_releaseはCURRENT marker旧となる。
+今回の新→旧referenceをCURRENT旧→旧のreferenceとして流用せず、実DB履歴/
+Volume/旧7imageを再確認して専用reviewを作成する。DB lifecycle/復元/migration/
+root回避/Secrets変更は不要であり許可しない。公開bind0.0.0.0:80/443を維持する。
+復旧承認前には実行しない。詳細エラーと証拠は[エラーレポート](./error-report.md)を参照。
+
+### 後続の改善方針（2026-10-11 JST、実装保留）
+
+権限障害3件の事実/原因の確度、全7image監査、ECR最終image統合検証、
+CI検証と復旧手順の改善は[技術的負債](./ecr-deployment-debt.md#ecrビルド経路の権限障害と改善保留2026-10-11-jst)へ集約した。
+P0本番復旧、P1卒業研究の機能追加、P2基盤改善の順とする。
+ただし次の新release反映では、対象の実最終image起動検証と安全な復旧手順の確認を
+事前条件として省略しない。READYだけで受入済みとは扱わず、自動本番deployは行わない。
+
+### 旧releaseへの緊急復旧完了（2026-10-11 07:11 JST）
+
+別途明示承認後、CURRENT旧→旧専用referenceの実レビューと既存rollbackで復旧した。
+rollbackは07:08:52〜07:11:23 JSTの1回、exit0。
+旧5images/healthy、nginx公開bind0.0.0.0:80/443、両HTTPS health/login200、
+DB container/Volume/Flyway履歴/Secrets不変、current旧・rollback state publishedを確認。
+新releaseのアプリ系コンテナは稼働していない。旧releaseで正常稼働し、ここで停止する。
+詳細なreference hash・SSM結果・時刻・停止時間の測定限界は
+[復旧記録](./error-report.md#2026-10-11-0711-jst-ef55失敗から旧releaseへの緊急復旧成功)を参照。
+新release修正・再deploy・ECR/CI改善には着手していない。Phase 2は引き続き未完了。

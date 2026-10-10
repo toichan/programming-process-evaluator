@@ -7,12 +7,94 @@ approval to collect research data or to execute the mutation commands in this
 runbook. See [preparation results and system-test plan](production-preparation-plan.md).
 Production business-flow acceptance and disaster restoration remain unverified.
 
-**2026-10-10 status:** ECR acquisition and the exact-release recovery/rollback
-references have now been accepted; application deployment remains unapproved.
-See the [current ECR acceptance and reference pins](./ecr-manual-deployment.md#最終reference確認と承認境界2026-10-10-jst).
+**2026-10-11 status:** The old release was restored successfully after the third
+ECR update failure. ECR publication/acquisition works, but new-release production
+acceptance is **incomplete and paused**. See the
+[current handoff](#phase-2-pause-and-development-handoff-2026-10-11-jst).
 The earlier preparation/install statuses below are historical, not instructions
 to reinstall completed operations. The Stage C record proves initial-state
 restoration only, not populated research-data recovery.
+
+## Phase 2 pause and development handoff (2026-10-11 JST)
+
+本節はリポジトリと既存の実行記録を整理したもの。今回AWS/EC2へ接続していない。
+過去の準備・未適用記録は日付時点の履歴として保持し、現在状態は本節と
+[ECR runbook](./ecr-manual-deployment.md)の最新受入記録を優先する。
+
+**本番復旧成功とECR移行完了は別である。** 07:11 JSTの復旧記録では、
+本番はEC2ローカルビルド由来の旧release
+`0e2bfae5e23bc512f0b7cf844264d4d45a484ecc`で正常稼働。
+5サービスhealthy、両HTTPS login/health200、nginx公開bind0.0.0.0:80/443、
+DB/Volume/23Flyway履歴不変、current旧・rollback state publishedを確認済み。
+ECR由来の新`ef55edb79cae870d0c1238ae05273c9f34651a0e`はnginx設定読取拒否で失敗し、
+新アプリ系コンテナは稼働していない。新release本番受入/Phase 2は未完了のまま一時終了する。
+
+### 実装・適用・検証の区分
+
+| 領域 | 実装とコード/運用の入口 | 状態と検証範囲 |
+|---|---|---|
+| 本番compute/network | AWS東京account024378233912、EC2 i-0ffd69e8f390bd396、`/var/lib/ppe`、[production Compose](../../compose.production.yml) | 単一EC2 Docker Composeで旧release運用中。app(Tomcat Servlet/JSP)、MySQL、Runner、broker、nginxが常駐5サービス |
+| TLS/公開 | nginx TLS/ACME read-only mount、[renewal運用](./tls-renewal-operation.md) | 両ドメインHTTPS、certbot timer/shared-lock wrapperの過去受入あり。公開bindは既存運用envから継承。次回更新前に再確認 |
+| Backup/監視 | [backup.sh](../../scripts/production/backup.sh)、backup-common、systemd、S3/KMS、CloudWatch metrics/alarms/SNS | age暗号化dump、versioned S3 SSE-KMS、receipt/checksum検証、定期運用の受入記録あり。fresh update backupと復旧後の既存backup再検証成功。研究業務データ入り復元と独立鍵保管は未検証 |
+| 管理/秘密情報 | SSM管理接続、instance role、private operation.env、Compose file secrets | 長期AWS鍵をActionsへ渡さず、DB/Gemini/Runner/生徒資格情報鍵はファイル参照。秘密値・age秘密鍵をGit/ログへ出力しない。最小ECR読取は適用済み、role全体のhardeningは未完了 |
+| ECR発行 | [手動保存workflow](../../.github/workflows/ecr-release-publish.yml)、[保存契約](./ecr-release-publishing.md) | OIDC publisher role、CI成功固定main SHAから7image/OCI manifestを8repoへ保存・再照合済み。本番deploy機能ではない |
+| ECR取得 | [prepare-ecr-release.sh](../../scripts/production/prepare-ecr-release.sh) | instance role、固定OCI/image digest、source/config/ID照合、immutable release形式への接続とREADY生成はEC2受入済み。READYは最終imageの起動受入ではない |
+| 更新/復旧 | [deploy](../../scripts/production/deploy-release.sh)、[rollback](../../scripts/production/rollback-release.sh)、[state管理](../../scripts/production/deployment-state.sh) | DB pins/lock/backup/Flyway/health/smoke/reference gate実装済み。ECR update3回失敗、旧サービス復旧成功。nginx stageの自動復帰は未対応 |
+| 非root/権限 | app10001:10001、Runner Compose65532:65532、nginx101:101、backup65532:65532 | 実旧app/Runner/nginx UIDとhealthy確認済み。toolsは用途別migration image、brokerはsocket操作、DBはupstream entrypointの権限遷移で、全7imageを非root一律とはしない。Runner/app権限修正はmainにあるが、修正済み新release全体は本番未受入 |
+| CI/隔離検証 | [Java/Shell CI](./continuous-integration.md)、[image build検証](./production-image-validation.md) | PR #57 main CI Java/Shell成功、ローカル実Compose5healthy・合成DB保持・HTTPS検証済み。ECR最終7imageの同等統合起動は未完了。CI opt-in skipは本番/業務受入の代用ではない |
+
+### リリースとデータ保全の契約
+
+- 7イメージはapp/tools/db/runner/broker/nginx/backup。tools/backupは用途別ジョブで、
+  常駐5サービスとは区別する。Python child runtime `python:3.12-alpine`も7imageとは別管理。
+- immutable release directoryは完全source SHA、source manifest、7image ID、READYを保持する。
+  OCI manifestはsource/CI/build/runと各repository/digest/config IDを束ねる。
+  Docker29/containerdのinspect IDはmanifest digestの場合があるため、config IDと混同せず
+  [adapterの照合契約](./ecr-manual-deployment.md#phase-ab-人間が選択したreleaseの取得と検証)を使う。
+- `current-release`はpublish済みreleaseを示す。`deployment.state`とeventsは進行段階、
+  migration_attempted、backup receipt hash等を保持し、未完了updateでは実containerと異なり得る。
+  markerだけで旧サービス正常・新サービス反映済みと判断しない。手編集/削除で状態を直さない。
+- update/rollbackは既存DB container ID/Image/config、Volume/CreatedAt、DB所有releaseを固定する。
+  アプリ更新先とDB image/sourceのpinは独立。DB lifecycleやimage更新は別手順・別承認。
+- SQLはFlyway validate/infoと履歴checksum/inventoryで検証。pending0ならSQL適用なし。
+  将来の新migrationは保持/削除/DDL部分失敗/旧app互換性を個別レビューし、想定外では停止する。
+  image rollbackはschema復元ではない。自動clean/repair/DB restoreをしない。
+- rollback referenceはCURRENT marker、target、実DB identity/historyに一致するprivate review。
+  未publishでcurrent旧なら旧→旧となることがある。実container新→旧の見た目だけで新→旧referenceを流用しない。
+- backupはage＋SSE-KMSの二層。復号にはS3/KMS権限に加えoffline age identityが必要。
+  receipt/暗号化の成功は復元の成功を保証しない。独立鍵custody/業務restore訓練を負債として保持する。
+
+### 次の機能変更を本番へ反映する場合
+
+1. codeで機能開発し、[機能ロードマップ](./implementation-roadmap.md)と関連状態/DB契約に沿って検証する。
+   未完成のstash/他ブランチを勝手にmainへ取り込まない。PR/必須CIでmainへ統合しても本番は更新されない。
+2. 本番反映方式と固定SHA/operations、新旧release、DB履歴/migration、maintenance/失敗時手順をレビューする。
+   旧EC2ローカルbuildは[prepare-release.sh](../../scripts/production/prepare-release.sh)の既存手段として保持。
+   次回の依存image・権限・起動・data保持が無条件に安全とは保証しない。
+3. ECR方式の再開は、nginx権限原因確定/修正、全7image権限/mount監査、
+   実非root UID/GID・固定ECR最終imageの隔離統合起動、nginx失敗復帰手順の検証、
+   CURRENT DBに合うrollback referenceを最低条件とする。詳細は[改善A〜D](./ecr-deployment-debt.md)。
+   今回実装しない。失敗済みef55 imageを修正/上書き/再利用して受入済みとはしない。
+4. 方式を問わず人間の明示承認後、対象環境/current/state/DB/Volume/旧images/Secrets/TLS/鍵/
+   references/空き容量を再確認。fresh backup receipt・固定Version/checksum/KMSと復旧手段を検証する。
+5. 実Flyway validate/info、pending SQLと想定差分、対象image digest/ID/source、公開bindを確認する。
+   不整合・未検証・backup不良・想定外migrationなら開始しない。
+6. 承認回数と範囲を固定して既存updateを使用する。失敗時はstate/log/DB/public HTTPSを確認し、
+   built-inの条件付き復帰以外は別承認。nginx_startedでは既存自動復帰が動かない点を事前に扱う。
+7. 成功後、5healthy/実IDs、外部HTTPS/login/health、変更機能、DB再読込/Volume/history、
+   current/state/backup/TLS参照を検証・記録する。未確認は成功扱いしない。
+
+Actions/OIDC/ECR公開は自動本番deployを許可しない。本番rollback/DB復元/IAM/
+Secrets変更の承認も別。本書の過去コマンド・固定reference・昔のbackupを次回承認の代用にしない。
+優先順位はP0安定稼働、P1卒業研究機能、P2基盤改善。本番旧releaseを維持してcodeへ戻る。
+
+### 残作業・過去設計の扱い
+
+[負債一覧](./ecr-deployment-debt.md)を継続し、IMDS/socket/SSM、署名/tar/retention、
+restore/age鍵/Pages等を削除・完了扱いしない。過去の「AWS条件未決」「本番未適用」や
+GHCR/自動CD検討は日付時点の設計・履歴として残す。研究運用/正式業務E2E、
+実API/費用/データ保持方針の未合意をこの区切りで解決したとは扱わない。
+個別判断が必要な文書矛盾は対象機能/次回更新時にレビューし、大規模な書換えはしない。
 
 ## Update hardening (2026-10-10 JST, local only)
 

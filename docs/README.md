@@ -2,6 +2,9 @@
 
 このページは、仕様・実装・進捗を記録する文書の入口です。内容を重複して書き直さず、各テーマの正本を参照してください。
 
+2026-10-11: 本番は旧releaseへ復旧済み。ECR新release受入/Phase 2は未完了で一時終了し、
+codeで機能開発へ戻る。[実装/運用状況と次回本番更新の引継ぎ](./system-configuration/production-deployment.md#phase-2-pause-and-development-handoff-2026-10-11-jst)を入口とする。
+
 ## まず読む
 
 | 目的 | 正本・入口 |
@@ -11,7 +14,7 @@
 | 本番7イメージの隔離ビルド（pushなし） | [Docker成果物検証](./system-configuration/production-image-validation.md) |
 | 半自動デプロイ・ECR Private採用・成果物の開発順 | [正式方針とPhase 2ロードマップ](./system-configuration/semi-automatic-deployment-policy.md) |
 | 手動ECR保存・CI成功gate・release schema | [ECR release保存](./system-configuration/ecr-release-publishing.md)（初回実Push/再取得受入済み） |
-| ECR取得から人間承認deploy/rollback | [半手動runbook](./system-configuration/ecr-manual-deployment.md)（IAM適用/本番受入は別承認待ち） |
+| ECR取得から人間承認deploy/rollback | [半手動runbook](./system-configuration/ecr-manual-deployment.md)（取得/READY受入済み、新release本番受入は未完了） |
 | 後回しにした基盤・セキュリティ改善 | [技術的負債一覧](./system-configuration/ecr-deployment-debt.md) |
 | 機能要件・制約・優先度 | [機能仕様書](./function-specification.md) |
 | 画面と画面間の導線 | [画面遷移図](./screen-flow-diagram.md) |
@@ -20,7 +23,7 @@
 | 機能別の作業結果・検証記録 | [機能別実装計画](./system-configuration/feature-plans/) |
 | 現在の本番構成・公開結果・運用と復旧 | [本番実測記録とrunbook](./system-configuration/production-deployment.md#observed-production-record-2026-10-09-jst)（2026-10-09、業務受入/研究開始の承認とは別） |
 | 研究開始前のデータ保護・S3/復元改善 | [バックアップ現状と改善計画](./system-configuration/production-deployment.md#backup-gap-and-improvement-plan) |
-| バックアップ実装・AWSコンソール設定・適用承認 | [Parameter Store/S3/KMS/SNS/systemdガイド](./system-configuration/production-deployment.md#backup-implementation-and-aws-console-guide-2026-10-09)（ローカル修正済み、本番未適用） |
+| バックアップ実装・AWSコンソール設定・適用承認 | [Parameter Store/S3/KMS/SNS/systemdガイド](./system-configuration/production-deployment.md#backup-implementation-and-aws-console-guide-2026-10-09)（過去手順。現在の適用・検証範囲は同文書冒頭の引継ぎを参照） |
 | 標準ルーブリック自動登録の設計 | [登録調査・版不変seed案](./system-configuration/deployment-readiness-assessment.md#e-標準ルーブリック自動登録の調査設計案2026-10-09)（未実装/本番未登録） |
 | 学生・教員・管理者・非機能の受入計画 | [本番システムテスト計画](./system-configuration/production-preparation-plan.md#本番システムテスト計画2026-10-09設計のみ)（業務テスト未実施） |
 
