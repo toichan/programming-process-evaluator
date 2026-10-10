@@ -1369,3 +1369,13 @@
   localの当該volume/network残存0を確認。EC2のproduction資産とは別daemon。
 - Docker Desktopの無効optional CLI plugin警告は既存の非fatal警告。
   実Docker daemon/build/healthは機能している。失敗を成功扱いせず原因と再検証を記録する。
+
+## 2026-10-10 22:39 JST: PR #57の統合test準備漏れ
+
+- 必須Shell CI run38056149799でapp-startup-test exit1。
+  Brokerは`A pre-pulled runtime image without volumes is required.`で起動拒否。
+  ローカルでは既存python:3.12-alpine cacheがあり見えなかったが、クリーンCIにはない。
+- testがproduction Composeのruntime imageを事前取得していなかった。
+  正規化ComposeのBroker設定からruntimeを読み、既存Docker pullで明示取得する。
+  Broker検証・必須CI・権限は緩和しない。専用test資産は失敗時もcleanup済み。
+  再検証は同じ20 suites必須CIで行う。本番には変更していない。

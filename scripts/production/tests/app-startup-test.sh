@@ -77,6 +77,8 @@ PPE_TRUSTED_PROXY_REGEX="${subnet//./[.]}.10" \
         .services |= with_entries(.value |= del(.build))' > "$root/compose.json"
 ready=yes
 [[ "$(jq -r '.volumes.database.name // empty' "$root/compose.json")" = "" ]]
+runtime=$(jq -er '.services["docker-broker"].environment.PYTHON_RUNTIME_IMAGE' "$root/compose.json")
+docker pull "$runtime"
 dc up -d --wait --wait-timeout 150 db docker-broker python-runner
 printf "GRANT SUPER ON *.* TO 'ppe_migrate'@'%%';\n" | dc exec -T db sh /opt/ppe/db-admin.sh
 dc run --rm --no-deps migrate gradle --offline --no-daemon flywayMigrate flywayValidate flywayInfo
