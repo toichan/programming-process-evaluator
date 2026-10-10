@@ -6,7 +6,9 @@ scripts=$(cd "$(dirname "$0")" && pwd)
 repo=$(cd "$scripts/../.." && pwd)
 source "$scripts/image-build-common.sh"
 source "$repo/scripts/production/source-manifest.sh"
-[[ $# = 3 ]] || { echo "Usage: build-production-images.sh FULL_SHA MAIN_REF NEW_ABSOLUTE_OUTPUT" >&2; exit 1; }
+[[ $# = 3 || ( $# = 4 && "$4" = --export-release ) ]] || {
+    echo "Usage: build-production-images.sh FULL_SHA MAIN_REF NEW_ABSOLUTE_OUTPUT [--export-release]" >&2; exit 1;
+}
 commit=$1
 main_ref=$2
 output=$3
@@ -149,4 +151,20 @@ disk complete
     printf '```\n\n**PASS**: seven amd64 images; revision, source/migration, WAR transformation and JUnit verified.\n'
     printf 'Credential checks cover source patterns and image configuration, not exhaustive layer secret scanning.\n'
 } >> "$output/summary.md"
+if [[ "${4:-}" = --export-release ]]; then
+    # Export only after every existing inspection has passed; cleanup still removes all local tags.
+    source "$scripts/ecr-release-common.sh"
+    ecr_release_identity
+    export_dir="$output/export"
+    mkdir -m 0700 "$export_dir"
+    git archive --format=tar "$commit" > "$export_dir/source.tar"
+    for file in source.sha256 images.tsv summary.md disk.tsv docker-disk.txt; do
+        cp "$output/$file" "$export_dir/$file"
+    done
+    for image in app tools db runner broker nginx backup; do
+        cp "$output/inspection/$image.json" "$export_dir/$image.json"
+        "${dc[@]}" save "$namespace-$image:$commit" -o "$export_dir/$image.tar" || exit 1
+    done
+    ecr_release_transfer "$export_dir" "$commit" || exit 1
+fi
 completed=true

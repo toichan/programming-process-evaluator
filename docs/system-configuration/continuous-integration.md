@@ -117,7 +117,12 @@ Actionsはfull SHA固定。base imageはversion tag固定でありdigest固定�
 cache共有や追加credentialは今回導入しない。main required checksやbranch protection
 はGitHub側の別承認作業。Pages/Copilotは独立workflowで、このCIの成功に含めない。
 2026-10-10決定の[半自動デプロイ方針](./semi-automatic-deployment-policy.md)に従い、
-今後はECR Privateへのartifact保存とOIDC、EC2での人間による成果物受入を設計する。
+別の手動[ECR release保存workflow](./ecr-release-publishing.md)を実装した。
+main限定・完全SHAのpush/main CIと2件の完全一致checkをgateにし、認証なしbuildと
+OIDC付きfresh publish jobを分離する。本CIと認証なしbuild検証workflowにはAWS認証を追加しない。
+Shell harnessの検証stepで`bash scripts/ci/tests/ecr-release-test.sh`を追加実行する。
+実AWS/registryへ接続しないmockで失敗閉鎖とOCI byte roundtripを検証し、
+既存18suite/zero skipのdeployment回帰条件を維持する。実ECR保存・EC2受入は別承認/受入前。
 ActionsからのSSM自動deploy・本番Environment承認・本番rollbackは今回のスコープ外。
 
 ## ローカル検証記録（2026-10-10 JST）
