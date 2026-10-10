@@ -1,0 +1,86 @@
+name: Production image build validation
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: Full 40-character commit SHA reachable from main
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-image-build-validation
+  cancel-in-progress: false
+
+env:
+  AWS_EC2_METADATA_DISABLED: "true"
+  AWS_SHARED_CREDENTIALS_FILE: /dev/null
+  AWS_CONFIG_FILE: /dev/null
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - name: Require trusted main workflow
+        run: |
+          test "$GITHUB_REF" = refs/heads/main || {
+            echo "Dispatch this workflow from main only." >&2
+            exit 1
+          }
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Validate CI harness
+        run: |
+          bash scripts/ci/check-shell-syntax.sh
+          bash scripts/ci/tests/image-build-test.sh
+          bash scripts/ci/tests/image-assets-test.sh
+          bash scripts/ci/tests/image-runner-test.sh
+      - name: Validate requested commit
+        env:
+          TARGET_SHA: ${{ inputs.commit_sha }}
+        run: |
+          source scripts/ci/image-build-common.sh
+          image_build_target "$TARGET_SHA" refs/remotes/origin/main || {
+            echo "Target must be a full commit SHA reachable from main." >&2
+            exit 1
+          }
+      - name: Checkout fixed build source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.commit_sha }}
+          path: .ci-target
+          persist-credentials: false
+      - name: Build and inspect seven production images
+        env:
+          TARGET_SHA: ${{ inputs.commit_sha }}
+        run: |
+          test "$(git -C .ci-target rev-parse HEAD)" = "$TARGET_SHA"
+          bash scripts/ci/build-production-images.sh \
+            "$TARGET_SHA" refs/remotes/origin/main "$RUNNER_TEMP/ppe-image-build"
+      - name: Publish build summary
+        if: ${{ always() }}
+        run: |
+          if test -f "$RUNNER_TEMP/ppe-image-build/summary.md"; then
+            cat "$RUNNER_TEMP/ppe-image-build/summary.md" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'Image validation did not complete or failed before report creation.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Preserve validation reports only
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: production-image-validation
+          path: |
+            ${{ runner.temp }}/ppe-image-build/summary.md
+            ${{ runner.temp }}/ppe-image-build/images.tsv
+            ${{ runner.temp }}/ppe-image-build/source.sha256
+            ${{ runner.temp }}/ppe-image-build/disk.tsv
+            ${{ runner.temp }}/ppe-image-build/docker-disk.txt
+          if-no-files-found: warn
+          retention-days: 7

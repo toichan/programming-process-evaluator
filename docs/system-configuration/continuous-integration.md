@@ -2,6 +2,9 @@
 
 ## 範囲と安全境界
 
+本番7イメージの手動ビルド検証はCIとは独立した
+[成果物検証手順](./production-image-validation.md)を参照する。Registry pushやAWS連携は行わない。
+
 [workflow](../../.github/workflows/ci.yml)はpushと通常のpull_requestで動作する。
 GitHub hostedの使い捨てUbuntu 24.04 runnerを使い、contents:readのみ指定する。
 checkout credentialは保持しない。OIDC、AWS role、Secrets/Variables、Environment、
@@ -98,7 +101,9 @@ summary/skipを確認する。ローカルの成功だけでActions実行済み�
 Actionsはfull SHA固定。base imageはversion tag固定でありdigest固定ではない。
 cache共有や追加credentialは今回導入しない。main required checksやbranch protection
 はGitHub側の別承認作業。Pages/Copilotは独立workflowで、このCIの成功に含めない。
-本番CD、artifact配布、OIDC、Environment承認、SSM実行は次Phaseで別途設計する。
+2026-10-10決定の[半自動デプロイ方針](./semi-automatic-deployment-policy.md)に従い、
+今後はECR Privateへのartifact保存とOIDC、EC2での人間による成果物受入を設計する。
+ActionsからのSSM自動deploy・本番Environment承認・本番rollbackは今回のスコープ外。
 
 ## ローカル検証記録（2026-10-10 JST）
 
