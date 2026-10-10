@@ -2,6 +2,27 @@
 
 秘密情報・実際の生徒データ・研究データは記載しない。解消後も履歴を保持する。
 
+## 2026-10-10 15:50 JST: 隔離amd64ビルドのbuilder選択
+
+- 対象: Phase 2 Step 1、ローカルCI専用イメージビルド。
+- 手順: `bash scripts/ci/build-production-images.sh 5921fabddd0b53df07f4c6f8e1415f7ceaae12e1 5921fabddd0b53df07f4c6f8e1415f7ceaae12e1 <new-private-output>`。
+- 期待: 空Docker configでbuildxを使いlinux/amd64をビルド。
+- 実結果: exit1。legacy builderへfallbackし、既存arm64 baseのplatform不一致。
+  cleanupでも未生成タグを削除しようとしてNo such imageを表示。
+- 原因: 空Docker configがDocker Desktopのユーザーplugin探索設定を引き継がない。
+- 対応: 公知のsystem pluginを隔離configにsymlinkしbuildxを明示必須化。
+  cleanupは存在する固有タグだけを削除。本番Dockerfile・既存タグ・DBへの変更なし。
+- 再検証: 修正版で別のprivate outputを使い実ビルド。結果は後続記録。
+- 未確認: GitHub hosted runner上のplugin探索と実amd64ビルド。
+- 第2回: app/toolsの実amd64ビルドは成功したが、macOS標準Bash 3.2の
+  空配列＋nounsetによりdb build前で停止。Shellは異常を表示したが終了statusが0、
+  SummaryにPASSなし。この結果を成功として扱わない。
+  空target配列を廃止し、非空のcommand配列に統合。さらに完了flagなしの
+  EXITを必ず非0にして、部分ビルドの成功誤判定を防止する。
+- 再検証結果: 第3回はexit0、7 imageのamd64/revision/ID、実WARとmigration比較、
+  JUnit260 pass/0 failure/0 error/132 skip、Summary PASSまで確認。固有タグを削除済み。
+  故障注入テストでbuild exit42を保持しFAIL記録・PASSなしを確認する。
+
 ## 2026-10-10 07:47 JST: GitHub hosted CI初回受入
 
 - 対象: CI run `38000948714`、commit `95477afa96acd8d7c6651bd114583d1fb943906d`。
