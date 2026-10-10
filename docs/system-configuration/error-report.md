@@ -30,6 +30,11 @@
   host所有0600の鍵を読めない。fixtureのidentityは生成元root所有0600を維持する
   （上記のidentity所有者変更は撤回）。cleanupは0700親directoryの所有者がunlinkする。
   restoreの権限・capability制限を緩和せず再検証する。
+- 第4回run `38030357685`: age-recipient-testがexit1
+  (`Invalid recipient checksum accepted.`)。末尾を常にqへ置換するfixtureは、
+  ランダム生成recipientの末尾がqのとき有効な入力のままになる。
+  qの場合だけpへ変更し、必ず異なるchecksumになるよう修正する。
+  checksum拒否のassertionと本番recipient検証は変更しない。
 
 ## 2026-10-10 07:34 JST: CI導入の初回ローカル検証
 
