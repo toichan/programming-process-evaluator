@@ -2,11 +2,13 @@
 
 ## 状態と境界（2026-10-10 JST）
 
-承認済み範囲のworkflow/script/mock回帰を実装。**実ECR Push・本workflowのhosted受入は未実施**。
-既存mainの前提CIはrun `38039387844`、SHA
-`f37604848486cd144a2519e43f572e6dbf8be129`のcompleted/successが親工程で確認済み。
-この事実を新workflowの受入済みとは扱わず、実行時にも対象SHAのCIをAPIで再照合する。
-この作業ではAWS API、IAM変更、commit/push、EC2操作、deploy/migrationを行わない。
+初回実ECR Push・再取得照合は[run 38045471493](https://github.com/toichan/programming-process-evaluator/actions/runs/38045471493)
+で成功。source SHA `2f48c898f7cb9ebdf00809f1b83488a6f1b9811f`、
+main CI `38045260014`成功後に人間が手動起動した。
+7 imageとOCI release digest
+`sha256:c74336a48d003c4ebc1a363c0c9219931718b14ceda0d9684226c3266958e78e`
+を保存・再照合済み。EC2操作・deploy/migration・IAM変更はこの公開受入では行っていない。
+EC2への接続は[半手動runbook](./ecr-manual-deployment.md)へ分離し、本番受入と混同しない。
 [半自動方針](./semi-automatic-deployment-policy.md)のStep 3に対応する。
 既存[認証なしbuild検証](./production-image-validation.md)のworkflowは変更しない。
 
@@ -109,7 +111,7 @@ registry認証をS3へ転送せず、redirect連鎖や外部hostは拒否する�
   外部署名検証サービス、attestation、自動EC2受入は未承認・未導入。
 - artifactのhashは破損/取り違えを拒否するが、信頼するbuilder/main自体の侵害を証明しない。
   buildの既存credential scanは完全な全layer secret scanではない。
-- repositoryのtag immutability/保持設定は実設定確認が必要。preflightとworkflow
+- 初回実公開時にIMMUTABLE、lifecycleなしを確認済み。設定変更は運用時に再確認する。preflightとworkflow
   concurrencyは同workflowを直列化するだけで、別writerとのatomic compare-and-setではない。
   tag上書き防止はECR immutabilityを運用前提とし、設定変更は別承認で行う。
 - complete markerのPUT前に全image/assetを確認する。ただしPUT成功後のnetwork障害や
@@ -143,7 +145,7 @@ CIのworkflow/event/branch/job SHA/attempt不一致、S3以外のredirect拒否�
 
 | コマンド | 結果 |
 |---|---|
-| `bash scripts/ci/tests/ecr-release-test.sh` | exit0、負例38件拒否、正常CI/ZIP/source/config/7image/OCI byte roundtripおよび認証を転送しないS3 redirect成功、skipなし（mockのみ） |
+| `bash scripts/ci/tests/ecr-release-test.sh` | producer負例40件、正常CI/ZIP/source/config/7image/OCI byte roundtrip/S3 redirect成功。追加adapterの結果は[半手動runbook](./ecr-manual-deployment.md)参照（mockのみ） |
 | `bash scripts/ci/check-shell-syntax.sh` | exit0、70 Shell files（Bash/dash） |
 | `/Users/t.toida/go/bin/actionlint .github/workflows/ecr-release-publish.yml .github/workflows/ci.yml .github/workflows/production-image-build.yml` | exit0、3workflowの構文/式/action入力 |
 | `git diff --check` | exit0 |
@@ -159,10 +161,9 @@ credential拒否/remote daemon拒否を維持した。
 このimageはlinux/arm64であり、native amd64 hosted build/publishの受入ではない。
 共有imageの変更やload/pushは行っていない。
 
-今回実ビルド・既存18deployment suite・Java全体回帰は再実行していない。
-既存build受入をECR export/実Push受入に読み替えない。schema/exportと新しい保存経路は
-mock検証であり、実archiveのDocker save/loadと転送容量はhosted受入に残す。
+上記は初期実装時のローカル記録。後続の実Push/OCI再取得受入は冒頭のrunで成功済み。
+adapter追加時には既存18deployment suiteとJava全体回帰も再実行する。
 
-次にすること: 別承認のPR/main CI受入後、指定SHAの手動workflowを実ECRで受入する。
-その後にEC2成果物受入（Step 4）を別途設計・実装する。推奨AIモード: オートパイロット
+次にすること: [半手動runbook](./ecr-manual-deployment.md)に従いIAM承認と本番受入の
+別承認を得る。推奨AIモード: 対話型（承認）／オートパイロット（承認済み検証）
 （AWS実行と費用/保持/本番反映の判断は承認待ちで停止）。

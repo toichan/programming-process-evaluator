@@ -10,7 +10,9 @@
 | GitHub Actions CI・テスト依存・skip範囲 | [AWS接続なしのCI運用手順](./system-configuration/continuous-integration.md) |
 | 本番7イメージの隔離ビルド（pushなし） | [Docker成果物検証](./system-configuration/production-image-validation.md) |
 | 半自動デプロイ・ECR Private採用・成果物の開発順 | [正式方針とPhase 2ロードマップ](./system-configuration/semi-automatic-deployment-policy.md) |
-| 手動ECR保存・CI成功gate・release schema | [ECR release保存](./system-configuration/ecr-release-publishing.md)（ローカル実装/mock検証済み、実Push受入前） |
+| 手動ECR保存・CI成功gate・release schema | [ECR release保存](./system-configuration/ecr-release-publishing.md)（初回実Push/再取得受入済み） |
+| ECR取得から人間承認deploy/rollback | [半手動runbook](./system-configuration/ecr-manual-deployment.md)（IAM適用/本番受入は別承認待ち） |
+| 後回しにした基盤・セキュリティ改善 | [技術的負債一覧](./system-configuration/ecr-deployment-debt.md) |
 | 機能要件・制約・優先度 | [機能仕様書](./function-specification.md) |
 | 画面と画面間の導線 | [画面遷移図](./screen-flow-diagram.md) |
 | 画面デザイン・操作イメージ | [画面プロトタイプ](../screen-flow-diagram/webapp/) |

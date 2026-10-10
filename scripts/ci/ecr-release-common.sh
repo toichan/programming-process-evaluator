@@ -84,7 +84,11 @@ ecr_release_verify_transfer() {
 }
 
 ecr_release_manifest() {
-    jq -e --arg sha "$2" --arg workflow "$GITHUB_SHA" --arg run "$GITHUB_RUN_ID" --arg attempt "$GITHUB_RUN_ATTEMPT" \
+    local workflow=${3:-${GITHUB_SHA:-}} run=${4:-${GITHUB_RUN_ID:-}}
+    local attempt=${5:-${GITHUB_RUN_ATTEMPT:-}} repository=${6:-${GITHUB_REPOSITORY:-}}
+    [[ "$workflow" =~ ^[a-f0-9]{40}$ && "$run" =~ ^[1-9][0-9]*$ &&
+        "$attempt" =~ ^[1-9][0-9]*$ && -n "$repository" ]] || return 1
+    jq -e --arg sha "$2" --arg workflow "$workflow" --arg run "$run" --arg attempt "$attempt" \
         --arg registry "024378233912.dkr.ecr.ap-northeast-1.amazonaws.com" '
       keys == ["attempt","buildId","ci","images","platform","reports","runId","schema","sha","source","tag","workflowSha"] and
       .schema == 1 and .sha == $sha and .runId == $run and .attempt == $attempt and
@@ -103,5 +107,5 @@ ecr_release_manifest() {
       (.reports|keys == ["transferSha256"]) and
       (.reports.transferSha256|test("^[a-f0-9]{64}$"))
     ' "$1" >/dev/null &&
-        jq '.ci' "$1" | ecr_release_ci_evidence /dev/stdin "$2" "$GITHUB_REPOSITORY"
+        jq '.ci' "$1" | ecr_release_ci_evidence /dev/stdin "$2" "$repository"
 }
