@@ -44,19 +44,19 @@ aws sts get-caller-identity "${aws_args[@]}" --output json > "$work/identity.jso
 expected="arn:aws:sts::024378233912:assumed-role/PPEGitHubECRPublisherRole/ppe-ecr-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
 jq -e --arg expected "$expected" '.Account=="024378233912" and .Arn==$expected' "$work/identity.json" >/dev/null || exit 1
 
-# All eight tag checks finish before the first upload. Only the exact service exception is absence.
+# All eight tag checks finish before the first upload using paginated service JSON.
 for image in app tools db runner broker nginx backup releases; do
-    if aws ecr describe-images "${aws_args[@]}" --repository-name "ppe/$image" \
-        --image-ids "imageTag=$tag" --output json > "$work/preflight.json" 2> "$work/aws-error"; then
-        echo "Tag collision: ppe/$image:$tag" >&2; exit 1
-    else
-        status=$?
-        [[ "$status" = 254 ]] &&
-            grep -Eq '^An error occurred \(ImageNotFoundException\) when calling the DescribeImages operation: .+' "$work/aws-error" &&
-            [[ "$(grep -cv '^[[:space:]]*$' "$work/aws-error")" = 1 ]] || {
-            echo "ECR tag absence could not be established: ppe/$image" >&2; exit 1;
-        }
-    fi
+    aws ecr describe-images "${aws_args[@]}" --repository-name "ppe/$image" \
+        --filter tagStatus=TAGGED --output json > "$work/preflight.json" || {
+        echo "ECR tag absence could not be established: ppe/$image" >&2; exit 1;
+    }
+    jq -e --arg tag "$tag" '
+        .imageDetails | type=="array" and
+        all(.imageTags | type=="array" and all(type=="string")) and
+        ([.[] | select(.imageTags | index($tag))] | length==0)
+    ' "$work/preflight.json" >/dev/null || {
+        echo "Tag collision or invalid ECR response: ppe/$image:$tag" >&2; exit 1;
+    }
 done
 password=$(aws ecr get-login-password "${aws_args[@]}") || exit 1
 [[ -n "$password" && "$password" != *$'\n'* && "$password" != *'"'* && "$password" != *\\* ]] || exit 1

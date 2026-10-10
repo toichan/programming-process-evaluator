@@ -98,13 +98,19 @@ elif [[ "$2" = get-login-password ]]; then
     echo synthetic-only-password
 elif [[ "$2" = describe-images ]]; then
     image=""
+    preflight=false
     while (( $# )); do
         if [[ "$1" = --repository-name ]]; then image=${2#ppe/}; fi
+        if [[ "$1" = --filter ]]; then preflight=true; fi
         shift
     done
-    if [[ "$TEST_CASE" = duplicate-tag || "$TEST_CASE" = completed-tag ]]; then echo '{"imageDetails":[{}]}'
+    if [[ "$TEST_CASE" = duplicate-tag || "$TEST_CASE" = completed-tag ]]; then
+        jq -nc --arg tag "sha-$TEST_SHA-gha-12345-1" '{imageDetails:[{imageTags:[$tag]}]}'
     elif [[ "$TEST_CASE" = access-denied ]]; then
         echo 'An error occurred (AccessDeniedException) when calling the DescribeImages operation: synthetic' >&2; exit 254
+    elif [[ "$preflight" = true ]]; then
+        if [[ "$TEST_CASE" = malformed-preflight ]]; then echo '{"imageDetails":null}'
+        else echo '{"imageDetails":[{"imageTags":["other-existing-release"]}]}'; fi
     elif [[ -f "$TEST_ROOT/state/$image.pushed" ]]; then
         digest=$(openssl dgst -sha256 "$TEST_ROOT/state/$image.manifest" | awk '{print $NF}')
         if [[ "$TEST_CASE" = digest-mismatch ]]; then digest=$(printf '%064d' 0); fi
@@ -332,10 +338,10 @@ publish() {
     rm -f "$root/state/"*.pushed "$root/pushes" "$root/aws-calls" "$root/docker-calls"
     bash "$scripts/ecr-publish.sh" "$sha" "$root/input" "$root/good-gate/ci.json" "$root/publish-$count"
 }
-for scenario in oidc-failure wrong-account duplicate-tag completed-tag access-denied digest-mismatch config-mismatch pulled-id-mismatch partial-push asset-upload-failure asset-digest-mismatch redirect-host-reject; do
+for scenario in oidc-failure wrong-account duplicate-tag completed-tag access-denied malformed-preflight digest-mismatch config-mismatch pulled-id-mismatch partial-push asset-upload-failure asset-digest-mismatch redirect-host-reject; do
     TEST_CASE=$scenario expect_fail publish
     [[ ! -f "$root/pushes" ]] || ! grep -q '^release$' "$root/pushes"
-    if [[ "$scenario" = oidc-failure || "$scenario" = wrong-account || "$scenario" = duplicate-tag || "$scenario" = completed-tag || "$scenario" = access-denied ]]; then
+    if [[ "$scenario" = oidc-failure || "$scenario" = wrong-account || "$scenario" = duplicate-tag || "$scenario" = completed-tag || "$scenario" = access-denied || "$scenario" = malformed-preflight ]]; then
         [[ ! -e "$root/pushes" && ! -e "$root/docker-calls" ]]
     fi
 done

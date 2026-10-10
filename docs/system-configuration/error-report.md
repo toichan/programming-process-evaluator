@@ -2,6 +2,20 @@
 
 秘密情報・実際の生徒データ・研究データは記載しない。解消後も履歴を保持する。
 
+## 2026-10-10 19:24 JST: ECRタグpreflightのCLIエラー文字列依存
+
+- 対象: run `38044600086`、10:24:41 UTC。
+- 実結果: OIDC認証成功後、`ECR tag absence could not be established: ppe/app`。
+  image upload前にexit1。CLIのImageNotFoundException表示形式に依存していた。
+  同じtagの読み取り再現で `aws: [ERROR]: An error occurred (ImageNotFoundException)`
+  のprefixを確認。元の先頭一致regexはこの形式を認識しなかった。
+- 対応: 同じDescribeImages権限によるTAGGED一覧の自動paginationとJSON検証へ変更。
+  API成功かつ正しい配列に対象tagがない場合だけ続行。権限・ネットワークエラー、
+  不正応答、同一tagは停止し、例外文字列を不在扱いしない。
+- 再検証: 既存の他tagは許容し、同一tag/AccessDenied/不正JSONはupload前拒否する
+  mock回帰を追加。実AWS空repositoryのJSON形式も読み取り確認。
+- 影響: このrunのPushは未実行。本番/IAM/ECR設定は変更なし。
+
 ## 2026-10-10 18:59 JST: hosted Docker saveの共有layer参照を誤拒否
 
 - 対象: ECR保存run `38043160459`、09:59:40 UTCの認証前入力検証。
