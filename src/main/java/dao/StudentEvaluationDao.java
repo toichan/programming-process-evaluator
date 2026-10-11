@@ -15,6 +15,7 @@ import entity.StudentCodeLogPage;
 import entity.StudentEvaluationPage;
 import entity.StudentEvaluationPage.DimensionResult;
 import entity.StudentEvaluationPage.EvaluationResult;
+import entity.StudentEvaluationPage.EvidenceResult;
 import entity.StudentEvaluationPage.ReasonResult;
 import entity.StudentEvaluationPage.ScoreResult;
 import entity.StudentEvaluationPage.SubmissionSummary;
@@ -387,13 +388,66 @@ public final class StudentEvaluationDao {
 				while (resultSet.next()) {
 					ReasonBuilder reason = reasons.get(resultSet.getLong("evaluation_reason_id"));
 					if (reason != null) {
-						reason.details.add(resultSet.getString("detail_text"));
+						String detailText = resultSet.getString("detail_text");
+						reason.details.add(detailText);
 					}
 				}
 			}
 		}
+		try (PreparedStatement statement = connection.prepareStatement("""
+				SELECT er.evaluation_reason_id, ev.reason_detail_id, rd.reason_detail_id AS verified_reason_detail_id,
+				       rd.detail_text, ev.evidence_type, ev.evidence_label, ev.evidence_summary,
+				       ev.code_log_id, l.code_log_id AS verified_code_log_id
+				FROM evaluation_evidence ev
+				JOIN evaluation_reasons er ON er.evaluation_id = ?
+				  AND (ev.evaluation_reason_id = er.evaluation_reason_id OR
+				    (ev.evaluation_reason_id IS NULL AND EXISTS (
+				      SELECT 1 FROM evaluation_reason_details linked_detail
+				      WHERE linked_detail.reason_detail_id = ev.reason_detail_id
+				        AND linked_detail.evaluation_reason_id = er.evaluation_reason_id
+				    )))
+				LEFT JOIN evaluation_reason_details rd
+				  ON rd.reason_detail_id = ev.reason_detail_id
+				 AND rd.evaluation_reason_id = er.evaluation_reason_id
+				JOIN evaluations e ON e.evaluation_id = er.evaluation_id
+				JOIN submissions s ON s.submission_id = e.submission_id
+				JOIN task_participations tp ON tp.participation_id = s.participation_id
+				LEFT JOIN code_logs l ON l.code_log_id = ev.code_log_id
+				  AND l.participation_id = tp.participation_id
+				  AND (l.submission_id = s.submission_id OR
+				    (l.submission_id IS NULL AND l.observed_at <= s.submitted_at
+				      AND l.observed_at > COALESCE(
+				        (SELECT MAX(previous.submitted_at) FROM submissions previous
+				         WHERE previous.participation_id = s.participation_id
+				           AND previous.revision_number < s.revision_number),
+				        '1000-01-01'
+				      )))
+				ORDER BY er.sort_order, er.evaluation_reason_id, ev.sort_order, ev.evidence_id
+				""")) {
+			statement.setLong(1, evaluationId);
+			try (ResultSet resultSet = statement.executeQuery()) {
+				while (resultSet.next()) {
+					ReasonBuilder reason = reasons.get(resultSet.getLong("evaluation_reason_id"));
+					if (reason == null) {
+						continue;
+					}
+					Long verifiedDetailId = nullableLong(resultSet, "verified_reason_detail_id");
+					Long storedLogId = nullableLong(resultSet, "code_log_id");
+					Long verifiedLogId = nullableLong(resultSet, "verified_code_log_id");
+					reason.evidence.add(new EvidenceResult(
+							verifiedDetailId,
+							verifiedDetailId == null ? null : resultSet.getString("detail_text"),
+							resultSet.getString("evidence_type"),
+							resultSet.getString("evidence_label"),
+							resultSet.getString("evidence_summary"),
+							verifiedLogId,
+							storedLogId != null));
+				}
+			}
+		}
 		return reasons.values().stream()
-				.map(reason -> new ReasonResult(reason.dimensionLabel, reason.title, reason.body, reason.details))
+				.map(reason -> new ReasonResult(
+						reason.dimensionLabel, reason.title, reason.body, reason.details, reason.evidence))
 				.toList();
 	}
 
@@ -532,6 +586,7 @@ public final class StudentEvaluationDao {
 		private final String title;
 		private final String body;
 		private final List<String> details = new ArrayList<>();
+		private final List<EvidenceResult> evidence = new ArrayList<>();
 
 		private ReasonBuilder(String dimensionLabel, String title, String body) {
 			this.dimensionLabel = dimensionLabel;

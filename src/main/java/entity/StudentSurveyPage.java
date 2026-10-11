@@ -16,6 +16,8 @@ public final class StudentSurveyPage {
 	private final List<StudentEvaluationPage.DimensionResult> evaluationDimensions;
 	private final List<StudentSurveyQuestion> questions;
 	private final List<StudentSurveyHistoryEntry> history;
+	private final int responseRevision;
+	private final boolean surveyActive;
 
 	public StudentSurveyPage(
 			long assignmentId,
@@ -31,6 +33,21 @@ public final class StudentSurveyPage {
 			List<StudentEvaluationPage.DimensionResult> evaluationDimensions,
 			List<StudentSurveyQuestion> questions,
 			List<StudentSurveyHistoryEntry> history) {
+		this(assignmentId, surveyId, evaluationId, evaluationSubmissionId, taskTitle, difficulty,
+				surveyTitle, responseStatus, responseExists, evaluationFeedback, evaluationDimensions,
+				questions, history, 1, true);
+	}
+
+	public StudentSurveyPage(
+			long assignmentId, long surveyId, long evaluationId, long evaluationSubmissionId,
+			String taskTitle, String difficulty, String surveyTitle, String responseStatus,
+			boolean responseExists, String evaluationFeedback,
+			List<StudentEvaluationPage.DimensionResult> evaluationDimensions,
+			List<StudentSurveyQuestion> questions, List<StudentSurveyHistoryEntry> history,
+			int responseRevision, boolean surveyActive) {
+		if (responseRevision <= 0) throw new IllegalArgumentException("Invalid survey response revision.");
+		this.responseRevision = responseRevision;
+		this.surveyActive = surveyActive;
 		this.assignmentId = assignmentId;
 		this.surveyId = surveyId;
 		this.evaluationId = evaluationId;
@@ -65,8 +82,13 @@ public final class StudentSurveyPage {
 	public boolean isResponseExists() { return responseExists; }
 	public boolean isReadOnly() { return "submitted".equals(responseStatus); }
 	public boolean isInProgress() { return "in_progress".equals(responseStatus); }
+	public int getResponseRevision() { return responseRevision; }
+	public boolean isCanRevise() { return isReadOnly() && surveyActive; }
 	public String getEvaluationFeedback() { return evaluationFeedback; }
 	public List<StudentEvaluationPage.DimensionResult> getEvaluationDimensions() { return evaluationDimensions; }
 	public List<StudentSurveyQuestion> getQuestions() { return questions; }
+	public List<StudentSurveyQuestionGroup> getQuestionGroups() {
+		return StudentSurveyQuestionGroup.fromQuestions(questions);
+	}
 	public List<StudentSurveyHistoryEntry> getHistory() { return history; }
 }

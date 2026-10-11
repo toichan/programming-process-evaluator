@@ -1,11 +1,12 @@
 <%@ page contentType="text/html; charset=UTF-8" pageEncoding="UTF-8" session="false" %>
 <%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
+<c:set var="screenAssetVersion" value="159"/>
 <%@ include file="/WEB-INF/template/page-start.jspf" %>
 <div class="page-content py-5" id="teacherReview" data-endpoint="<c:url value='/teacher/evaluations'/>"
 	data-selected-submission="<c:out value='${reviewSelectedSubmission}'/>" data-selected-evaluation="<c:out value='${reviewSelectedEvaluation}'/>">
 	<div class="container-fluid px-4">
 		<section class="evaluation-hero mb-4">
-			<div><span class="hero-kicker">Evaluation Monitor</span><h1 class="section-title mb-2">評価確認</h1><p class="hero-description mb-0">生徒ごとの評価結果、評価理由、コードログを確認できます。</p></div>
+			<div><span class="hero-kicker">Evaluation Monitor</span><h1 class="section-title mb-2">評価確認</h1><p class="hero-description mb-0">生徒ごとの評価結果、評価理由、ソースコード編集ログを確認できます。</p></div>
 			<div class="hero-stats">
 				<div class="stat-card"><div class="stat-label">表示件数</div><div class="stat-value" id="visibleCount">0</div></div>
 				<div class="stat-card"><div class="stat-label">思判表 平均</div><div class="stat-value" id="avgThinkingTop">-</div></div>
@@ -36,7 +37,7 @@
 		</section>
 		<section class="panel-card mb-4">
 			<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2"><div class="d-flex align-items-center"><span class="hero-kicker me-2 mb-0">List</span><h2 class="summary-heading mb-0">評価一覧</h2></div>
-				<div class="action-buttons"><button class="btn btn-outline-secondary btn-sm" id="refreshEvaluations">更新</button><button class="btn btn-outline-primary btn-sm" id="bulkResults">評価結果を一括ダウンロード</button><button class="btn btn-outline-primary btn-sm" id="bulkLogs">ログを一括ダウンロード</button><button class="btn btn-primary btn-sm" id="exportCsv">CSVエクスポート</button></div>
+				<div class="action-buttons"><button class="btn btn-outline-secondary btn-sm" id="refreshEvaluations">更新</button><button class="btn btn-outline-primary btn-sm" id="bulkResults">評価結果を一括ダウンロード</button><button class="btn btn-outline-primary btn-sm" id="bulkLogs">ソースコード編集ログを一括ダウンロード</button><button class="btn btn-primary btn-sm" id="exportCsv">CSVエクスポート</button></div>
 			</div>
 			<form id="evaluationFilters" class="filter-grid">
 				<label class="form-label">検索<input class="form-control form-control-sm" name="search" maxlength="100" placeholder="生徒ID / 課題名で検索"></label>
@@ -56,23 +57,23 @@
 	</div>
 </div>
 <div class="modal fade" id="evaluationDetailModal" tabindex="-1" aria-labelledby="evaluationDetailTitle" aria-hidden="true"><div class="modal-dialog modal-fullscreen modal-dialog-scrollable"><div class="modal-content">
-	<div class="modal-header"><h2 class="modal-title fs-5" id="evaluationDetailTitle">評価詳細</h2><div class="evaluation-detail-action-row"><button class="btn btn-outline-primary btn-sm" id="downloadEvaluation">評価結果をダウンロード</button><button class="btn btn-outline-secondary btn-sm" id="downloadLogs">ログをダウンロード</button></div><button class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button></div>
+	<div class="modal-header"><h2 class="modal-title fs-5" id="evaluationDetailTitle">評価詳細</h2><div class="evaluation-detail-action-row"><button class="btn btn-outline-primary btn-sm" id="downloadEvaluation">評価結果をダウンロード</button><button class="btn btn-outline-secondary btn-sm" id="downloadLogs">ソースコード編集ログをダウンロード</button></div><button class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button></div>
 	<div class="modal-body"><p class="detail-meta" id="evaluationDetailMeta"></p><div id="detailAlert" role="alert"></div>
 		<label class="form-label">評価履歴<select id="evaluationVersions" class="form-select"></select></label><p id="evaluationState"></p><div id="previousEvaluation"></div>
 		<div class="teacher-evaluation-detail-section container" id="teacherEvaluationDetailContent">
-			<section class="sample-section detail-hero mb-4"><div><span class="hero-kicker">Student Evaluation</span><h1 class="section-title mb-3">評価結果</h1><p class="hero-description">保存済みコードログと実行履歴をもとにした評価結果と根拠を確認できます。</p><button class="btn btn-warning btn-lg" id="openLogs">ログを見る</button></div><div class="hero-meta-card"><div class="meta-label">対象課題</div><div class="meta-value" id="detailTask"></div><p id="detailTaskMetadata"></p><div class="hero-score-row" id="detailScorePills"></div></div></section>
+			<section class="sample-section detail-hero mb-4"><div><span class="hero-kicker">Student Evaluation</span><h1 class="section-title mb-3">評価結果</h1><p class="hero-description">保存済みソースコード編集ログと実行履歴をもとにした評価結果と根拠を確認できます。</p><button class="btn btn-warning btn-lg" id="openLogs">ソースコード編集ログを見る</button></div><div class="hero-meta-card"><div class="meta-label">対象課題</div><div class="meta-value" id="detailTask"></div><p id="detailTaskMetadata"></p><div class="hero-score-row" id="detailScorePills"></div></div></section>
 			<section class="sample-section mb-4"><div class="section-heading-row"><div><h2 class="card-title">総合評価</h2><p class="text-muted">2つの観点ごとに、ルーブリックをもとにした総合点を表示します。</p></div><span>5段階評価</span></div><div class="score-panels" id="evaluationResults"></div><p id="feedbackSummary"></p></section>
 			<section class="sample-section mb-4"><h2 class="card-title">観点別スコア</h2><p class="text-muted">細かな評価項目ごとの点数です。</p><div class="breakdown-grid" id="evaluationMetrics"></div></section>
 			<section class="sample-section"><h2 class="card-title">評価理由</h2><p id="processAnalysis"></p><div class="reason-filters" id="reasonFilters"></div><div id="evaluationReasons"></div></section>
-			<div class="d-flex justify-content-center flex-wrap gap-3 mt-4"><button class="btn btn-warning btn-lg px-5" id="openLogsBottom">ログを見る</button></div>
+			<div class="d-flex justify-content-center flex-wrap gap-3 mt-4"><button class="btn btn-warning btn-lg px-5" id="openLogsBottom">ソースコード編集ログを見る</button></div>
 		</div>
 		<section id="evaluationLogView" class="container" hidden>
-			<section class="sample-section log-hero mb-4"><div><span class="hero-kicker">Student Log</span><h1 class="section-title mb-3">コードログ</h1><p class="hero-description mb-0">保存されたコードの履歴を、変更行を強調しながら時系列で確認できます。前後の状態を見比べて、試行錯誤の流れを確認できます（読取専用）。</p><div class="mt-4"><button class="btn btn-warning btn-lg" id="backToEvaluation">評価結果に戻る</button></div></div>
+			<section class="sample-section log-hero mb-4"><div><span class="hero-kicker">Source Code Edit Logs</span><h1 class="section-title mb-3">ソースコード編集ログ</h1><p class="hero-description mb-0">保存されたコードの履歴を、変更行を強調しながら時系列で確認できます。前後の状態を見比べて、試行錯誤の流れを確認できます（読取専用）。</p><div class="mt-4"><button class="btn btn-warning btn-lg" id="backToEvaluation">評価結果に戻る</button></div></div>
 				<div class="hero-meta-card"><div class="meta-label">対象課題</div><div class="meta-value" id="logTask"></div><p id="logTaskMetadata"></p><div class="hero-status-list"><div class="hero-status-item"><span>保存回数</span><span class="hero-status-pill" id="logSaveCount"></span></div><div class="hero-status-item"><span>実行記録数</span><span class="hero-status-pill accent" id="logRunCount"></span></div></div></div>
 			</section>
-			<div class="log-layout"><section class="sample-section"><h2 class="card-title">差分ビューアー</h2><p class="text-muted">各保存時点のコードを時系列で確認できます。</p><div class="log-navigation"><button class="btn btn-outline-primary" id="previousLog">前へ</button><span id="logStep"></span><button class="btn btn-outline-primary" id="nextLog">次へ</button></div><p id="codeLogState" class="mt-3"></p><pre class="code-block" id="codeLogSnapshot"></pre><h3 class="mt-3">実行入出力・エラー</h3><pre class="code-block" id="logExecution"></pre></section>
-				<aside class="sample-section"><div class="sidebar-switcher mb-3"><button class="sidebar-switch-button is-active" id="showLogTimeline">ログ一覧</button><button class="sidebar-switch-button" id="showLogReasons">評価の理由</button></div>
-					<div id="timelinePanel"><h2 class="card-title">ログ一覧</h2><label class="form-label">時点を選択<select id="codeLogTimes" class="form-select"></select></label><div id="logTimeline"></div></div>
+			<div class="log-layout"><section class="sample-section"><h2 class="card-title">差分ビューアー</h2><p class="text-muted">各保存時点のコードを時系列で確認できます。</p><div class="log-navigation"><button class="btn btn-outline-primary" id="previousLog" type="button">前へ</button><span id="logStep" aria-live="polite"></span><button class="btn btn-outline-primary" id="nextLog" type="button">次へ</button></div><p id="codeLogState" class="mt-3"></p><div class="viewer-id-row"><span id="codeLogId" class="viewer-id-pill"></span></div><div class="viewer-meta-row mt-3"><p id="codeLogTimestamp" class="timestamp mb-0"></p><p id="codeLogBoundary" class="boundary-message mb-0" aria-live="polite"></p></div><pre class="code-block mt-3" id="codeLogSnapshot" aria-label="保存されたソースコード"></pre><h3 class="mt-3">実行入出力・エラー</h3><pre class="code-block" id="logExecution"></pre></section>
+				<aside class="sample-section"><div class="sidebar-switcher mb-3"><button class="sidebar-switch-button is-active" id="showLogTimeline">ソースコード編集ログ一覧</button><button class="sidebar-switch-button" id="showLogReasons">評価の理由</button></div>
+					<div id="timelinePanel"><h2 class="card-title">ソースコード編集ログ一覧</h2><label class="form-label">時点を選択<select id="codeLogTimes" class="form-select"></select></label><div id="logTimeline"></div></div>
 					<div id="logReasonsPanel" hidden><h2 class="card-title">評価の理由</h2><div class="reason-filters" id="logReasonFilters"></div><div id="logReasons"></div></div>
 				</aside>
 			</div>

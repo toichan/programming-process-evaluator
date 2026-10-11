@@ -20,6 +20,25 @@
 .account-detail-section { margin-top: 1.5rem; }
 .account-detail-section .table-responsive { max-height: 280px; }
 #credentialText { max-height: 320px; }
+.password-content { display: flex; align-items: center; gap: .5rem; }
+.password-mask { font-family: monospace; font-weight: 600; letter-spacing: .2em; color: #374151; }
+.password-mask.is-unavailable { font-family: inherit; font-weight: 500; letter-spacing: 0; background: #f1f5f9; color: #64748b; }
+.security-chip, .status-pill { display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; font-size: .75rem; font-weight: 700; }
+.security-chip { padding: .32rem .7rem; }
+.security-chip.level-1 { background: #e2e8f0; color: #334155; }
+.security-chip.level-2 { background: #dbeafe; color: #1d4ed8; }
+.status-pill { padding: .28rem .65rem; }
+.status-pill.status-done { background: #dcfce7; color: #166534; }
+.status-pill.status-pending { background: #fef3c7; color: #92400e; }
+.status-pill.status-na { background: #f1f5f9; color: #475569; }
+.consent { font-size: .8rem; font-weight: 700; }
+.consent-ok { color: #15803d; }
+.consent-no { color: #b91c1c; }
+.consent-pending { color: #475569; }
+.account-status-badge { border-radius: 999px; padding: .3rem .65rem; background: #f1f5f9; color: #475569; font-size: .78rem; }
+.account-status-badge[data-status="active"] { background: #dcfce7; color: #166534; }
+.account-status-badge[data-status="suspended"] { background: #fee2e2; color: #b91c1c; }
+.account-status-badge[data-status="deleted"] { background: #f1f5f9; color: #475569; }
 @media (max-width: 1000px) { .history-hero { grid-template-columns: 1fr; } .filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 576px) {
 	.filter-grid { grid-template-columns: 1fr; }

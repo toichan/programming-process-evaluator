@@ -1,11 +1,13 @@
 <%@ page contentType="text/html; charset=UTF-8" pageEncoding="UTF-8" session="false" %>
 <%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
 <c:set var="screenDesign" value="student"/>
-<c:set var="screenPageTitle" value="コードログ"/>
+<c:set var="screenPageTitle" value="ソースコード編集ログ"/>
 <c:set var="screenStylesheet" value="/css/student/evaluation/log.css"/>
 <c:set var="screenScript" value="/js/student/evaluation/log.js"/>
+<c:set var="screenAssetVersion" value="159"/>
 <%@ include file="/WEB-INF/template/page-start.jspf" %>
 <%@ include file="/WEB-INF/student/shared/navigation.jspf" %>
+<c:url var="surveyUrl" value="/student/survey"><c:param name="assignmentId" value="${codeLogPage.assignmentId}"/><c:param name="evaluationId" value="${surveyNavigation.evaluationId}"/><c:param name="surveyId" value="${surveyNavigation.surveyId}"/></c:url>
 <main class="pt-2 pb-5">
 	<div class="container">
 		<nav class="learning-flow-nav mb-2" aria-label="学習フロー">
@@ -18,7 +20,8 @@
 						href="<c:url value='/student/evaluation'><c:param name='assignmentId' value='${codeLogPage.assignmentId}'/><c:param name='submissionId' value='${codeLogPage.submissionId}'/></c:url>">評価の確認</a>
 				</li>
 				<li class="learning-flow-step">
-					<span class="learning-flow-link is-green" aria-disabled="true">アンケート</span>
+					<c:choose><c:when test="${surveyNavigation.available}"><a class="learning-flow-link is-green" href="<c:out value='${surveyUrl}'/>">アンケート</a></c:when>
+					<c:otherwise><span class="learning-flow-link is-green" aria-disabled="true">アンケート</span></c:otherwise></c:choose>
 				</li>
 			</ol>
 			<div class="learning-flow-task-title">
@@ -31,17 +34,19 @@
 
 		<section class="sample-section log-hero mb-4">
 			<div class="hero-copy">
-				<span class="hero-kicker">Student Log</span>
-				<h1 class="section-title mb-3">コードログ</h1>
+				<span class="hero-kicker">Source Code Edit Logs</span>
+				<h1 class="section-title mb-3">ソースコード編集ログ</h1>
 				<p class="hero-description mb-0">
 					自動保存されたコードの履歴を時系列で確認できます。前後の状態を見比べて、試行錯誤の流れを振り返るためのページです。
 				</p>
 				<div class="hero-action-row mt-4">
 					<a class="btn btn-warning btn-lg"
 						href="<c:url value='/student/evaluation'><c:param name='assignmentId' value='${codeLogPage.assignmentId}'/><c:param name='submissionId' value='${codeLogPage.submissionId}'/></c:url>">評価結果に戻る</a>
-					<span class="btn btn-outline-secondary btn-lg is-disabled-action" aria-disabled="true"
-						title="アンケート機能は準備中です">アンケートに進む</span>
+					<c:choose><c:when test="${surveyNavigation.available}"><a class="btn btn-success btn-lg" href="<c:out value='${surveyUrl}'/>">アンケートに進む</a></c:when>
+					<c:otherwise><span class="btn btn-outline-secondary btn-lg is-disabled-action" aria-disabled="true"
+						title="<c:out value='${surveyNavigation.unavailableReason}'/>">アンケートに進む</span></c:otherwise></c:choose>
 				</div>
+				<c:if test="${not surveyNavigation.available}"><p class="text-muted mt-2 mb-0" role="status"><c:out value="${surveyNavigation.unavailableReason}"/></p></c:if>
 			</div>
 			<div class="hero-meta-card">
 				<div class="meta-label">対象課題</div>
@@ -71,7 +76,7 @@
 					</div>
 					<c:choose>
 						<c:when test="${empty codeLogPage.entries}">
-							<div class="alert alert-info mb-0" role="status">この提出版に表示できるコードログはありません。</div>
+							<div class="alert alert-info mb-0" role="status">この提出版に表示できるソースコード編集ログはありません。</div>
 						</c:when>
 						<c:otherwise>
 							<div class="viewer-controls">
@@ -93,25 +98,26 @@
 							<div class="mt-4">
 								<h3 class="h5">実行時の入出力</h3>
 								<div id="executionOutput" class="border rounded-3 p-3 bg-light">
-									<p class="text-muted mb-0">選択したログに実行記録はありません。</p>
+									<p class="text-muted mb-0">選択したソースコード編集ログに実行記録はありません。</p>
 								</div>
 							</div>
 						</c:otherwise>
 					</c:choose>
+					<p id="requestedEvidenceStatus" class="small text-muted mt-2 mb-0" aria-live="polite"></p>
 				</section>
 			</div>
 
 			<div class="col-xl-4">
 				<div class="sticky-xl-top sidebar-stack">
 					<section class="sample-section sidebar-section">
-						<div class="sidebar-switcher mb-3" role="tablist" aria-label="ログ表示切り替え">
-							<button class="sidebar-switch-button is-active" type="button" data-sidebar-panel="timeline">ログ一覧</button>
+						<div class="sidebar-switcher mb-3" role="tablist" aria-label="ソースコード編集ログ表示切り替え">
+							<button class="sidebar-switch-button is-active" type="button" data-sidebar-panel="timeline">ソースコード編集ログ一覧</button>
 							<button class="sidebar-switch-button" type="button" data-sidebar-panel="reasons">評価の理由</button>
 						</div>
 						<div id="timelinePanel" class="sidebar-panel is-active">
 							<div class="section-heading-row mb-3">
 								<div>
-									<h2 class="card-title mb-2">ログ一覧</h2>
+									<h2 class="card-title mb-2">ソースコード編集ログ一覧</h2>
 									<p class="text-muted mb-0">各保存時点の概要を確認できます。</p>
 								</div>
 							</div>
@@ -156,25 +162,67 @@
 									<p class="text-muted mb-0">この提出版には評価理由がありません。</p>
 								</c:when>
 								<c:otherwise>
-									<div class="log-timeline-scroll reason-list">
-										<c:forEach var="reason" items="${codeLogPage.evaluation.reasons}">
-											<article class="reason-card">
-												<div class="reason-title-row">
-													<h3><c:out value="${reason.title}"/></h3>
-													<c:if test="${not empty reason.dimensionLabel}">
-														<span class="reason-chip"><c:out value="${reason.dimensionLabel}"/></span>
+									<div id="reasonFilterGroup" class="reason-filter-group mb-3" role="group" aria-label="評価理由の観点">
+										<button class="reason-filter is-active" type="button" data-reason-filter="all" aria-pressed="true">すべて</button>
+										<button class="reason-filter" type="button" data-reason-filter="thinking" aria-pressed="false">思考・判断・表現</button>
+										<button class="reason-filter" type="button" data-reason-filter="attitude" aria-pressed="false">態度</button>
+										<button class="reason-filter" type="button" data-reason-filter="other" aria-pressed="false">その他</button>
+									</div>
+									<div class="log-timeline-scroll">
+										<div class="reason-list">
+											<c:forEach var="reason" items="${codeLogPage.evaluation.reasons}">
+												<c:set var="reasonCategory" value="other"/>
+												<c:choose>
+													<c:when test="${reason.dimensionLabel == '主体的に学習に取り組む態度'}"><c:set var="reasonCategory" value="attitude"/></c:when>
+													<c:when test="${reason.dimensionLabel == '思考力・判断力・表現力'}"><c:set var="reasonCategory" value="thinking"/></c:when>
+												</c:choose>
+												<article class="reason-card ${reasonCategory == 'attitude' ? 'accent-reason' : ''}" data-category="<c:out value='${reasonCategory}'/>">
+													<div class="reason-title-row">
+														<h3><c:out value="${reason.title}"/></h3>
+														<c:if test="${not empty reason.dimensionLabel}">
+															<span class="reason-chip"><c:out value="${reason.dimensionLabel}"/></span>
+														</c:if>
+													</div>
+													<p class="reason-body"><c:out value="${reason.body}"/></p>
+													<c:if test="${not empty reason.details}">
+														<ul class="reason-detail-list">
+															<c:forEach var="detail" items="${reason.details}">
+																<li><c:out value="${detail}"/></li>
+															</c:forEach>
+														</ul>
 													</c:if>
-												</div>
-												<p class="reason-body"><c:out value="${reason.body}"/></p>
-												<c:if test="${not empty reason.details}">
-													<ul class="reason-detail-list">
-														<c:forEach var="detail" items="${reason.details}">
-															<li><c:out value="${detail}"/></li>
-														</c:forEach>
-													</ul>
-												</c:if>
-											</article>
-										</c:forEach>
+													<div class="reason-evidence" aria-label="保存済み根拠">
+														<c:choose>
+															<c:when test="${empty reason.evidence}">
+																<p class="small text-muted mb-0">この理由に紐づく保存済み根拠はありません。</p>
+															</c:when>
+															<c:otherwise>
+																<ul class="list-unstyled mb-0">
+																	<c:forEach var="evidence" items="${reason.evidence}">
+																		<li class="mt-2">
+																			<c:if test="${not empty evidence.label}"><strong><c:out value="${evidence.label}"/></strong></c:if>
+																			<c:if test="${not empty evidence.detailText}"><span class="small text-muted">（詳細: <c:out value="${evidence.detailText}"/>）</span></c:if>
+																			<c:if test="${not empty evidence.summary}"><p class="small mb-1"><c:out value="${evidence.summary}"/></p></c:if>
+																			<c:choose>
+																				<c:when test="${not empty evidence.codeLogId}">
+																					<a class="btn btn-outline-primary btn-sm" href="<c:url value='/student/evaluation/log'><c:param name='submissionId' value='${codeLogPage.submissionId}'/><c:param name='logId' value='${evidence.codeLogId}'/></c:url>">対応する編集ログ <c:out value="${evidence.codeLogId}"/> を開く</a>
+																				</c:when>
+																				<c:when test="${evidence.hasCodeLogReference}">
+																					<p class="small text-muted mb-0">編集ログ根拠は保存されていますが、この提出版の認可済みログ一覧で照合できません。</p>
+																				</c:when>
+																				<c:otherwise>
+																					<p class="small text-muted mb-0">この根拠に対応する編集ログIDは保存されていません。</p>
+																				</c:otherwise>
+																			</c:choose>
+																		</li>
+																	</c:forEach>
+																</ul>
+															</c:otherwise>
+														</c:choose>
+													</div>
+												</article>
+											</c:forEach>
+										</div>
 									</div>
 								</c:otherwise>
 							</c:choose>

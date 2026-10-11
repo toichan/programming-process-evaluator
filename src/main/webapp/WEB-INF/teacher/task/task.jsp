@@ -399,7 +399,7 @@
 										<c:if test="${task.publicationStatus == 'published' && task.learningStarted}">
 											<form class="task-state-form" method="post" action="<c:url value='/teacher/task'/>"
 												data-confirm-title="新しい課題系列を作成しますか？"
-												data-confirm-message="課題内容と現在適用中の共通プロンプト・追加指示だけを複製します。AIモデル、揺らぎ項目、評価例、対象クラス、公開日時、提出期限は引き継ぎません。新しい課題は非公開の下書きとして作成し、元課題と生徒・提出・評価・コードログの履歴は変更しません。"
+												data-confirm-message="課題内容と現在適用中の共通プロンプト・追加指示だけを複製します。AIモデル、揺らぎ項目、評価例、対象クラス、公開日時、提出期限は引き継ぎません。新しい課題は非公開の下書きとして作成し、元課題と生徒・提出・評価・ソースコード編集ログの履歴は変更しません。"
 												data-confirm-label="新しい課題を作成">
 												<input type="hidden" name="action" value="copyToNewTaskSeries">
 												<input type="hidden" name="csrfToken" value="<c:out value='${csrfToken}'/>">
@@ -431,53 +431,17 @@
 										</form>
 									</div>
 									<c:if test="${task.publicationStatus == 'published'}">
-										<div class="mt-3">
-											<c:forEach items="${task.input.classAssignments}" var="assignment">
-												<c:if test="${not empty assignment.dueAt && (assignment.assignmentStatus == 'scheduled' || assignment.assignmentStatus == 'published' || assignment.assignmentStatus == 'expired')}">
-													<form method="post" action="<c:url value='/teacher/task'/>" class="mb-2">
-														<input type="hidden" name="action" value="extendTaskAssignmentDeadline">
-														<input type="hidden" name="csrfToken" value="<c:out value='${csrfToken}'/>">
-														<input type="hidden" name="requestToken" value="<c:out value='${teacherTaskDeadlineTokens[assignment.assignmentId]}'/>">
-														<input type="hidden" name="taskId" value="<c:out value='${task.taskId}'/>">
-														<input type="hidden" name="expectedVersion" value="<c:out value='${task.version}'/>">
-														<input type="hidden" name="assignmentId" value="<c:out value='${assignment.assignmentId}'/>">
-														<label class="form-label small mb-1" for="deadline-${assignment.assignmentId}">クラス割当 #<c:out value="${assignment.classroomId}"/> の提出期限</label>
-														<div class="d-flex gap-1">
-															<input class="form-control form-control-sm" id="deadline-${assignment.assignmentId}"
-																type="datetime-local" name="newDueAt" required
-																value="<c:out value='${teacherTaskDeadlineValues[assignment.assignmentId]}'/>">
-															<button class="btn btn-sm btn-outline-primary text-nowrap" type="submit">延長</button>
-														</div>
-													</form>
-												</c:if>
-											</c:forEach>
-											<c:if test="${not empty teacherTaskEligibleClassOptions[task.taskId]}">
-												<form method="post" action="<c:url value='/teacher/task'/>" class="border-top pt-2 mt-2">
-													<input type="hidden" name="action" value="addTaskClassAssignment">
-													<input type="hidden" name="csrfToken" value="<c:out value='${csrfToken}'/>">
-													<input type="hidden" name="requestToken" value="<c:out value='${teacherTaskClassAssignmentTokens[task.taskId]}'/>">
-													<input type="hidden" name="taskId" value="<c:out value='${task.taskId}'/>">
-													<input type="hidden" name="expectedVersion" value="<c:out value='${task.version}'/>">
-													<label class="form-label small mb-1" for="add-class-${task.taskId}">対象クラスを追加</label>
-													<select class="form-select form-select-sm mb-1" id="add-class-${task.taskId}" name="classroomId" required>
-														<option value="">クラスを選択</option>
-														<c:forEach items="${teacherTaskEligibleClassOptions[task.taskId]}" var="classroom">
-															<option value="<c:out value='${classroom.classroomId}'/>"><c:out value="${classroom.gradeName}"/><c:out value="${classroom.name}"/></option>
-														</c:forEach>
-													</select>
-													<label class="form-label small mb-1" for="publish-at-${task.taskId}">公開日時（空欄なら即時公開）</label>
-													<input class="form-control form-control-sm mb-1" id="publish-at-${task.taskId}" type="datetime-local" name="publishAt">
-													<label class="form-label small mb-1" for="due-at-${task.taskId}">提出期限（任意）</label>
-													<input class="form-control form-control-sm mb-1" id="due-at-${task.taskId}" type="datetime-local" name="dueAt">
-													<label class="form-label small mb-1" for="late-policy-${task.taskId}">期限後の提出</label>
-													<select class="form-select form-select-sm mb-2" id="late-policy-${task.taskId}" name="lateSubmissionPolicy" required>
-														<option value="allow">許可</option>
-														<option value="deny">不可</option>
-													</select>
-													<button class="btn btn-sm btn-outline-primary" type="submit">クラスを追加</button>
-												</form>
+										<c:set var="hasAssignmentSettings" value="${not empty teacherTaskEligibleClassOptions[task.taskId]}"/>
+										<c:forEach items="${task.input.classAssignments}" var="assignment">
+											<c:if test="${not empty assignment.dueAt && (assignment.assignmentStatus == 'scheduled' || assignment.assignmentStatus == 'published' || assignment.assignmentStatus == 'expired')}">
+												<c:set var="hasAssignmentSettings" value="${true}"/>
 											</c:if>
-										</div>
+										</c:forEach>
+										<c:if test="${hasAssignmentSettings}">
+											<button class="btn btn-sm btn-outline-primary mt-2" type="button"
+												data-bs-toggle="modal" data-bs-target="#taskAssignmentModal-${task.taskId}"
+												aria-label="<c:out value='${task.input.title}'/>の期限・クラス設定">期限・クラス設定</button>
+										</c:if>
 									</c:if>
 								</td>
 							</tr>
@@ -485,6 +449,7 @@
 					</tbody>
 				</table>
 			</div>
+			<%@ include file="assignment-settings.jspf" %>
 			<section class="mt-4" aria-labelledby="deletedTaskHeading">
 				<h3 class="h5" id="deletedTaskHeading">削除済み課題</h3>
 				<c:if test="${empty teacherTaskPage.deletedTasks}"><p class="text-muted" role="status">削除済み課題はありません。</p></c:if>

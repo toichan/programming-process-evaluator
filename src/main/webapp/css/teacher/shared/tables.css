@@ -1,0 +1,48 @@
+.teacher-screen .table-responsive {
+	max-width: 100%;
+	min-width: 0;
+	overflow-x: auto;
+	overscroll-behavior-x: contain;
+}
+
+.teacher-screen .table-responsive > .table {
+	width: max-content !important;
+	min-width: 100% !important;
+	max-width: none;
+	table-layout: auto;
+}
+
+.teacher-screen .table-responsive > .table > :not(caption) > * > * {
+	white-space: nowrap;
+	word-break: normal !important;
+	overflow-wrap: normal !important;
+}
+
+.teacher-screen .table-responsive > .table th,
+.teacher-screen .table-responsive > .table td {
+	width: auto !important;
+	min-width: 0;
+}
+
+.teacher-screen .table-responsive > .table .btn,
+.teacher-screen .table-responsive > .table .badge {
+	white-space: nowrap;
+}
+
+.teacher-screen .table-responsive > .table input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
+.teacher-screen .table-responsive > .table select {
+	min-width: 10rem;
+}
+
+.teacher-screen .table-responsive > .table.io-result-table td {
+	white-space: pre-wrap;
+	overflow-wrap: anywhere !important;
+	min-width: 12rem;
+	max-width: 28rem;
+}
+
+.teacher-screen .table-responsive > .table.rubric-table td {
+	white-space: normal;
+	min-width: 18rem;
+	max-width: 24rem;
+}

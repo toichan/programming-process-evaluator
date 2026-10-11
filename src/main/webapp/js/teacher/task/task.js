@@ -1,4 +1,12 @@
 document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('.task-assignment-modal').forEach(function(modal) {
+    let trigger = null;
+    modal.addEventListener('show.bs.modal', function(event) { trigger = event.relatedTarget; });
+    modal.addEventListener('hide.bs.modal', function(event) {
+      if (!event.defaultPrevented && modal.contains(document.activeElement)) document.activeElement.blur();
+    });
+    modal.addEventListener('hidden.bs.modal', function() { trigger?.focus(); });
+  });
   const form = document.getElementById('taskCreateForm');
   if (!form) return;
 

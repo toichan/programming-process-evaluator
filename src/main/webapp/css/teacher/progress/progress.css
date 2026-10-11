@@ -1,3 +1,5 @@
+@import url("../../student/shared/code-editor.css");
+@import url("../../student/shared/execution-terminal.css");
 .teacher-progress-screen {
 	background-color: #f8fafc;
 	flex-grow: 1;
@@ -106,6 +108,21 @@
 .teacher-progress-screen #historyTable {
 	min-width: 980px;
 }
+
+.progress-status-badge {
+	border-radius: 999px;
+	padding: .3rem .65rem;
+	background: #f1f5f9;
+	color: #475569;
+	font-size: .78rem;
+}
+
+.progress-status-badge[data-status="未着手"] { background: #f1f5f9; color: #475569; }
+.progress-status-badge[data-status="編集中"],
+.progress-status-badge[data-status="評価待ち"] { background: #fef3c7; color: #92400e; }
+.progress-status-badge[data-status="提出済み"] { background: #dbeafe; color: #1d4ed8; }
+.progress-status-badge[data-status="完了"] { background: #dcfce7; color: #166534; }
+.progress-status-badge[data-status="要対応"] { background: #fee2e2; color: #b91c1c; }
 
 .teacher-progress-screen .table-light thead th {
 	padding: 0.9rem 0.7rem;
@@ -303,6 +320,7 @@
 }
 
 #historyDetailModal .detail-meta {
+	overflow-wrap: anywhere;
 	color: #475569;
 	font-size: 1.02rem;
 	font-weight: 600;
@@ -311,6 +329,9 @@
 
 #historyDetailModal .modal-header-actions {
 	display: flex;
+	flex-wrap: wrap;
+	min-width: 0;
+	max-width: 100%;
 	align-items: center;
 	justify-content: flex-end;
 	gap: 0.75rem;
@@ -329,7 +350,9 @@
 }
 
 #historyDetailModal .detail-table-wrap {
-	overflow: hidden;
+	overflow-x: auto;
+	max-width: 100%;
+	min-width: 0;
 	border: 1px solid #e2e8f0;
 	border-radius: 0.75rem;
 	background: #fff;
@@ -418,7 +441,24 @@
 	}
 
 	.teacher-progress-screen .hero-stats {
-		grid-template-columns: repeat(3, minmax(120px, 1fr));
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+	}
+
+	.teacher-progress-screen .history-hero > *,
+	.teacher-progress-screen .hero-stats > * {
+		min-width: 0;
+		overflow-wrap: anywhere;
+	}
+
+	@media (max-width: 576px) {
+		.teacher-progress-screen .hero-stats,
+		.teacher-progress-screen .filter-grid,
+		.teacher-progress-screen .summary-stat-row {
+			grid-template-columns: minmax(0, 1fr);
+		}
+		#historyDetailModal .modal-title { min-width: 0; overflow-wrap: anywhere; }
+		#historyDetailModal .modal-header-actions { margin-left: 0; width: 100%; }
+		#historyDetailModal .modal-header-actions .btn { white-space: normal; }
 	}
 
 	.teacher-progress-screen .summary-layout {
@@ -443,4 +483,8 @@
 	.teacher-progress-screen #historyTable {
 		min-width: 920px;
 	}
+}
+
+@media (max-width: 576px) {
+	.teacher-progress-screen .filter-grid { grid-template-columns: minmax(0, 1fr); }
 }

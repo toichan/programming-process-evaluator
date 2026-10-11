@@ -65,7 +65,7 @@ class TeacherExerciseRuntimeTest {
 		assertEquals(404,teacher.get("/teacher/exercises?view=detail&studentId=999999&classroomId=1").statusCode());
 		assertEquals(404,teacher.get("/teacher/exercises?view=download"+target+"&entryId=999999").statusCode());
 		assertEquals(400,teacher.get("/teacher/exercises?view=bulk&search=unmatched").statusCode());
-		assertEquals(405,teacher.post("/teacher/exercises",Map.of()).statusCode());
+		assertEquals(403,teacher.post("/teacher/exercises",Map.of()).statusCode());
 		var outsider=new Browser("teacher");outsider.login("ex_outsider","teacher");
 		assertEquals(0,outsider.json("/teacher/exercises?view=list").getAsJsonArray().size());
 		assertEquals(404,outsider.get("/teacher/exercises?view=detail"+target).statusCode());

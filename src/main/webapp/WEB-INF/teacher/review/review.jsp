@@ -9,7 +9,7 @@
 	data-csrf-token="<c:out value='${csrfToken}'/>">
 	<div class="container-fluid px-4">
 		<h1 class="section-title"><c:out value="${screenPageTitle}"/></h1>
-		<p>学校の閲覧権限内の履歴を確認します。提出・評価・コードログは変更しません。研究同意の有無だけで授業上の閲覧は制限しません。</p>
+		<p>学校の閲覧権限内の履歴を確認します。提出・評価・ソースコード編集ログは変更しません。研究同意の有無だけで授業上の閲覧は制限しません。</p>
 		<div id="reviewAlert" role="alert"></div>
 		<section id="reviewList" class="panel-card">
 			<form id="reviewFilters" class="review-filters">
@@ -47,7 +47,7 @@
 			<div id="previousEvaluation"></div>
 			<h3>評価結果</h3><div id="evaluationResults"></div>
 			<h3>評価理由</h3><div id="evaluationReasons"></div>
-			<h3>コードログ</h3>
+			<h3>ソースコード編集ログ</h3>
 			<label>時点を選択<select id="codeLogTimes" class="form-select"></select></label>
 			<p id="codeLogState"></p><pre id="codeLogSnapshot" class="review-code"></pre>
 			<h4>提出時スナップショット（読取専用）</h4><pre id="evaluationSubmission" class="review-code"></pre>
@@ -61,7 +61,7 @@
 			<p id="submissionMetadata"></p>
 			<h3>提出時スナップショット（読取専用）</h3><pre id="submittedSnapshot" class="review-code"></pre>
 			<h3>提出時の入出力チェック</h3><p id="submissionCheckSummary"></p><div id="submissionChecks"></div>
-			<h3>作業用コピー</h3><p>編集・実行内容は提出データ、評価、コードログへ保存しません。</p>
+			<h3>作業用コピー</h3><p>編集・実行内容は提出データ、評価、ソースコード編集ログへ保存しません。</p>
 			<label class="w-100">Pythonコード<textarea id="previewCode" class="form-control review-code" rows="10" spellcheck="false"></textarea></label>
 			<label class="w-100 mt-2">標準入力<textarea id="previewInput" class="form-control" rows="3"></textarea></label>
 			<button id="previewRun" type="button" class="btn btn-primary mt-2">作業用コードを実行</button>

@@ -1,0 +1,67 @@
+<%@ page pageEncoding="UTF-8" %>
+<c:forEach items="${teacherTaskPage.tasks}" var="task">
+	<c:if test="${task.publicationStatus == 'published'}">
+		<div class="modal fade task-assignment-modal" id="taskAssignmentModal-${task.taskId}" tabindex="-1"
+			aria-labelledby="taskAssignmentTitle-${task.taskId}" aria-hidden="true">
+			<div class="modal-dialog modal-lg modal-dialog-scrollable">
+				<div class="modal-content">
+					<div class="modal-header">
+						<h2 class="modal-title fs-5" id="taskAssignmentTitle-${task.taskId}">期限・クラス設定</h2>
+						<button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="閉じる"></button>
+					</div>
+					<div class="modal-body">
+						<p class="fw-semibold"><c:out value="${task.input.title}"/></p>
+						<p class="text-muted small">各操作のボタンで保存します。期限延長は既存の提出期限を後ろへ変更し、クラス追加は既存の割当条件を変更しません。</p>
+						<c:forEach items="${task.input.classAssignments}" var="assignment">
+							<c:if test="${not empty assignment.dueAt && (assignment.assignmentStatus == 'scheduled' || assignment.assignmentStatus == 'published' || assignment.assignmentStatus == 'expired')}">
+								<form method="post" action="<c:url value='/teacher/task'/>" class="assignment-settings-section mb-3">
+									<input type="hidden" name="action" value="extendTaskAssignmentDeadline">
+									<input type="hidden" name="csrfToken" value="<c:out value='${csrfToken}'/>">
+									<input type="hidden" name="requestToken" value="<c:out value='${teacherTaskDeadlineTokens[assignment.assignmentId]}'/>">
+									<input type="hidden" name="taskId" value="<c:out value='${task.taskId}'/>">
+									<input type="hidden" name="expectedVersion" value="<c:out value='${task.version}'/>">
+									<input type="hidden" name="assignmentId" value="<c:out value='${assignment.assignmentId}'/>">
+									<label class="form-label" for="deadline-${assignment.assignmentId}">クラス割当 #<c:out value="${assignment.classroomId}"/> の提出期限</label>
+									<div class="assignment-deadline-fields">
+										<input class="form-control" id="deadline-${assignment.assignmentId}" type="datetime-local" name="newDueAt" required
+											value="<c:out value='${teacherTaskDeadlineValues[assignment.assignmentId]}'/>">
+										<button class="btn btn-outline-primary" type="submit">延長</button>
+									</div>
+								</form>
+							</c:if>
+						</c:forEach>
+						<c:if test="${not empty teacherTaskEligibleClassOptions[task.taskId]}">
+							<form method="post" action="<c:url value='/teacher/task'/>" class="assignment-settings-section">
+								<input type="hidden" name="action" value="addTaskClassAssignment">
+								<input type="hidden" name="csrfToken" value="<c:out value='${csrfToken}'/>">
+								<input type="hidden" name="requestToken" value="<c:out value='${teacherTaskClassAssignmentTokens[task.taskId]}'/>">
+								<input type="hidden" name="taskId" value="<c:out value='${task.taskId}'/>">
+								<input type="hidden" name="expectedVersion" value="<c:out value='${task.version}'/>">
+								<label class="form-label" for="add-class-${task.taskId}">対象クラスを追加</label>
+								<select class="form-select mb-3" id="add-class-${task.taskId}" name="classroomId" required>
+									<option value="">クラスを選択</option>
+									<c:forEach items="${teacherTaskEligibleClassOptions[task.taskId]}" var="classroom">
+										<option value="<c:out value='${classroom.classroomId}'/>"><c:out value="${classroom.gradeName}"/><c:out value="${classroom.name}"/></option>
+									</c:forEach>
+								</select>
+								<label class="form-label" for="publish-at-${task.taskId}">公開日時（空欄なら即時公開）</label>
+								<input class="form-control mb-3" id="publish-at-${task.taskId}" type="datetime-local" name="publishAt">
+								<label class="form-label" for="due-at-${task.taskId}">提出期限（任意）</label>
+								<input class="form-control mb-3" id="due-at-${task.taskId}" type="datetime-local" name="dueAt">
+								<label class="form-label" for="late-policy-${task.taskId}">期限後の提出</label>
+								<select class="form-select mb-3" id="late-policy-${task.taskId}" name="lateSubmissionPolicy" required>
+									<option value="allow">許可</option>
+									<option value="deny">不可</option>
+								</select>
+								<button class="btn btn-outline-primary" type="submit">クラスを追加</button>
+							</form>
+						</c:if>
+					</div>
+					<div class="modal-footer">
+						<button class="btn btn-secondary" type="button" data-bs-dismiss="modal">閉じる</button>
+					</div>
+				</div>
+			</div>
+		</div>
+	</c:if>
+</c:forEach>

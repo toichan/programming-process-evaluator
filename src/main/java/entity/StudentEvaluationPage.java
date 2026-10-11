@@ -225,17 +225,64 @@ public final class StudentEvaluationPage {
 		private final String title;
 		private final String body;
 		private final List<String> details;
+		private final List<EvidenceResult> evidence;
 
 		public ReasonResult(String dimensionLabel, String title, String body, List<String> details) {
+			this(dimensionLabel, title, body, details, List.of());
+		}
+
+		public ReasonResult(
+				String dimensionLabel,
+				String title,
+				String body,
+				List<String> details,
+				List<EvidenceResult> evidence) {
 			this.dimensionLabel = dimensionLabel;
 			this.title = title;
 			this.body = body;
 			this.details = List.copyOf(details);
+			this.evidence = List.copyOf(evidence);
 		}
 
 		public String getDimensionLabel() { return dimensionLabel; }
 		public String getTitle() { return title; }
 		public String getBody() { return body; }
 		public List<String> getDetails() { return details; }
+		public List<EvidenceResult> getEvidence() { return evidence; }
+	}
+
+	public static final class EvidenceResult {
+		private final Long reasonDetailId;
+		private final String detailText;
+		private final String type;
+		private final String label;
+		private final String summary;
+		private final Long codeLogId;
+		private final boolean hasCodeLogReference;
+
+		public EvidenceResult(
+				Long reasonDetailId,
+				String detailText,
+				String type,
+				String label,
+				String summary,
+				Long codeLogId,
+				boolean hasCodeLogReference) {
+			this.reasonDetailId = reasonDetailId;
+			this.detailText = detailText;
+			this.type = type;
+			this.label = label;
+			this.summary = summary;
+			this.codeLogId = codeLogId;
+			this.hasCodeLogReference = hasCodeLogReference;
+		}
+
+		public Long getReasonDetailId() { return reasonDetailId; }
+		public String getDetailText() { return detailText; }
+		public String getType() { return type; }
+		public String getLabel() { return label; }
+		public String getSummary() { return summary; }
+		public Long getCodeLogId() { return codeLogId; }
+		public boolean getHasCodeLogReference() { return hasCodeLogReference; }
 	}
 }

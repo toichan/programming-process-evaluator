@@ -6,7 +6,7 @@
 <c:set var="screenScript" value="/js/teacher/progress/progress.js"/>
 <%@ include file="/WEB-INF/template/page-start.jspf" %>
 <div class="page-content py-5 teacher-progress-screen" id="teacherProgress"
-	data-detail-endpoint="<c:url value='/teacher/progress'/>" data-refresh-interval="20000">
+	data-detail-endpoint="<c:url value='/teacher/progress'/>" data-csrf-token="<c:out value='${csrfToken}'/>" data-refresh-interval="20000">
 	<div class="container-fluid px-4">
 		<section class="history-hero mb-4">
 			<div>
@@ -185,14 +185,7 @@
 								<td><c:out value="${row.className}"/></td>
 								<td><c:out value="${row.taskName}"/></td>
 								<td><span class="badge difficulty-${row.difficulty}"><c:out value="${row.difficultyLabel}"/></span></td>
-								<td><span class="badge
-									<c:choose>
-										<c:when test="${row.status == '編集中'}">bg-warning text-dark</c:when>
-										<c:when test="${row.status == '提出済み' or row.status == '完了'}">bg-success</c:when>
-										<c:when test="${row.status == '評価待ち'}">bg-info text-dark</c:when>
-										<c:when test="${row.status == '要対応'}">bg-danger</c:when>
-										<c:otherwise>bg-secondary</c:otherwise>
-									</c:choose>"><c:out value="${row.status}"/></span></td>
+								<td><span class="badge progress-status-badge" data-status="<c:out value='${row.status}'/>"><c:out value="${row.status}"/></span></td>
 								<td><c:out value="${row.elapsedTime}"/></td>
 								<td><c:choose><c:when test="${not empty row.lastUpdated}"><c:out value="${row.lastUpdated}"/></c:when><c:otherwise>-</c:otherwise></c:choose></td>
 								<td><span class="consent
@@ -241,6 +234,7 @@
 						</div>
 					</div>
 					<textarea id="latestCodeViewer" class="code-source" spellcheck="false" readonly aria-label="最終保存または最新提出のコード"></textarea>
+					<%@ include file="/WEB-INF/teacher/shared/preview-execution.jspf" %>
 				</div>
 
 				<div class="timeline-card mt-3">
@@ -248,7 +242,7 @@
 						<h6 class="detail-section-title mb-1">アクティビティ履歴</h6>
 						<p class="detail-section-description mb-0">手動保存と実行の履歴を表示します。</p>
 					</div>
-					<div class="detail-table-wrap mt-2">
+					<div class="detail-table-wrap table-responsive mt-2">
 						<table class="table table-sm align-middle mb-0">
 							<thead class="table-light">
 								<tr>

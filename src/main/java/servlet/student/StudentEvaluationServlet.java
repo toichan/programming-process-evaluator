@@ -15,6 +15,7 @@ import control.student.StudentEvaluationControl;
 import entity.StudentCodeLogPage;
 import entity.StudentHomePage;
 import entity.StudentEvaluationPage;
+import entity.StudentSurveyNavigation;
 import servlet.auth.CsrfTokens;
 
 @WebServlet(urlPatterns = {
@@ -104,17 +105,13 @@ public final class StudentEvaluationServlet extends HttpServlet {
 		}
 		prepareStudentPage(request, user, "評価結果", "/css/student/evaluation/evaluation.css");
 		StudentHomePage home = (StudentHomePage) request.getAttribute("studentHome");
-		boolean surveyAvailable = page.getEvaluation() != null
-				&& "completed".equals(page.getEvaluationStatus())
-				&& home != null
-				&& home.getTasks().stream().anyMatch(task ->
-						task.getTaskClassAssignmentId() == page.getAssignmentId()
-								&& !task.getSurveyStatus().equals("not_applicable")
-								&& task.getLatestCompletedEvaluationId() != null
-								&& task.getLatestCompletedEvaluationId() == page.getEvaluation().getEvaluationId());
+		var surveyNavigation = StudentSurveyNavigation.forEvaluation(home, page.getAssignmentId(),
+				page.getEvaluation() == null ? null : page.getEvaluation().getEvaluationId(),
+				"completed".equals(page.getEvaluationStatus()));
 		request.setAttribute("csrfToken", CsrfTokens.getOrCreate(request.getSession(false)));
 		request.setAttribute("evaluationPage", page);
-		request.setAttribute("surveyAvailableForEvaluation", surveyAvailable);
+		request.setAttribute("surveyNavigation", surveyNavigation);
+		request.setAttribute("surveyAvailableForEvaluation", surveyNavigation.isAvailable());
 		request.getRequestDispatcher("/WEB-INF/student/evaluation/evaluation.jsp").forward(request, response);
 	}
 
@@ -131,7 +128,11 @@ public final class StudentEvaluationServlet extends HttpServlet {
 			response.sendRedirect(request.getContextPath() + "/student/home");
 			return;
 		}
-		prepareStudentPage(request, user, "コードログ", "/css/student/evaluation/log.css");
+		prepareStudentPage(request, user, "ソースコード編集ログ", "/css/student/evaluation/log.css");
+		request.setAttribute("surveyNavigation", StudentSurveyNavigation.forEvaluation(
+				(StudentHomePage) request.getAttribute("studentHome"), page.getAssignmentId(),
+				page.getEvaluation() == null ? null : page.getEvaluation().getEvaluationId(),
+				page.getEvaluation() != null && "completed".equals(page.getEvaluation().getStatus())));
 		request.setAttribute("codeLogPage", page);
 		request.getRequestDispatcher("/WEB-INF/student/evaluation/log.jsp").forward(request, response);
 	}

@@ -16,9 +16,9 @@ INSERT INTO consent_records (user_id, consent_status, consent_document_version_i
 VALUES (1, 'agreed', 9001, NOW(), NOW()), (2, 'agreed', 9001, NOW(), NOW());
 INSERT INTO rubrics (rubric_id, created_by_user_id, title, version, rubric_status, created_at)
 VALUES (1, 3, 'Synthetic Rubric', 'debug-v1', 'active', NOW());
-INSERT INTO tasks (task_id, task_code, task_revision_code, revision_number, created_by_user_id, rubric_id,
+INSERT INTO tasks (task_id, school_id, task_code, task_revision_code, revision_number, created_by_user_id, rubric_id,
  title, difficulty, language, description, save_status, publication_status, created_at)
-VALUES (1, 'DBG-TASK', 'DBG-TASK-v1', 1, 3, 1, 'Synthetic Debug Task', 'beginner', 'python',
+VALUES (1, 1, 'DBG-TASK', 'DBG-TASK-v1', 1, 3, 1, 'Synthetic Debug Task', 'beginner', 'python',
  'Synthetic task description', 'saved', 'published', NOW());
 INSERT INTO task_class_assignments (task_class_assignment_id, task_id, classroom_id, assignment_status,
  late_submission_policy, resubmission_policy, created_at)

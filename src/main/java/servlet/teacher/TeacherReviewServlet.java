@@ -32,7 +32,10 @@ public final class TeacherReviewServlet extends HttpServlet {
 			boolean evaluations = "/teacher/evaluations".equals(request.getServletPath());
 			String view = request.getParameter("view");
 			var filter = filter(request);
-			if ("list".equals(view)) {
+			if ("preview-session".equals(view) && !evaluations) {
+				json(response, review.pollPreview(user, requiredId(request, "submissionId"),
+						request.getParameter("sessionId"), cursor(request)));
+			} else if ("list".equals(view)) {
 				json(response, review.list(user, evaluations, filter));
 			} else if ("detail".equals(view)) {
 				Long evaluationId = optionalId(request, "evaluationId");
@@ -81,6 +84,15 @@ public final class TeacherReviewServlet extends HttpServlet {
 		catch (IllegalArgumentException failure) { response.sendError(400); }
 		catch (NotFoundException failure) { response.sendError(404); }
 		catch (SecurityException failure) { response.sendError(403); }
+		catch (control.student.PythonRunnerRequestException failure) { response.sendError(failure.statusCode()); }
+		catch (IOException | IllegalStateException failure) {
+			getServletContext().log("Teacher preview service unavailable.", failure);
+			response.sendError(503);
+		}
+		catch (InterruptedException failure) {
+			Thread.currentThread().interrupt();
+			response.sendError(503);
+		}
 		catch (SQLException failure) {
 			getServletContext().log("Teacher review read failed.", failure);
 			response.sendError(503);
@@ -93,13 +105,23 @@ public final class TeacherReviewServlet extends HttpServlet {
 			if (!"/teacher/submissions".equals(request.getServletPath())) { response.sendError(405); return; }
 			if (request.getContentLengthLong() > MAX_FORM_BYTES) { response.sendError(413); return; }
 			if (!CsrfTokens.isValid(request)) { response.sendError(403); return; }
-			if (!"preview".equals(request.getParameter("action"))) { response.sendError(400); return; }
-			json(response, review.preview(user, requiredId(request, "submissionId"), request.getParameter("code"),
-					request.getParameter("standardInput") == null ? "" : request.getParameter("standardInput")));
+			switch (request.getParameter("action") == null ? "" : request.getParameter("action")) {
+				case "preview-start" -> json(response, review.startPreview(user, requiredId(request, "submissionId"), request.getParameter("code")));
+				case "preview-input" -> {
+					review.sendPreviewInput(user, requiredId(request, "submissionId"), request.getParameter("sessionId"), request.getParameter("line"));
+					json(response, java.util.Map.of("accepted", true));
+				}
+				case "preview-cancel" -> json(response, review.cancelPreview(user, requiredId(request, "submissionId"),
+						request.getParameter("sessionId"), cursor(request)));
+				case "preview" -> json(response, review.preview(user, requiredId(request, "submissionId"), request.getParameter("code"),
+						request.getParameter("standardInput") == null ? "" : request.getParameter("standardInput")));
+				default -> response.sendError(400);
+			}
 		} catch (TooLargeException failure) { response.sendError(413); }
 		catch (IllegalArgumentException failure) { response.sendError(400); }
 		catch (NotFoundException failure) { response.sendError(404); }
 		catch (SecurityException failure) { response.sendError(403); }
+		catch (control.student.PythonRunnerRequestException failure) { response.sendError(failure.statusCode()); }
 		catch (SQLException | IOException | IllegalStateException failure) {
 			getServletContext().log("Teacher preview service unavailable.", failure);
 			response.sendError(503);
@@ -107,6 +129,13 @@ public final class TeacherReviewServlet extends HttpServlet {
 			Thread.currentThread().interrupt();
 			response.sendError(503);
 		}
+	}
+	private static long cursor(HttpServletRequest request) {
+		String value = request.getParameter("after");
+		if (value == null) return 0;
+		if (!value.matches("[0-9]{1,19}")) throw new IllegalArgumentException("実行イベント位置が不正です。");
+		try { return Long.parseLong(value); }
+		catch (NumberFormatException failure) { throw new IllegalArgumentException("実行イベント位置が不正です。", failure); }
 	}
 	private static void headers(HttpServletRequest request, HttpServletResponse response) throws IOException {
 		request.setCharacterEncoding("UTF-8");

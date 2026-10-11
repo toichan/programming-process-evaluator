@@ -105,6 +105,7 @@ public final class StudentEditorServlet extends HttpServlet {
 			request.setAttribute("screenPageTitle", page.getTitle());
 			request.setAttribute("screenStylesheet", "/css/student/editor/editor.css");
 			StudentHomePage home = STUDENTS.loadHome(user).orElse(null);
+			request.setAttribute("studentHome", home);
 			request.setAttribute("taskCount", home == null ? 0 : home.getTasks().size());
 			request.getRequestDispatcher("/WEB-INF/student/editor.jsp").forward(request, response);
 		} catch (SQLException e) {

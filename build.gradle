@@ -83,3 +83,17 @@ tasks.register('seedDemoData', JavaExec) {
     classpath = sourceSets.main.runtimeClasspath
     mainClass = 'control.dev.DemoDataBootstrap'
 }
+
+tasks.register('seedReviewDemo', JavaExec) {
+    group = 'application'
+    description = 'Add synthetic evaluation and survey results to the existing local progress demo only.'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'control.dev.ReviewDemoBootstrap'
+}
+
+tasks.register('seedStudentReviewDemo', JavaExec) {
+    group = 'application'
+    description = 'Add an opt-in synthetic task, evaluation and edit logs for existing local s008.'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'control.dev.StudentReviewDemoBootstrap'
+}

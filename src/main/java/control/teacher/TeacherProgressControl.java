@@ -20,6 +20,7 @@ public final class TeacherProgressControl {
 	private static final Logger LOGGER = Logger.getLogger(TeacherProgressControl.class.getName());
 	private final TeacherProgressDao progressDao;
 	private final ConnectionFactory connectionFactory;
+	private final TeacherPreviewExecution executions = new TeacherPreviewExecution();
 
 	public TeacherProgressControl() {
 		this(new TeacherProgressDao(), Client::createConnection);
@@ -72,6 +73,34 @@ public final class TeacherProgressControl {
 			}
 		}
 	}
+
+	public entity.InteractiveExecutionUpdate startPreview(AuthenticatedUser user, long assignment, long student, String code)
+					throws SQLException, java.io.IOException, InterruptedException {
+				requireTeacher(user);
+				return executions.start(user.userId(), TeacherSubmissionExecutionRegistry.Target.progress(assignment, student),
+						code, () -> requirePreviewAccess(user, assignment, student));
+			}
+			public entity.InteractiveExecutionUpdate pollPreview(AuthenticatedUser user, long assignment, long student,
+					String id, long cursor) throws SQLException, java.io.IOException, InterruptedException {
+				requireTeacher(user);
+				return executions.poll(user.userId(), TeacherSubmissionExecutionRegistry.Target.progress(assignment, student),
+						id, cursor, () -> requirePreviewAccess(user, assignment, student));
+			}
+			public void sendPreviewInput(AuthenticatedUser user, long assignment, long student, String id, String line)
+					throws SQLException, java.io.IOException, InterruptedException {
+				requireTeacher(user);
+				executions.input(user.userId(), TeacherSubmissionExecutionRegistry.Target.progress(assignment, student),
+						id, line, () -> requirePreviewAccess(user, assignment, student));
+			}
+			public entity.InteractiveExecutionUpdate cancelPreview(AuthenticatedUser user, long assignment, long student,
+					String id, long cursor) throws SQLException, java.io.IOException, InterruptedException {
+				requireTeacher(user);
+				return executions.cancel(user.userId(), TeacherSubmissionExecutionRegistry.Target.progress(assignment, student),
+						id, cursor, () -> requirePreviewAccess(user, assignment, student));
+			}
+			private void requirePreviewAccess(AuthenticatedUser user, long assignment, long student) throws SQLException {
+				if (loadDetail(user, assignment, student).latestCode() == null) throw new ProgressRecordNotFoundException();
+			}
 
 	private static void requireTeacher(AuthenticatedUser user) {
 		if (user == null || user.userType() != UserType.TEACHER) {

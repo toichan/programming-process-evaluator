@@ -99,7 +99,7 @@ public final class LoginServlet extends HttpServlet {
 			AuthenticatedUser authenticatedUser = new AuthenticatedUser(
 					credential.userId(),
 					credential.loginId(),
-					credential.displayName(),
+					credential.loginId(),
 					credential.userType(),
 					passwordChangeRequired,
 					result.sessionAuditId());

@@ -10,7 +10,7 @@
 |:--|:--|:--|:--|
 |復元可能な論理削除|users、tasks、student_exercise_entriesなど、利用者が削除・復元するルートまたは独立データ|`deleted` / `archived` 等の状態と `deleted_at` を正本とする。削除実行者・復元実行者・変更前後は `audit_logs` に記録する。対象自身に `deleted_by_user_id` がある場合は併用する|データ種別ごとの状態ルールに従い、関連データを保持したまま復元する|
 |無効化・アーカイブ|schools、classrooms、所属、権限、課題子項目、ルーブリック、配信テンプレート、アンケート定義など|既存の `inactive` / `disabled` / `archived` / `retired` 状態を論理削除または利用停止として扱う。操作は `audit_logs` に記録する|参照整合性と権限を検証し、許可されたものだけ有効状態へ戻す|
-|追記型・通常削除不可|提出、コードログ、コード実行、評価、同意、アンケート回答、認証・監査・エラー履歴、AI依頼・応答・入力スナップショット|通常の削除操作を提供せず履歴として保持する。訂正は新しい行や状態遷移で表し、過去行を物理削除・上書きしない|復元操作の対象外。保存期間満了や個人情報対応は別の管理手順で物理削除または匿名化する|
+|追記型・通常削除不可|提出、ソースコード編集ログ、コード実行、評価、同意、アンケート回答、認証・監査・エラー履歴、AI依頼・応答・入力スナップショット|通常の削除操作を提供せず履歴として保持する。訂正は新しい行や状態遷移で表し、過去行を物理削除・上書きしない|復元操作の対象外。保存期間満了や個人情報対応は別の管理手順で物理削除または匿名化する|
 
 ### テーブル別分類
 
@@ -39,7 +39,7 @@
 |user_type|ユーザ種別|ENUM('student','teacher','admin')||NO||管理者は1アカウントのみ。DBの一意制約で保証|
 |login_id|ログインID（利用者向けIDの正本）|VARCHAR(64)||NO|UNIQUE|生徒ではstudent_id、教師ではteacher_idと呼ぶ。同一値を認証・画面・CSVで使用し、ロール別の重複列は追加しない|
 |password_hash|パスワードハッシュ|VARCHAR(255)||NO||平文パスワードを保存しない|
-|display_name|表示名（生徒では旧互換値）|VARCHAR(100)||NO||生徒は画面表示に使わず、今後の作成処理ではlogin_idを設定して別名を要求しない。教師の利用者向けIDにも使わない。管理者表示名と既存値は保持し、匿名化の除去対象から外さない|
+|display_name|旧互換表示名|VARCHAR(100)||NO||全ロールで画面表示・別名入力には使わず、今後の作成処理ではlogin_idを設定する。既存値と列は互換保持し、匿名化の除去対象から外さない。第157版の修正にschema変更はない|
 |account_status|アカウント状態|ENUM('active','suspended','deleted')||NO|||
 |account_version|アカウント更新版|BIGINT||NO|DEFAULT 1|V20追加。教師管理の楽観ロックとセッション失効に使用。権限変更・停止/解除・削除・パスワード再設定で加算。ログイン失敗回数の更新では加算しない|
 |teacher_must_change_password|教師の変更必須状態|BOOLEAN||NO|DEFAULT FALSE|V22追加。教師の発行/管理者再設定時TRUE、本人変更成功時FALSE。既存教師はTRUEへ移行し版を加算。生徒・管理者には適用しない|
@@ -639,7 +639,7 @@ AIが抽出した揺らぎ項目と教師の対応記述
 |evaluation_score_id|評価得点ID|BIGINT||YES|FOREIGN_KEY|evaluation_scores.evaluation_score_id|
 |evaluation_reason_id|評価理由ID|BIGINT||YES|FOREIGN_KEY|evaluation_reasons.evaluation_reason_id|
 |reason_detail_id|理由詳細ID|BIGINT||YES|FOREIGN_KEY|evaluation_reason_details.reason_detail_id|
-|code_log_id|コードログID|BIGINT||YES|FOREIGN_KEY|code_logs.code_log_id|
+|code_log_id|ソースコード編集ログID|BIGINT||YES|FOREIGN_KEY|code_logs.code_log_id|
 |code_execution_id|実行ID|BIGINT||YES|FOREIGN_KEY|code_executions.execution_id|
 |evidence_type|根拠種別|VARCHAR(64)||NO||compile/count/log等|
 |evidence_label|根拠表示名|VARCHAR(255)||YES|||
@@ -1010,7 +1010,11 @@ V13は旧階層を根から辿り、既存のtrashed/deleted項目をそれぞ�
 |started_at|開始日時|DATETIME||YES|||
 |submitted_at|提出日時|DATETIME||YES|||
 
-一意制約: `(student_user_id, survey_id, evaluation_id)`（Flyway V8）。工程8の課題別回答では `evaluation_id` を必須とし、同じ評価への重複回答を防ぐ。`evaluation_id` が異なれば同じ生徒・surveyでも別の回答履歴を保持できる。回答中は既存行から再開し、提出済み行は読み取り専用とする。
+一意制約: `(student_user_id, survey_id, evaluation_id)`（Flyway V8）。工程8の課題別回答では `evaluation_id` を必須とし、同じ評価への重複回答を防ぐ。`evaluation_id` が異なれば同じ生徒・surveyでも別の回答履歴を保持できる。第162版から提出済み回答を明示修正できる。確定前は現在回答を維持し、再提出時に旧版を`survey_response_revisions`へ追記してから現在回答を更新する。教師の集計/CSVは現在回答のみを対象とし、旧版を重複集計しない。
+
+### survey_response_revisions（V24）
+
+旧提出回答を保持する追記型テーブル。`revision_id` BIGINT主キー、`survey_response_id` BIGINT外部キー、`revision_number` INT、`submitted_at` DATETIME、`consent_status_at_submission` VARCHAR(20)、`answers_snapshot` JSON、`archived_at` DATETIME。一意制約は回答ID/版番号。snapshotは設問ID/コード/文面/型/選択肢（値・ラベル）/回答値/理由を保持する。現在版は履歴の最大版+1（初版1）とし、回答行lock中に検証・履歴作成・更新を行う。GETや編集開始では履歴を増やさない。通常削除不可で、回答と同じ最新同意による研究利用制約を適用する。
 
 ## survey_answers
 
@@ -1212,7 +1216,7 @@ AIへ渡した匿名化済み入力の再現用スナップショット
 |:--|:--|:--|
 |生徒ログイン/パスワード/アカウント詳細|users, student_profiles, student_class_memberships, login_history, credential_history|アカウント属性、所属、初回変更状態、成功/失敗ログイン、認証情報操作履歴|
 |生徒ホーム/課題一覧/エディター|schools, classrooms, tasks, task_class_assignments, task_participations, task_test_cases, task_hints|課題本文、学校クラス割当、期限、進捗/保存/再提出状態、入出力例、ヒント|
-|課題コードログ/実行/提出|code_logs, code_executions, code_execution_test_results, submissions, evaluations|30秒スナップショット、実行I/O/エラー、ケース別期待/実出力/判定、提出版、評価|
+|課題ソースコード編集ログ/実行/提出|code_logs, code_executions, code_execution_test_results, submissions, evaluations|30秒スナップショット、実行I/O/エラー、ケース別期待/実出力/判定、提出版、評価|
 |生徒授業演習/教師授業演習確認|student_exercises, student_exercise_entries, code_executions|演習名、フォルダ/ファイル階層、説明、最終保存コード、実行結果。演習は30秒スナップショット対象外|
 |同意確認/アンケート|consent_document_versions, consent_records, surveys, survey_questions, survey_question_options, survey_responses, survey_answers|同意文面の版と本文、回答時同意状態、回答ID、システム評価参照、設問/選択肢/評定/記述回答|
 |管理者の教師アカウント管理|users, teacher_school_permissions, teacher_feature_permissions, login_history, credential_history, audit_logs|教師アカウント、学校/機能権限、ログイン/削除/権限/認証情報変更履歴|

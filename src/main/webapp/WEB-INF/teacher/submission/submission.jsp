@@ -72,10 +72,9 @@
 				<section class="detail-card">
 					<div class="d-flex justify-content-between align-items-center mb-2 gap-2 flex-wrap"><h3 class="detail-title mb-0">動作確認用コード（編集・実行可）</h3><span class="badge text-bg-warning">提出データは変更されません</span></div>
 					<textarea id="workCodeEditor" class="form-control code-source" aria-label="動作確認用コード" spellcheck="false" rows="10"></textarea>
-					<label class="form-label mt-2" for="previewInput">標準入力</label><textarea id="previewInput" class="form-control form-control-sm" rows="2"></textarea>
 					<div class="d-flex align-items-center gap-2 mt-2"><button type="button" class="btn btn-primary btn-sm" id="runWorkCodeButton">実行</button><span class="small text-muted">確認用コードのみ実行されます</span></div>
 					<div id="previewAlert" role="alert"></div>
-					<div class="run-output-wrap mt-2"><div class="output-label">実行結果</div><pre id="workCodeOutput" aria-live="polite">未実行です。</pre></div>
+					<%@ include file="/WEB-INF/student/shared/execution-terminal.jspf" %>
 				</section>
 			</div>
 		</div>

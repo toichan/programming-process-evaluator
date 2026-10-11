@@ -140,6 +140,18 @@
 #evaluationReasons, #logReasons { display: flex; flex-direction: column; gap: 1rem; }
 .reason-detail-list { margin: .95rem 0 0; padding-left: 1.25rem; display: grid; gap: .7rem; color: var(--bs-gray-700); }
 #evaluationLogView #codeLogSnapshot { min-height: 32rem; margin: 0; padding: 1.1rem 0; background: #0f172a; font: 500 .94rem/1.75 "SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace; }
+#teacherEvaluationDetailContent .attitude-panel .score-meter .is-filled { background: linear-gradient(90deg,#4ade80,#16a34a); }
+#evaluationLogView .viewer-id-row { display: flex; flex-wrap: wrap; gap: .6rem; }
+#evaluationLogView .viewer-id-pill { display: inline-flex; align-items: center; border: 1px solid rgba(14,165,233,.25); border-radius: 999px; padding: .4rem .75rem; background: rgba(14,165,233,.12); color: #0f172a; font-size: .82rem; font-weight: 700; }
+#evaluationLogView .viewer-meta-row { display: flex; justify-content: space-between; gap: 1rem; align-items: center; }
+#evaluationLogView .timestamp { color: var(--bs-gray-700); font-weight: 600; }
+#evaluationLogView .boundary-message { color: #b45309; font-weight: 700; }
+#evaluationLogView #codeLogSnapshot .code-line { display: grid; grid-template-columns: 4.5rem minmax(0,1fr); align-items: start; }
+#evaluationLogView #codeLogSnapshot .line-number { min-width: 0; padding: 0 1rem 0 1.25rem; text-align: right; border-right: 1px solid rgba(148,163,184,.18); }
+#evaluationLogView #codeLogSnapshot .line-content { display: block; padding: 0 1.5rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+#evaluationLogView #codeLogSnapshot .code-line.added { background: rgba(59,130,246,.24); color: #dbeafe; }
+#evaluationLogView #codeLogSnapshot .code-line.removed { background: rgba(239,68,68,.22); color: #fee2e2; text-decoration: line-through; }
+#logTimeline .timeline-item.is-active { border-color: rgba(14,165,233,.42); background: linear-gradient(180deg,rgba(219,234,254,.88),rgba(255,255,255,.98)); box-shadow: 0 14px 28px rgba(14,165,233,.12); }
 @media(max-width:1200px) { .filter-grid { grid-template-columns: repeat(2,minmax(170px,1fr)); } .summary-layout { grid-template-columns: 1fr; gap: 1.25rem; } }
 @media(max-width:1199px) {
   .evaluation-review-screen .teacher-header { height: auto; min-height: 70px; }

@@ -1,5 +1,43 @@
 # 授業演習コード確認 実装計画
 
+## 第158版: 対話型確認実行・一覧スクロール（2026-10-11、実装・受入済み）
+
+- T-RUN-002/REQ-TEACHER-RUN-001〜002: 共通preview実行部品と生徒terminalで作業コピーを実行。
+  TeacherExerciseControl/Servlet、exercise JSP/JS/CSSと対応テストを更新。
+- studentId/classroomId/entryIdを毎操作で現在認可し、原本は保存済み有効ファイル限定。
+  POST開始/入力/停止はCSRF必須。教師・機能・対象sessionを区別し、対象切替/閉じるで停止。
+  生徒ファイル/版/演習状態/実行履歴/編集ログには書き込まない。
+- T-RUN-003/REQ-TEACHER-RUN-003: 一覧枠の高さ/縦overflowを外しページ全体で縦スクロール。
+  表の横スクロール、ファイルツリー・コード・terminalのスクロールとは区別する。
+- 対象テストと実DB/runner/HTTP、1440/375pxの表示・複数入力/停止/切替/閉じる、
+  件数/保存コード/領域版不変を受入条件とする。
+
+### 第158版の共通受入記録（2026-10-11 JST）
+
+- `docker exec programming-process-evaluator-app-live gradle --no-daemon test war --rerun-tasks --warning-mode all`:
+  全体411件、272成功/139条件付きskip/失敗0、WAR成功。
+- `sh scripts/testing/teacher-preview-local.sh`: 専用MySQL/実runnerの25件成功、
+  認証HTTP3件成功、いずれもskip/失敗0。両surfaceの開始/poll/入力/停止、
+  CSRF、教師/対象/機能/学校失効、上限と業務DBスナップショット不変を検証。
+- ブラウザーで演習一覧の構文エラーを検出し、設定適用のif/elseを修正。
+  配信される関連JS9本をブラウザーのJavaScript parserで検証し全成功。
+- 最終修正後の
+  `docker exec programming-process-evaluator-app-live gradle --no-daemon test --tests servlet.teacher.TeacherPreviewUiContractTest --tests servlet.teacher.TeacherExerciseServletTest --tests control.teacher.TeacherPreviewExecutionTest war --warning-mode all`:
+  8件中7成功/実DB条件の1skip/失敗0、WAR成功。専用試験のskip0結果とは区別する。
+- 正規合成教師ログインで演習詳細の2回入力→`alpha:beta`、停止、入力待ち中のファイル切替による停止、
+  元ファイルに戻った際のコピー保持、実行中に閉じる、再表示時の初期化、18px設定の両エディター適用を確認。
+  原本は保存済みコードのまま。進捗詳細の同等受入は[進捗計画](./teacher-task-progress.md)を参照。
+- 1440/375pxで両詳細とページの横溢れなし。演習一覧は`max-height:none`、
+  高さ328px/scrollHeight328pxで局所縦スクロールなし、横は`overflow-x:auto`を維持。
+  合成4行で確認し、多数実データによる長大一覧は未確認。
+- 統合ブラウザーの非表示タブでは物理クリック/描画待ちがタイムアウトするため、
+  DOMクリックと100ms pollingで操作を確認。全物理クリック・全端末互換性・厳密first paintは未確認。
+- 最終WAR作成後、共有ローカル8080だけを再起動。login200と演習/共通preview配信JSのソース一致を確認。
+  本番、プロトタイプ、schema/migration、バックアップ、既存資格情報・同意は変更せず、外部AIは呼んでいない。
+- 受入後、専用18090のscriptを停止し、owner label付きDB/runtime/runner/build/HTTPコンテナとnetworkの削除を確認。
+  同依頼の停止済みred/green/green2試験コンテナも実command/mountを確認して削除。
+  開発8080/DB/runnerと別プロジェクトDBは維持し、ソースの既存競合・未コミット変更は破棄/commitしない。
+
 ## 改版履歴
 | 日付 | 内容 |
 |---|---|
@@ -7,6 +45,7 @@
 | 2026-10-08 | ユーザーの中断依頼により作業を停止。実装差分・検証済み範囲・再開時の残件を記録 |
 | 2026-10-08 | 再開後に検索直後の詳細表示失敗の原因を特定・修正。ユーザーの再中断依頼により、修正後の受入前に停止 |
 | 2026-10-08 | 再開後の最終受入を完了。検索後クリック・空フォルダ取得・中間幅表示を確認し、全体回帰/実DB/認証HTTPと8080反映を記録 |
+| 2026-10-11 | 第157版に従い生徒演習と共通のツリー/設定、選択取得/解除を追加。進捗詳細の表示順序と併せて受入 |
 
 ## 正本
 - [機能仕様](../../function-specification.md)「授業演習コード確認」、[実装契約](../implementation-contract.md) IC-005/006/008。
@@ -24,6 +63,9 @@
 
 ## API・状態・制限
 - GET `/teacher/exercises`: JSP。`view=list|detail|csv|download|zip|bulk`。
+- 第157版の選択取得: `view=selected`、`studentId`、`classroomId`、`entryIds`（選択IDの単一CSV）。
+  生徒の最終保存項目と現在の教師学校権限から再検証し、フォルダ配下・空フォルダをZIPへ含める。
+  祖先と子の重複選択は正規化。選択解除は画面内だけで、保存データを変更しない。
 - 詳細/単体/ZIP: 正の`studentId`と`classroomId`、単体は`entryId`。一覧/CSV/一括: `schoolId`, `classroomId`, `consent`, `search`, `sort`, `direction`。
 - 機能権限は`exercise-code-review`。クラス権限表を新設しない。現在の学校権限を毎回検証する。
 - 参照/ダウンロードでは業務テーブルを変更せずCSV監査のみ保存。DB migrationなし。
@@ -33,6 +75,37 @@
 
 ## 検証結果
 **状態: 実装・テスト・認証ブラウザー受入済み（2026-10-08）。8080へ反映済み。本番デプロイ、OS保存ダイアログ、全端末互換性はこの完了判定に含めない。以下の中断記録は当時の履歴であり、現在の残件ではない。**
+
+### 第157版のツリー・設定・選択取得（2026-10-11）
+
+- 生徒演習の共通code editor/explorer部品を参照してツリーの表示・チェック選択・操作メニューを統合。
+  テーマ/折返し等の設定は教師画面内だけに適用し、生徒設定や保存コードは変更しない。
+  「追加」、選択移動/削除は追加していない。
+- `JAVA_HOME=/Users/t.toida/.jdk/jdk-21.0.10/jdk-21.0.10+7/Contents/Home gradle test --tests control.teacher.TeacherExerciseControlTest --tests servlet.teacher.TeacherExerciseServletTest --tests entity.TeacherProgressStatusTest --tests dao.TeacherProgressDaoTest --console=plain --quiet`
+  は14件成功/失敗・skip0。同JAVA_HOMEの
+  `gradle test --tests servlet.teacher.TeacherExerciseServletTest --console=plain --quiet`は5件成功/失敗・skip0。
+  `sh scripts/testing/teacher-exercise-review-local.sh browser`で専用DB1/認証HTTP1件成功、
+  失敗/skip0。選択項目の認可/スナップショット整合を含む。
+- 18090の保存済み合成生徒の詳細でファイル/フォルダツリー、選択解除、
+  フォルダ選択ZIP200（349 bytes）、lightテーマ/折返しと読取専用表示を確認。
+  1440/375pxで一覧・演習詳細のページ横溢れなし、狭幅一覧は親309px/内容756pxの局所横スクロール。
+- 進捗詳細はfetch完了後にコードを設定してからモーダルを開き、同期refreshする。
+  合成保存コード`OCT11_PROGRESS_READY`はmodal可視化時点でDOMへ表示され、
+  通常幅CodeMirror698×238pxを確認。取得前のnetwork待ちは残るが、modalだけ先に開いて
+  空欄を見せる遅延とfade後の再描画待ちは除去した。
+- ブラウザーhidden状態のため厳密first paintをrAFで測定できず、
+  MutationObserverによる可視化時DOM/寸法と実画面の確認で代替した。
+  この制約と専用fixtureの修正履歴は[エラーレポート](../error-report.md)に記録。
+- 追加の375px受入で進捗heroの最小列幅と詳細表のoverflow上書きによる横溢れを検出・修正。
+  最終1440/375pxでページ幅がviewportと一致し、コード表示も維持。
+  狭幅の詳細表は親257px/内容394pxの局所横スクロール。
+- 最終 `docker exec programming-process-evaluator-app-live gradle --no-daemon test --tests servlet.teacher.TeacherExerciseServletTest --tests servlet.auth.SharedUiContractTest war --rerun-tasks --warning-mode all`
+  は8件成功/失敗・skip0、WAR成功。8080を再起動後、login200と配信progress.cssのソース一致を確認。
+- 18090専用4コンテナと専用networkをscriptのtrapで清掃。
+  18091も清掃済みで、最終稼働は共有8080/DB/runnerと別プロジェクトDBのみ。
+  全体WAR・検証レポート・ローカル確認用デモは保持した。
+- 全体回帰/WARと教師共通表の受入は[提出・評価確認計画](./teacher-submission-evaluation-review.md#第157版の受入記録2026-10-11-jst)を参照。
+  本番・バックアップ設定・schema・既存利用者の資格情報は変更していない。
 
 ### 最終受入（2026-10-08）
 - 再開時HEADは`94bb049`。検索後クリックの修正と検証スクリプトはユーザーのコミットに含まれていた。デプロイ関連のユーザー変更は巻き戻していない。

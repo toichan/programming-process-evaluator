@@ -55,7 +55,9 @@ class ApplicationUrlContractTest {
 		assertTrue(paths.containsAll(Set.of("/teacher/submissions", "/teacher/evaluations")));
 		assertTrue(paths.contains("/teacher/exercises"));
 		assertTrue(paths.contains("/teacher/surveys"));
-		assertEquals(28, servlets().size(), "Review the whole URL inventory when adding a servlet.");
+		assertTrue(paths.containsAll(Set.of("/student/notifications", "/student/notifications/open",
+				"/student/notifications/read-all")));
+		assertEquals(29, servlets().size(), "Review the whole URL inventory when adding a servlet.");
 	}
 
 	@Test

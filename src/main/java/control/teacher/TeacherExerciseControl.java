@@ -15,6 +15,37 @@ import lib.web.CsvCells;
 
 public final class TeacherExerciseControl {
 	private final TeacherExerciseDao dao = new TeacherExerciseDao();
+	private final TeacherPreviewExecution executions = new TeacherPreviewExecution();
+	public InteractiveExecutionUpdate startPreview(AuthenticatedUser user, long student, long classroom, long entry, String code)
+			throws SQLException, java.io.IOException, InterruptedException {
+		requireTeacher(user);
+		return executions.start(user.userId(), TeacherSubmissionExecutionRegistry.Target.exercise(student, classroom, entry),
+				code, () -> requirePreviewAccess(user, student, classroom, entry));
+	}
+	public InteractiveExecutionUpdate pollPreview(AuthenticatedUser user, long student, long classroom, long entry,
+			String id, long cursor) throws SQLException, java.io.IOException, InterruptedException {
+		requireTeacher(user);
+		return executions.poll(user.userId(), TeacherSubmissionExecutionRegistry.Target.exercise(student, classroom, entry),
+				id, cursor, () -> requirePreviewAccess(user, student, classroom, entry));
+	}
+	public void sendPreviewInput(AuthenticatedUser user, long student, long classroom, long entry, String id, String line)
+			throws SQLException, java.io.IOException, InterruptedException {
+		requireTeacher(user);
+		executions.input(user.userId(), TeacherSubmissionExecutionRegistry.Target.exercise(student, classroom, entry),
+				id, line, () -> requirePreviewAccess(user, student, classroom, entry));
+	}
+	public InteractiveExecutionUpdate cancelPreview(AuthenticatedUser user, long student, long classroom, long entry,
+			String id, long cursor) throws SQLException, java.io.IOException, InterruptedException {
+		requireTeacher(user);
+		return executions.cancel(user.userId(), TeacherSubmissionExecutionRegistry.Target.exercise(student, classroom, entry),
+				id, cursor, () -> requirePreviewAccess(user, student, classroom, entry));
+	}
+	private void requirePreviewAccess(AuthenticatedUser user, long student, long classroom, long entry) throws SQLException {
+		var detail = detail(user, student, classroom);
+		if (detail.scopes().stream().flatMap(scope -> scope.entries().stream())
+				.noneMatch(file -> file.entryId() == entry && file.type() == StudentExerciseEntry.Type.FILE))
+			throw new ExerciseNotFoundException();
+	}
 	public List<TeacherExerciseRow> list(AuthenticatedUser user, TeacherExerciseFilter filter) throws SQLException {
 		requireTeacher(user);
 		return transaction(c -> filter.apply(dao.rows(c, user.userId())));
@@ -63,6 +94,49 @@ public final class TeacherExerciseControl {
 			if (entries.isEmpty()) throw new IllegalArgumentException("ダウンロード対象の項目がありません。");
 			return new ExerciseDownload(entries, "exercise_files.zip", "application/zip", true, prefixAllowance);
 		});
+	}
+	public ExerciseDownload selectedDownload(AuthenticatedUser user, long studentId, long classroomId,
+			List<Long> entryIds) throws SQLException {
+		requireTeacher(user);
+		StudentExerciseInput.requireId(studentId);
+		StudentExerciseInput.requireId(classroomId);
+		validateSelectedIds(entryIds);
+		return transaction(c -> selectedDownload(dao.detail(c, user.userId(), studentId, classroomId), entryIds));
+	}
+	private static void validateSelectedIds(List<Long> entryIds) {
+		if (entryIds == null || entryIds.isEmpty() || entryIds.size() > 10_000)
+			throw new IllegalArgumentException("ダウンロードする項目を1〜10,000件選択してください。");
+		for (Long id : entryIds) {
+			if (id == null) throw new IllegalArgumentException("対象IDが不正です。");
+			StudentExerciseInput.requireId(id);
+		}
+	}
+	static ExerciseDownload selectedDownload(TeacherExerciseDetail detail, List<Long> entryIds) {
+		validateSelectedIds(entryIds);
+		var entries = detail.scopes().stream().flatMap(scope -> scope.entries().stream()).toList();
+		var ids = new HashSet<>(entryIds);
+		var roots = entries.stream().filter(entry -> ids.contains(entry.entryId())).toList();
+		if (roots.size() != ids.size()) throw new ExerciseNotFoundException();
+		roots = roots.stream().filter(entry -> !rootsCoveredBy(entries, ids, entry)).toList();
+		var normalizedRoots = roots;
+		var scopes = detail.scopes().stream().map(scope -> new TeacherExerciseDetail.Scope(
+				scope.exerciseId(), scope.name(), scope.entries().stream().filter(entry -> normalizedRoots.stream()
+						.anyMatch(root -> covers(root, entry))).toList())).toList();
+		var chosen = scopes.stream().flatMap(scope -> scope.entries().stream()).toList();
+		if (roots.size() == 1 && roots.get(0).type() == StudentExerciseEntry.Type.FILE)
+			return ExerciseDownload.selected(detail.row().studentLoginId(), roots, chosen);
+		var selected = new TeacherExerciseDetail(detail.row(), scopes);
+		return new ExerciseDownload(archiveEntries(selected), detail.row().studentLoginId() + "_selected.zip",
+				"application/zip", true, archivePrefixAllowance(selected));
+	}
+	private static boolean rootsCoveredBy(List<StudentExerciseEntry> entries, java.util.Set<Long> ids,
+			StudentExerciseEntry entry) {
+		return entries.stream().anyMatch(root -> ids.contains(root.entryId()) && root.entryId() != entry.entryId()
+				&& covers(root, entry));
+	}
+	private static boolean covers(StudentExerciseEntry root, StudentExerciseEntry entry) {
+		return root.exerciseId() == entry.exerciseId() && (root.entryId() == entry.entryId()
+				|| root.type() == StudentExerciseEntry.Type.FOLDER && entry.path().startsWith(root.path() + "/"));
 	}
 	private static int archivePrefixAllowance(TeacherExerciseDetail detail) {
 		return detail.row().studentLoginId().codePointCount(0, detail.row().studentLoginId().length()) + 1

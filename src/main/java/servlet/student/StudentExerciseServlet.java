@@ -140,6 +140,7 @@ public final class StudentExerciseServlet extends HttpServlet {
 			request.setAttribute("editorPreferences", page.preferences());
 			request.setAttribute("csrfToken", CsrfTokens.getOrCreate(request.getSession(false)));
 			var home = STUDENTS.loadHome(user).orElse(null);
+			request.setAttribute("studentHome", home);
 			request.setAttribute("taskCount", home == null ? 0 : home.getTasks().size());
 			request.getRequestDispatcher("/WEB-INF/student/exercise/exercise.jsp").forward(request, response);
 		} catch (ExerciseNotFoundException e) {

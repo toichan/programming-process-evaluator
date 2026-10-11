@@ -52,7 +52,7 @@ public final class TeacherReviewFixture {
 			long task = insert(c, """
 					INSERT INTO tasks (school_id,task_code,task_revision_code,revision_number,created_by_user_id,rubric_id,
 					  title,difficulty,language,description,save_status,publication_status,created_at,published_at)
-					VALUES (?,'review-task','review-task-v1',1,?,?,'Synthetic Review Task','beginner','Python 3','Dummy only','saved','published',NOW(),NOW())
+					VALUES (?,'review-task','review-task-v1',1,?,?,'Synthetic Review Task','beginner','Python','Dummy only','saved','published',NOW(),NOW())
 					""", school, teacher, rubric);
 			long assignment = insert(c, """
 					INSERT INTO task_class_assignments (task_id,classroom_id,assignment_status,publish_at,due_at,

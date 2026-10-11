@@ -45,15 +45,53 @@ public final class StudentSurveyQuestion {
 	public String getType() { return type; }
 	public String getPrompt() { return prompt; }
 	public String getReasonPrompt() { return reasonPrompt; }
+	public String getDisplayReasonPrompt() {
+		if (reasonPrompt != null && !reasonPrompt.isBlank()) {
+			return reasonPrompt;
+		}
+		return switch (code == null ? "" : code) {
+			case "q1ThinkingValidity" -> "システムの評価を妥当だと考えた理由";
+			case "q1ThinkingScore" -> "思考力・判断力・表現力の自己評価の理由";
+			case "q2AttitudeValidity" -> "システムの評価を妥当だと考えた理由";
+			case "q2AttitudeScore" -> "主体的に取り組む態度の自己評価の理由";
+			case "q3ProcessResistanceScore" -> "試行錯誤の過程の評価についてそう考えた理由";
+			case "q4UsabilityScore" -> "使いやすかった点、改善してほしい点";
+			default -> "回答理由";
+		};
+	}
+	public boolean isStandardMetric() {
+		return switch (code == null ? "" : code) {
+			case "q1ThinkingValidity", "q1ThinkingScore", "q2AttitudeValidity", "q2AttitudeScore",
+					"q3ProcessResistanceScore", "q4UsabilityScore" -> true;
+			default -> false;
+		};
+	}
 	public boolean isRequired() { return required; }
 	public boolean isReasonRequired() { return reasonRequired; }
 	public int getSortOrder() { return sortOrder; }
 	public List<Option> getOptions() { return options; }
+	public List<Option> getDisplayOptions() {
+		return options.stream().map(option -> new Option(option.value(), getOptionLabel(option))).toList();
+	}
 	public List<String> getSelectedValues() { return selectedValues; }
 	public String getAnswerReason() { return answerReason; }
 	public String getAnswerValue() { return selectedValues.isEmpty() ? "" : selectedValues.get(0); }
 	public boolean isMultipleChoice() { return "multiple_choice".equals(type); }
 	public boolean isText() { return "text".equals(type); }
+
+	public String getOptionLabel(Option option) {
+		if ("q1ThinkingValidity".equals(code) || "q2AttitudeValidity".equals(code)) {
+			return switch (option.value()) {
+				case "1" -> "妥当でない";
+				case "2" -> "あまり妥当でない";
+				case "3" -> "どちらともいえない";
+				case "4" -> "おおむね妥当";
+				case "5" -> "妥当";
+				default -> option.label();
+			};
+		}
+		return option.label();
+	}
 
 	public StudentSurveyQuestion withAnswer(SavedAnswer answer) {
 		return answer == null ? this : new StudentSurveyQuestion(
@@ -71,6 +109,8 @@ public final class StudentSurveyQuestion {
 	}
 
 	public record Option(String value, String label) {
+		public String getValue() { return value; }
+		public String getLabel() { return label; }
 	}
 
 	public record SavedAnswer(List<String> values, String reason) {

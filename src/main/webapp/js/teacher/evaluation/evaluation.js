@@ -174,7 +174,7 @@ document.addEventListener('DOMContentLoaded', () => {
       feedback.inlineAlert(error.message, 'warning');
     } finally { loading = false; exportButtons(); }
   }
-  function renderReasons(reasons, filtersId, listId) {
+  function renderReasons(reasons, filtersId, listId, authorizedLogs = []) {
     const filters = get(filtersId), target = get(listId);
     filters.replaceChildren();
     function show(category) {
@@ -182,11 +182,45 @@ document.addEventListener('DOMContentLoaded', () => {
       reasons.filter(reason => category === '' || reason.dimensionLabel === category).forEach(reason => {
         const attitude = reason.dimensionLabel === '主体的に学習に取り組む態度';
         const card = node('article', null, `reason-card${attitude ? ' accent-reason' : ''}`);
-        card.dataset.category = attitude ? 'attitude' : 'thinking';
+          card.dataset.category = attitude ? 'attitude'
+            : reason.dimensionLabel === '思考力・判断力・表現力' ? 'thinking' : 'other';
         card.append(node('h3', reason.title), node('p', reason.body));
         const list = node('ul', null, 'reason-detail-list');
         (reason.details || []).forEach(text => list.append(node('li', typeof text === 'string' ? text : JSON.stringify(text))));
         card.append(list); target.append(card);
+        const evidence = Array.isArray(reason.evidence) ? reason.evidence : [];
+        const evidenceSection = node('div', null, 'reason-evidence');
+        evidenceSection.append(node('h4', '保存済み根拠', 'h6 mt-3'));
+        if (evidence.length === 0) {
+          evidenceSection.append(node('p', 'この理由に紐づく保存済み根拠はありません。', 'small text-muted mb-0'));
+        } else {
+          const evidenceList = node('ul', null, 'list-unstyled mb-0');
+          evidence.forEach(item => {
+            const entry = node('li', null, 'mt-2');
+            if (item.label) entry.append(node('strong', item.label));
+            if (item.detailText) entry.append(node('p', `理由詳細: ${item.detailText}`, 'small text-muted mb-1'));
+            if (item.summary) entry.append(node('p', item.summary, 'small mb-1'));
+            const targetLogIndex = item.codeLogId == null ? -1
+              : authorizedLogs.findIndex(log => String(log.logId) === String(item.codeLogId));
+            if (targetLogIndex >= 0) {
+              const button = node('button', `対応する編集ログ ${item.codeLogId} を表示`, 'btn btn-outline-primary btn-sm');
+              button.type = 'button';
+              button.addEventListener('click', () => {
+                logIndex = targetLogIndex;
+                showLogs(true);
+                renderLog();
+              });
+              entry.append(button);
+            } else if (item.hasCodeLogReference) {
+              entry.append(node('p', '編集ログ根拠は保存されていますが、この提出の認可済みログ一覧で照合できません。', 'small text-muted mb-0'));
+            } else {
+              entry.append(node('p', 'この根拠に対応する編集ログIDは保存されていません。', 'small text-muted mb-0'));
+            }
+            evidenceList.append(entry);
+          });
+          evidenceSection.append(evidenceList);
+        }
+        card.append(evidenceSection);
       });
       if (!target.childElementCount) target.append(node('p', '保存された評価理由はありません。'));
     }
@@ -214,22 +248,25 @@ document.addEventListener('DOMContentLoaded', () => {
     get('detailScorePills').replaceChildren();
     (evaluation?.dimensions || []).forEach(dimension => {
       const attitude = dimension.label === '主体的に学習に取り組む態度';
+      const displayScore = dimension.scoreText?.trim() || (dimension.score == null ? '—' : String(dimension.score));
+      const numericScore = Number(dimension.score);
+      const filledLevels = Number.isFinite(numericScore) ? Math.max(0, Math.min(5, Math.round(numericScore))) : 0;
       const card = node('article', null, `score-panel ${attitude ? 'attitude-panel' : 'thinking-panel'}`);
       card.append(node('div', dimension.label, 'panel-kicker'));
       const row = node('div', null, 'panel-score-row'), description = node('div');
       description.append(node('h3', dimension.summaryTitle, 'panel-title'), node('p', dimension.summaryDescription, 'panel-description mb-0'));
-      row.append(node('div', dimension.score ?? '—', 'panel-score'), description); card.append(row);
-      const meter = node('div', null, 'score-meter'); meter.setAttribute('aria-label', `5段階中 ${dimension.score ?? '未評価'}`);
-      for (let i = 1; i <= 5; i++) meter.append(node('span', null, i <= Math.round(dimension.score || 0) ? 'is-filled' : ''));
+      row.append(node('div', displayScore, 'panel-score'), description); card.append(row);
+      const meter = node('div', null, 'score-meter'); meter.setAttribute('aria-label', `5段階中 ${displayScore}`);
+      for (let i = 1; i <= 5; i++) meter.append(node('span', null, i <= filledLevels ? 'is-filled' : ''));
       card.append(meter); get('evaluationResults').append(card);
-      get('detailScorePills').append(node('div', `${dimension.label} ${dimension.score ?? '—'}`, `hero-score-pill ${attitude ? 'attitude' : 'thinking'}`));
+      get('detailScorePills').append(node('div', `${dimension.label} ${displayScore}`, `hero-score-pill ${attitude ? 'attitude' : 'thinking'}`));
     });
     (evaluation?.scores || []).forEach(metric => {
       const card = node('article', null, `metric-card${metric.dimensionLabel === '主体的に学習に取り組む態度' ? ' accent-card' : ''}`), header = node('div', null, 'metric-header');
       header.append(node('span', metric.dimensionLabel, 'metric-group'), node('span', metric.score ?? '—', 'metric-score'));
       card.append(header, node('h3', metric.title), node('p', metric.description), node('p', metric.rationale)); get('evaluationMetrics').append(card);
     });
-    renderReasons(evaluation?.reasons || [], 'reasonFilters', 'evaluationReasons');
+    renderReasons(evaluation?.reasons || [], 'reasonFilters', 'evaluationReasons', detail.logs || []);
   }
   async function open(row, source) {
     if (downloading) return;
@@ -267,28 +304,74 @@ document.addEventListener('DOMContentLoaded', () => {
   function logs(detail) {
     set('logTask', detail.row.taskName); set('logTaskMetadata', `課題ID ${detail.row.taskId} / ${difficulty(detail.row.difficulty)} / 提出第${detail.row.revision}版`);
     set('logSaveCount', `${detail.logs.length}回`); set('logRunCount', `${detail.logs.filter(log => log.executionStatus).length}件`);
-    renderReasons(detail.evaluation?.reasons || [], 'logReasonFilters', 'logReasons');
+    renderReasons(detail.evaluation?.reasons || [], 'logReasonFilters', 'logReasons', detail.logs);
     showSidebar(false);
     get('codeLogTimes').replaceChildren(); get('logTimeline').replaceChildren();
     detail.logs.forEach((log, i) => {
       const option = node('option', `${log.observedAt} / ${log.eventType}`); option.value = i; get('codeLogTimes').append(option);
-      const button = node('button', `${log.observedAt} / ${log.eventType}`, 'btn btn-outline-secondary timeline-item'); button.type = 'button';
+      const button = node('button', `${log.observedAt} / ${log.eventType}`, 'btn btn-outline-secondary timeline-item'); button.type = 'button'; button.setAttribute('aria-pressed', 'false');
       button.addEventListener('click', () => { logIndex = i; renderLog(); }); get('logTimeline').append(button);
     });
     get('codeLogTimes').disabled = !detail.logs.length; logIndex = 0;
     set('evaluationSubmission', detail.code); renderLog();
   }
+  function diffLines(previous, current) {
+    const oldLines = previous.split('\n'), newLines = current.split('\n');
+    if (oldLines.length * newLines.length > 40000) return null;
+    const table = Array.from({ length: oldLines.length + 1 }, () => new Uint16Array(newLines.length + 1));
+    for (let oldIndex = oldLines.length - 1; oldIndex >= 0; oldIndex--) {
+      for (let newIndex = newLines.length - 1; newIndex >= 0; newIndex--) {
+        table[oldIndex][newIndex] = oldLines[oldIndex] === newLines[newIndex]
+          ? table[oldIndex + 1][newIndex + 1] + 1
+          : Math.max(table[oldIndex + 1][newIndex], table[oldIndex][newIndex + 1]);
+      }
+    }
+    const result = [];
+    let oldIndex = 0, newIndex = 0;
+    while (oldIndex < oldLines.length || newIndex < newLines.length) {
+      if (oldIndex < oldLines.length && newIndex < newLines.length && oldLines[oldIndex] === newLines[newIndex]) {
+        result.push({ text: newLines[newIndex], number: newIndex + 1, kind: '' });
+        oldIndex++; newIndex++;
+      } else if (oldIndex < oldLines.length && (newIndex === newLines.length
+        || table[oldIndex + 1][newIndex] >= table[oldIndex][newIndex + 1])) {
+        result.push({ text: oldLines[oldIndex], number: null, kind: 'removed' });
+        oldIndex++;
+      } else {
+        result.push({ text: newLines[newIndex], number: newIndex + 1, kind: 'added' });
+        newIndex++;
+      }
+    }
+    return result;
+  }
+  function appendLogLine(number, text, kind) {
+    const line = node('span', null, `code-line${kind ? ` ${kind}` : ''}`);
+    line.append(node('span', number == null ? '' : number, 'line-number'), node('span', text || ' ', 'line-content'));
+    get('codeLogSnapshot').append(line);
+  }
   function renderLog() {
-    const logs = selected?.logs || [], log = logs[logIndex], old = logs[logIndex - 1]?.snapshot?.split('\n') || [];
+    const logs = selected?.logs || [], log = logs[logIndex];
     get('codeLogTimes').value = logIndex; set('logStep', logs.length ? `${logIndex + 1} / ${logs.length}` : '0 / 0');
     get('previousLog').disabled = logIndex <= 0; get('nextLog').disabled = logIndex >= logs.length - 1;
-    set('codeLogState', log ? `${log.observedAt} / ${log.eventType} / ソースコードID ${log.logId} / ${log.executionStatus || '実行なし'}` : 'この提出版のコードログはありません。');
+    set('codeLogState', log ? `記録種別: ${log.eventType} / 実行状態: ${log.executionStatus || '実行記録なし'}` : 'この提出版のソースコード編集ログはありません。');
+    set('codeLogId', log ? `ソースコード編集ログID: ${log.logId}` : 'ソースコード編集ログID: -');
+    set('codeLogTimestamp', log ? log.observedAt : '');
     get('codeLogSnapshot').replaceChildren();
-    if (log) (log.snapshot || '').split('\n').forEach((text, i) => {
-      const line = node('span', null, `code-line${logIndex > 0 && old[i] !== text ? ' changed' : ''}`); line.append(node('span', i + 1, 'line-number'), node('span', text || ' ')); get('codeLogSnapshot').append(line);
-    });
+    const snapshot = log?.snapshot || '';
+    const previous = logs.slice(0, logIndex).reverse().find(entry => entry.snapshot);
+    const changes = previous && snapshot ? diffLines(previous.snapshot, snapshot) : null;
+    if (!log || !snapshot) get('codeLogSnapshot').append(node('span', 'このソースコード編集ログにはコードスナップショットがありません。'));
+    else if (changes) changes.forEach(line => appendLogLine(line.number, line.text, line.kind));
+    else snapshot.split('\n').forEach((text, i) => appendLogLine(i + 1, text, ''));
+    set('codeLogBoundary', !log || !snapshot ? ''
+      : !previous ? 'この提出版で最初に記録されたコードです。'
+      : changes === null ? 'コード量が大きいため差分を省略し、保存時点のコードを表示しています。' : '');
     set('logExecution', log?.executionStatus ? `${log.executionStatus}\n標準入力\n${log.standardInput || ''}\n標準出力\n${log.standardOutput || ''}\n標準エラー\n${log.standardError || ''}` : 'この時点の実行記録はありません。');
-    get('logTimeline').querySelectorAll('button').forEach((button, i) => button.classList.toggle('btn-primary', i === logIndex));
+    get('logTimeline').querySelectorAll('button').forEach((button, i) => {
+      const active = i === logIndex;
+      button.classList.toggle('btn-primary', active);
+      button.classList.toggle('is-active', active);
+      button.setAttribute('aria-pressed', String(active));
+    });
   }
   function showLogs(show) { get('teacherEvaluationDetailContent').hidden = show; get('evaluationLogView').hidden = !show; }
   function showSidebar(reasons) {

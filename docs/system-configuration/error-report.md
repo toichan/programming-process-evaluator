@@ -2,6 +2,188 @@
 
 秘密情報・実際の生徒データ・研究データは記載しない。解消後も履歴を保持する。
 
+## 2026-10-12 第165版: 通知基盤・評価完了
+
+- 作業開始後 JST、VS Code `runTests`が新規`StudentNotificationUiContractTest`を検出できず「No tests found」となった。テスト成功とは扱わず、既存Docker Gradleで対象テストを実行する。製品コード/DBの失敗とは区別する。
+
+## 2026-10-11 第164版: ホーム導線・離脱確認
+
+- 23:13 JST、専用合成アンケートを編集可能にする検証準備で`surveys.is_active`を誤指定し、MySQL1054（Unknown column）となった。変更は実行されていない。実schemaとDAOを確認し、`survey_status='active'`を専用survey2だけに適用した。通常DB/本番は不変。存在しないV5ファイルの検索も実DAO/SHOW COLUMNSへ訂正した。
+- 23:15〜23:18 JST、確認ダイアログの非表示アニメーション完了前に次の操作を行い、home待機timeoutした。新guardの重複確認抑止中は移動しないことを確認し、Bootstrap遷移完了後の操作で取消保持/確定home成功。授業演習作成のinput[type=text]は実DOMがtype省略のためtimeoutし、実ラベル「名前」で指定して作成/保存/再読込成功。
+- 23:19 JST、合成演習のログアウト取消で既存feedbackモーダルにaria-hidden/focus警告を観測した。取消後のコード保持と保存/再読込/homeは成功。共有feedbackの既存フォーカス復帰の警告は今回の離脱判定とは区別し、全ブラウザー互換性完了とは扱わない。
+- 23:20〜23:24 JST、既存共有タブのスクリーンショットがviewport/scrollと不一致・白画像、要素の安定待ちtimeoutとなった。寸法/正常動作はDOMで確認できたが画像を目視証跡に採用しない。新しい本実装タブで評価結果の通常幅、アンケートの狭幅末尾ボタンを正しく表示・目視確認した。プロトタイプは変更していない。
+- 23:25 JST、共有guardの独立ブラウザーテストがclick確認のPromise完了前に次の確認を開始し、重複抑止によってassertion失敗した。テストのイベントループ境界を待つよう修正して再検証する。製品側の確認抑止を無効化しない。
+- 最終再検証: 共有guard独立12検証・対象JUnit12件/WAR成功、実回答取消復元/再提出home/再読込・コード保存再読込・未保存/送信前入力とログアウト取消保持を確認。iframe内の標準beforeunload表示はブラウザーのuser gesture制約があるため、独立テストはイベントのpreventDefaultを検証し、全OSの実ダイアログ表示確認とは区別する。新本実装タブで4画面の末尾を目視確認し、8080のlogin200/JS5本一致を確認した。
+
+## 2026-10-11 第163版: 課題設定モーダル
+
+- 22:44 JST、専用18092の認証ブラウザーで新規JSP fragmentの固定日本語が文字化けした。動的課題名・フォーム保存は正常、対象37件/WARと認証HTTP4件/追加4件は成功していた。fragment自身のpageEncoding指定不足が原因。UTF-8指定と契約テストを追加し、再ビルド後に日本語表示・保存を再検証する。8080/本番へ未検証版を反映していない。
+- 調査時に存在しないTeacherAccess/TeacherReviewAccessファイルを検索指定して失敗。実DAOが使うTeacherPermissionDaoのtask-progress契約を確認した。製品不具合・依存エラーとは区別する。
+- WAR回収でコンテナ内作業パスを`/workspace`と誤指定してdocker cpが失敗。実WorkingDirの`/programming-process-evaluator`へ修正して最新版WARを回収・専用runtimeだけ再起動した。製品ビルドは成功していた。統合ブラウザーのactiveタブはviewport/screenshotが一致せず、要素screenshotも安定待ちtimeout。既存の非表示共有タブで通常/狭幅の表示・寸法を確認する方式へ切替した。モーダル日本語と保存再読込は正常に確認できた。
+- 22:47〜22:54 JST再検証: UTF-8指定後の対象37件/WAR、追加UI契約/認証HTTP4件がexit0で成功。モーダル日本語、期限延長/クラス追加保存と再読込、Escape/フォーカス復帰、1440/375px表示で文字化けを解消した。8080のみ反映後、両portal200/asset3本一致を確認。IDEの既存Gson解決診断は残るが、Docker Gradlecompile/WARと実TomcatHTTPは成功しており、IDE設定は変更しない。
+
+## 2026-10-11 第162版: アンケート修正
+
+- 初回対象テスト15件中2件失敗。確認モードの段階検証変更に対する旧文字列契約と、JSP ELメソッド参照をプロパティとして抽出するJavaBeans契約が原因。表示選択肢をJavaBean getterへ変更し、確認モードの検証契約を更新して再検証する。製品DB/本番には未反映。
+- 専用migration/全体テスト/WARは成功したが、認証HTTPの旧テストがsurvey画面に提出成功通知を期待して1件失敗（exit1）。第162版はhomeへ通知するため、homeでの通知を検証する契約へ更新して再実行する。専用資源はtrapで清掃済み。
+- IDEは既存Gson importを解決できない診断を表示した。Docker GradleのcompileJavaは成功しており、IDE classpath問題と製品コンパイル失敗を区別する。依存manifestやIDE設定は変更しない。
+- 再検証結果（2026-10-11 22:28〜22:33 JST）: 対象15件成功/skip0、全体444件（302成功/142条件付きskip/失敗・error 0）、認証HTTP4件成功/skip0、WAR成功（exit0）。初回の2契約失敗とHTTP通知期待の失敗は解消した。ローカルflywayMigrateもexit0でV24適用、既存回答3件維持を確認した。
+- 最新WARのブラウザーで初回提出/修正再提出→home、版2/理由再読込と取消復元を確認。無効設定の修正ボタン非表示も確認した。統合ブラウザーの要素スクリーンショット取得は失敗し、全体スクリーンショットで通常/狭幅を確認した。取消操作で実DOMにない`#cancelRevisionButton`を指定してtimeoutしたが、正しい`#cancelSurveyEditButton`へ修正して復元成功。製品不具合とは区別し、全物理クリック/全端末互換性は未確認。
+
+## 2026-10-11 第161版: デザイン検証
+
+- VS Code `runTests`は対象2ファイルを検出できず未実施。既存Docker Gradleへ切替し、初回全体442件（300成功/142条件付きskip/失敗0）とWAR、専用認証HTTP4件（skip0）が成功した。
+- ブラウザーの`scrollIntoViewIfNeeded`はhiddenページの安定待ちでtimeout。DOMのscrollIntoViewとスクリーンショットで確認する。製品の保存や画面遷移失敗とは扱わない。
+- 21:50頃 JST、余白/理由欄修正後の専用HTTP3件再実行でLocalUi160RuntimeTestが既存feature permissionの一意制約違反（SQLIntegrityConstraintViolationException、line45）で失敗。前回の専用fixtureを残した再実行が原因。テストの権限設定をupsert、学校コードをUUIDへ変更して衝突を解消。再実行3件成功/失敗0/skip0。製品DB/schema/資格情報は変更していない。
+- 21:51頃 JST、最終HTTPのreport bind元ディレクトリが存在せずDocker起動がexit125。対象ディレクトリを作成して再実行し、3件成功/exit0とXML保存を確認。製品のHTTP失敗とは区別する。
+- 21:54〜22:03 JST、統合ブラウザーの強制物理radioクリックが状態を変えず、非表示ページのviewport/スクロール待機が継続した。DOMクリック/native formを用いて下書き・提出・DB6回答/6理由を確認。CSS選択色が白のまま見えたのは非表示ページのtransition進行停止であり、animation終了後に規定の緑背景を確認した。スクリーンショットと寸法確認を併用し、全物理クリック/全端末検証済みとは扱わない。
+- 最終対象18件成功/skip0、WAR成功。8080appのみ再起動しlogin200と資源一致を確認。未解決の製品不具合はない。非表示統合ブラウザーの操作制約は残る。
+
+## 2026-10-11 第160版: 検証基盤
+
+- VS Code `runTests`へ新しいJUnit3ファイルを指定したが「No tests found」。この実行ではテスト未実施であり、合格とは扱わない。
+- 既存のローカル検証image `ppe-tools:local`内でGradleの正規`test`タスクへ同じ3クラスを指定し、6件成功/失敗0/skip0（exit0）。共有8080・DB・設定は操作していない。
+- 20:36 JST、専用DBでの全体`flywayMigrate test war`は新設StudentSurveyUiContractTestの2件で失敗（exit1）。1件は検証imageが本実装srcのみをコピーするためプロトタイプ参照ファイルが存在しないこと、もう1件は正規導線の文字列契約不一致。WAR/画面受入はこの段階で合格とせず、テスト契約を修正して再実行する。所有ラベル付き専用資源はscriptのtrapで清掃済み。
+- 20:40 JST、全体テスト/WARは成功したが追加HTTP3件中、課題カードからeditor、標準6設問surveyのGETが500で2件失敗（exit1）。生徒管理・配信のHTTPは成功。stdoutのみでは500の詳細が不足したため、Tomcat内部ログも回収するよう検証scriptを変更し、原因を再現調査する。通常8080や本番へ未検証WARを反映していない。
+- 20:42 JST再現で原因を確定。editorは専用TomcatにPYTHON_RUNNER_URLが未設定（検証環境の不足）、surveyはOption recordにJSP ELが要求するJavaBean getterがなくrating設問表示が500（実装不具合）。専用runner設定とOptionのgetterを修正する。いずれもschema/実アカウントの変更なし。
+- 20:44 JST、standard6のGET/下書き/提出/再読込と生徒管理/配信HTTPは成功。editorは500解消後404となり、既存教師閲覧専用fixtureのlanguageが`Python 3`で、エディター契約の保存値`Python`と異なることを確認した。fixtureのみ正規値へ修正して再検証する。実DBの課題言語や認可条件は変更しない。
+- 20:46以降 JST、修正後の専用全体440件（298成功/142条件付きskip/失敗0）とWAR、認証HTTP4件（skip0）が成功。Option getter不足・runner設定不足・fixture言語不一致はいずれも解消し、rating設問のブラウザー保存/提出とDB6回答/6理由の再読込まで確認した。
+- 20:50 JST、ブラウザー教師ログインで待機URLが現在URLにも一致して直後の遷移がPOSTを中断。古いフォームを再送してCSRF403となった。正規GETで新フォームを取得し、実navigation完了を待つ手順へ修正してログイン/生徒管理表示成功。製品のCSRFを緩めていない。
+- ブラウザー検証のstatus/flow selectorを実DOMにないclassで指定しtimeout。実DOMのdialog/`.distribution-status-badge`へ修正し配信済み表示を確認した。PW再設定は共有確認ではなく専用入力modalなので、専用dialogの表示/キャンセルを確認した。これらは検証操作の誤りであり製品不具合とは区別する。
+- 20:51以降 JST、アンケート提出後のCSS生成矢印が文字化け。CSSの非ASCII literalをUnicode escapeへ変更し、共通template CSSに版160を付けた。再読込で「›」を確認、対象17件/失敗0/skip0とWAR成功。20:57 JST、8080のみ再起動後login200と配信asset8本のSHA256一致・template版160を確認した。
+
+## 2026-10-11 18:02以降 JST: 第159版の確認
+
+- 19:37 JST、最終WARで根拠logIdリンク表示後、統合ブラウザーが旧キャッシュのlog.jsを使用し
+  選択が反映されなかった。評価関連3画面のCSS/JSに第159版のqueryを付け、
+  再ビルド後に配信スクリプトと実ログ選択を再検証する。
+- version付き配信で生徒logId2の選択と対応する保存コードを確認し、旧cacheの影響は解消。
+  教師では有効根拠も「認可済み一覧で照合できません」と表示されたため、詳細JSONとJSの
+  ID突合せを修正対象とした。保存済み根拠を別のログで補ってはいない。
+- 教師の評価理由初期描画でdetail.logsを渡していないのが原因だった。
+  理由描画へ認可済み一覧を渡し、対応する契約テストを追加した。IDの型変換や認可を緩めていない。
+- 修正後の最終全体420件は281成功/139条件付きskip/失敗0、WARとsurvey実HTTP1件成功。
+  19:44 JST、教師根拠ボタンからlogId2/print(0)/1/2の選択を1440/375pxで確認し解消。
+  ローカル対象11件とWARも成功。8080だけを再起動しlogin200と変更配信asset4本のソース一致を確認。
+- ローカル対象buildは`test war --tests ...`の順序で実行したため、
+  warにtestsオプションが渡りexit1（Unknown command-line option '--tests'）。
+  `test --tests ... war`へ修正した再試験は成功。DB操作なし。
+
+- ローカルsurvey設定確認の最初のcommandはappコンテナにmysql CLIがなくexit127。
+  DBコンテナの既存CLIへ切替し読取成功。次のSELECTは存在しないsurveys.survey_codeを指定し1054。
+  既存定義のsurvey_id/title/task_id/statusへ修正して再確認する。どちらも書込なし。
+- ローカルs008の最新同意はagreed。前回の未回答記録と異なり、現在は同意をブロッカーとしない。
+  合成課題にはsurveysがなく、既存教師結果デモのsurveyはclosed。製品の認可条件を緩めず設定/案内を修正する。
+- 18:18 JST以降の専用ブラウザー受入で教師評価URLを単数`/teacher/evaluation`と誤指定し404。
+  正規メニューの`/teacher/evaluations`へ修正して一覧・詳細表示を確認した。
+  待機selectorを`detailModal`、提出一覧の先頭をreview_studentと誤指定し待機timeout。
+  実DOMの`evaluationDetailModal`と対象提出行を指定して再確認した。
+  表/差分の計測は非表示判定をhidden属性だけでなくCSS表示、
+  差分classを実DOMの`code-line added/removed`で確認し直した。製品表示の不具合ではなく検証selectorの誤り。
+- 専用fixture用SQL投入は最初の`docker exec`に`-i`がなくstdinが渡らず未実行。
+  `-i`を追加して専用DBだけへ合成survey2/question2を登録し、ブラウザーで保存・再読込・提出を確認した。
+- 専用DBで既存V19が存在しないprocedureのDROPを警告1305として出したが、
+  flywayMigrate/WAR/全体418件はexit0（279成功/139条件付きskip/失敗0）。
+  developmentのdemo3件と専用survey実HTTP1件もexit0。
+  ホストNode CLIは未導入。既存計画どおり統合ブラウザーを用い、DOM操作とpointer全面互換性を区別する。
+- 18:25 JST、専用schemaで`dao.StudentSurveyDatabaseTest`4件がfixture挿入時に
+  `Field 'school_id' doesn't have a default value`で失敗（exit1）。旧fixtureのtasksがV19以降の
+  必須school_idを省略していた。製品schemaは変更せず、既存合成学校1をfixtureへ指定して再検証する。
+- fixture修正後の同一専用schemaで4件成功/失敗0/skip0、exit0。
+  下書き保存・提出後読取専用・重複提出の上書き拒否・同意/他生徒/非有効アンケート/未完了評価境界を再検証した。
+
+## 2026-10-11 JST: 第158版のデモ事前調査・試験
+
+- 16:37 JST、専用18090の認証ブラウザーで演習一覧が「読み込み中」のまま停止。
+  `exercise.js`の設定適用でif/else間へpreview設定呼出しを挿入したため
+  `Unexpected token 'else'`。呼出しをif/elseの後へ移動し、両エディターへの適用を維持する。
+  Java/HTTP試験だけではJavaScript構文を検証できなかったため、全変更JSの構文とブラウザーを再確認する。
+- 修正後、関連配信JS9本のparse成功、演習一覧/両詳細の対話実行成功、
+  最終対象8件中7成功/1条件付きskipとWAR成功。ローカル8080へ反映・配信JS一致を確認。
+- 専用fixture/期待値修正後、DB/runner25件・認証HTTP3件は全成功/skip0。
+- ブラウザー操作の子button selector誤り、折りたたまれたファイルのrole検索、
+  直前出力とbusy解除前の操作による待機timeoutを経験。DOMの実buttonと
+  現在入力可能状態を待つよう検証を修正し、ファイル切替/閉じるを再確認した。
+  `page.request`は統合ブラウザーの`Storage.getCookies`非対応で失敗し、
+  同一originのfetchへ切り替えてJS検証成功。製品コードの失敗と検証ツール制約を区別する。
+- 再開後の専用DB/runner/HTTP検証で、新規進捗fixtureが必須の
+  `active_duration_seconds`を省略しSQLException。後続試験も原本未作成のため404。
+  製品schemaは変更せずfixtureに0を指定して再検証する。
+  初回scriptは失敗時レポート回収前にcleanupしていたため、HTTP失敗時にもXMLを保持するよう修正。
+- IDEの新規Servlet helperにGson未解決表示があるが、専用GradleのcompileJava/compileTestJavaとWARは成功。
+  IDE依存解決の表示と製品コンパイルの結果を区別する。
+- 16:21 JST以降、HTTP試験は稼働中stdoutを最終`standardOutput`だけで待ち失敗。
+  対話中出力はeventsへ届くためeventsも検証するよう修正。
+  既存境界の期待値も修正（進捗他校403、演習他校404、コード上限413）。
+  権限や上限を緩めず、実契約に沿って試験を修正した。
+- ローカル8080再起動中のempty reply/一時404はretry後login200を確認。
+
+- 10:25以降の開発DB読取で教師権限列を`permission_status`、`feature_status`と誤記し
+  1054。`SELECT *`で実列`is_enabled`を確認して再調査成功。書込なし。
+- 対象demo試験初回でcompileJava後のcompileTestJavaが既存多数class未検出で失敗。
+  共有build出力の並行Gradle競合を疑い、担当へ出力先分離を連絡。原因と再検証は後記する。
+- demo専用build出力へ分離した次のcompileJavaは、並行編集中の
+  TeacherExerciseServlet/TeacherProgressControlの括弧配置で失敗。担当へ編集完了の通知を依頼し、
+  完了後にまとめて再検証する。demo書込はまだ実行されていない。
+- 10:44 JST、修正後の専用出力でdemo対象3件成功（失敗0/skip0）。
+  s008デモを同試験内で2回実行し、DB保存・DAO再読込・冪等性とusers/profile/consent不変を確認。
+  前述compile失敗は解消。共有build競合は原因未確定で、独立出力による回避を確認した。
+- s008資格情報の保存有無を調査したSELECTは存在しない
+  `student_profiles.initial_password_ciphertext`を参照して1054。既存DAOに従い
+  `student_teacher_credentials.encrypted_password IS NOT NULL`へ修正し成功。秘密の値は表示・変更していない。
+
+## 2026-10-11 JST: UI改善のローカルDB事前調査
+
+- 評価/アンケートの合成データ投入前に、開発DBへSELECTのみを実行した。
+- 初回の調査SQLは存在しない `tasks.task_status`、次回は
+  `task_class_assignments.assignment_id` を参照し、MySQL1054で失敗した。
+  正しい `publication_status` / `task_class_assignment_id` に修正して再実行成功。
+- 書込・schema変更・本番/バックアップ設定への操作は発生していない。
+- IDEは既存競合済みコンパイル資産に関連して `Client.closeDataSource()` 未定義を表示。
+  ソースを無関係に変更せず、Gradleコンパイルで実際の可否を確認する。
+- 並行編集途中の最初の対象Gradle試験は、教師提出Servletの括弧配置により
+  compileJavaで失敗。担当へ返し、編集完了後にまとめて再検証する。
+- 対象再実行はコンパイル/WAR/対象テスト成功。デモ投入初回と同内容の再実行は
+  `event_type='auto_save'` が既存ENUMに存在せずSQLExceptionで失敗し、
+  全書込をrollback。契約どおり `periodic_snapshot` へ修正し再検証する。
+- 修正後のデモ投入と再実行は成功（評価2、回答2/設問回答12、migration23のまま）。
+  DAO読戻しテスト追加時にDTOアクセサ名の誤りでcompileTestJava失敗。
+  実recordの `taskName()` / `logs()` へ修正して再実行する。
+- 次回のDAO読戻しは教師権限検証に必須の明示transactionをテストで開始しておらず
+  IllegalStateException。製品DAOの契約を変えず、テストでtransaction開始・rollbackを追加。
+- DAO一覧は評価未作成の提出もLEFT JOINで含むため、評価2件期待に対して5行になった。
+  テストを評価IDありの合成行に限定。最終2テスト成功/失敗0/skip0、
+  評価詳細のソースコード編集ログ、アンケート6回答/2観点のDB再読込を確認。
+
+## 2026-10-11 JST: 専用受入環境・ブラウザー検証のエラーと制約
+
+- 提出専用MySQL8.4のV11でstored function作成が1419（binary logging）により停止。
+  専用DBコンテナだけを`--disable-log-bin`で再作成し、migration/DB・実runner試験5件成功。
+  製品migration/本番DB/バックアップ設定は変更していない。
+- internal-only networkのruntime公開portへ接続できなかった。
+  runtimeだけをbridgeにも接続しloopback18091疎通成功。DBはinternal networkを維持。
+- 進捗合成fixture初回に`progress_status=editing`で1265。rollback後0行を確認し、
+  正しい`in_progress`へ修正して保存・認証詳細200・保存コード表示成功。
+  停止済みHTTP-testコンテナへのexec失敗はcurl認証302/詳細200で代替し、試験用cookie/probeを清掃。
+- ブラウザー初回loginは古いページのCSRFで403。loginページ再取得後に成功。
+  エディターのCodeMirror selector誤り、重複ラベルのstrict selector違反は対象を限定して再実行成功。
+  terminal終了ラベルを「終了」で待つ誤りも「実行完了」の実表示で確認した。
+- 統合ブラウザーの`document.visibilityState`はhiddenで、通常クリックの安定待ちと
+  requestAnimationFrame測定がtimeout。DOM dispatch/requestSubmitとtimer pollingで代替。
+  次へ操作自体は2/3へ成功していたがrAF待機だけtimeout、timer pollingで戻る/状態保持/close200を確認。
+  初回input待ちの30秒無通信終了は正しい時間切れ表示。再実行の複数入力で正常終了を確認。
+  APIRequestのStorage.getCookies未対応はページ遷移でログアウト後の認証失効を確認。
+  厳密first paint/物理クリック全操作/OSダイアログを合格扱いしない。
+- 最終375px受入で進捗ページ384px横溢れを検出。heroの3×min120px gridと
+  詳細表のID指定`overflow:hidden`が原因。縮小可能な列/狭幅1列、header折返し、
+  詳細表の局所`overflow-x:auto`へ修正。1440/375pxでページ幅一致・コード表示成功。
+- 最終Gradle初回は`test war --tests …`の順序でwarへtestsオプションが渡り、
+  `Unknown command-line option '--tests'`で構成失敗。`test --tests … war`へ修正、
+  8件成功/失敗・skip0、WAR成功。ソースの問題ではない。
+- 8080再起動直後のcurlがempty reply（52）、CSS照合が空応答で失敗。
+  起動待ちの`--retry-all-errors`再検証でlogin200と最新progress.css完全一致。
+  DB/runnerを再起動せず、共有appだけの起動待ちとして解消。
+
 ## 2026-10-10 21:08–21:18 JST: 一回限定のECR本番update失敗・別承認で旧releaseへ復旧
 
 ### 再発防止修正のローカル検証（本番変更なし）

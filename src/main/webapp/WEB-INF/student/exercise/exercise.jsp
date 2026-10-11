@@ -3,7 +3,7 @@
 <c:set var="screenDesign" value="student"/>
 <c:set var="screenPageTitle" value="授業演習"/>
 <c:set var="screenStylesheet" value="/css/student/exercise/exercise.css?v=104-menu-fix"/>
-<c:set var="screenScript" value="/js/student/exercise/exercise.js?v=104-download-fix"/>
+<c:set var="screenScript" value="/js/student/exercise/exercise.js?v=164"/>
 <c:set var="screenUsesCodeMirror" value="true"/>
 <c:forEach var="scope" items="${exercisePage.scopes}">
 	<c:if test="${scope.exerciseId == exercisePage.selectedExerciseId}"><c:set var="selectedScope" value="${scope}"/></c:if>
@@ -39,7 +39,7 @@
 		<div class="hero-status-card">
 			<div class="status-label">ファイル保存状態</div>
 			<div id="exerciseSaveStatus" class="status-value"><c:out value="${empty selectedEntry ? 'ファイル未選択' : '最終保存を表示中'}"/></div>
-			<p class="status-meta mb-0">最終保存のみ保持します。30秒ごとのコードログ収集・提出・評価は行いません。実行だけではコードを保存しません。</p>
+			<p class="status-meta mb-0">最終保存のみ保持します。30秒ごとのソースコード編集ログ収集・提出・評価は行いません。実行だけではコードを保存しません。</p>
 		</div>
 	</section>
 	<div class="row g-4 align-items-start">
@@ -186,6 +186,7 @@
 		</div>
 	</div>
 </div>
+<%@ include file="/WEB-INF/student/shared/home-action.jspf" %>
 <div class="modal fade" id="unifyExerciseModal" tabindex="-1" aria-labelledby="unifyExerciseTitle" aria-hidden="true">
 	<div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable"><div class="modal-content">
 		<div class="modal-header"><h2 id="unifyExerciseTitle" class="modal-title h5 mb-0">一つのルートへ統合</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button></div>

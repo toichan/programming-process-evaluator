@@ -25,7 +25,7 @@
 		<p class="hero-description mb-0">学校情報と、生徒に適用するセキュリティレベルを管理します。</p>
 	</div>
 	<div class="d-flex flex-wrap align-items-center gap-2">
-		<span class="admin-id">管理者: <c:out value="${displayName}"/></span>
+		<span class="admin-id">管理者: <c:out value="${adminLoginId}"/></span>
 		<form method="post" action="<c:url value='/auth/logout'/>">
 			<input type="hidden" name="csrfToken" value="<c:out value='${csrfToken}'/>">
 			<button class="btn btn-outline-secondary" type="submit">ログアウト</button>

@@ -6,6 +6,7 @@
 <c:set var="screenBodyClass" value="teacher-distribution-screen"/>
 <c:set var="screenStylesheet" value="/css/teacher/distribution/distribution.css"/>
 <c:set var="screenScript" value="/js/teacher/distribution/distribution.js"/>
+<c:set var="screenAssetVersion" value="160"/>
 <c:set var="screenUsesCodeMirror" value="true"/>
 <c:set var="screenUsesCodeEditor" value="true"/>
 <c:set var="initialDistributionItems" value="[]"/>
@@ -209,7 +210,7 @@
 				<div><label class="form-label" for="distributionHistoryFilterSchool">学校</label><select class="form-select form-select-sm" id="distributionHistoryFilterSchool"><option value="">すべて</option></select></div>
 				<div><label class="form-label" for="distributionHistoryFilterClass">クラス</label><select class="form-select form-select-sm" id="distributionHistoryFilterClass"><option value="">すべて</option></select></div>
 				<div><label class="form-label" for="distributionHistoryFilterStatus">状態</label><select class="form-select form-select-sm" id="distributionHistoryFilterStatus">
-					<option value="">すべて</option><option value="draft">下書き</option><option value="scheduled">配信予定</option><option value="in_progress">配信中</option><option value="completed">配信完了</option><option value="stopped">停止</option>
+					<option value="">すべて</option><option value="draft">下書き</option><option value="scheduled">配信設定済み</option><option value="in_progress">配信中</option><option value="completed">配信完了</option><option value="stopped">停止中</option>
 				</select></div>
 				<div><label class="form-label" for="distributionHistoryFilterOperator">作成者</label><select class="form-select form-select-sm" id="distributionHistoryFilterOperator"><option value="">すべて</option><option value="<c:out value='${teacherId}'/>"><c:out value="${teacherId}"/></option></select></div>
 			</div>
@@ -233,7 +234,7 @@
 								<td><c:out value="${empty distribution.schoolName ? '—' : distribution.schoolName}"/></td>
 								<td><c:out value="${empty distribution.classroomNames ? '—' : distribution.classroomNames}"/></td>
 								<td><span class="badge distribution-status-badge" data-status="<c:out value='${distribution.status}'/>">
-									<c:choose><c:when test="${distribution.status == 'draft'}">下書き</c:when><c:when test="${distribution.status == 'scheduled'}">配信予定</c:when><c:when test="${distribution.status == 'in_progress'}">配信中</c:when><c:when test="${distribution.status == 'completed'}">配信完了</c:when><c:when test="${distribution.status == 'stopped'}">停止</c:when><c:otherwise><c:out value="${distribution.status}"/></c:otherwise></c:choose>
+									<c:choose><c:when test="${distribution.status == 'draft'}">下書き</c:when><c:when test="${distribution.status == 'scheduled'}">配信設定済み</c:when><c:when test="${distribution.status == 'in_progress'}">配信中</c:when><c:when test="${distribution.status == 'completed'}">配信完了</c:when><c:when test="${distribution.status == 'stopped'}">停止中</c:when><c:otherwise><c:out value="${distribution.status}"/></c:otherwise></c:choose>
 								</span></td>
 								<td><code class="history-creator-id"><c:out value="${teacherId}"/></code></td>
 								<td class="distribution-actions">
@@ -264,7 +265,7 @@
 									<thead class="table-light"><tr><th>クラス</th><th>状態</th><th>予約日時</th><th>実配信日時</th><th>操作</th></tr></thead><tbody>
 										<c:forEach var="target" items="${distribution.targets}">
 											<tr><td><c:out value="${target.classroomName}"/></td>
-												<td><c:choose><c:when test="${target.status == 'not_distributed'}">未配信</c:when><c:when test="${target.status == 'scheduled'}">配信予約</c:when><c:when test="${target.status == 'distributed'}">配信済み</c:when><c:when test="${target.status == 'stopped'}">停止中</c:when><c:otherwise><c:out value="${target.status}"/></c:otherwise></c:choose></td>
+												<td><span class="badge distribution-status-badge" data-status="<c:out value='${target.status}'/>"><c:choose><c:when test="${target.status == 'not_distributed'}">未配信</c:when><c:when test="${target.status == 'scheduled'}">配信予約</c:when><c:when test="${target.status == 'distributed'}">配信済み</c:when><c:when test="${target.status == 'stopped'}">停止中</c:when><c:otherwise><c:out value="${target.status}"/></c:otherwise></c:choose></span></td>
 												<td><c:out value="${target.scheduledAt}"/></td><td><c:out value="${target.distributedAt}"/></td>
 												<td class="distribution-actions">
 													<c:if test="${target.status == 'scheduled'}">

@@ -15,7 +15,7 @@
 </div>
 <section class="card">
 	<div class="card-body">
-		<p class="mb-0">ようこそ、<c:out value="${displayName}"/> さん。</p>
+		<p class="mb-0">ようこそ、<c:out value="${authenticatedUser.loginId()}"/> さん。</p>
 		<nav class="mt-4" aria-label="管理機能">
 			<h2 class="h5">管理メニュー</h2>
 			<a class="list-group-item list-group-item-action border rounded p-3 d-flex align-items-center justify-content-between gap-3"

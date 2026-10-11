@@ -231,6 +231,15 @@
   color: #92400e;
 }
 
+.distribution-status-badge { border-radius: 999px; padding: .3rem .65rem; background: #f1f5f9; color: #475569; font-size: .78rem; }
+.distribution-status-badge[data-status="draft"],
+.distribution-status-badge[data-status="not_distributed"] { background: #f1f5f9; color: #475569; }
+.distribution-status-badge[data-status="scheduled"] { background: #fef3c7; color: #92400e; }
+.distribution-status-badge[data-status="in_progress"] { background: #dbeafe; color: #1d4ed8; }
+.distribution-status-badge[data-status="completed"],
+.distribution-status-badge[data-status="distributed"] { background: #dcfce7; color: #166534; }
+.distribution-status-badge[data-status="stopped"] { background: #fee2e2; color: #b91c1c; }
+
 .row-actions {
   display: inline-flex;
   gap: 0.35rem;

@@ -2,6 +2,7 @@ package control.evaluation;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -192,7 +193,16 @@ class EvaluationDatabaseTest {
 					"""));
 			assertEquals("unconfirmed", text(connection,
 					"SELECT consent_status_at_request FROM evaluation_requests"));
+			assertEquals(1, count(connection, """
+					SELECT COUNT(*) FROM student_notifications n
+					JOIN evaluations e ON e.evaluation_id = n.evaluation_id
+					WHERE n.student_user_id = ? AND n.notification_type = 'evaluation_completed'
+					  AND n.submission_id = ? AND n.task_class_assignment_id = ? AND n.read_at IS NULL
+					  AND e.submission_id = ?
+					""", userId, submissionId, assignmentId, submissionId));
 			assertFalse(new EvaluationWorker(new EvaluationWorkerDao(), validProvider()).processNext());
+			assertEquals(1, count(connection, "SELECT COUNT(*) FROM student_notifications WHERE student_user_id = ?",
+					userId));
 		}
 	}
 
@@ -278,9 +288,32 @@ class EvaluationDatabaseTest {
 		assertThrows(SQLException.class, () -> repository.complete(job, result));
 		try (Connection connection = Client.createConnection()) {
 			assertEquals("completed", text(connection, "SELECT evaluation_status FROM evaluations"));
+			assertEquals(1, count(connection, "SELECT COUNT(*) FROM student_notifications WHERE student_user_id = ?",
+					userId), "the same completion event must not be notified twice");
 			assertEquals(2, count(connection, "SELECT COUNT(*) FROM evaluation_dimension_results"));
 			assertEquals(2, count(connection, "SELECT COUNT(*) FROM evaluation_reasons"));
 			assertEquals(1, count(connection, "SELECT COUNT(*) FROM evaluation_evidence"));
+		}
+	}
+
+	@Test
+	void failedCompletionRollsBackResultAndNotificationTogether() throws SQLException, EvaluationProviderException {
+		EvaluationWorkerDao repository = new EvaluationWorkerDao();
+		var job = repository.claimNext().orElseThrow();
+		var input = repository.loadAndPersistInput(job);
+		JsonObject result = EvaluationResponseValidator.parseAndValidate(
+				validProvider().extractOutputText(new JsonObject()), input.knownLogIds(), input.knownExecutionIds());
+		try (Connection connection = Client.createConnection()) {
+			update(connection, "UPDATE evaluation_requests SET request_status = 'failed' WHERE evaluation_request_id = ?",
+					job.requestId());
+		}
+		assertThrows(SQLException.class, () -> repository.complete(job, result));
+		try (Connection connection = Client.createConnection()) {
+			assertNotEquals("completed", text(connection,
+					"SELECT evaluation_status FROM evaluations WHERE evaluation_id = ?", job.evaluationId()));
+			assertEquals(0, count(connection, "SELECT COUNT(*) FROM evaluation_dimension_results"));
+			assertEquals(0, count(connection, "SELECT COUNT(*) FROM student_notifications WHERE student_user_id = ?",
+					userId), "a rolled back completion must not leave a notification");
 		}
 	}
 
@@ -400,6 +433,8 @@ class EvaluationDatabaseTest {
 					SELECT evaluation_status FROM evaluations
 					WHERE reevaluation_job_id IS NULL AND submission_id = ?
 					""", submissionId));
+			assertEquals(0, count(connection, "SELECT COUNT(*) FROM student_notifications WHERE student_user_id = ?",
+					userId), "teacher reevaluation completion is not notified to students");
 		}
 	}
 

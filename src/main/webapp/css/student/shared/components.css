@@ -1,5 +1,59 @@
 /* Student shared components styles */
 
+.notification-trigger {
+	display: flex;
+	align-items: center;
+	gap: 0.35rem;
+}
+
+.notification-count {
+	padding: 0.1rem 0.45rem;
+	border-radius: 999px;
+	background: #fff;
+	color: #1d4ed8;
+	font-size: 0.8rem;
+	font-weight: 700;
+}
+
+.student-notification-menu {
+	width: 24rem;
+	max-width: calc(100vw - 2rem);
+}
+
+.student-notification-entry {
+	display: grid;
+	gap: 0.4rem;
+	padding: 0.75rem 1rem;
+	white-space: normal;
+	overflow-wrap: anywhere;
+	color: #1e293b;
+}
+
+.student-notification-entry.is-unread {
+	background: #eff6ff;
+	border-left: 3px solid #1d4ed8;
+}
+
+.student-notification-heading {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: space-between;
+	gap: 0.5rem;
+}
+
+.student-notification-heading > span,
+.student-notification-entry small {
+	color: #475569;
+	font-size: 0.8rem;
+}
+
+@media (max-width: 991px) {
+	.navbar .navbar-collapse .student-notification-menu {
+		position: static;
+		width: 100%;
+	}
+}
+
 #header-placeholder {
   position: relative;
 }
@@ -272,11 +326,14 @@
 }
 
 .task-shortcut-link::after {
-  content: '›';
+  content: '\203a';
   font-size: 0.95rem;
   line-height: 1;
   color: rgba(255, 255, 255, 0.88);
 }
+
+.task-shortcut-link.is-disabled { opacity: .55; cursor: not-allowed; }
+.task-shortcut-link.is-disabled::after { content: none; }
 
 .task-shortcut-link.is-task {
   background: linear-gradient(135deg, #cf5a5a, #bb4f70);

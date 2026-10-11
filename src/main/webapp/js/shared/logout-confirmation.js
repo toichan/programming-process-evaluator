@@ -15,13 +15,17 @@
 		if (submitButton) submitButton.disabled = true;
 
 		try {
+			if (window.PPEConfirmLeave && !(await window.PPEConfirmLeave())) return;
 			const confirmed = await feedback.confirm({
 				title: 'ログアウトしますか？',
 				message: 'ログアウトしてログイン画面へ戻ります。',
 				confirmLabel: 'ログアウト',
 				cancelLabel: 'キャンセル'
 			});
-			if (confirmed) HTMLFormElement.prototype.submit.call(form);
+			if (confirmed) {
+				window.PPEAllowNavigation?.();
+				HTMLFormElement.prototype.submit.call(form);
+			}
 		} finally {
 			pending.delete(form);
 			if (submitButton?.isConnected) submitButton.disabled = wasDisabled;
