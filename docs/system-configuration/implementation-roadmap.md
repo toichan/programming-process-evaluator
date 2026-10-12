@@ -8,17 +8,17 @@
 
 ## 作業の進め方
 
-### 第165版: 生徒通知の段階導入（2026-10-12、範囲合意・基盤仕様確認中）
+### 第165版: 生徒通知の段階導入（2026-10-12、通知基盤・評価完了をローカル反映済み）
 
 - 初回6種類と通知クリックによる関連場所への遷移をユーザー承認済み。[機能仕様書の通知要件](../function-specification.md#共通ヘッダーの通知表示)を正とする。既存完了工程を再実装せず、次の順に通知基盤とイベントを接続する。
 - 表示方式もユーザー承認済み: 生徒ヘッダーのベルから最近の通知を表示し、「すべて見る」で専用通知一覧へ遷移する。各通知から関連場所を開く。
 - 既読方式もユーザー承認済み: ベル/一覧の閲覧だけでは既読にせず、個別クリックで当該通知を既読にする。一覧に本人の通知を「すべて既読にする」操作を設ける。状態更新は認証付きPOST/CSRFで行う。
 - 保持期間もユーザー承認済み: 通知作成から90日。期限後は既読/未読とも表示対象外・削除対象とし、関連する業務データは削除しない。
 - 期限接近方式もユーザー承認済み: 提出期限24時間前に1回。公開から期限まで24時間未満の課題では発生させず、延長後の追加リマインドはしない。最新状態を確認し、期限超過後の遅延リマインドは送らない。
-- [ ] N165-00 通知基盤: 一覧UI、未読/既読、保持期間、更新タイミング、対象者・遷移・DB/API契約を合意する。本人別DB正本、重複防止、認可、関連場所への遷移、未保存離脱確認を実装・検証する。
-- [ ] N165-01 評価完了: 初回/再提出/失敗再試行の成功後に本人へ通知し、対象提出版の評価結果へ遷移する。教師プロンプト変更の再評価は除外する。
-- [ ] N165-02 評価失敗: 本人へ失敗と明示再試行の導線を示す。API費用を伴う自動再試行を追加しない。
-- [ ] N165-03 課題公開: 即時/予約/追加クラスの実公開後に対象生徒へ通知し、対象課題へ遷移する。下書き・予約設定時には公開通知しない。
+- [x] N165-00 通知基盤: 一覧UI、未読/既読、保持期間、更新タイミング、対象者・遷移・DB/API契約を合意する。本人別DB正本、重複防止、認可、関連場所への遷移、未保存離脱確認を実装・検証する。
+- [x] N165-01 評価完了: 初回/再提出/失敗再試行の成功後に本人へ通知し、対象提出版の評価結果へ遷移する。教師プロンプト変更の再評価は除外する。
+- [x] N165-02 評価失敗: 本人へ失敗と明示再試行の導線を示す。API費用を伴う自動再試行を追加しない。
+- [x] N165-03 課題公開: 即時/予約/追加クラスの実公開後に対象生徒へ通知し、対象課題へ遷移する。下書き・予約設定時には公開通知しない。
 - [ ] N165-04 期限接近: 時刻・頻度合意後、未提出の有効な期限付き課題だけを対象にする。提出・期限延長・無効化を再確認して不要な通知を抑止する。
 - [ ] N165-05 期限延長: 変更されたクラスの対象者へ新期限を通知する。期限切れからの受付再開を区別する。
 - [ ] N165-06 演習配布: 本人の領域への反映成功後に通知し、本人の配布先を開く。部分失敗・予約・同一配信再試行で未配布者への成功通知や重複通知を作らない。
@@ -26,9 +26,30 @@
 - 作業単位: `src/main` のEntity/DAO/Control/Servlet、共通生徒ヘッダーと通知UI、各イベントの確定処理、対象テスト。正確な対象ファイル・列・APIはN165-00で決め、未合意のDB設計は実装しない。
 - 検証条件: イベント確定後の保存/再読込、本人別未読/既読、他人生徒・他所属・無効対象の境界、再試行の重複防止、対象提出版/課題/配布先への認証HTTP遷移、未保存取消保持、通常幅/狭幅の本実装ブラウザー受入。対象テスト・WARを優先し、共有基盤の変更時に回帰検証する。
 - ローカル8080限定。本番ppeval.net・プロトタイプ・デプロイ/バックアップ設定・資格情報・外部AIは操作しない。DB変更は設計合意後の追加migrationを対象確認・検証して適用し、既存migrationを変更しない。
-- 現在の次の着手: N165-00の対象実装・DB/APIを調査し、既存状態契約へ接続する設計と関連文書を整えてから通知基盤を実装する。初回範囲・表示・既読・保持・期限接近の仕様判断は完了。通知コード・DB migration・8080反映は未着手。仕様/費用/運用負担が変わる新たな判断が判明した場合だけ該当実装前に確認する。
+- 現在の次の着手: N165-04「期限接近」。通知の確定頻度/時刻（24時間前1回）を既存の期限・延長・提出確定条件と突き合わせ、対象DB/API契約を文書へ反映してから実装する。初回範囲・表示・既読・保持・課題公開の仕様判断は完了。仕様/費用/運用負担が変わる新たな判断が判明した場合だけ該当実装前に確認する。
 
-#### 第165版 第1バッチ: 通知基盤・評価完了（2026-10-12、実装中）
+#### 第165版 第3バッチ: 課題公開（N165-03、2026-10-12、専用受入済み・8080反映待ち）
+
+- 範囲: 即時公開、追加クラスへの即時公開、予約公開workerの実公開確定時点のみ対象クラスの有効な生徒へ通知。下書き保存・予約設定・教師preview・配信差分の個別案内は対象外。
+- 対象: V27の`task_published`型追加・必須参照CHECK・dedupe生成列/専用UNIQUE、`StudentNotificationDao.insertTaskPublished`、`TeacherTaskDao`（即時公開・クラス追加）と`TeacherTaskPublicationDao`（予約公開worker）の3呼出箇所、`StudentNotificationControl`の遷移先解決、対象DB/Control/認証HTTPテスト。既存一覧/ベル/POST離脱guardのUIを再利用する。
+- 状態/DB: 公開確定と通知保存を同一トランザクションで行う。対象は該当割当の`membership_status='active'`かつ`account_status='active'`・未削除の生徒全員。評価ID/提出IDは必ずNULL、割当IDは必須とし、既存UNIQUE`(student_user_id, notification_type, evaluation_id)`では防げない重複を`task_published_dedupe_key`の専用UNIQUEで防止する（ON DUPLICATE KEY UPDATEで無視）。同一トランザクションで対象クラスの期限切れ通知を清掃する。
+- API: 既存の個別既読POST/303を再利用し、遷移先は対象課題の生徒用エディターへ変更する（`StudentEditorDao`経由で対象割当の利用可否を検証）。新規APIは追加しない。
+- 検証: `./gradlew --offline --no-daemon test --tests 'servlet.student.StudentNotification*' --tests 'control.student.StudentNotificationControl*' --tests 'entity.StudentNotification*' war` 等の対象テストに加え、フルハーネス`UI160_RUNTIME_TEST=true UI_VALIDATION_REPORTS=build/ui165-published-acceptance sh scripts/testing/evaluation-survey-ui-local.sh`で全体499件（単体、失敗・error0/skip150）、認証HTTP6件（失敗・error0/skip3）成功を確認。`StudentNotificationRuntimeTest.taskPublishedNoticeRedirectsToTheEditor()`含め全成功。
+- 既知の回帰と修正: フルハーネス初回実行で`StudentNotificationControl`の既定コンストラクタが`StudentEditorControl`経由で`PythonRunnerClient`（`PYTHON_RUNNER_URL`必須）へ不要に依存しており、全生徒画面の`StudentNavigationFilter`にまで波及してテスト3件が失敗した。`StudentEditorDao`を直接使う設計へ書き換え、依存を除去して再検証し全件成功を確認した。詳細は[エラーレポート](./error-report.md)を参照。
+- ローカル反映: 専用DB/認証HTTPでの受入は完了。8080へのV27適用とappのみ再起動、ブラウザーでの通知クリック→エディター遷移の確認は未実施（次回作業で実施）。本番/プロトタイプ/デプロイ設定/外部AIは操作しない。
+
+#### 第165版 第2バッチ: 評価失敗（N165-02、2026-10-12、専用受入・8080反映済み）
+
+- 範囲: 通常workerの最終失敗・中断復旧から本人へ失敗通知。教師preview/再評価、既存失敗backfill、追加の自動再試行、外部AI実呼出しは対象外。
+- 対象: V26の種別/必須参照CHECK拡張、通知Entity/DAO/Control、`EvaluationWorkerDao.fail`/中断復旧、対象DB/Control/認証HTTPテスト。既存一覧/ベル/POST離脱guard/遷移先の評価再試行UIを再利用する。
+- 状態/DB: failed確定・監査・通知を同一transaction。student要求のinitial、または明示再試行（reevaluation/当該評価のstudent成功retry_requested監査）、かつreevaluation jobなしだけを正本JOINで作成し、種別/本人/評価IDで重複防止。通知保存失敗なら状態・監査もrollback。成功済み再試行後も古い通知を履歴として保持する。完了通知も同じ明示再試行条件に対応する。
+- API: 個別POSTの既存認可/90日/CSRFを再利用し、対象提出版の評価画面へ303。クリックだけで再試行せず、画面の最新状態と既存明示再試行可否判定に従う。
+- 検証: 通常失敗/中断/遅延worker拒否/重複/再試行履歴/rollback/教師非通知の専用DB、保存再読込・本人境界・認証HTTP、失敗通知から評価画面へのブラウザー遷移。受入後、local8080にV26追加・appのみ反映する。本番/プロトタイプは不変。
+- 結果: `UI160_RUNTIME_TEST=true UI_VALIDATION_REPORTS=build/ui165-failure-acceptance sh scripts/testing/evaluation-survey-ui-local.sh`は全体494件（346成功/148条件付きskip/失敗・error0）、認証HTTP5件成功、通知DB14件成功。最終の明示再試行判別修正後、通知対象`test --tests 'servlet.student.StudentNotification*' --tests 'entity.StudentNotification*' --tests control.student.StudentNotificationControlTest war`は26件（25成功/実HTTPskip1）/WAR成功、最終通知認証HTTP1件成功。`EVALUATION_DB_TEST=true`の別の空の専用評価DBで`flywayMigrate test --tests control.evaluation.EvaluationDatabaseTest`は13件（12成功/実Gemini1skip）。失敗通知保存エラー時の通常失敗/中断復旧のrollback、古い提出の失敗・遅延worker拒否、明示再試行ごとの失敗通知と再試行成功の完了通知を検証。
+- Chromium受入: 専用合成生徒で1440/375pxの失敗通知文言・未読・折返し/横溢れなし、クリックから提出版v1の失敗評価画面・既存明示再試行ボタンへ遷移、再読込後の既読保持4検証成功。クリックでAPI/再試行要求を実行しない。8080 V25/評価queue0を確認後V26のみ追加適用し、appのみ再起動・両ログイン200・通知認証302・通知0（backfillなし）を確認。8080のユーザー認証後手動確認、全ブラウザー/OS、実Geminiは未確認。既存IDEのGson解決診断はGradle/実Tomcat結果と区別し、IDE設定は変更しない。
+- 専用検証コンテナ/ネットワークを所有範囲で清掃し、8080 app・既存runner/DB・他プロジェクトDBの稼働と両ログイン200、通知JS配信hash一致を再確認。ソース変更の破棄・commitはしていない。
+
+#### 第165版 第1バッチ: 通知基盤・評価完了（2026-10-12、専用受入・8080反映済み）
 
 - 作業単位はN165-00/01。N165-02〜06は後続バッチとし、本バッチで未提供のイベントを通知済みと表示しない。既存評価の一括通知/backfillは行わず、導入後に確定する評価を対象にする。
 - 対象ファイル: 通知Entity/DAO/Control/Servlet、`StudentNavigationFilter`、`EvaluationWorkerDao`の通常評価完了、V25追加migration、生徒共通ヘッダー/共通資源読込、通知一覧JSP/CSS/JS、対象単体/DB/HTTP/UI契約テスト。既存評価・生徒本人の保存/提出・再評価jobの契約は維持する。
@@ -37,6 +58,10 @@
 - API: GET `/student/notifications?page=1` は新しい順に20件/ページで状態を変更しない。共通ヘッダーは画面読込時に最新5件/未読数を取得し、本バッチでは背景pollingを設けない。POST `/student/notifications/open` は本人/保持期限/遷移先を検証して個別既読後に303で対象提出版の評価画面へ移動する。POST `/student/notifications/read-all` は本人の保持期間内通知を既読にして303で一覧へ戻る。POSTはCSRF必須。不正入力400、無権限403、通知不在/他人/期限切れ404、関連対象利用不可409、DB障害503を明示する。
 - 保持: DB時刻で作成から90日の境界を判定し、期限後はGET一覧/件数/個別操作から除外する。期限切れ行の物理清掃は書込側で通知行だけを対象に行い、閲覧GETでは削除しない。90日後に元イベントを再通知しない。
 - 検証: 対象テスト/WAR、専用合成MySQLでV25適用・保存再読込・原子性/重複/90日境界/ページング/他人拒否/非通知再評価、認証HTTPでGET無更新・POST/CSRF・評価版への遷移、通常幅/狭幅ブラウザーでベル/一覧/既読/未保存取消を受け入れる。受入後に8080用DBへ追加migrationを適用・appのみ再起動する。本番等には操作しない。
+- 検証結果: `UI160_RUNTIME_TEST=true UI_VALIDATION_REPORTS=build/ui165-acceptance sh scripts/testing/evaluation-survey-ui-local.sh`で全体487件（342成功/145条件付きskip/失敗・error0）、認証HTTP5件成功、通知DB13件成功。最後の保持期限競合対策2件追加後、`gradle --offline --no-daemon test --tests 'servlet.student.StudentNotification*' --tests 'entity.StudentNotification*' --tests control.student.StudentNotificationControlTest war --console plain`は25件（24成功/実HTTP条件付きskip1）、最終WARの通知認証HTTP1件も成功。別の空の専用評価DBで`EVALUATION_DB_TEST=true`の`flywayMigrate test --tests control.evaluation.EvaluationDatabaseTest`を実行し、通常評価・通知原子性/重複/教師再評価非通知8件成功、実Gemini1件skip。共通guard独立8検証も成功済み。
+- ブラウザー受入: 専用Tomcat/合成生徒をChromiumで操作し、1440/375pxの一覧・ベル・UTF-8文言・ページ横溢れなし・狭幅の静的dropdown、再提出編集開始後の未保存コード取消保持/未読維持、確定クリックの対象提出版遷移/個別既読、既読通知の再訪を確認。統合ブラウザー切断は代替Chromiumで補完した。
+- ローカル反映: 8080のアプリbind mount/専用Compose DB/V24/処理中評価0を確認し、`docker exec programming-process-evaluator-app-live gradle --offline --no-daemon flywayMigrate --console plain`成功でV25のみ追加。appのみ再起動し、両portalログイン200、通知未認証302、配信JSとソースのSHA256一致を確認。既存評価のbackfill・仮通知追加はせず通知0件は正常。本番・プロトタイプ・資格情報・外部AIは不変。8080でのユーザー自身による認証後確認、全ブラウザー/OS互換性、全体タイムゾーン統一は未確認であり、専用受入と区別する。
+- 後始末: 本バッチと委任先が作成した専用コンテナ/ネットワークを指定名・所有範囲で清掃し、8080 app・既存runner/DB・他プロジェクトDBの継続稼働と両ログイン200を再確認。ソース変更を破棄・commitしていない。
 
 ### 第164版: 生徒4画面のホーム導線・未保存確認（2026-10-11、ローカル実装・受入済み）
 

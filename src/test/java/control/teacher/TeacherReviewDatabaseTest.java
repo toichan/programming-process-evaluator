@@ -26,7 +26,7 @@ class TeacherReviewDatabaseTest {
 		Assumptions.assumeTrue("true".equals(System.getenv("TEACHER_REVIEW_DB_TEST")));
 		TeacherReviewFixture.guard(System.getenv());
 		TeacherReviewFixture.Data data;
-		try (var c = Client.createConnection()) { data = TeacherReviewFixture.install(c); }
+		try (var c = Client.createConnection()) { data = TeacherReviewFixture.installOrFind(c); }
 		EvidenceFixture evidenceFixture = installEvidenceFixture(data);
 		var teacher = login(data.teacher(), "review_teacher", UserType.TEACHER);
 		var outsider = login(data.outsider(), "review_outsider", UserType.TEACHER);

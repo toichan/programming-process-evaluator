@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import control.auth.AuthenticatedUser;
 import control.student.StudentNotificationControl.OpenStatus;
 import control.student.StudentNotificationControl.TargetAccess;
+import control.student.StudentNotificationControl.TaskTargetAccessCheck;
 import dao.StudentNotificationDao;
 import entity.StudentNotification;
 import entity.StudentNotificationPage;
@@ -22,10 +23,14 @@ class StudentNotificationControlTest {
 			new AuthenticatedUser(5, "synthetic-student", "synthetic", UserType.STUDENT, false, "test");
 	private static final AuthenticatedUser TEACHER =
 			new AuthenticatedUser(6, "synthetic-teacher", "synthetic", UserType.TEACHER, false, "test");
+	private static final TaskTargetAccessCheck FAIL_TASK_ACCESS =
+			(u, a) -> fail("task target must not be checked");
 
 	private static final class FakeDao extends StudentNotificationDao {
 		final List<String> calls = new ArrayList<>();
 		StudentNotification stored;
+		boolean markResult = true;
+		boolean expiresDuringMark;
 
 		@Override public Optional<StudentNotification> findRetained(long studentUserId, long notificationId) {
 			calls.add("find:" + studentUserId + ":" + notificationId);
@@ -34,7 +39,8 @@ class StudentNotificationControlTest {
 		}
 		@Override public boolean markRead(long studentUserId, long notificationId) {
 			calls.add("mark:" + studentUserId + ":" + notificationId);
-			return true;
+			if (expiresDuringMark) stored = null;
+			return markResult;
 		}
 		@Override public int markAllRead(long studentUserId) {
 			calls.add("markAll:" + studentUserId);
@@ -59,6 +65,11 @@ class StudentNotificationControlTest {
 				LocalDateTime.now(), false, assignmentId, submissionId);
 	}
 
+	private static StudentNotification taskPublishedNotification(Long assignmentId) {
+		return new StudentNotification(9, StudentNotification.TYPE_TASK_PUBLISHED, "t", "m",
+				LocalDateTime.now(), false, assignmentId, null);
+	}
+
 	@Test void opensReadableTargetAndMarksOnlyAfterAccessCheck() throws Exception {
 		var dao = new FakeDao();
 		dao.stored = notification(21L, 22L);
@@ -67,11 +78,10 @@ class StudentNotificationControlTest {
 			checked.add(user.userId() + ":" + assignment + ":" + submission);
 			assertEquals(List.of("find:5:9"), dao.calls, "must not mark before the target is verified");
 			return TargetAccess.READABLE;
-		});
+		}, FAIL_TASK_ACCESS);
 		var result = control.open(STUDENT, 9);
 		assertEquals(OpenStatus.OPENED, result.status());
-		assertEquals(21, result.assignmentId());
-		assertEquals(22, result.submissionId());
+		assertEquals("/student/evaluation?assignmentId=21&submissionId=22", result.redirectPath());
 		assertEquals(List.of("5:21:22"), checked);
 		assertEquals(List.of("find:5:9", "mark:5:9"), dao.calls);
 	}
@@ -79,17 +89,85 @@ class StudentNotificationControlTest {
 	@Test void missingNonOwnedOrExpiredNotificationIsNotFoundWithoutMarking() throws Exception {
 		var dao = new FakeDao();
 		dao.stored = notification(21L, 22L);
-		var control = new StudentNotificationControl(dao, (u, a, s) -> fail("target must not be checked"));
+		var control = new StudentNotificationControl(dao, (u, a, s) -> fail("target must not be checked"),
+				FAIL_TASK_ACCESS);
 		assertEquals(OpenStatus.NOT_FOUND, control.open(STUDENT, 10).status());
 		assertEquals(OpenStatus.NOT_FOUND, control.open(STUDENT, 0).status());
 		assertEquals(OpenStatus.NOT_FOUND, control.open(STUDENT, -3).status());
 		assertTrue(dao.calls.stream().noneMatch(call -> call.startsWith("mark")));
 	}
 
+	@Test void expiryDuringTargetCheckDoesNotRedirect() throws Exception {
+		var dao = new FakeDao();
+		dao.stored = notification(21L, 22L);
+		dao.markResult = false;
+		dao.expiresDuringMark = true;
+		var control = new StudentNotificationControl(dao, (u, a, s) -> TargetAccess.READABLE, FAIL_TASK_ACCESS);
+		assertEquals(OpenStatus.NOT_FOUND, control.open(STUDENT, 9).status());
+		assertEquals(List.of("find:5:9", "mark:5:9", "find:5:9"), dao.calls);
+	}
+
+	@Test void alreadyReadRetainedNotificationCanStillOpen() throws Exception {
+		var dao = new FakeDao();
+		dao.stored = new StudentNotification(9, StudentNotification.TYPE_EVALUATION_COMPLETED, "t", "m",
+				LocalDateTime.now(), true, 21L, 22L);
+		dao.markResult = false;
+		var control = new StudentNotificationControl(dao, (u, a, s) -> TargetAccess.READABLE, FAIL_TASK_ACCESS);
+		assertEquals(OpenStatus.OPENED, control.open(STUDENT, 9).status());
+	}
+
+	@Test void failureNotificationOpensTheExactSubmissionThroughTheSameAccessGuard() throws Exception {
+		var dao = new FakeDao();
+		dao.stored = new StudentNotification(9, StudentNotification.TYPE_EVALUATION_FAILED, "t", "m",
+				LocalDateTime.now(), false, 21L, 22L);
+		var control = new StudentNotificationControl(dao, (u, a, s) -> {
+			assertEquals(21, a);
+			assertEquals(22, s);
+			return TargetAccess.READABLE;
+		}, FAIL_TASK_ACCESS);
+		var result = control.open(STUDENT, 9);
+		assertEquals(OpenStatus.OPENED, result.status());
+		assertEquals("/student/evaluation?assignmentId=21&submissionId=22", result.redirectPath());
+		assertEquals(List.of("find:5:9", "mark:5:9"), dao.calls);
+	}
+
+	@Test void taskPublishedNotificationOpensTheEditorThroughTheTaskAccessGuard() throws Exception {
+		var dao = new FakeDao();
+		dao.stored = taskPublishedNotification(31L);
+		var checked = new ArrayList<String>();
+		var control = new StudentNotificationControl(dao, (u, a, s) -> fail("unexpected"), (user, assignment) -> {
+			checked.add(user.userId() + ":" + assignment);
+			return TargetAccess.READABLE;
+		});
+		var result = control.open(STUDENT, 9);
+		assertEquals(OpenStatus.OPENED, result.status());
+		assertEquals("/student/editor?assignmentId=31", result.redirectPath());
+		assertEquals(List.of("5:31"), checked);
+		assertEquals(List.of("find:5:9", "mark:5:9"), dao.calls);
+	}
+
+	@Test void taskPublishedNotificationWithUnavailableAssignmentIsConflictWithoutMarking() throws Exception {
+		var dao = new FakeDao();
+		dao.stored = taskPublishedNotification(31L);
+		var control = new StudentNotificationControl(dao, (u, a, s) -> fail("unexpected"),
+				(u, a) -> TargetAccess.UNAVAILABLE);
+		assertEquals(OpenStatus.TARGET_UNAVAILABLE, control.open(STUDENT, 9).status());
+		assertTrue(dao.calls.stream().noneMatch(call -> call.startsWith("mark")));
+	}
+
+	@Test void taskPublishedNotificationWithInvalidAccountIsRejectedWithoutMarking() {
+		var dao = new FakeDao();
+		dao.stored = taskPublishedNotification(31L);
+		var control = new StudentNotificationControl(dao, (u, a, s) -> fail("unexpected"),
+				(u, a) -> TargetAccess.ACCOUNT_INVALID);
+		assertThrows(SecurityException.class, () -> control.open(STUDENT, 9));
+		assertTrue(dao.calls.stream().noneMatch(call -> call.startsWith("mark")));
+	}
+
 	@Test void inaccessibleTargetIsConflictWithoutMarking() throws Exception {
 		var dao = new FakeDao();
 		dao.stored = notification(21L, 22L);
-		var control = new StudentNotificationControl(dao, (u, a, s) -> TargetAccess.UNAVAILABLE);
+		var control = new StudentNotificationControl(dao, (u, a, s) -> TargetAccess.UNAVAILABLE, FAIL_TASK_ACCESS);
 		assertEquals(OpenStatus.TARGET_UNAVAILABLE, control.open(STUDENT, 9).status());
 		dao.stored = notification(null, 22L);
 		assertEquals(OpenStatus.TARGET_UNAVAILABLE, control.open(STUDENT, 9).status());
@@ -99,14 +177,14 @@ class StudentNotificationControlTest {
 	@Test void invalidAccountIsRejectedWithoutMarking() {
 		var dao = new FakeDao();
 		dao.stored = notification(21L, 22L);
-		var control = new StudentNotificationControl(dao, (u, a, s) -> TargetAccess.ACCOUNT_INVALID);
+		var control = new StudentNotificationControl(dao, (u, a, s) -> TargetAccess.ACCOUNT_INVALID, FAIL_TASK_ACCESS);
 		assertThrows(SecurityException.class, () -> control.open(STUDENT, 9));
 		assertTrue(dao.calls.stream().noneMatch(call -> call.startsWith("mark")));
 	}
 
 	@Test void nonStudentsAreRejectedBeforeAnyDataAccess() {
 		var dao = new FakeDao();
-		var control = new StudentNotificationControl(dao, (u, a, s) -> fail("unexpected"));
+		var control = new StudentNotificationControl(dao, (u, a, s) -> fail("unexpected"), FAIL_TASK_ACCESS);
 		for (AuthenticatedUser user : new AuthenticatedUser[] { null, TEACHER }) {
 			assertThrows(SecurityException.class, () -> control.open(user, 9));
 			assertThrows(SecurityException.class, () -> control.markAllRead(user));
@@ -119,7 +197,7 @@ class StudentNotificationControlTest {
 
 	@Test void scopesListAndBulkOperationsToCurrentStudent() throws Exception {
 		var dao = new FakeDao();
-		var control = new StudentNotificationControl(dao, (u, a, s) -> fail("unexpected"));
+		var control = new StudentNotificationControl(dao, (u, a, s) -> fail("unexpected"), FAIL_TASK_ACCESS);
 		assertEquals(2, control.markAllRead(STUDENT));
 		assertEquals(3, control.loadPage(STUDENT, 3).getPageNumber());
 		assertEquals(4, control.countUnread(STUDENT));

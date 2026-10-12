@@ -18,6 +18,44 @@ public final class TeacherReviewFixture {
 			throw new IllegalStateException("Teacher review fixture requires its explicitly isolated test database and host.");
 		}
 	}
+	public static Data installOrFind(Connection c) throws SQLException {
+		guard(System.getenv());
+		if (!System.getenv("DB_NAME").equals(c.getCatalog())) {
+			throw new IllegalStateException("Unexpected database catalog.");
+		}
+		try (var s = c.createStatement(); var r = s.executeQuery("SELECT COUNT(*) FROM users")) {
+			r.next();
+			if (r.getLong(1) == 0) return install(c);
+		}
+		try (var s = c.createStatement(); var r = s.executeQuery("""
+				SELECT teacher.user_id, outsider.user_id, denied.user_id, student.user_id,
+				       withdrawn.user_id, admin.user_id, school.school_id, ca.classroom_id,
+				       ca.task_class_assignment_id, tp.participation_id, s.submission_id,
+				       pending.submission_id, e.evaluation_id, pending.evaluation_id
+				FROM users teacher
+				JOIN users outsider ON outsider.login_id='review_outsider'
+				JOIN users denied ON denied.login_id='review_denied'
+				JOIN users student ON student.login_id='review_student'
+				JOIN users withdrawn ON withdrawn.login_id='review_withdrawn'
+				JOIN users admin ON admin.login_id='admin'
+				JOIN schools school ON school.school_code='review-dummy'
+				JOIN evaluations e ON e.evaluation_code='review-complete'
+				JOIN evaluations pending ON pending.evaluation_code='review-pending'
+				JOIN submissions s ON s.submission_id=e.submission_id
+				JOIN task_participations tp ON tp.participation_id=s.participation_id
+				  AND tp.student_user_id=student.user_id
+				JOIN task_class_assignments ca ON ca.task_class_assignment_id=tp.task_class_assignment_id
+				WHERE teacher.login_id='review_teacher'
+				""")) {
+			if (!r.next()) throw new IllegalStateException("Existing synthetic review fixture is incomplete.");
+			Data data = new Data(r.getLong(1), r.getLong(2), r.getLong(3), r.getLong(4),
+					r.getLong(5), r.getLong(6), r.getLong(7), r.getLong(8), r.getLong(9),
+					r.getLong(10), r.getLong(11), r.getLong(12), r.getLong(13), r.getLong(14));
+			if (r.next()) throw new IllegalStateException("Existing synthetic review fixture is ambiguous.");
+			return data;
+		}
+	}
+
 	public static Data install(Connection c) throws SQLException {
 		guard(System.getenv());
 		if (!System.getenv("DB_NAME").equals(c.getCatalog())) throw new IllegalStateException("Unexpected database catalog.");

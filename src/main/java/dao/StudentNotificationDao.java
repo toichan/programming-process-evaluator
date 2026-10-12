@@ -55,17 +55,34 @@ public class StudentNotificationDao {
 			WHERE student_user_id = ? AND created_at <= CURRENT_TIMESTAMP(6) - INTERVAL %d DAY
 			""".formatted(RETENTION_DAYS);
 
+	/* Removes only the expired notifications of the student who owns the completed evaluation. */
+	private static final String PURGE_EXPIRED_FOR_EVALUATION_OWNER = """
+			DELETE n FROM student_notifications n
+			JOIN task_participations tp ON tp.student_user_id = n.student_user_id
+			JOIN submissions s ON s.participation_id = tp.participation_id
+			JOIN evaluations e ON e.submission_id = s.submission_id
+			WHERE e.evaluation_id = ? AND n.created_at <= CURRENT_TIMESTAMP(6) - INTERVAL %d DAY
+			""".formatted(RETENTION_DAYS);
+
+	/* Removes only the expired notifications of students who belong to the published assignment's class. */
+	private static final String PURGE_EXPIRED_FOR_TASK_PUBLISHED_CLASS = """
+			DELETE n FROM student_notifications n
+			JOIN student_class_memberships scm ON scm.student_user_id = n.student_user_id
+			JOIN task_class_assignments ca ON ca.classroom_id = scm.classroom_id
+			WHERE ca.task_class_assignment_id = ? AND n.created_at <= CURRENT_TIMESTAMP(6) - INTERVAL %d DAY
+			""".formatted(RETENTION_DAYS);
+
 	/*
 	 * Only a normal student-initiated initial evaluation produces a notification.
 	 * Reevaluation results and teacher previews are excluded by the joined conditions.
 	 */
-	private static final String INSERT_EVALUATION_COMPLETED = """
+	private static final String INSERT_EVALUATION = """
 			INSERT INTO student_notifications
 			  (student_user_id, notification_type, evaluation_id, submission_id,
 			   task_class_assignment_id, title, message)
-			SELECT tp.student_user_id, 'evaluation_completed', e.evaluation_id, s.submission_id,
-			       tp.task_class_assignment_id, '評価が完了しました',
-			       LEFT(CONCAT('「', t.title, '」第', s.revision_number, '回提出の評価結果を確認できます。'), 500)
+			SELECT tp.student_user_id, ?, e.evaluation_id, s.submission_id,
+			       tp.task_class_assignment_id, ?,
+			       LEFT(CONCAT('「', t.title, '」第', s.revision_number, ?), 500)
 			FROM evaluations e
 			JOIN evaluation_requests r ON r.evaluation_id = e.evaluation_id
 			  AND r.evaluation_request_id = ? AND r.actor_role = 'student'
@@ -73,20 +90,93 @@ public class StudentNotificationDao {
 			JOIN task_participations tp ON tp.participation_id = s.participation_id
 			JOIN task_class_assignments ca ON ca.task_class_assignment_id = tp.task_class_assignment_id
 			JOIN tasks t ON t.task_id = ca.task_id
-			WHERE e.evaluation_id = ? AND e.evaluation_kind = 'initial'
-			  AND e.reevaluation_job_id IS NULL AND e.evaluation_status = 'completed'
+			WHERE e.evaluation_id = ?
+			  AND (e.evaluation_kind = 'initial'
+			    OR (e.evaluation_kind = 'reevaluation' AND EXISTS (
+			      SELECT 1 FROM audit_logs retry
+			      WHERE retry.target_type = 'evaluation' AND retry.target_id = e.evaluation_id
+			        AND retry.actor_role = 'student' AND retry.action_type = 'retry_requested'
+			        AND retry.result_status = 'success')))
+			  AND e.reevaluation_job_id IS NULL AND e.evaluation_status = ?
 			ON DUPLICATE KEY UPDATE notification_id = notification_id
 			""";
 
-	/** Records the completion notification inside the caller's transaction; duplicates are ignored. */
+	/*
+	 * Notifies every active student of the class that the assignment now belongs to.
+	 * Draft saves and scheduled reservations must not reach this statement; only the moment an
+	 * assignment's status actually becomes 'published' (immediate publish, individual class addition,
+	 * or the scheduled-publication worker) should call insertTaskPublished.
+	 */
+	private static final String INSERT_TASK_PUBLISHED = """
+			INSERT INTO student_notifications (
+			  student_user_id, notification_type, task_class_assignment_id, title, message
+			)
+			SELECT u.user_id, ?, ca.task_class_assignment_id,
+			       LEFT(CONCAT('課題「', t.title, '」が公開されました'), 255),
+			       LEFT(CONCAT('クラス「', c.name, '」に課題「', t.title, '」が公開されました。取り組みを開始できます。'), 500)
+			FROM task_class_assignments ca
+			JOIN tasks t ON t.task_id = ca.task_id
+			JOIN classrooms c ON c.classroom_id = ca.classroom_id
+			JOIN student_class_memberships scm ON scm.classroom_id = ca.classroom_id
+			  AND scm.membership_status = 'active'
+			JOIN users u ON u.user_id = scm.student_user_id AND u.user_type = 'student'
+			  AND u.account_status = 'active' AND u.deleted_at IS NULL
+			WHERE ca.task_class_assignment_id = ?
+			ON DUPLICATE KEY UPDATE notification_id = notification_id
+			""";
+
+	/**
+	 * Records the task-published notification for every active student in the assignment's class,
+	 * inside the caller's transaction; duplicates per student/assignment are ignored.
+	 * The same write also purges the class's students' notifications past the retention period.
+	 */
+	public static void insertTaskPublished(Connection connection, long assignmentId) throws SQLException {
+		try (PreparedStatement statement = connection.prepareStatement(INSERT_TASK_PUBLISHED)) {
+			statement.setString(1, StudentNotification.TYPE_TASK_PUBLISHED);
+			statement.setLong(2, assignmentId);
+			statement.executeUpdate();
+		}
+		try (PreparedStatement purge = connection.prepareStatement(PURGE_EXPIRED_FOR_TASK_PUBLISHED_CLASS)) {
+			purge.setLong(1, assignmentId);
+			purge.executeUpdate();
+		}
+	}
+
+	/**
+	 * Records the completion notification inside the caller's transaction; duplicates are ignored.
+	 * The same write also purges the owning student's notifications past the retention period.
+	 */
 	public static void insertEvaluationCompleted(
 			Connection connection,
 			long evaluationRequestId,
 			long evaluationId) throws SQLException {
-		try (PreparedStatement statement = connection.prepareStatement(INSERT_EVALUATION_COMPLETED)) {
-			statement.setLong(1, evaluationRequestId);
-			statement.setLong(2, evaluationId);
+		insertEvaluationNotification(connection, evaluationRequestId, evaluationId,
+				StudentNotification.TYPE_EVALUATION_COMPLETED, "completed", "評価が完了しました",
+				"回提出の評価結果を確認できます。");
+	}
+
+	public static void insertEvaluationFailed(
+			Connection connection, long evaluationRequestId, long evaluationId) throws SQLException {
+		insertEvaluationNotification(connection, evaluationRequestId, evaluationId,
+				StudentNotification.TYPE_EVALUATION_FAILED, "failed", "評価に失敗しました",
+				"回提出の評価処理に失敗しました。評価画面で現在の状態と再試行可否を確認してください。");
+	}
+
+	private static void insertEvaluationNotification(
+			Connection connection, long evaluationRequestId, long evaluationId,
+			String type, String status, String title, String suffix) throws SQLException {
+		try (PreparedStatement statement = connection.prepareStatement(INSERT_EVALUATION)) {
+			statement.setString(1, type);
+			statement.setString(2, title);
+			statement.setString(3, suffix);
+			statement.setLong(4, evaluationRequestId);
+			statement.setLong(5, evaluationId);
+			statement.setString(6, status);
 			statement.executeUpdate();
+		}
+		try (PreparedStatement purge = connection.prepareStatement(PURGE_EXPIRED_FOR_EVALUATION_OWNER)) {
+			purge.setLong(1, evaluationId);
+			purge.executeUpdate();
 		}
 	}
 
@@ -99,24 +189,13 @@ public class StudentNotificationDao {
 			throw new IllegalArgumentException("The page number is too large.");
 		}
 		try (Connection connection = Client.createConnection()) {
-			connection.setAutoCommit(false);
-			try {
-				try (PreparedStatement purge = connection.prepareStatement(PURGE_EXPIRED)) {
-					purge.setLong(1, studentUserId);
-					purge.executeUpdate();
-				}
-				List<StudentNotification> rows = find(connection, studentUserId,
-						StudentNotificationPage.PAGE_SIZE + 1, (int) offset);
-				int unread = countUnread(connection, studentUserId);
-				connection.commit();
-				boolean hasNext = rows.size() > StudentNotificationPage.PAGE_SIZE;
-				return new StudentNotificationPage(
-						hasNext ? rows.subList(0, StudentNotificationPage.PAGE_SIZE) : rows,
-						unread, pageNumber, hasNext);
-			} catch (SQLException | RuntimeException failure) {
-				connection.rollback();
-				throw failure;
-			}
+			List<StudentNotification> rows = find(connection, studentUserId,
+					StudentNotificationPage.PAGE_SIZE + 1, (int) offset);
+			int unread = countUnread(connection, studentUserId);
+			boolean hasNext = rows.size() > StudentNotificationPage.PAGE_SIZE;
+			return new StudentNotificationPage(
+					hasNext ? rows.subList(0, StudentNotificationPage.PAGE_SIZE) : rows,
+					unread, pageNumber, hasNext);
 		}
 	}
 
@@ -143,20 +222,46 @@ public class StudentNotificationDao {
 		}
 	}
 
+	/** Marks one retained notification read and purges the same student's expired rows atomically. */
 	public boolean markRead(long studentUserId, long notificationId) throws SQLException {
-		try (Connection connection = Client.createConnection();
-				PreparedStatement statement = connection.prepareStatement(MARK_READ)) {
-			statement.setLong(1, notificationId);
-			statement.setLong(2, studentUserId);
-			return statement.executeUpdate() == 1;
-		}
+		return inPurgingTransaction(studentUserId, connection -> {
+			try (PreparedStatement statement = connection.prepareStatement(MARK_READ)) {
+				statement.setLong(1, notificationId);
+				statement.setLong(2, studentUserId);
+				return statement.executeUpdate();
+			}
+		}) == 1;
 	}
 
+	/** Marks the student's retained notifications read and purges the same student's expired rows atomically. */
 	public int markAllRead(long studentUserId) throws SQLException {
-		try (Connection connection = Client.createConnection();
-				PreparedStatement statement = connection.prepareStatement(MARK_ALL_READ)) {
-			statement.setLong(1, studentUserId);
-			return statement.executeUpdate();
+		return inPurgingTransaction(studentUserId, connection -> {
+			try (PreparedStatement statement = connection.prepareStatement(MARK_ALL_READ)) {
+				statement.setLong(1, studentUserId);
+				return statement.executeUpdate();
+			}
+		});
+	}
+
+	private interface Write {
+		int apply(Connection connection) throws SQLException;
+	}
+
+	private static int inPurgingTransaction(long studentUserId, Write write) throws SQLException {
+		try (Connection connection = Client.createConnection()) {
+			connection.setAutoCommit(false);
+			try {
+				int updated = write.apply(connection);
+				try (PreparedStatement purge = connection.prepareStatement(PURGE_EXPIRED)) {
+					purge.setLong(1, studentUserId);
+					purge.executeUpdate();
+				}
+				connection.commit();
+				return updated;
+			} catch (SQLException | RuntimeException failure) {
+				connection.rollback();
+				throw failure;
+			}
 		}
 	}
 

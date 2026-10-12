@@ -6,6 +6,8 @@ import java.util.Objects;
 
 public final class StudentNotification {
 	public static final String TYPE_EVALUATION_COMPLETED = "evaluation_completed";
+	public static final String TYPE_EVALUATION_FAILED = "evaluation_failed";
+	public static final String TYPE_TASK_PUBLISHED = "task_published";
 	private static final DateTimeFormatter LABEL = DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm");
 
 	private final long notificationId;

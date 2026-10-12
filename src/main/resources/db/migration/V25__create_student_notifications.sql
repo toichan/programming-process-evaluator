@@ -10,16 +10,19 @@ CREATE TABLE student_notifications (
     created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     read_at DATETIME(6) NULL,
     CONSTRAINT ck_student_notification_type CHECK (notification_type IN ('evaluation_completed')),
+    CONSTRAINT ck_student_notification_evaluation_refs CHECK (
+        notification_type <> 'evaluation_completed'
+        OR (evaluation_id IS NOT NULL AND submission_id IS NOT NULL AND task_class_assignment_id IS NOT NULL)),
     CONSTRAINT uq_student_notification_event UNIQUE (student_user_id, notification_type, evaluation_id),
     INDEX idx_student_notifications_recent (student_user_id, created_at, notification_id),
     INDEX idx_student_notifications_unread (student_user_id, read_at, created_at),
     INDEX idx_student_notifications_created (created_at),
     CONSTRAINT fk_student_notification_user FOREIGN KEY (student_user_id)
-        REFERENCES users (user_id) ON DELETE CASCADE,
+        REFERENCES users (user_id),
     CONSTRAINT fk_student_notification_evaluation FOREIGN KEY (evaluation_id)
-        REFERENCES evaluations (evaluation_id) ON DELETE CASCADE,
+        REFERENCES evaluations (evaluation_id),
     CONSTRAINT fk_student_notification_submission FOREIGN KEY (submission_id)
-        REFERENCES submissions (submission_id) ON DELETE CASCADE,
+        REFERENCES submissions (submission_id),
     CONSTRAINT fk_student_notification_assignment FOREIGN KEY (task_class_assignment_id)
-        REFERENCES task_class_assignments (task_class_assignment_id) ON DELETE CASCADE
+        REFERENCES task_class_assignments (task_class_assignment_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;

@@ -167,6 +167,8 @@ public final class EvaluationWorkerDao implements EvaluationWorkRepository {
 					audit.setLong(1, evaluationId);
 					audit.executeUpdate();
 				}
+				StudentNotificationDao.insertEvaluationFailed(
+						connection, rows.getLong("evaluation_request_id"), evaluationId);
 			}
 		}
 	}
@@ -570,6 +572,7 @@ public final class EvaluationWorkerDao implements EvaluationWorkRepository {
 					audit.setString(3, job.externalRequestId());
 					audit.executeUpdate();
 				}
+				StudentNotificationDao.insertEvaluationFailed(connection, job.requestId(), job.evaluationId());
 				connection.commit();
 			} catch (SQLException | RuntimeException e) {
 				rollback(connection, e);

@@ -27,7 +27,7 @@
 						<span class="notification-read-label">${notification.read ? '既読' : '未読'}</span>
 					</span>
 					<span class="notification-message"><c:out value="${notification.message}"/></span>
-					<span class="notification-time"><c:out value="${notification.createdAtLabel}"/>（日本時間）</span>
+					<span class="notification-time"><c:out value="${notification.createdAtLabel}"/></span>
 					<span class="notification-destination">関連する画面を開く →</span>
 				</button>
 			</form>

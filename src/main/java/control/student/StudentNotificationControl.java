@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Optional;
 
 import control.auth.AuthenticatedUser;
+import dao.StudentEditorDao;
 import dao.StudentEvaluationDao;
 import dao.StudentNotificationDao;
 import entity.StudentNotification;
@@ -18,9 +19,9 @@ public final class StudentNotificationControl {
 		TARGET_UNAVAILABLE
 	}
 
-	public record OpenResult(OpenStatus status, long assignmentId, long submissionId) {
+	public record OpenResult(OpenStatus status, String redirectPath) {
 		static OpenResult of(OpenStatus status) {
-			return new OpenResult(status, 0, 0);
+			return new OpenResult(status, null);
 		}
 	}
 
@@ -35,16 +36,27 @@ public final class StudentNotificationControl {
 		TargetAccess check(AuthenticatedUser user, long assignmentId, long submissionId) throws SQLException;
 	}
 
-	private final StudentNotificationDao notificationDao;
-	private final TargetAccessCheck targetAccess;
-
-	public StudentNotificationControl() {
-		this(new StudentNotificationDao(), defaultTargetAccess(new StudentControl(), new StudentEvaluationDao()));
+	@FunctionalInterface
+	interface TaskTargetAccessCheck {
+		TargetAccess check(AuthenticatedUser user, long assignmentId) throws SQLException;
 	}
 
-	StudentNotificationControl(StudentNotificationDao notificationDao, TargetAccessCheck targetAccess) {
+	private final StudentNotificationDao notificationDao;
+	private final TargetAccessCheck targetAccess;
+	private final TaskTargetAccessCheck taskTargetAccess;
+
+	public StudentNotificationControl() {
+		this(new StudentNotificationDao(), defaultTargetAccess(new StudentControl(), new StudentEvaluationDao()),
+				defaultTaskTargetAccess(new StudentControl(), new StudentEditorDao()));
+	}
+
+	StudentNotificationControl(
+			StudentNotificationDao notificationDao,
+			TargetAccessCheck targetAccess,
+			TaskTargetAccessCheck taskTargetAccess) {
 		this.notificationDao = notificationDao;
 		this.targetAccess = targetAccess;
+		this.taskTargetAccess = taskTargetAccess;
 	}
 
 	public StudentNotificationPage loadPage(AuthenticatedUser user, int pageNumber) throws SQLException {
@@ -66,7 +78,8 @@ public final class StudentNotificationControl {
 	}
 
 	/**
-	 * Marks the notification read only after its target evaluation is confirmed readable.
+	 * Marks the notification read only after its target (evaluation result or published task) is
+	 * confirmed accessible, then returns the path the caller should redirect to.
 	 *
 	 * @throws SecurityException when the user is not a valid active student
 	 */
@@ -80,21 +93,44 @@ public final class StudentNotificationControl {
 			return OpenResult.of(OpenStatus.NOT_FOUND);
 		}
 		StudentNotification notification = found.get();
-		if (!StudentNotification.TYPE_EVALUATION_COMPLETED.equals(notification.getNotificationType())
-				|| notification.getAssignmentId() == null || notification.getSubmissionId() == null) {
+		String redirectPath = resolveRedirectPath(user, notification);
+		if (redirectPath == null) {
 			return OpenResult.of(OpenStatus.TARGET_UNAVAILABLE);
 		}
-		long assignmentId = notification.getAssignmentId();
-		long submissionId = notification.getSubmissionId();
-		TargetAccess access = targetAccess.check(user, assignmentId, submissionId);
-		if (access == TargetAccess.ACCOUNT_INVALID) {
-			throw new SecurityException("A valid student account is required.");
+		if (!notificationDao.markRead(user.userId(), notificationId)
+				&& notificationDao.findRetained(user.userId(), notificationId).isEmpty()) {
+			return OpenResult.of(OpenStatus.NOT_FOUND);
 		}
-		if (access != TargetAccess.READABLE) {
-			return OpenResult.of(OpenStatus.TARGET_UNAVAILABLE);
+		return new OpenResult(OpenStatus.OPENED, redirectPath);
+	}
+
+	private String resolveRedirectPath(AuthenticatedUser user, StudentNotification notification) throws SQLException {
+		String type = notification.getNotificationType();
+		if (StudentNotification.TYPE_TASK_PUBLISHED.equals(type)) {
+			if (notification.getAssignmentId() == null) {
+				return null;
+			}
+			long assignmentId = notification.getAssignmentId();
+			TargetAccess access = taskTargetAccess.check(user, assignmentId);
+			if (access == TargetAccess.ACCOUNT_INVALID) {
+				throw new SecurityException("A valid student account is required.");
+			}
+			return access == TargetAccess.READABLE ? "/student/editor?assignmentId=" + assignmentId : null;
 		}
-		notificationDao.markRead(user.userId(), notificationId);
-		return new OpenResult(OpenStatus.OPENED, assignmentId, submissionId);
+		if ((StudentNotification.TYPE_EVALUATION_COMPLETED.equals(type)
+				|| StudentNotification.TYPE_EVALUATION_FAILED.equals(type))
+				&& notification.getAssignmentId() != null && notification.getSubmissionId() != null) {
+			long assignmentId = notification.getAssignmentId();
+			long submissionId = notification.getSubmissionId();
+			TargetAccess access = targetAccess.check(user, assignmentId, submissionId);
+			if (access == TargetAccess.ACCOUNT_INVALID) {
+				throw new SecurityException("A valid student account is required.");
+			}
+			return access == TargetAccess.READABLE
+					? "/student/evaluation?assignmentId=" + assignmentId + "&submissionId=" + submissionId
+					: null;
+		}
+		return null;
 	}
 
 	public int markAllRead(AuthenticatedUser user) throws SQLException {
@@ -116,9 +152,23 @@ public final class StudentNotificationControl {
 		};
 	}
 
+	static TaskTargetAccessCheck defaultTaskTargetAccess(StudentControl students, StudentEditorDao editorDao) {
+		return (user, assignmentId) -> {
+			if (students.loadAccount(user).isEmpty()) {
+				return TargetAccess.ACCOUNT_INVALID;
+			}
+			if (students.loadAffiliations(user).isEmpty()) {
+				return TargetAccess.UNAVAILABLE;
+			}
+			return editorDao.findEditorPage(user.userId(), assignmentId).isPresent() ? TargetAccess.READABLE
+					: TargetAccess.UNAVAILABLE;
+		};
+	}
+
 	private static void requireStudent(AuthenticatedUser user) {
 		if (user == null || user.userType() != UserType.STUDENT) {
 			throw new SecurityException("A student account is required.");
 		}
 	}
 }
+

@@ -10,7 +10,8 @@ public final class StudentNotificationControlTestSupport {
 	}
 
 	public static StudentNotificationControl create(StudentNotificationDao dao, Access access) {
-		return new StudentNotificationControl(dao, (user, assignment, submission) ->
-				StudentNotificationControl.TargetAccess.valueOf(access.name()));
+		StudentNotificationControl.TargetAccess targetAccess = StudentNotificationControl.TargetAccess.valueOf(access.name());
+		return new StudentNotificationControl(dao, (user, assignment, submission) -> targetAccess,
+				(user, assignment) -> targetAccess);
 	}
 }

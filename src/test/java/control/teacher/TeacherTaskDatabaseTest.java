@@ -1949,6 +1949,17 @@ class TeacherTaskDatabaseTest {
 					statement.setLong(1, teacherId);
 					statement.executeUpdate();
 				}
+				try (PreparedStatement statement = connection.prepareStatement("""
+						DELETE sn FROM student_notifications sn
+						JOIN task_class_assignments a
+						  ON a.task_class_assignment_id = sn.task_class_assignment_id
+						WHERE a.task_id IN (
+						  SELECT task_id FROM tasks WHERE created_by_user_id = ?
+						)
+						""")) {
+					statement.setLong(1, teacherId);
+					statement.executeUpdate();
+				}
 				deleteTaskChildren(connection, "task_features");
 				deleteTaskChildren(connection, "task_test_cases");
 				deleteTaskChildren(connection, "task_hints");

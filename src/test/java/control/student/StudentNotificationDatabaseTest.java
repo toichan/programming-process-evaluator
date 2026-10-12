@@ -52,10 +52,8 @@ class StudentNotificationDatabaseTest {
 				"Set TEACHER_REVIEW_DB_TEST=true with the isolated review DB to run notification DB tests.");
 		TeacherReviewFixture.guard(System.getenv());
 		try (Connection c = Client.createConnection()) {
-			if (number(c, "SELECT COUNT(*) FROM users") == 0) {
-				TeacherReviewFixture.install(c);
-				c.setAutoCommit(true);
-			}
+			TeacherReviewFixture.installOrFind(c);
+			c.setAutoCommit(true);
 			student = number(c, "SELECT user_id FROM users WHERE login_id='review_student'");
 			other = number(c, "SELECT user_id FROM users WHERE login_id='review_withdrawn'");
 			completedEvaluation = number(c, "SELECT evaluation_id FROM evaluations WHERE evaluation_code='review-complete'");
@@ -147,6 +145,38 @@ class StudentNotificationDatabaseTest {
 		}
 	}
 
+	@Test void failureNotificationIsDeduplicatedAndExcludesTeacherAndReevaluation() throws SQLException {
+		try (Connection c = Client.createConnection()) {
+			long failed = insert(c, """
+					INSERT INTO evaluations (evaluation_code,submission_id,rubric_id,evaluation_status,evaluation_kind,
+					  auto_save_count,execution_count,created_at,completed_at)
+					VALUES (?,?,?,'failed','initial',0,0,NOW(6),NOW(6))
+					""", MARKER + "-failed", submission, rubric);
+			long studentRequest = request(c, failed, "student");
+			StudentNotificationDao.insertEvaluationFailed(c, request(c, failed, "teacher"), failed);
+			assertEquals(0, dao.countUnread(student));
+			StudentNotificationDao.insertEvaluationFailed(c, studentRequest, failed);
+			StudentNotificationDao.insertEvaluationFailed(c, studentRequest, failed);
+			var notification = dao.findRecent(student).get(0);
+			assertEquals(1, dao.countUnread(student));
+			assertEquals("evaluation_failed", notification.getNotificationType());
+			assertEquals("評価に失敗しました", notification.getTitle());
+			assertEquals("「Synthetic Review Task」第1回提出の評価処理に失敗しました。評価画面で現在の状態と再試行可否を確認してください。",
+					notification.getMessage());
+			assertEquals(submission, notification.getSubmissionId());
+			assertEquals(OpenStatus.OPENED, new StudentNotificationControl().open(studentUser,
+					notification.getNotificationId()).status());
+			long reevaluation = insert(c, """
+					INSERT INTO evaluations (evaluation_code,submission_id,rubric_id,evaluation_status,evaluation_kind,
+					  auto_save_count,execution_count,created_at,completed_at)
+					VALUES (?,?,?,'failed','reevaluation',0,0,NOW(6),NOW(6))
+					""", MARKER + "-failed-reevaluation", submission, rubric);
+			StudentNotificationDao.insertEvaluationFailed(c, request(c, reevaluation, "student"), reevaluation);
+			StudentNotificationDao.insertEvaluationFailed(c, request(c, completedEvaluation, "student"), completedEvaluation);
+			assertEquals(1, dao.findRecent(student).size());
+		}
+	}
+
 	@Test void unreadIndividualAndBulkReadAreScopedToTheOwner() throws SQLException {
 		long own1;
 		long own2;
@@ -179,7 +209,7 @@ class StudentNotificationDatabaseTest {
 		assertEquals(List.of(ids.get(6), ids.get(5), ids.get(4), ids.get(3), ids.get(2)), recent);
 	}
 
-	@Test void ninetyDayBoundaryHidesAndListPurgesOnlyTheCurrentStudentsExpiredRows() throws SQLException {
+	@Test void ninetyDayBoundaryHidesExpiredRowsAndReadsNeverDelete() throws SQLException {
 		long retained;
 		long exactBoundary;
 		long older;
@@ -193,19 +223,68 @@ class StudentNotificationDatabaseTest {
 		assertTrue(dao.findRetained(student, retained).isPresent());
 		assertTrue(dao.findRetained(student, exactBoundary).isEmpty(), "exactly 90 days old is expired");
 		assertTrue(dao.findRetained(student, older).isEmpty());
-		assertFalse(dao.markRead(student, exactBoundary));
 		assertEquals(1, dao.countUnread(student));
 		assertEquals(List.of(retained), dao.findRecent(student).stream().map(StudentNotification::getNotificationId).toList());
-
 		StudentNotificationPage page = dao.findPage(student, 1);
 		assertEquals(List.of(retained), page.getNotifications().stream().map(StudentNotification::getNotificationId).toList());
 		assertEquals(1, page.getUnreadCount());
 		try (Connection c = Client.createConnection()) {
-			assertEquals(1, number(c, "SELECT COUNT(*) FROM student_notifications WHERE student_user_id=" + student));
-			assertEquals(1, number(c, "SELECT COUNT(*) FROM student_notifications WHERE notification_id=" + foreignExpired),
-					"purge is limited to the current student");
-			assertEquals(1, number(c, "SELECT COUNT(*) FROM evaluations WHERE evaluation_id=" + completedEvaluation),
+			assertEquals(4, number(c, "SELECT COUNT(*) FROM student_notifications WHERE student_user_id IN ("
+					+ student + "," + other + ")"), "GET reads are state-free and never purge");
+		}
+	}
+
+	@Test void individualReadPurgesOnlyTheCurrentStudentsExpiredRowsWithoutBusinessData() throws SQLException {
+		long retained;
+		long exactBoundary;
+		long foreignExpired;
+		try (Connection c = Client.createConnection()) {
+			retained = raw(c, student, submission, "NOW(6) - INTERVAL 1 DAY");
+			exactBoundary = raw(c, student, submission, "NOW(6) - INTERVAL 90 DAY");
+			foreignExpired = raw(c, other, otherSubmission, "NOW(6) - INTERVAL 91 DAY");
+		}
+		assertFalse(dao.markRead(student, exactBoundary), "an expired notification is never marked read");
+		try (Connection c = Client.createConnection()) {
+			assertEquals(List.of(retained), ids(c, student), "the write purged the student's expired row");
+			assertEquals(List.of(foreignExpired), ids(c, other), "purge is limited to the current student");
+			assertEquals(1, number(c, "SELECT COUNT(*) FROM evaluations WHERE evaluation_id=" + completedEvaluation));
+			assertEquals(1, number(c, "SELECT COUNT(*) FROM submissions WHERE submission_id=" + submission),
 					"retention purge must not delete business data");
+		}
+		assertFalse(dao.findRetained(student, retained).orElseThrow().isRead());
+	}
+
+	@Test void bulkReadPurgesOnlyTheCurrentStudentsExpiredRows() throws SQLException {
+		long retained;
+		long foreignExpired;
+		try (Connection c = Client.createConnection()) {
+			retained = raw(c, student, submission, "NOW(6) - INTERVAL 89 DAY");
+			raw(c, student, submission, "NOW(6) - INTERVAL 120 DAY");
+			foreignExpired = raw(c, other, otherSubmission, "NOW(6) - INTERVAL 91 DAY");
+		}
+		assertEquals(1, dao.markAllRead(student), "only the retained notification is marked");
+		try (Connection c = Client.createConnection()) {
+			assertEquals(List.of(retained), ids(c, student));
+			assertEquals(List.of(foreignExpired), ids(c, other));
+		}
+	}
+
+	@Test void workerCompletionPurgesOnlyTheEvaluationOwnersExpiredRows() throws SQLException {
+		long foreignExpired;
+		try (Connection c = Client.createConnection()) {
+			raw(c, student, submission, "NOW(6) - INTERVAL 90 DAY");
+			foreignExpired = raw(c, other, otherSubmission, "NOW(6) - INTERVAL 91 DAY");
+			long request = request(c, completedEvaluation, "student");
+			c.setAutoCommit(false);
+			StudentNotificationDao.insertEvaluationCompleted(c, request, completedEvaluation);
+			c.rollback();
+			c.setAutoCommit(true);
+			assertEquals(1, number(c, "SELECT COUNT(*) FROM student_notifications WHERE student_user_id=" + student),
+					"a rolled back completion keeps the expired row and adds nothing");
+			StudentNotificationDao.insertEvaluationCompleted(c, request, completedEvaluation);
+			assertEquals(List.of(number(c, "SELECT notification_id FROM student_notifications WHERE evaluation_id="
+					+ completedEvaluation)), ids(c, student));
+			assertEquals(List.of(foreignExpired), ids(c, other));
 		}
 	}
 
@@ -273,8 +352,8 @@ class StudentNotificationDatabaseTest {
 		}
 		var opened = control.open(studentUser, notification);
 		assertEquals(OpenStatus.OPENED, opened.status());
-		assertEquals(assignment, opened.assignmentId());
-		assertEquals(submission, opened.submissionId());
+		assertEquals("/student/evaluation?assignmentId=" + assignment + "&submissionId=" + submission,
+				opened.redirectPath());
 		assertTrue(dao.findRetained(student, notification).orElseThrow().isRead());
 	}
 
@@ -298,15 +377,56 @@ class StudentNotificationDatabaseTest {
 				evaluationId, MARKER, actorRole);
 	}
 
+	private int rawSequence;
+
+	/** Seeds a notification with its own synthetic completed evaluation, as the schema requires real refs. */
 	private long raw(Connection c, long owner, long submissionId, String createdAtExpression) throws SQLException {
 		long assignmentId = number(c, """
 				SELECT tp.task_class_assignment_id FROM submissions s
 				JOIN task_participations tp ON tp.participation_id=s.participation_id WHERE s.submission_id=""" + submissionId);
+		long evaluationId = insert(c, """
+				INSERT INTO evaluations (evaluation_code,submission_id,rubric_id,evaluation_status,evaluation_kind,
+				  auto_save_count,execution_count,created_at,completed_at)
+				VALUES (?,?,?,'completed','initial',0,0,'2000-01-01','2000-01-01')""",
+				MARKER + "-raw-" + (++rawSequence), submissionId, rubric);
 		return insert(c, """
-				INSERT INTO student_notifications (student_user_id,notification_type,submission_id,task_class_assignment_id,
-				  title,message,created_at)
-				VALUES (?,'evaluation_completed',?,?,'Synthetic','<script>synthetic</script>',""" + createdAtExpression + ")",
-				owner, submissionId, assignmentId);
+				INSERT INTO student_notifications (student_user_id,notification_type,evaluation_id,submission_id,
+				  task_class_assignment_id,title,message,created_at)
+				VALUES (?,'evaluation_completed',?,?,?,'Synthetic','<script>synthetic</script>',""" + createdAtExpression + ")",
+				owner, evaluationId, submissionId, assignmentId);
+	}
+
+	@Test void schemaRejectsEvaluationNoticeWithoutTargetsAndRestrictsBusinessDeletes() throws SQLException {
+		try (Connection c = Client.createConnection()) {
+			for (String nullColumn : List.of("evaluation_id", "submission_id", "task_class_assignment_id")) {
+				String values = "?,'evaluation_completed',"
+						+ (nullColumn.equals("evaluation_id") ? "NULL" : String.valueOf(completedEvaluation)) + ","
+						+ (nullColumn.equals("submission_id") ? "NULL" : String.valueOf(submission)) + ","
+						+ (nullColumn.equals("task_class_assignment_id") ? "NULL" : String.valueOf(assignment));
+				assertThrows(SQLException.class, () -> update(c, """
+						INSERT INTO student_notifications (student_user_id,notification_type,evaluation_id,submission_id,
+						  task_class_assignment_id,title,message) VALUES (""" + values + ",'t','m')", student),
+						nullColumn + " is required for evaluation_completed");
+			}
+			assertThrows(SQLException.class, () -> update(c, """
+					INSERT INTO student_notifications (student_user_id,notification_type,evaluation_id,submission_id,
+					  task_class_assignment_id,title,message) VALUES (?,'other',?,?,?,'t','m')""",
+					student, completedEvaluation, submission, assignment), "only evaluation_completed is allowed");
+			long seededEvaluation = number(c, "SELECT evaluation_id FROM student_notifications WHERE notification_id="
+					+ raw(c, student, submission, "NOW(6)"));
+			assertThrows(SQLException.class, () -> update(c, "DELETE FROM evaluations WHERE evaluation_id=?", seededEvaluation),
+					"business rows are RESTRICTed, never cascaded");
+			assertEquals(1, number(c, "SELECT COUNT(*) FROM student_notifications WHERE evaluation_id=" + seededEvaluation));
+		}
+	}
+
+	private static List<Long> ids(Connection c, long owner) throws SQLException {
+		var ids = new ArrayList<Long>();
+		try (Statement s = c.createStatement(); ResultSet r = s.executeQuery(
+				"SELECT notification_id FROM student_notifications WHERE student_user_id=" + owner + " ORDER BY notification_id")) {
+			while (r.next()) ids.add(r.getLong(1));
+		}
+		return ids;
 	}
 
 	private static long number(Connection c, String sql) throws SQLException {

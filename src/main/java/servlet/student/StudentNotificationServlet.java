@@ -145,8 +145,7 @@ public final class StudentNotificationServlet extends HttpServlet {
 		} else if (result.status() == OpenStatus.TARGET_UNAVAILABLE) {
 			response.sendError(HttpServletResponse.SC_CONFLICT, TARGET_UNAVAILABLE_MESSAGE);
 		} else {
-			seeOther(request, response, "/student/evaluation?assignmentId=" + result.assignmentId()
-					+ "&submissionId=" + result.submissionId());
+			seeOther(request, response, result.redirectPath());
 		}
 	}
 

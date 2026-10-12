@@ -158,7 +158,7 @@
 										<span class="student-notification-heading"><strong><c:out value="${notification.title}"/></strong>
 											<span>${notification.read ? '既読' : '未読'}</span></span>
 										<span><c:out value="${notification.message}"/></span>
-										<small><c:out value="${notification.createdAtLabel}"/>（日本時間）</small>
+										<small><c:out value="${notification.createdAtLabel}"/></small>
 									</button>
 								</form>
 							</li>

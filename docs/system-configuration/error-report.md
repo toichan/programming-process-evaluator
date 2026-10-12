@@ -4,7 +4,30 @@
 
 ## 2026-10-12 第165版: 通知基盤・評価完了
 
+### N165-02 評価失敗通知
+
+- 03:49頃 JST、専用V26/full検証の`compileTestJava`が失敗。新しい通知DBテストを既存メソッドの閉じ括弧前に配置してしまったため、メソッドを独立させて修正。DB変更は専用環境だけで、trap清掃済み。対象を再検証する。
+- 明示再試行の既存DB実装は`evaluation_kind=reevaluation`で、student要求の`request_payload.trigger=retry`として保存されることを確認した。第1バッチのinitial限定条件では再試行成功通知を作れないため、本バッチの失敗通知と完了通知の共通条件を修正し、教師のpreview/再評価job/任意reevaluationは引き続き除外する。既存の再試行方式は変更せず、失敗後再試行の実DB回帰で検証する。
+- 03:53頃 JST、専用評価DBで中断復旧後の再試行成功と複数明示再試行の成功通知件数が0となり失敗。`loadAndPersistInput`がrequest_payloadを正規の評価入力へ置換し、初期triggerが失われることを確認した。永続する当該評価のstudent成功`retry_requested`監査を明示再試行の判別に使用し、payload保存/API契約は変更しない。専用DBと最終WAR/HTTPを再検証する。
+- 最終再検証: 通知DB14件・全体494件（346成功/148skip）、対象26件（25成功/実HTTPskip1）/WAR、最終通知認証HTTP1件、専用評価DB13件（12成功/実Gemini1skip）、Chromium4検証成功。通知の失敗挿入を合成triggerで拒否し、失敗状態/中断復旧/監査のrollbackを確認した。IDEは既存の`JsonObject cannot be resolved to a type`等のGson解決診断を表示するが、Gradle compile/test/WARは成功し、IDE設定は本バッチで変更しない。最初の画像は既存sectionアニメーションの途中で見出しが透明だったため、opacity=1を待って撮り直し、通常/狭幅の実文言を目視受入した。
+- local8080のV25/処理中要求0を確認後、V26追加migration成功・appのみ再起動。V26正本、両portal200・通知未認証302・backfillなし通知0を確認。実AIは呼ばず、8080でのユーザー認証後確認と全ブラウザー/OS互換性は未確認として残す。
+
 - 作業開始後 JST、VS Code `runTests`が新規`StudentNotificationUiContractTest`を検出できず「No tests found」となった。テスト成功とは扱わず、既存Docker Gradleで対象テストを実行する。製品コード/DBの失敗とは区別する。
+- 02:18 JST、専用合成MySQLの全体実行486件で1件失敗/145skip。`TeacherReviewDatabaseTest`が「Fixture requires an empty synthetic-only database」で停止した。新通知DBテストのfixture後始末を調査・修正し、専用環境を清掃後に再実行する。V25は専用DBにのみ適用され、8080/本番には未反映。
+- 通知日時は既存評価画面と同じ日時変換に合わせるが、runtime timezoneが固定されていないため「日本時間」と断定するラベルを削除した。システム全体のUTC保存/日本時間表示統一は既存運用上の未確認事項とし、通知機能を理由に本番環境設定を変更しない。
+- 再開時 JST、通知DBテストが先に共通fixtureを作成した後、教師評価DBテストが空DB前提で同じfixtureを再作成していたことを確認。専用host/catalogを検証した上で既存の完全な合成fixtureを取得できる共通ヘルパーを追加し、双方を接続した。通常DBを対象にするガードは維持する。V25のFKはCASCADEを除去し、評価完了通知の参照3項目はCHECKで必須とした。修正済みV25を新しい専用DBで再検証する。
+- 03:01頃 JST、修正後の全体487件は失敗0で成功したが、通知認証HTTPは「GET never marks read」の期待件数2に対し実数3で失敗した。GETは期限切れ未読行も物理的に保持する契約のため、保持期間内2件と期限切れ1件の計3件が正しい。テストの期待値を修正し、期限切れの表示除外とGET無更新を別々に再検証する。専用環境はtrapで清掃し、通常DB未変更。
+- 同日 JST、統合ブラウザーのクライアント切断で操作できなかったため、既存Playwrightイメージによる専用ネットワーク上のChromium受入へ切り替えた。イメージにJSモジュールがなく`MODULE_NOT_FOUND`となり、使い捨てコンテナ内だけに対応版を導入した。1440/375幅の一覧・ベルは受入成功。エディターでは編集ログも含め4つのCodeMirrorがあり、検証selectorが一意でなく停止したため、実編集エディターへ限定して再実行する。停止済みbuilderへの`docker exec`も失敗したため、既存専用builderの再起動による再ビルドへ変更する。通知クリック中の保持期限切れを成功遷移させない再確認と、既読通知の再訪を区別する回帰2件も追加した。本実装の不具合・検証スクリプトの不具合・環境制約を区別し、ブラウザー受入は未完了として維持する。
+- 03:18〜03:29 JST、HTTP受入で変更済みのfixtureへ全体DBテストを再実行し、教師評価件数の空/初期fixture前提に反して1件失敗（489件/145skip）。初回の新規専用DB全体487件は成功済みであり、変更対象25件/WARと最終認証HTTP1件を独立再実行して成功した。別の空の専用評価DBで原子性の実DB検証も再実行する。閲覧専用の提出済みエディターをプログラムから書き換えて離脱confirmを期待した検証はtimeoutしたため、正規の「再提出用の編集を開始」操作後の編集可能状態を前提に変更した。DB確認SQLの列名`submission_deadline`は実schemaの`due_at`に訂正（1054、読取のみで変更なし）。
+- 合成通知の手動SQLでmysqlクライアントの文字コード指定を省略したため、seedした固定文言のみ文字化けした。`--default-character-set=utf8mb4`で専用合成行を再seedし、実DOMで「評価が完了しました」を一致確認、通常幅/狭幅画像で文言を確認した。狭幅ナビの開閉アニメーション完了も待機し、途中状態を受入証跡にしない。Javaの評価確定通知処理と手動seedを区別する。
+- 最終再検証: 487件全体（342成功/145skip）、通知対象25件（24成功/実HTTPskip1）/WAR、通知の最終認証HTTP1件、Chromiumの通常幅/狭幅と取消保持・確定遷移・既読再訪5検証は成功。通常評価の専用DB9件は8成功/実Gemini1件skip。V25を8080 DBへ適用成功、app再起動後に両ログイン200・通知認証302・通知JS配信一致。外部AIは呼び出さず、8080のユーザー認証後手動確認は未確認。IDE `problems`もクライアント切断で取得不能のため、成功したGradle compile/test/WAR・実Tomcat/Chromiumを根拠とする。
+
+### N165-03 課題公開通知
+
+- フルハーネス初回実行で、`servlet.student.StudentNotificationRuntimeTest`を含む3件が失敗した。原因は`StudentNotificationControl`の既定コンストラクタが`StudentEditorControl`経由で`PythonRunnerClient`を生成しており、そのコンストラクタが環境変数`PYTHON_RUNNER_URL`の設定を必須としていたため。課題公開通知の遷移先検証自体には不要な依存であり、`StudentNavigationFilter`を通る全生徒画面のテストにまで波及していた。`StudentEditorDao`を直接利用する設計へ書き換えて不要な依存を除去した。
+- `TeacherTaskDatabaseTest`で重複キー違反が一時的に発生したが、調査の結果、検証中に複数の専用fixtureフラグを同時設定した手順ミスによるものであり、実際のハーネス・製品コードの不具合ではないと判断した。該当フラグを単独実行に戻し再現しないことを確認した。
+- 最終再検証: `UI160_RUNTIME_TEST=true UI_VALIDATION_REPORTS=build/ui165-published-acceptance sh scripts/testing/evaluation-survey-ui-local.sh`でユニット499件（失敗・error0/skip150）、認証HTTP6件（失敗・error0/skip3）が成功。`StudentNotificationRuntimeTest`の`taskPublishedNoticeRedirectsToTheEditor()`含め全件成功を確認し、専用検証コンテナを`stop_bash`/`trap cleanup`で清掃した。
+- ローカル8080へのV27適用、appのみ再起動、ブラウザーでの通知クリック→対象課題エディター遷移の認証後確認はこの時点で未実施（後続作業で実施予定）。本番・プロトタイプ・デプロイ設定・外部AIは操作していない。
 
 ## 2026-10-11 第164版: ホーム導線・離脱確認
 
