@@ -35,12 +35,14 @@ class StudentNotificationServletTest {
 
 	private static final class FakeDao extends StudentNotificationDao {
 		final List<String> calls = new ArrayList<>();
+		StudentNotification storedNotification;
 
 		@Override public Optional<StudentNotification> findRetained(long studentUserId, long notificationId) {
 			calls.add("find:" + studentUserId + ":" + notificationId);
 			return studentUserId == 5 && notificationId == 9
-					? Optional.of(new StudentNotification(9, StudentNotification.TYPE_EVALUATION_COMPLETED,
-							"t", "m", LocalDateTime.now(), false, 31L, 32L))
+					? Optional.ofNullable(storedNotification != null ? storedNotification
+							: new StudentNotification(9, StudentNotification.TYPE_EVALUATION_COMPLETED,
+									"t", "m", LocalDateTime.now(), false, 31L, 32L))
 					: Optional.empty();
 		}
 		@Override public boolean markRead(long studentUserId, long notificationId) {
@@ -130,6 +132,22 @@ class StudentNotificationServletTest {
 		assertEquals(303, exchange.status);
 		assertEquals("/app/student/evaluation?assignmentId=31&submissionId=32", exchange.headers.get("Location"));
 		assertEquals("no-store", exchange.headers.get("Cache-Control"));
+		assertEquals(List.of("find:5:9", "mark:5:9"), dao.calls);
+	}
+
+	@Test void exerciseDistributionNotificationRedirectsToOwnedExercise() throws Exception {
+		var dao = new FakeDao();
+		dao.storedNotification = new StudentNotification(9, StudentNotification.TYPE_EXERCISE_DISTRIBUTED,
+				"配布完了", "演習を確認できます。", LocalDateTime.now(), false,
+				null, null, 41L, 52L);
+		var exchange = new Exchange(StudentNotificationServlet.OPEN_PATH, STUDENT).withValidCsrf();
+		exchange.parameters.put("notificationId", "9");
+		var servlet = new StudentNotificationServlet(
+				StudentNotificationControlTestSupport.createWithExerciseAccess(dao, Access.READABLE),
+				user -> new StudentHomePage(null, null, List.of()));
+		servlet.doPost(exchange.request, exchange.response);
+		assertEquals(303, exchange.status);
+		assertEquals("/app/student/exercise?exerciseId=52", exchange.headers.get("Location"));
 		assertEquals(List.of("find:5:9", "mark:5:9"), dao.calls);
 	}
 

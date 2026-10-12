@@ -321,10 +321,10 @@ public final class TeacherPromptControl {
 		try (Connection connection = connectionFactory.open()) {
 			connection.setAutoCommit(false);
 			try {
-				requireTaskAccess(connection, user, taskId);
-				promptDao.ensureStandardRubric(connection, user.userId(), taskId);
-				TeacherTaskDetails task = taskDao.findPromptTask(connection, user.userId(), taskId, true)
-						.orElseThrow(TeacherPromptDao.TeacherTaskNotFoundException::new);
+				TeacherTaskDetails task = requireTaskAccess(connection, user, taskId);
+				if ("draft".equals(task.publicationStatus())) {
+					promptDao.ensureStandardRubric(connection, user.userId(), taskId);
+				}
 				rubricDao.requireActiveId(connection);
 				StandardRubric rubric = rubricDao.find(connection)
 						.orElseThrow(() -> new SQLException("The active standard rubric is not available."));
@@ -351,11 +351,13 @@ public final class TeacherPromptControl {
 		}
 	}
 
-	private void requireTaskAccess(Connection connection, AuthenticatedUser user, long taskId) throws SQLException {
+	private TeacherTaskDetails requireTaskAccess(Connection connection, AuthenticatedUser user, long taskId)
+			throws SQLException {
 		permissionDao.requirePromptDesignAccess(connection, user.userId());
 		TeacherTaskDetails task = taskDao.findPromptTask(connection, user.userId(), taskId, true)
 				.orElseThrow(TeacherPromptDao.TeacherTaskNotFoundException::new);
 		requireAuthorizedClasses(connection, user.userId(), List.of(task));
+		return task;
 	}
 
 	private void markGenerationFailed(

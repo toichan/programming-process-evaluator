@@ -20,6 +20,13 @@
 	max-width: calc(100vw - 2rem);
 }
 
+.student-notification-menu > li,
+.student-notification-menu form,
+.student-notification-entry {
+	box-sizing: border-box;
+	width: 100%;
+}
+
 .student-notification-entry {
 	display: grid;
 	gap: 0.4rem;

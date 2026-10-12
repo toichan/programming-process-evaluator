@@ -78,6 +78,7 @@ public final class StudentEditorDao {
 					connection.commit();
 					return Optional.empty();
 				}
+
 				if (assignment.participationId == null) {
 					createParticipation(connection, studentUserId, assignmentId, assignment.initialCode);
 				}
@@ -87,6 +88,32 @@ public final class StudentEditorDao {
 			} catch (SQLException | RuntimeException e) {
 				rollback(connection, e);
 				throw e;
+			}
+		}
+	}
+
+	public boolean isExpiredDeniedAssignmentForStudent(long studentUserId, long assignmentId) throws SQLException {
+		try (Connection connection = Client.createConnection();
+				PreparedStatement statement = connection.prepareStatement("""
+						SELECT 1
+						FROM users u
+						JOIN student_profiles sp ON sp.user_id = u.user_id
+						JOIN student_class_memberships scm ON scm.student_user_id = u.user_id
+						  AND scm.membership_status = 'active'
+						JOIN classrooms c ON c.classroom_id = scm.classroom_id AND c.classroom_status = 'active'
+						JOIN schools s ON s.school_id = c.school_id AND s.school_status = 'active'
+						JOIN task_class_assignments ca ON ca.classroom_id = c.classroom_id
+						  AND ca.assignment_status = 'expired' AND ca.late_submission_policy = 'deny'
+						JOIN tasks t ON t.task_id = ca.task_id
+						  AND t.publication_status = 'published' AND t.deleted_at IS NULL
+						WHERE u.user_id = ? AND u.user_type = 'student'
+						  AND u.account_status = 'active' AND u.deleted_at IS NULL
+						  AND ca.task_class_assignment_id = ?
+						""")) {
+			statement.setLong(1, studentUserId);
+			statement.setLong(2, assignmentId);
+			try (ResultSet rows = statement.executeQuery()) {
+				return rows.next();
 			}
 		}
 	}

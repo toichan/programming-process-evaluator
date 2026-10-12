@@ -157,6 +157,26 @@ public final class StudentExerciseDao {
 		}
 	}
 
+	public boolean isAccessibleDistributedExercise(long userId, long distributionTargetId, long exerciseId)
+			throws SQLException {
+		try (Connection connection = lib.mysql.Client.createConnection();
+				PreparedStatement statement = connection.prepareStatement("""
+						SELECT 1 FROM student_exercises se
+						JOIN distribution_targets dt ON dt.distribution_target_id = se.distribution_target_id
+						  AND dt.target_status = 'distributed'
+						WHERE se.student_user_id = ? AND se.distribution_target_id = ?
+						  AND se.student_exercise_id = ? AND se.deleted_at IS NULL
+						  AND se.exercise_status <> 'archived'
+						""")) {
+			statement.setLong(1, userId);
+			statement.setLong(2, distributionTargetId);
+			statement.setLong(3, exerciseId);
+			try (ResultSet rows = statement.executeQuery()) {
+				return rows.next();
+			}
+		}
+	}
+
 	public long resolveScope(Connection connection, long userId, long exerciseId) throws SQLException {
 		var visited = new HashSet<Long>();
 		try (PreparedStatement statement = connection.prepareStatement("""

@@ -2,6 +2,85 @@
 
 秘密情報・実際の生徒データ・研究データは記載しない。解消後も履歴を保持する。
 
+### 通知画面のブラウザー受入で操作・画像取得が失敗（2026-10-13 JST）
+
+- 対象/手順: 通知一覧とナビゲーション内の通知dropdownを確認するため、狭幅viewportでPlaywrightのlocator clickおよび画面captureを実行。
+- 期待結果: 通知UIの表示・幅を確認する。
+- 実際の事象: 非表示状態のcollapse内locator clickは可視性待ちでtimeout。続く画面captureは5回の試行後に `Failed to capture screenshot` となった。
+- 影響/原因: アプリのHTTP応答・画面遷移・データには影響なし。狭幅viewportでのメニュー開閉状態がbrowser操作対象と一致せず、capture tooling側でも画像取得できなかった。アプリ不具合を示す証拠はない。
+- 対応/再検証: viewportを切り替えたうえで画面要素の表示状態を確認し、PlaywrightでDOM上の幅を再計測。390px/606px/1280pxで通知一覧の左右余白、通知メニュー内2件の幅一致を確認し、390pxでdocument横overflowなし。視覚capture自体は未取得。
+
+### N167-02 Gemini揺らぎ生成のHTTP 429（2026-10-13 01:10 JST）
+
+- 対象/手順: ユーザーの許可を得て、local8080の教師画面から合成課題taskId=17/version=3の揺らぎ項目生成を1回実行。送信前に、揺らぎ項目・合成評価例生成ではGemini APIへ送信され得ること、および実生徒提出/個人情報を使わないことを共通プロンプトに明記した。課題情報・評価ルーブリック・合成サンプルのみを送信対象とした。
+- 期待結果: Gemini 3.1 Pro Previewから揺らぎ項目を受け取り、確認用の案として下書きに保存する。
+- 実際の事象: `POST https://generativelanguage.googleapis.com/v1beta/interactions` がHTTP 429を返し、生成状態は`failed`になった。アプリ例外は`AI retry deadline was exceeded.`、request latencyは851ms。画面にも「AI生成に失敗しました」と表示された。providerのerror code/message、`Retry-After`、provider request IDはアプリログ/監査記録から確認できず、内部監査の相関IDは記録済み。APIキー値は記録していない。
+- 影響/原因: 合成課題のprompt下書きは更新済みで、揺らぎ項目は0件、評価例は未生成。課題は未公開のままで、課題割当の公開・通知作成・生徒提出評価・再評価は行っていない。429の具体的なquota/容量理由は不明。
+- 対応/再検証: 発生時点では連続呼出しを避け、追加の実API要求を保留した。その後、ユーザーが追加課金とGemini利用を明示許可したため、2026-10-13に合成課題taskId=17/version=3で再試行し、揺らぎ生成は成功した。初回の評価例生成では実行できない形式のPythonコードが1件含まれたため採用せず、実行可能な改行・インデントと想定/実測の区別を追加指示して1回再生成し、2件を画面で確認した。教師対応・評価例保存・version 3適用後、taskId=17は初回公開した。実生徒データは送信していない。後続の改訂課題taskId=18での生成はN167-03の404で止まり、同課題に対するGemini呼び出しは開始されていない。
+
+### N169-01 テスト環境ガードと重複件数の期待値誤り（2026-10-13 JST）
+
+- 対象/手順: N169の隔離MySQLテストを実行し、`StudentNotificationDatabaseTest`で24時間境界・重複排除を検証。DB guard失敗時は統合テスト19件が失敗（exit 1）、後続Entity/Control/Worker単体の再実行は成功（exit 0）、正しいhostでの初回統合テストは重複件数の期待値1件が失敗（47件中1件、exit 1）。
+- 期待結果: 指定された隔離fixture環境で全対象テストが成功し、重複worker実行後もDB行が1件である。
+- 実際の事象: 初回は`DB_HOST=ppe-preparation-20261013-n169-db`が既存fixture guardの固定許可値`ppe-preparation-20261008-db-1`と異なり、DBテスト19件が環境ガードで失敗した。隔離コンテナをguard指定のネットワークalias/nameで作り直し解消。続いて重複投入テストがJDBCの`ON DUPLICATE KEY UPDATE`のaffected-row戻り値を0と期待したが1となり、対象DBテスト1件が失敗した。
+- 影響/原因: 初回は本番/共有開発DBへ接続せず、対象は隔離fixtureの事前条件とテスト期待値のみ。製品コード不具合ではなく、テストコンテナ名の不一致と、MySQL/JDBCの重複upsert戻り件数を実挿入件数と同一視したテスト設計の誤り。
+- 対応/再検証: fixtureが要求する専用host aliasを用いた。重複呼び出しの戻り値ではなく保存済み通知のDB件数が1件のままであることを検証するテストへ変更。`docker compose exec -T -e DB_HOST=ppe-preparation-20261008-db-1 -e DB_PORT=3306 -e DB_NAME=ppe_teacher_review_test_n16901 -e DB_USER=root -e DB_PASSWORD=[一時隔離DB値のため省略] -e TEACHER_REVIEW_DB_TEST=true app gradle test --tests entity.StudentNotificationTest --tests control.student.StudentNotificationControlTest --tests control.student.StudentNotificationDatabaseTest --tests control.student.StudentSurveyProgressReminderWorkerTest --tests servlet.student.StudentNotificationServletTest war flywayValidate --warning-mode all`はexit 0。対象58件（Entity 6、Control 21、DB統合19、Worker 1、Servlet 11）がすべて成功、失敗/エラー/skip 0。WARと隔離DBの`flywayValidate`も成功。local DBへのV33適用と`flywayValidate`も成功。
+
+### N169-02 共有ブラウザー参照の失効（2026-10-13 JST、00:59 +0900に記録）
+
+- 対象/手順: N169の認証済みbrowser受入を継続するため、前回の共有ページ参照を再利用し通知一覧を開く。
+- 期待結果: ログイン済み生徒の通知一覧を開き、N169通知を受け入れ確認できる。
+- 実際の事象: 前回のページ参照は利用不能となり、新しい共有ページはログイン画面を表示した。認証済みページのまま受入を続けられず、一時停止した。
+- 影響/原因: browser受入の遅延のみ。アプリコード・DBの既存データに影響はない。ブラウザーセッションが引き継がれなかった理由は特定できていない。
+- 対応/再検証: ユーザーが新しい共有ページへログイン後、通知一覧が表示された。合成の24時間超過回答をworkerが通知化し、通知一覧で未読表示、クリック後のアンケート遷移、保存済み回答と`in_progress`状態の維持、既読化を確認した。合成fixtureと専用テストDBコンテナを削除し、通知一覧が元のデモ通知だけに戻ることを確認した。未解決事項なし。
+
+### N167-03 改訂課題のGemini揺らぎ生成がHTTP 404（2026-10-13 01:58–02:04 JST）
+
+- 対象/手順: ユーザーのGemini利用許可後、初回公開済みの合成課題taskId=17を親とする改訂課題taskId=18/revision 2を作成し、draftのprompt version 4を保存。local8080の認証済み教師画面から「確定して揺らぎ項目を生成する」を2回実行した。
+- 期待結果: version 4の下書き保存後、Gemini 3.1 Pro Previewで揺らぎ項目の生成を開始し、結果を確認用案として保存する。
+- 実際の事象: いずれも`POST /teacher/prompt`がHTTP 404となり、汎用404画面へ遷移した。各要求で下書き保存の成功監査行は作成され、prompt versionの`row_version`は更新されたが、2回目の後も`fluctuation_generation_status=not_generated`、揺らぎ項目0件、生成開始/完了監査なし。したがって改訂課題に対するGemini要求は開始されていない。生徒提出・個人情報は送信していない。
+- 影響/原因: taskId=18は`requires_update`、`supersedes_task_id=17`、assignmentは未公開、prompt version 4はdraftのまま。ソース経路を追跡し、`TeacherPromptControl.beginGeneration()`が状態にかかわらず`ensureStandardRubric()`を呼ぶ一方、同処理は`TeacherTaskDao.findDraft()`で`publication_status='draft'`のみ許容することを確認した。改訂案は`requires_update`のため`TeacherTaskNotFoundException`が発生し、`TeacherPromptServlet.doPost()`が404へ変換する。アプリログに当該例外のstack traceはなく、コード経路とDB状態から原因を特定した。
+- 対応/再検証: `TeacherPromptControl.beginGeneration()`で認可済み課題を取得し、標準ルーブリック初期化は`draft`の場合だけ実行するよう修正した。`published`/`requires_update`では既存課題に紐づくルーブリックを使う。新しい専用MySQL統合テストは修正前に`TeacherTaskNotFoundException`で失敗し、修正後は改訂案で揺らぎ生成・教師対応保存・評価例生成/保存まで成功した。`TeacherTaskDatabaseTest`、プロンプトControl/AI client、Servlet、画面テスト計52件中47成功・5 skip・失敗/エラー0、WARと`flywayValidate`が成功。local8080アプリを再起動して修正コードをロードし、認証なしのプロンプトURLがログインへ302となることを確認した。その時点では教師browser session失効により実Gemini/ブラウザー受入待ちだったが、再ログイン後の最終受入は下記に記録する。
+- 検証環境での解消済みエラー: 最初の共有Compose MySQL上の専用schema作成ではV11のroutine作成がMySQL 1419で失敗し、作成した当該schemaだけを削除した。独立Compose MySQLへ切り替えた初回接続はDocker network経路がなく`Network is unreachable`となったため、使い捨てDBコンテナだけをapp networkへ接続して解消。独立MySQLでもbinlog設定によりV11が1419となったため、その専用コンテナ内だけ`log_bin_trust_function_creators=1`を一時設定してschemaを作り直し、V1〜V33 migrate/validate後に設定を0へ復元した。最初の回帰テストはchecked exception宣言漏れでtest compileに失敗し、`EvaluationProviderException`を宣言して修正。修正前の回帰test失敗は上記の製品不具合を再現したもの。使い捨てDB container/volume/networkは検証後に削除し、共有app DBのデータは変更していない。
+- 解消後のlocal browser受入（2026-10-13 JST）: 教師が再ログイン後、合成taskId=18/version=4で揺らぎ生成を実行し、3件すべての教師対応を`resolved`として保存した。Gemini評価例は合成fixtureだけを使い、実提出・編集ログを含まない2つの想定結果を生成した。予測テスト結果の表示、スコア根拠、揺らぎ候補、再評価前チェック項目を確認して保存・active化し、version 4を改訂課題へ適用後に即時再公開した。DBで旧task 17=`requires_update`/旧assignment=`archived`、task 18/新assignment=`published`、有効な在籍生徒5人への改訂通知5件を確認。生徒browserでは改訂版タイトル/本文、クリック後の新assignment editor遷移を確認し、該当通知の`read_at`が設定された。実生徒データ・提出・編集ログは送信していない。Gemini評価例は1 DB record内に2シナリオで、今回の受入では旧inactive例の一括active化は起きなかったが、そのDAOリスクの製品修正・回帰テストは別途未実施。
+- 関連する未修正リスク: version 3の評価例再生成時、古いinactive評価例が同じprompt versionに残り、保存処理がそれらまでactive化し得るDAO挙動を確認した。今回の合成データでは不適切な旧例だけを対象限定で削除し、最新例を保存した。製品修正と回帰テストは別途必要。
+
+### N168-01 local browser受入時のHTTP 503（2026-10-12 22:32 JST 記録）
+
+- 対象/手順: N168の変更を検証するため、認証済みlocal8080ブラウザーで生徒ホームを開いた。
+- 期待結果: V32適用後の通知/ホーム表示が成功する。
+- 実際の事象: ホーム要求がHTTP 503となり、Tomcatログに`Unknown column 'survey_id' in 'field list'`が記録された。
+- 影響/原因: local appの開発クラスパスにはV32を含む変更が反映されていた一方、local開発DBはV31のままで、通知DAOの新列参照とschemaが不一致だった。対象はローカル開発環境のみで、アプリから成功したように扱われたデータ操作はない。
+- 対応/再検証: V32を専用MySQLで先に適用・統合テストした後、確認対象をlocal開発DBと明示して`docker compose exec -T app gradle flywayMigrate --warning-mode all`を実行。続けて`flywayValidate`成功。認証済みブラウザーで生徒ホームと既存合成アンケートの正規リンクからアンケート画面が表示されることを確認した。通知一覧はV32適用前には表示されたが、適用後の再確認時はログイン画面へリダイレクトされたため未確認。通知生成自体を伴うブラウザー受入も未確認として残す。
+
+### N167-01 local browser fixture creation (2026-10-12 21:17 JST)
+
+- Target/steps: In authenticated local teacher browser, selected the synthetic progress-demo assignment and requested a new independent task-series copy to establish a clean revision-notification fixture.
+- Actual result: Tomcat returned HTTP 400: `複製元に現在適用中のプロンプトがありません。`
+- Impact/cause: The independent copy was rejected because the source has no currently applied prompt. No copy was created, and the source task, assignments, and learner records were not changed.
+- Follow-up: Do not retry copying this source. Use a separately created synthetic draft with an explicitly configured prompt, or stop if browser setup requires an unapproved external AI call. This is distinct from the N167 implementation/regression tests, which passed.
+
+### N167-01 実装中のテストコンパイル失敗（2026-10-12 JST 記録）
+
+- 対象/手順: 課題改訂再公開通知の即時・予約公開DB統合テストを追加し、専用MySQLで対象テストをコンパイル・実行。
+- 実際の事象: テスト用helperを既存テストメソッド内へ誤配置し、`compileTestJava`で構文エラー8件が発生した。
+- 影響/原因: 専用検証ビルドのみが停止。製品コード、共有DB、local8080への影響はない。
+- 対応/再検証: helperをクラス直下の独立メソッドへ移動。対象2テストは未実装状態で改訂通知文面の不一致を検出し、DAO実装後に両テスト成功。続けて全体`gradle test war`が成功し、513件中375件成功、138件skip、失敗/エラー0。skipは成功数へ含めない。
+
+### N166-01 local8080反映（2026-10-12 20:24 JST 記録）
+
+- 対象/手順: 専用MySQLでV1〜V31のmigration・validation、対象DB統合テストと全体回帰後、`docker restart programming-process-evaluator-app-live`でlocal8080アプリのみを再起動。期待結果はTomcat起動とstudent/teacher login routeの応答。
+- 実際の事象: Docker UTC logで20:24:44 JSTおよび20:26:59 JSTにGretty `ServiceProtocol$Writer.write`の`java.net.ConnectException: Connection timed out`を記録。その後20:30:43 JSTにTomcat 9.0.118がport 8080で起動。student/teacher account login routeはhost別のHTTP 302後、最終HTTP 200を返した。
+- 影響/原因: local開発アプリの起動過渡ログのみ。routeの最終応答は確認できた。Writer接続timeoutの根本原因は特定できていないため、app起動失敗や利用者影響が継続したとは断定しない。
+- 対応/再検証: app containerが稼働中であること、Tomcat startedログ、両login routeのredirect先でHTTP 200を確認。ソース変更や追加のDB変更は行っていない。認証済み通知表示・クリックのブラウザー受入は別途未確認。
+
+### N165-06 演習配布通知（2026-10-12 16:39 JST 記録）
+
+- 実装中の初回`compileJava`で`StudentExerciseDao`のメソッド括弧位置と`StudentNotificationControl`のimport不足によりコンパイル失敗。メソッド配置/importを修正し、対象テストとWARを再実行して成功。影響は未反映の作業ツリーのみ。
+- 共有Compose DB上の一時テストschemaでは、最初にアプリDBユーザーの作成権限不足、権限を整えた後は既存V11 migrationのMySQL binary logging要件によりFlywayが停止した。既存DBやmigrationを変更して回避せず、専用MySQLコンテナに切り替えた。専用DBで全migration適用・validation、配信DB統合テスト、WARが成功。専用schemaは存在と利用中接続0を確認後に削除。owner labelを確認した専用container/networkと、そのcontainerだけが参照する検証volumeも削除した。local8080 DB/volumeおよび他containerは変更していない。
+- local8080のV30適用後のapp再起動時、Gretty `ServiceProtocol$Writer`接続timeoutと起動初期の接続拒否/HTTP 404を観測。Tomcatがport 8080でstartedとなった後は生徒/教師login routeがともにHTTP 200。停止状態や恒常的なroute不通は確認せず、起動過渡の事象として記録する。認証済み学生browser sessionは再起動で失効し、通知一覧への移動はログイン画面へredirectされた。ユーザー認証後の8080通知一覧/実配布操作は未確認で、成功扱いにしない。
+- local8080適用時はV30/全migration validation成功、既存通知5件を維持し、旧配布履歴のbackfillは0件。専用DBの実配信transaction/通知遷移テスト、関連テスト、全体Gradle回帰509件（341成功、168 skip、失敗/エラー0）、WARは成功。Skipは条件付きテストであり成功数に含めない。
+
 ## 2026-10-12 第165版: 通知基盤・評価完了
 
 ### N165-02 評価失敗通知
@@ -1679,3 +1758,13 @@
   これは保守・障害区間の目安であり、全区間の連続HTTPS停止を実測した値ではない。
 - **旧releaseの復旧成功、Phase 2の新release受入は未完了**。
   nginx原因確定/修正、最終ECR image試験、基盤改善は保留し、復旧後は停止する。
+
+### 2026-10-12 21:54 JST: アンケート通知追加の初回Gradle compile失敗（修正済み）
+
+- 対象機能: 第168版 `survey_available` 通知の遷移可否確認を追加中。
+- 実行コマンド: `docker compose exec -T app gradle test --tests entity.StudentNotificationTest --tests control.student.StudentNotificationControlTest --warning-mode all`
+- 期待結果: 対象Entity/Controlテストがコンパイルされ実行される。
+- 実際の結果: `:compileJava FAILED`。`StudentSurveyDao.java:311` の `hasActiveQuestions` が直前メソッド内に誤ってネストされ、`illegal start of expression` 等のコンパイルエラー4件。テスト実行前に停止。
+- 影響範囲: コードのビルド確認のみ失敗。アプリ再起動、DB migration、業務データ更新、外部API呼び出しは行っていない。
+- 対応: `findPageTarget`の閉じ波括弧を修正し、`hasActiveQuestions`をDAOクラス直下のprivate methodへ移動。
+- 再検証: 同じコマンドを再実行し、`:compileJava`・`:compileTestJava`・`:test`成功、`BUILD SUCCESSFUL`（2秒）。Entity/Control対象テストは失敗なし。Gradle 8.10.2の既存WarPluginConvention deprecation warningのみ。

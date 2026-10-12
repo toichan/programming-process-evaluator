@@ -425,7 +425,10 @@ public final class TeacherDistributionDao {
 						continue;
 					}
 					String rootName = deliveryRootName(connection, studentId, target);
-					insertStudentExercise(connection, studentId, target.targetId(), target.templateName(), rootName, items);
+					long exerciseId = insertStudentExercise(connection, studentId, target.targetId(),
+							target.templateName(), rootName, items);
+					StudentNotificationDao.insertExerciseDistributed(
+							connection, studentId, target.targetId(), exerciseId);
 					created++;
 				}
 				String result = JSON.toJson(Map.of("status", "success", "studentsCreated", created,
@@ -1076,7 +1079,7 @@ public final class TeacherDistributionDao {
 		}
 	}
 
-	private void insertStudentExercise(Connection connection, long studentId, long targetId,
+	private long insertStudentExercise(Connection connection, long studentId, long targetId,
 			String templateName, String rootName, List<TeacherDistributionInput.TemplateItem> items)
 			throws SQLException {
 		long exerciseId;
@@ -1130,6 +1133,7 @@ public final class TeacherDistributionDao {
 				parentPath = path;
 			}
 		}
+		return exerciseId;
 	}
 
 	private long insertStudentEntry(Connection connection, long exerciseId, Long parentId,

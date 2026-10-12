@@ -339,6 +339,7 @@ public final class EvaluationWorkerDao implements EvaluationWorkRepository {
 					update.executeUpdate();
 				}
 				StudentNotificationDao.insertEvaluationCompleted(connection, job.requestId(), job.evaluationId());
+				StudentNotificationDao.insertSurveyAvailable(connection, job.requestId(), job.evaluationId());
 				connection.commit();
 			} catch (SQLException | RuntimeException e) {
 				rollback(connection, e);

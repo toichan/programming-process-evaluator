@@ -83,6 +83,10 @@ class StudentNotificationDatabaseTest {
 
 	private void cleanup(Connection c) throws SQLException {
 		update(c, "DELETE FROM student_notifications WHERE student_user_id IN (?,?)", student, other);
+		update(c, "DELETE FROM survey_responses WHERE response_code LIKE ?", MARKER + "-progress-%");
+		update(c, "DELETE FROM survey_questions WHERE survey_id IN (SELECT survey_id FROM surveys WHERE title=?)",
+				MARKER + " survey");
+		update(c, "DELETE FROM surveys WHERE title=?", MARKER + " survey");
 		update(c, "DELETE FROM evaluation_requests WHERE model_id=?", MARKER);
 		update(c, "DELETE FROM evaluations WHERE evaluation_code LIKE ?", MARKER + "-%");
 		update(c, "UPDATE student_class_memberships SET membership_status='active' WHERE student_user_id=?", student);
@@ -143,6 +147,120 @@ class StudentNotificationDatabaseTest {
 			c.setAutoCommit(true);
 			assertEquals(0, number(c, "SELECT COUNT(*) FROM student_notifications WHERE evaluation_id=" + completedEvaluation));
 		}
+	}
+
+	@Test void surveyAvailableNotificationRequiresAnAnswerableConsentedStudentEvaluationAndOpensThatSurvey()
+			throws SQLException {
+		long surveyId;
+		try (Connection c = Client.createConnection()) {
+			c.setAutoCommit(false);
+			long taskId = number(c, "SELECT task_id FROM task_class_assignments WHERE task_class_assignment_id=" + assignment);
+			surveyId = insert(c, """
+					INSERT INTO surveys (task_id,title,survey_status,created_at)
+					VALUES (?,?,'active',NOW())
+					""", taskId, MARKER + " survey");
+			long questionId = insert(c, """
+					INSERT INTO survey_questions (survey_id,question_code,question_type,prompt_text,
+					  reason_prompt_text,required,reason_required,sort_order,question_status)
+					VALUES (?,'notice-question','text','Synthetic question','',FALSE,FALSE,1,'inactive')
+					""", surveyId);
+
+			long request = request(c, completedEvaluation, "student");
+			StudentNotificationDao.insertSurveyAvailable(c, request, completedEvaluation);
+			assertEquals(0, number(c, "SELECT COUNT(*) FROM student_notifications WHERE notification_type='survey_available'"));
+
+			update(c, "UPDATE survey_questions SET question_status='active' WHERE question_id=?", questionId);
+			StudentNotificationDao.insertSurveyAvailable(c, request, completedEvaluation);
+			StudentNotificationDao.insertSurveyAvailable(c, request, completedEvaluation);
+			StudentNotificationDao.insertSurveyAvailable(
+					c, request(c, completedEvaluation, "teacher"), completedEvaluation);
+			StudentNotificationDao.insertSurveyAvailable(
+					c, request(c, otherEvaluation, "student"), otherEvaluation);
+			StudentNotificationDao.insertSurveyAvailable(
+					c, request(c, pendingEvaluation, "student"), pendingEvaluation);
+			c.commit();
+			c.setAutoCommit(true);
+
+			assertEquals(1, number(c, """
+					SELECT COUNT(*) FROM student_notifications
+					WHERE student_user_id=""" + student + " AND notification_type='survey_available'"));
+		}
+
+		StudentNotification notice = dao.findRecent(student).stream()
+				.filter(item -> StudentNotification.TYPE_SURVEY_AVAILABLE.equals(item.getNotificationType()))
+				.findFirst().orElseThrow();
+		assertEquals("アンケートに回答できます", notice.getTitle());
+		assertTrue(notice.getMessage().contains("Synthetic Review Task"));
+		assertEquals(assignment, notice.getAssignmentId());
+		assertEquals(completedEvaluation, notice.getEvaluationId());
+		assertEquals(surveyId, notice.getSurveyId());
+		assertNull(notice.getSubmissionId());
+
+		var opened = new StudentNotificationControl().open(studentUser, notice.getNotificationId());
+		assertEquals(OpenStatus.OPENED, opened.status());
+		assertEquals("/student/survey?assignmentId=" + assignment
+				+ "&evaluationId=" + completedEvaluation + "&surveyId=" + surveyId, opened.redirectPath());
+		assertTrue(dao.findRetained(student, notice.getNotificationId()).orElseThrow().isRead());
+	}
+
+	@Test void surveyProgressReminderWaitsTwentyFourHoursRequiresCurrentConsentAndDeduplicates()
+			throws SQLException {
+		long surveyId;
+		long responseId;
+		try (Connection c = Client.createConnection()) {
+			c.setAutoCommit(false);
+			long taskId = number(c, "SELECT task_id FROM task_class_assignments WHERE task_class_assignment_id=" + assignment);
+			surveyId = insert(c, """
+					INSERT INTO surveys (task_id,title,survey_status,created_at)
+					VALUES (?,?,'active',NOW())
+					""", taskId, MARKER + " progress survey");
+			insert(c, """
+					INSERT INTO survey_questions (survey_id,question_code,question_type,prompt_text,
+					  reason_prompt_text,required,reason_required,sort_order,question_status)
+					VALUES (?,'progress-question','text','Synthetic question','',FALSE,FALSE,1,'active')
+					""", surveyId);
+			responseId = insert(c, """
+					INSERT INTO survey_responses (response_code,record_code,student_user_id,survey_id,task_id,
+					  evaluation_id,consent_status_at_submission,response_status,started_at)
+					VALUES (?,?, ?,?,?,?,'agreed','in_progress',CURRENT_TIMESTAMP - INTERVAL 20 HOUR)
+					""", MARKER + "-progress-student", MARKER + "-progress-student-record",
+					student, surveyId, taskId, completedEvaluation);
+			insert(c, """
+					INSERT INTO survey_responses (response_code,record_code,student_user_id,survey_id,task_id,
+					  evaluation_id,consent_status_at_submission,response_status,started_at)
+					VALUES (?,?, ?,?,?,?,'withdrawn','in_progress',CURRENT_TIMESTAMP - INTERVAL 25 HOUR)
+					""", MARKER + "-progress-withdrawn", MARKER + "-progress-withdrawn-record",
+					other, surveyId, taskId, otherEvaluation);
+			c.commit();
+			assertEquals(0, StudentNotificationDao.insertSurveyInProgressReminders(c),
+					"a saved response must not be reminded before 24 hours");
+			update(c, "UPDATE survey_responses SET started_at=CURRENT_TIMESTAMP - INTERVAL 25 HOUR WHERE survey_response_id=?",
+					responseId);
+			assertEquals(1, StudentNotificationDao.insertSurveyInProgressReminders(c));
+			StudentNotificationDao.insertSurveyInProgressReminders(c);
+			assertEquals(1, number(c, """
+					SELECT COUNT(*) FROM student_notifications
+					WHERE student_user_id=""" + student + " AND notification_type='survey_in_progress'"),
+					"repeated worker passes must not duplicate a student's reminder");
+			c.commit();
+			assertEquals(0, number(c, """
+					SELECT COUNT(*) FROM student_notifications
+					WHERE student_user_id=""" + other + " AND notification_type='survey_in_progress'"));
+		}
+
+		StudentNotification notice = dao.findRecent(student).stream()
+				.filter(item -> StudentNotification.TYPE_SURVEY_IN_PROGRESS.equals(item.getNotificationType()))
+				.findFirst().orElseThrow();
+		assertEquals("アンケートの回答を再開できます", notice.getTitle());
+		assertTrue(notice.getMessage().contains("Synthetic Review Task"));
+		assertEquals(assignment, notice.getAssignmentId());
+		assertEquals(completedEvaluation, notice.getEvaluationId());
+		assertEquals(surveyId, notice.getSurveyId());
+		var opened = new StudentNotificationControl().open(studentUser, notice.getNotificationId());
+		assertEquals(OpenStatus.OPENED, opened.status());
+		assertEquals("/student/survey?assignmentId=" + assignment
+				+ "&evaluationId=" + completedEvaluation + "&surveyId=" + surveyId, opened.redirectPath());
+		assertTrue(dao.findRetained(student, notice.getNotificationId()).orElseThrow().isRead());
 	}
 
 	/*

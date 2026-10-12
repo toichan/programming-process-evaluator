@@ -9,7 +9,11 @@ public final class StudentNotification {
 	public static final String TYPE_EVALUATION_FAILED = "evaluation_failed";
 	public static final String TYPE_TASK_PUBLISHED = "task_published";
 	public static final String TYPE_DUE_SOON = "due_soon";
+	public static final String TYPE_ASSIGNMENT_EXPIRED = "assignment_expired";
 	public static final String TYPE_DEADLINE_EXTENDED = "deadline_extended";
+	public static final String TYPE_EXERCISE_DISTRIBUTED = "exercise_distributed";
+	public static final String TYPE_SURVEY_AVAILABLE = "survey_available";
+	public static final String TYPE_SURVEY_IN_PROGRESS = "survey_in_progress";
 	private static final DateTimeFormatter LABEL = DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm");
 
 	private final long notificationId;
@@ -20,6 +24,10 @@ public final class StudentNotification {
 	private final boolean read;
 	private final Long assignmentId;
 	private final Long submissionId;
+	private final Long distributionTargetId;
+	private final Long studentExerciseId;
+	private final Long evaluationId;
+	private final Long surveyId;
 
 	public StudentNotification(
 			long notificationId,
@@ -30,6 +38,38 @@ public final class StudentNotification {
 			boolean read,
 			Long assignmentId,
 			Long submissionId) {
+		this(notificationId, notificationType, title, message, createdAt, read,
+				assignmentId, submissionId, null, null, null, null);
+	}
+
+	public StudentNotification(
+			long notificationId,
+			String notificationType,
+			String title,
+			String message,
+			LocalDateTime createdAt,
+			boolean read,
+			Long assignmentId,
+			Long submissionId,
+			Long distributionTargetId,
+			Long studentExerciseId) {
+		this(notificationId, notificationType, title, message, createdAt, read,
+				assignmentId, submissionId, distributionTargetId, studentExerciseId, null, null);
+	}
+
+	public StudentNotification(
+			long notificationId,
+			String notificationType,
+			String title,
+			String message,
+			LocalDateTime createdAt,
+			boolean read,
+			Long assignmentId,
+			Long submissionId,
+			Long distributionTargetId,
+			Long studentExerciseId,
+			Long evaluationId,
+			Long surveyId) {
 		if (notificationId <= 0) {
 			throw new IllegalArgumentException("The notification ID must be positive.");
 		}
@@ -41,6 +81,10 @@ public final class StudentNotification {
 		this.read = read;
 		this.assignmentId = assignmentId;
 		this.submissionId = submissionId;
+		this.distributionTargetId = distributionTargetId;
+		this.studentExerciseId = studentExerciseId;
+		this.evaluationId = evaluationId;
+		this.surveyId = surveyId;
 	}
 
 	public long getNotificationId() {
@@ -77,5 +121,21 @@ public final class StudentNotification {
 
 	public Long getSubmissionId() {
 		return submissionId;
+	}
+
+	public Long getDistributionTargetId() {
+		return distributionTargetId;
+	}
+
+	public Long getStudentExerciseId() {
+		return studentExerciseId;
+	}
+
+	public Long getEvaluationId() {
+		return evaluationId;
+	}
+
+	public Long getSurveyId() {
+		return surveyId;
 	}
 }

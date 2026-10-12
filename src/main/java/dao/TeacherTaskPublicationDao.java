@@ -101,6 +101,8 @@ public final class TeacherTaskPublicationDao {
 						recordSystemAudit(connection, assignmentId, action, fromStatus, toStatus);
 						if ("published".equals(toStatus)) {
 							StudentNotificationDao.insertTaskPublished(connection, assignmentId);
+						} else if ("expired".equals(toStatus)) {
+							StudentNotificationDao.insertAssignmentExpired(connection, assignmentId);
 						}
 						transitioned++;
 					}

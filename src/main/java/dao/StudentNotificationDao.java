@@ -21,7 +21,8 @@ public class StudentNotificationDao {
 
 	private static final String COLUMNS = """
 			SELECT notification_id, notification_type, title, message, created_at, read_at,
-			       task_class_assignment_id, submission_id
+			       task_class_assignment_id, submission_id, distribution_target_id, student_exercise_id,
+			       evaluation_id, survey_id
 			FROM student_notifications
 			""";
 
@@ -64,8 +65,8 @@ public class StudentNotificationDao {
 			WHERE e.evaluation_id = ? AND n.created_at <= CURRENT_TIMESTAMP(6) - INTERVAL %d DAY
 			""".formatted(RETENTION_DAYS);
 
-	/* Removes only the expired notifications of students who belong to the published assignment's class. */
-	private static final String PURGE_EXPIRED_FOR_TASK_PUBLISHED_CLASS = """
+	/* Removes only the expired notifications of students who belong to the assignment's class. */
+	private static final String PURGE_EXPIRED_FOR_ASSIGNMENT_CLASS = """
 			DELETE n FROM student_notifications n
 			JOIN student_class_memberships scm ON scm.student_user_id = n.student_user_id
 			JOIN task_class_assignments ca ON ca.classroom_id = scm.classroom_id
@@ -101,19 +102,122 @@ public class StudentNotificationDao {
 			ON DUPLICATE KEY UPDATE notification_id = notification_id
 			""";
 
+	private static final String INSERT_SURVEY_AVAILABLE = """
+			INSERT INTO student_notifications (
+			  student_user_id, notification_type, evaluation_id, survey_id, task_class_assignment_id, title, message
+			)
+			SELECT u.user_id, ?, e.evaluation_id, sv.survey_id, ca.task_class_assignment_id,
+			       'アンケートに回答できます',
+			       LEFT(CONCAT('課題「', t.title, '」の評価についてアンケートに回答できます。'), 500)
+			FROM evaluations e
+			JOIN evaluation_requests r ON r.evaluation_id = e.evaluation_id
+			  AND r.evaluation_request_id = ? AND r.actor_role = 'student'
+			JOIN submissions s ON s.submission_id = e.submission_id
+			JOIN task_participations tp ON tp.participation_id = s.participation_id
+			JOIN task_class_assignments ca ON ca.task_class_assignment_id = tp.task_class_assignment_id
+			  AND ca.assignment_status = 'published'
+			  AND (ca.publish_at IS NULL OR ca.publish_at <= CURRENT_TIMESTAMP)
+			JOIN student_class_memberships scm ON scm.student_user_id = tp.student_user_id
+			  AND scm.classroom_id = ca.classroom_id AND scm.membership_status = 'active'
+			JOIN classrooms c ON c.classroom_id = ca.classroom_id AND c.classroom_status = 'active'
+			JOIN users u ON u.user_id = tp.student_user_id AND u.user_type = 'student'
+			  AND u.account_status = 'active' AND u.deleted_at IS NULL
+			JOIN tasks t ON t.task_id = ca.task_id
+			  AND t.publication_status = 'published' AND t.deleted_at IS NULL
+			JOIN surveys sv ON sv.survey_id = (
+			  SELECT MAX(active_survey.survey_id)
+			  FROM surveys active_survey
+			  WHERE active_survey.task_id = t.task_id AND active_survey.survey_status = 'active'
+			)
+			WHERE e.evaluation_id = ? AND e.evaluation_status = 'completed'
+			  AND e.reevaluation_job_id IS NULL
+			  AND (e.evaluation_kind = 'initial'
+			    OR (e.evaluation_kind = 'reevaluation' AND EXISTS (
+			      SELECT 1 FROM audit_logs retry
+			      WHERE retry.target_type = 'evaluation' AND retry.target_id = e.evaluation_id
+			        AND retry.actor_role = 'student' AND retry.action_type = 'retry_requested'
+			        AND retry.result_status = 'success')))
+			  AND EXISTS (
+			    SELECT 1 FROM consent_records cr
+			    WHERE cr.consent_id = (
+			      SELECT latest.consent_id FROM consent_records latest
+			      WHERE latest.user_id = u.user_id
+			      ORDER BY latest.consent_id DESC LIMIT 1
+			    )
+			      AND cr.consent_status = 'agreed'
+			  )
+			  AND EXISTS (
+			    SELECT 1 FROM survey_questions sq
+			    WHERE sq.survey_id = sv.survey_id AND sq.question_status = 'active'
+			  )
+			  AND NOT EXISTS (
+			    SELECT 1 FROM survey_responses sr
+			    WHERE sr.student_user_id = u.user_id AND sr.survey_id = sv.survey_id
+			      AND sr.evaluation_id = e.evaluation_id
+			  )
+			ON DUPLICATE KEY UPDATE notification_id = notification_id
+			""";
+
+	private static final String INSERT_SURVEY_IN_PROGRESS = """
+			INSERT INTO student_notifications (
+			  student_user_id, notification_type, evaluation_id, survey_id, task_class_assignment_id, title, message
+			)
+			SELECT u.user_id, ?, e.evaluation_id, sv.survey_id, ca.task_class_assignment_id,
+			       'アンケートの回答を再開できます',
+			       LEFT(CONCAT('課題「', t.title, '」のアンケート回答が保存されています。続きから回答できます。'), 500)
+			FROM survey_responses sr
+			JOIN users u ON u.user_id = sr.student_user_id AND u.user_type = 'student'
+			  AND u.account_status = 'active' AND u.deleted_at IS NULL
+			JOIN surveys sv ON sv.survey_id = sr.survey_id AND sv.survey_status = 'active'
+			JOIN evaluations e ON e.evaluation_id = sr.evaluation_id AND e.evaluation_status = 'completed'
+			JOIN submissions s ON s.submission_id = e.submission_id
+			JOIN task_participations tp ON tp.participation_id = s.participation_id
+			  AND tp.student_user_id = u.user_id
+			JOIN task_class_assignments ca ON ca.task_class_assignment_id = tp.task_class_assignment_id
+			  AND ca.assignment_status = 'published'
+			  AND (ca.publish_at IS NULL OR ca.publish_at <= CURRENT_TIMESTAMP)
+			JOIN student_class_memberships scm ON scm.student_user_id = u.user_id
+			  AND scm.classroom_id = ca.classroom_id AND scm.membership_status = 'active'
+			JOIN classrooms c ON c.classroom_id = ca.classroom_id AND c.classroom_status = 'active'
+			JOIN tasks t ON t.task_id = ca.task_id AND t.publication_status = 'published'
+			  AND t.deleted_at IS NULL AND t.task_id = sv.task_id
+			WHERE sr.response_status = 'in_progress'
+			  AND sr.started_at <= CURRENT_TIMESTAMP - INTERVAL 24 HOUR
+			  AND EXISTS (
+			    SELECT 1 FROM consent_records cr
+			    WHERE cr.consent_id = (
+			      SELECT latest.consent_id FROM consent_records latest
+			      WHERE latest.user_id = u.user_id
+			      ORDER BY latest.consent_id DESC LIMIT 1
+			    ) AND cr.consent_status = 'agreed'
+			  )
+			  AND EXISTS (
+			    SELECT 1 FROM survey_questions sq
+			    WHERE sq.survey_id = sv.survey_id AND sq.question_status = 'active'
+			  )
+			ON DUPLICATE KEY UPDATE notification_id = notification_id
+			""";
+
 	/*
-	 * Notifies every active student of the class that the assignment now belongs to.
-	 * Draft saves and scheduled reservations must not reach this statement; only the moment an
-	 * assignment's status actually becomes 'published' (immediate publish, individual class addition,
-	 * or the scheduled-publication worker) should call insertTaskPublished.
+	 * Notifies every active student when an assignment is actually published. A task that supersedes
+	 * another revision gets distinct copy while retaining the same assignment-scoped notification
+	 * type and deduplication. Scheduled revisions reach this only from the publication worker.
 	 */
 	private static final String INSERT_TASK_PUBLISHED = """
 			INSERT INTO student_notifications (
 			  student_user_id, notification_type, task_class_assignment_id, title, message
 			)
 			SELECT u.user_id, ?, ca.task_class_assignment_id,
-			       LEFT(CONCAT('課題「', t.title, '」が公開されました'), 255),
-			       LEFT(CONCAT('クラス「', c.name, '」に課題「', t.title, '」が公開されました。取り組みを開始できます。'), 500)
+			       CASE WHEN t.supersedes_task_id IS NOT NULL
+			            THEN LEFT(CONCAT('課題「', t.title, '」の改訂版が公開されました'), 255)
+			            ELSE LEFT(CONCAT('課題「', t.title, '」が公開されました'), 255)
+			       END,
+			       CASE WHEN t.supersedes_task_id IS NOT NULL
+			            THEN LEFT(CONCAT('クラス「', c.name, '」に課題「', t.title,
+			                 '」の新しい改訂版が公開されました。内容を確認してください。'), 500)
+			            ELSE LEFT(CONCAT('クラス「', c.name, '」に課題「', t.title,
+			                 '」が公開されました。取り組みを開始できます。'), 500)
+			       END
 			FROM task_class_assignments ca
 			JOIN tasks t ON t.task_id = ca.task_id
 			JOIN classrooms c ON c.classroom_id = ca.classroom_id
@@ -136,7 +240,49 @@ public class StudentNotificationDao {
 			statement.setLong(2, assignmentId);
 			statement.executeUpdate();
 		}
-		try (PreparedStatement purge = connection.prepareStatement(PURGE_EXPIRED_FOR_TASK_PUBLISHED_CLASS)) {
+		try (PreparedStatement purge = connection.prepareStatement(PURGE_EXPIRED_FOR_ASSIGNMENT_CLASS)) {
+			purge.setLong(1, assignmentId);
+			purge.executeUpdate();
+		}
+	}
+
+	private static final String INSERT_ASSIGNMENT_EXPIRED = """
+			INSERT INTO student_notifications (
+			  student_user_id, notification_type, task_class_assignment_id, title, message
+			)
+			SELECT u.user_id, ?, ca.task_class_assignment_id,
+			       LEFT(CONCAT('課題「', t.title, '」の提出期限を過ぎました'), 255),
+			       LEFT(CONCAT('クラス「', c.name, '」の課題「', t.title, '」は提出期限を過ぎました。',
+			            CASE WHEN ca.late_submission_policy = 'allow'
+			              THEN '期限後の初回提出は可能です。'
+			              ELSE '期限後の提出はできません。'
+			            END), 500)
+			FROM task_class_assignments ca
+			JOIN tasks t ON t.task_id = ca.task_id
+			JOIN classrooms c ON c.classroom_id = ca.classroom_id
+			JOIN student_class_memberships scm ON scm.classroom_id = ca.classroom_id
+			  AND scm.membership_status = 'active'
+			JOIN users u ON u.user_id = scm.student_user_id AND u.user_type = 'student'
+			  AND u.account_status = 'active' AND u.deleted_at IS NULL
+			LEFT JOIN task_participations tp ON tp.task_class_assignment_id = ca.task_class_assignment_id
+			  AND tp.student_user_id = u.user_id
+			WHERE ca.task_class_assignment_id = ? AND ca.assignment_status = 'expired'
+			  AND (tp.progress_status IS NULL
+			    OR tp.progress_status NOT IN ('submitted', 'awaiting_evaluation', 'completed'))
+			""";
+
+	/**
+	 * Records an expiry notification for each active, unsubmitted student after the assignment state
+	 * has transitioned to expired. The caller's state transition and these inserts share a transaction,
+	 * so worker retries cannot duplicate the same transition's notifications.
+	 */
+	public static void insertAssignmentExpired(Connection connection, long assignmentId) throws SQLException {
+		try (PreparedStatement statement = connection.prepareStatement(INSERT_ASSIGNMENT_EXPIRED)) {
+			statement.setString(1, StudentNotification.TYPE_ASSIGNMENT_EXPIRED);
+			statement.setLong(2, assignmentId);
+			statement.executeUpdate();
+		}
+		try (PreparedStatement purge = connection.prepareStatement(PURGE_EXPIRED_FOR_ASSIGNMENT_CLASS)) {
 			purge.setLong(1, assignmentId);
 			purge.executeUpdate();
 		}
@@ -167,6 +313,22 @@ public class StudentNotificationDao {
 			WHERE ca.task_class_assignment_id = ?
 			""";
 
+	private static final String INSERT_EXERCISE_DISTRIBUTED = """
+			INSERT INTO student_notifications (
+			  student_user_id, notification_type, distribution_target_id, student_exercise_id, title, message
+			)
+			SELECT se.student_user_id, ?, dt.distribution_target_id, se.student_exercise_id,
+			       '授業演習にコードが配布されました',
+			       LEFT(CONCAT('授業演習「', se.scope_name, '」にコードが配布されました。演習を開いて内容を確認できます。'), 500)
+			FROM student_exercises se
+			JOIN distribution_targets dt ON dt.distribution_target_id = se.distribution_target_id
+			JOIN users u ON u.user_id = se.student_user_id AND u.user_type = 'student'
+			  AND u.account_status = 'active' AND u.deleted_at IS NULL
+			WHERE se.student_user_id = ? AND se.distribution_target_id = ?
+			  AND se.student_exercise_id = ? AND se.deleted_at IS NULL
+			ON DUPLICATE KEY UPDATE notification_id = notification_id
+			""";
+
 	/**
 	 * Records a deadline-extended notification for every active student in the assignment's class,
 	 * inside the caller's transaction (called right after the assignment's due_at is updated).
@@ -178,8 +340,28 @@ public class StudentNotificationDao {
 			statement.setLong(2, assignmentId);
 			statement.executeUpdate();
 		}
-		try (PreparedStatement purge = connection.prepareStatement(PURGE_EXPIRED_FOR_TASK_PUBLISHED_CLASS)) {
+		try (PreparedStatement purge = connection.prepareStatement(PURGE_EXPIRED_FOR_ASSIGNMENT_CLASS)) {
 			purge.setLong(1, assignmentId);
+			purge.executeUpdate();
+		}
+	}
+
+	/**
+	 * Records a notification only for the successfully created, owned delivery scope, in the
+	 * distribution transaction. A student/target pair can be notified only once.
+	 */
+	public static void insertExerciseDistributed(
+			Connection connection, long studentUserId, long distributionTargetId, long studentExerciseId)
+			throws SQLException {
+		try (PreparedStatement statement = connection.prepareStatement(INSERT_EXERCISE_DISTRIBUTED)) {
+			statement.setString(1, StudentNotification.TYPE_EXERCISE_DISTRIBUTED);
+			statement.setLong(2, studentUserId);
+			statement.setLong(3, distributionTargetId);
+			statement.setLong(4, studentExerciseId);
+			statement.executeUpdate();
+		}
+		try (PreparedStatement purge = connection.prepareStatement(PURGE_EXPIRED)) {
+			purge.setLong(1, studentUserId);
 			purge.executeUpdate();
 		}
 	}
@@ -267,6 +449,31 @@ public class StudentNotificationDao {
 		insertEvaluationNotification(connection, evaluationRequestId, evaluationId,
 				StudentNotification.TYPE_EVALUATION_FAILED, "failed", "評価に失敗しました",
 				"回提出の評価処理に失敗しました。評価画面で現在の状態と再試行可否を確認してください。");
+	}
+
+	/**
+	 * Notifies a consented student when their own completed evaluation has an active, answerable survey.
+	 * The caller's evaluation transaction owns this write; existing evaluations are never backfilled.
+	 */
+	public static void insertSurveyAvailable(
+			Connection connection, long evaluationRequestId, long evaluationId) throws SQLException {
+		try (PreparedStatement statement = connection.prepareStatement(INSERT_SURVEY_AVAILABLE)) {
+			statement.setString(1, StudentNotification.TYPE_SURVEY_AVAILABLE);
+			statement.setLong(2, evaluationRequestId);
+			statement.setLong(3, evaluationId);
+			statement.executeUpdate();
+		}
+	}
+
+	/**
+	 * Creates one reminder for a saved, incomplete survey response after 24 hours. The database
+	 * uniqueness constraint makes repeated worker passes idempotent per student and evaluation.
+	 */
+	public static int insertSurveyInProgressReminders(Connection connection) throws SQLException {
+		try (PreparedStatement statement = connection.prepareStatement(INSERT_SURVEY_IN_PROGRESS)) {
+			statement.setString(1, StudentNotification.TYPE_SURVEY_IN_PROGRESS);
+			return statement.executeUpdate();
+		}
 	}
 
 	private static void insertEvaluationNotification(
@@ -404,6 +611,14 @@ public class StudentNotificationDao {
 		Long assignment = resultSet.wasNull() ? null : assignmentId;
 		long submissionId = resultSet.getLong("submission_id");
 		Long submission = resultSet.wasNull() ? null : submissionId;
+		long distributionTargetId = resultSet.getLong("distribution_target_id");
+		Long distributionTarget = resultSet.wasNull() ? null : distributionTargetId;
+		long studentExerciseId = resultSet.getLong("student_exercise_id");
+		Long studentExercise = resultSet.wasNull() ? null : studentExerciseId;
+		long evaluationId = resultSet.getLong("evaluation_id");
+		Long evaluation = resultSet.wasNull() ? null : evaluationId;
+		long surveyId = resultSet.getLong("survey_id");
+		Long survey = resultSet.wasNull() ? null : surveyId;
 		return new StudentNotification(
 				resultSet.getLong("notification_id"),
 				resultSet.getString("notification_type"),
@@ -412,6 +627,10 @@ public class StudentNotificationDao {
 				createdAt.toLocalDateTime(),
 				resultSet.getTimestamp("read_at") != null,
 				assignment,
-				submission);
+				submission,
+				distributionTarget,
+				studentExercise,
+				evaluation,
+				survey);
 	}
 }

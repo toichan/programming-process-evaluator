@@ -145,6 +145,24 @@ public final class StudentSurveyDao {
 		}
 	}
 
+	public boolean isAccessibleForNotification(
+			long studentUserId, long assignmentId, long evaluationId, long surveyId) throws SQLException {
+		try (Connection connection = Client.createConnection()) {
+			connection.setReadOnly(true);
+			connection.setAutoCommit(false);
+			if (findConsentStatus(connection, studentUserId) != ConsentStatus.AGREED) {
+				connection.commit();
+				return false;
+			}
+			SurveyTarget target = findPageTarget(connection, studentUserId, assignmentId, evaluationId, surveyId);
+			boolean accessible = target != null
+					&& (target.responseId != null
+							|| (target.surveyActive && hasActiveQuestions(connection, surveyId)));
+			connection.commit();
+			return accessible;
+		}
+	}
+
 	public SaveResult saveResponse(
 			long studentUserId,
 			long assignmentId,
@@ -287,6 +305,23 @@ public final class StudentSurveyDao {
 						resultSet.getString("response_status"),
 						resultSet.getLong("submission_id"),
 						"active".equals(resultSet.getString("survey_status")));
+			}
+		}
+	}
+
+	private static boolean hasActiveQuestions(Connection connection, long surveyId) throws SQLException {
+		try (PreparedStatement statement = connection.prepareStatement("""
+				SELECT EXISTS (
+				  SELECT 1 FROM survey_questions
+				  WHERE survey_id = ? AND question_status = 'active'
+				)
+				""")) {
+			statement.setLong(1, surveyId);
+			try (ResultSet resultSet = statement.executeQuery()) {
+				if (!resultSet.next()) {
+					throw new SQLException("Survey availability could not be checked.");
+				}
+				return resultSet.getBoolean(1);
 			}
 		}
 	}

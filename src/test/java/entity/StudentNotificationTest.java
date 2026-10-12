@@ -30,6 +30,38 @@ class StudentNotificationTest {
 				"t", "m", null, false, 1L, 1L));
 	}
 
+	@Test void exposesDistributionTargetAndOwnedExerciseReferences() {
+		var notification = new StudentNotification(12, StudentNotification.TYPE_EXERCISE_DISTRIBUTED,
+				"配布完了", "授業演習へ移動できます。", LocalDateTime.now(), false,
+				null, null, 21L, 34L);
+		assertEquals(21L, notification.getDistributionTargetId());
+		assertEquals(34L, notification.getStudentExerciseId());
+		assertNull(notification.getAssignmentId());
+		assertNull(notification.getSubmissionId());
+	}
+
+	@Test void exposesSurveyAvailableTargetReferences() {
+		var notification = new StudentNotification(13, StudentNotification.TYPE_SURVEY_AVAILABLE,
+				"アンケートに回答できます", "課題の評価についてアンケートに回答できます。",
+				LocalDateTime.now(), false, 21L, null, null, null, 34L, 55L);
+		assertEquals(21L, notification.getAssignmentId());
+		assertEquals(34L, notification.getEvaluationId());
+		assertEquals(55L, notification.getSurveyId());
+		assertNull(notification.getSubmissionId());
+		assertNull(notification.getDistributionTargetId());
+		assertNull(notification.getStudentExerciseId());
+	}
+
+	@Test void exposesSurveyInProgressTargetReferences() {
+		var notification = new StudentNotification(14, StudentNotification.TYPE_SURVEY_IN_PROGRESS,
+				"アンケートの回答を再開できます", "保存済みの回答から再開できます。",
+				LocalDateTime.now(), false, 21L, null, null, null, 34L, 55L);
+		assertEquals(21L, notification.getAssignmentId());
+		assertEquals(34L, notification.getEvaluationId());
+		assertEquals(55L, notification.getSurveyId());
+		assertNull(notification.getSubmissionId());
+	}
+
 	@Test void pageIsImmutableAndReportsNavigation() {
 		var items = new java.util.ArrayList<StudentNotification>();
 		items.add(new StudentNotification(1, "evaluation_completed", "t", "m", LocalDateTime.now(), true, 1L, 2L));

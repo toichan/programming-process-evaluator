@@ -30,18 +30,21 @@
 - 一意制約は論理削除後の識別子再利用方針を個別に決める。ログインID、課題コード、外部IDなど履歴参照に使う識別子は原則再利用しない。
 - 物理削除または匿名化を行う管理手順では、対象範囲、理由、実行者、実行日時、関連データへの影響を監査記録へ残す。
 
-## student_notifications（第165版/V25）
+## student_notifications（第169版/V33）
 
-本人別の期限付き通知。初回バッチN165-00/01は通常評価完了、N165-02/V26は通常評価失敗、N165-03/V27は課題公開、N165-04/V28は期限接近、N165-05/V29は期限延長・受付再開を接続する。後続イベントは追加migration/契約で拡張する。通知導入前の履歴をbackfillしない。
+本人別の期限付き通知。N165-00/01は通常評価完了、N165-02/V26は通常評価失敗、N165-03/V27は課題公開、N165-04/V28は期限接近、N165-05/V29は期限延長・受付再開、N165-06/V30は授業演習コード配布、N166-01/V31は期限超過、N168/V32は回答可能な課題別アンケート、N169/V33は24時間後も進行中のアンケート回答再開案内を接続する。通知導入前の履歴をbackfillしない。
 
 |フィールド名|型|NULL|制約・用途|
 |:--|:--|:--|:--|
 |notification_id|BIGINT|NO|PRIMARY KEY, AUTO_INCREMENT|
 |student_user_id|BIGINT|NO|users.user_idへのFK。通知閲覧/既読の本人範囲|
-|notification_type|VARCHAR(40)|NO|V25は`evaluation_completed`、V26で`evaluation_failed`、V27で`task_published`、V28で`due_soon`、V29で`deadline_extended`を追加|
-|evaluation_id|BIGINT|YES|evaluations.evaluation_idへのFK。通常評価完了/失敗通知の重複識別。`task_published`/`due_soon`/`deadline_extended`では必ずNULL|
-|submission_id|BIGINT|YES|submissions.submission_idへのFK。対象提出版への遷移。`task_published`/`due_soon`/`deadline_extended`では必ずNULL|
-|task_class_assignment_id|BIGINT|YES|task_class_assignments.task_class_assignment_idへのFK。対象課題への遷移。`task_published`/`due_soon`/`deadline_extended`では必須|
+|notification_type|VARCHAR(40)|NO|V25は`evaluation_completed`、V26で`evaluation_failed`、V27で`task_published`、V28で`due_soon`、V29で`deadline_extended`、V30で`exercise_distributed`、V31で`assignment_expired`、V32で`survey_available`、V33で`survey_in_progress`を追加|
+|evaluation_id|BIGINT|YES|evaluations.evaluation_idへのFK。通常評価完了/失敗・アンケート通知の重複識別。`task_published`/`due_soon`/`deadline_extended`/`exercise_distributed`/`assignment_expired`では必ずNULL|
+|submission_id|BIGINT|YES|submissions.submission_idへのFK。対象提出版への遷移。`task_published`/`due_soon`/`deadline_extended`/`exercise_distributed`/`assignment_expired`/`survey_available`/`survey_in_progress`では必ずNULL|
+|survey_id|BIGINT|YES|surveys.survey_idへのCASCADEなしFK。`survey_available`/`survey_in_progress`の対象アンケートを固定し、同タイプでは必須、それ以外ではNULL|
+|task_class_assignment_id|BIGINT|YES|task_class_assignments.task_class_assignment_idへのFK。対象課題への遷移。`task_published`/`due_soon`/`deadline_extended`/`assignment_expired`では必須|
+|distribution_target_id|BIGINT|YES|distribution_targets.distribution_target_idへのFK。演習配布通知の重複識別。`exercise_distributed`では必須、`assignment_expired`ではNULL|
+|student_exercise_id|BIGINT|YES|student_exercises.student_exercise_idへのFK。演習配布通知の本人所有リンク先。`exercise_distributed`では必須、`assignment_expired`ではNULL|
 |task_published_dedupe_key|BIGINT|YES|V27追加の生成列（STORED）。`notification_type='task_published'`のときのみ`task_class_assignment_id`と同値、それ以外はNULL|
 |due_soon_dedupe_key|BIGINT|YES|V28追加の生成列（STORED）。`notification_type='due_soon'`のときのみ`task_class_assignment_id`と同値、それ以外はNULL|
 |title|VARCHAR(255)|NO|表示用見出し。HTMLとして扱わない|
@@ -50,11 +53,15 @@
 |read_at|DATETIME(6)|YES|NULL=未読。個別クリック/本人の一括既読POSTで更新|
 
 - UNIQUE `(student_user_id, notification_type, evaluation_id)`。通常workerは本人/評価/提出/割当を正本JOINから取得し、通常評価の完了処理と同一トランザクションで通知を保存する。教師プロンプト変更の再評価は作成しない。
+- N169/V33はこのUNIQUEにより、進行中案内を同一生徒×評価につき1件に制限する。下書き保存から24時間経過後も`in_progress`の回答を60秒間隔で走査し、最新同意・有効な設問/アンケート・完了評価・公開課題/所属・本人状態を満たす場合だけ作成する。既存回答へのbackfillおよび再通知はしない。
 - CHECK `ck_student_notification_evaluation_refs`で評価完了/失敗通知の評価ID・提出ID・割当IDをすべて必須とする。列のNULL許容は将来の別イベント用であり、評価通知ではNULLを保存しない。
 - N165-02は最終失敗と中断復旧の同じトランザクションで正本JOINから`evaluation_failed`を保存する。通常のstudent要求かつinitial、またはstudent要求の明示再試行（reevaluation、当該評価のstudent/成功/retry_requested監査あり）で、再評価jobなし/failedだけが対象。要求payloadは評価入力保存で置き換わるためtriggerを永続識別に使わない。完了通知も同じ通常/明示再試行条件を使う。技術的エラーは通知へ保存せず、課題名・提出版・現在状態と再試行可否の確認案内だけを保存する。通知種別/本人/評価IDの既存UNIQUEで重複防止し、再試行成功後も過去の失敗通知を新しい状態と混同しない。
-- N165-03/V27は`ck_student_notification_task_published_refs`で`task_published`の評価ID/提出IDを必ずNULL、割当IDを必須とする。`evaluation_id`がNULLの通知は既存UNIQUE `(student_user_id, notification_type, evaluation_id)` では重複防止できないため、生成列`task_published_dedupe_key`と専用UNIQUE `(student_user_id, task_published_dedupe_key)`で本人×割当単位の重複を防止する（非`task_published`行はNULLのため互いに衝突しない）。対象は実公開確定時点（即時公開、予約公開worker、追加クラスへの即時公開）の割当に属する有効な（`membership_status='active'`かつ`account_status='active'`・未削除）生徒全員で、下書き保存・予約設定時点では作成しない。同一割当への再通知はON DUPLICATE KEY UPDATEで無視し、公開処理と同一トランザクションで対象クラスの期限切れ通知を清掃する。
+- N165-03/V27は`ck_student_notification_task_published_refs`で`task_published`の評価ID/提出IDを必ずNULL、割当IDを必須とする。`evaluation_id`がNULLの通知は既存UNIQUE `(student_user_id, notification_type, evaluation_id)` では重複防止できないため、生成列`task_published_dedupe_key`と専用UNIQUE `(student_user_id, task_published_dedupe_key)`で本人×割当単位の重複を防止する（非`task_published`行はNULLのため互いに衝突しない）。対象は実公開確定時点（即時公開、予約公開worker、追加クラスへの即時公開）の割当に属する有効な（`membership_status='active'`かつ`account_status='active'`・未削除）生徒全員で、下書き保存・予約設定時点では作成しない。同一割当への再通知はON DUPLICATE KEY UPDATEで無視し、公開処理と同一トランザクションで対象クラスの期限切れ通知を清掃する。N167では`supersedes_task_id`を持つ改訂版の実公開も対象とし、既存`task_published`型のまま改訂再公開を明示するタイトル/本文を使う。即時公開は再公開transaction内、予約公開はworkerの`scheduled`→`published`遷移transaction内で通知し、新assignment単位の既存dedupeを利用する。追加migrationおよびbackfillは行わない。
 - N165-04/V28は`ck_student_notification_due_soon_refs`で`due_soon`の評価ID/提出IDを必ずNULL、割当IDを必須とする。生成列`due_soon_dedupe_key`と専用UNIQUE `(student_user_id, due_soon_dedupe_key)`で本人×割当単位の重複を防止する（非`due_soon`行はNULLのため互いに衝突しない）。対象は`task_class_assignments.due_at`が現在時刻から24時間以内に迫り、かつ`updated_at`（公開/最終更新時刻）から24時間以上経過した有効な割当のうち、`task_participations.progress_status`が`submitted`/`awaiting_evaluation`/`completed`のいずれでもない（またはレコード未作成の未着手）有効な生徒。`updated_at`がNULLの既存legacy割当は対象外。60秒間隔の`StudentDueSoonReminderWorker`バックグラウンドポーリングのみで、新規HTTP APIは追加しない。
 - N165-05/V29は`ck_student_notification_deadline_extended_refs`で`deadline_extended`の評価ID/提出IDを必ずNULL、割当IDを必須とする。`deadline_extended`専用のdedupe生成列・UNIQUE制約は意図的に設けない。教師による提出期限延長（受付再開含む）は複数回起こり得るため、延長の都度、対象クラスの有効な（`membership_status='active'`かつ`account_status='active'`・未削除）生徒全員へ新規通知行を作成し、過去の延長通知（既読化済み含む）は変更・削除しない。`TeacherTaskDao.extendAssignmentDeadline`による`due_at`更新と同一トランザクションで通知を挿入する。新規HTTP APIは追加しない。
+- N165-06/V30は`exercise_distributed`の評価ID/提出ID/課題割当IDを必ずNULL、`distribution_target_id`と本人の`student_exercise_id`を必須とする。両IDにはCASCADEなしのFKを設定する。生成列`exercise_distributed_dedupe_key`と専用UNIQUE `(student_user_id, exercise_distributed_dedupe_key)`で本人×配信対象を重複排除する。個々の生徒の演習領域とファイル構成を同一配信transaction内で作成できた場合だけ、その本人/配信対象/領域IDを通知へ保存する。予約作成時には通知せず、予約workerの配布確定時に作成する。同一配信の再試行・既配布スキップは通知を追加しない。通知クリック時は有効本人・本人所有の対象領域・配布完了を再確認し、利用可能なら`/student/exercise?exerciseId=...`へ遷移する。導入前の配布履歴を通知へbackfillしない。
+- N166-01/V31は`assignment_expired`の評価ID/提出ID/配信参照を必ずNULL、課題割当IDを必須とする。専用dedupe UNIQUEは設けない。`TeacherTaskPublicationDao`が`published`→`expired`へ実際に更新した場合のみ、同じトランザクションで、有効な在籍生徒の未提出者（participationなし、またはprogress statusがsubmitted/awaiting_evaluation/completed以外）へ作成する。期限切れ遷移・監査・通知が原子的であるためworker再実行では重複せず、期限延長で再公開された後の再度の期限切れは別イベントとして通知する。期限後提出の`allow`/`deny`に合わせて文面を分岐し、クリック時には提出可能ならエディター、拒否なら有効な期限切れ割当の本人向け確認を経て生徒ホームへ遷移する。V31導入前の期限切れはbackfillしない。
+- N168/V32は`survey_available`に評価ID・課題割当ID・アンケートIDを必須とし、提出ID・配信参照をNULLにする。既存UNIQUE `(student_user_id, notification_type, evaluation_id)`で本人×評価の重複を防ぐ。生徒本人が開始した初回評価/明示再試行の完了transactionで、active設問を持つactive課題別アンケート、最新同意`agreed`、有効な本人/所属/公開課題割当が揃う場合だけ作成する。教師主導の再評価、既存評価へのbackfill、完了後に有効化されたアンケートへの遡及作成は対象外。クリック時は保存済み3参照と現在の認可・同意・状態を再検証し、`/student/survey?assignmentId=...&evaluationId=...&surveyId=...`へ遷移する。通知表示/閲覧はアンケート回答を開始せず、明示下書き保存が開始条件のまま。
 - FKにCASCADEを設けない。通知の削除は業務データに影響せず、業務データの通常論理削除も通知を連鎖削除しない。
 - 一覧索引 `(student_user_id, created_at, notification_id)`、未読索引 `(student_user_id, read_at, created_at)`、保持期限索引 `(created_at)`。
 - `created_at > CURRENT_TIMESTAMP(6) - INTERVAL 90 DAY` が表示/件数/操作対象。ちょうど90日経過した通知は期限切れ。GETは表示から除外するだけで削除せず、書込時に本人の期限切れ通知を削除する。同じ完了イベント・同じ割当公開は期限後に再通知しない。
