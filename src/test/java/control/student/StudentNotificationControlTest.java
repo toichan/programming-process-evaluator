@@ -70,6 +70,11 @@ class StudentNotificationControlTest {
 				LocalDateTime.now(), false, assignmentId, null);
 	}
 
+	private static StudentNotification dueSoonNotification(Long assignmentId) {
+		return new StudentNotification(9, StudentNotification.TYPE_DUE_SOON, "t", "m",
+				LocalDateTime.now(), false, assignmentId, null);
+	}
+
 	@Test void opensReadableTargetAndMarksOnlyAfterAccessCheck() throws Exception {
 		var dao = new FakeDao();
 		dao.stored = notification(21L, 22L);
@@ -144,6 +149,30 @@ class StudentNotificationControlTest {
 		assertEquals("/student/editor?assignmentId=31", result.redirectPath());
 		assertEquals(List.of("5:31"), checked);
 		assertEquals(List.of("find:5:9", "mark:5:9"), dao.calls);
+	}
+
+	@Test void dueSoonNotificationOpensTheEditorThroughTheTaskAccessGuard() throws Exception {
+		var dao = new FakeDao();
+		dao.stored = dueSoonNotification(31L);
+		var checked = new ArrayList<String>();
+		var control = new StudentNotificationControl(dao, (u, a, s) -> fail("unexpected"), (user, assignment) -> {
+			checked.add(user.userId() + ":" + assignment);
+			return TargetAccess.READABLE;
+		});
+		var result = control.open(STUDENT, 9);
+		assertEquals(OpenStatus.OPENED, result.status());
+		assertEquals("/student/editor?assignmentId=31", result.redirectPath());
+		assertEquals(List.of("5:31"), checked);
+		assertEquals(List.of("find:5:9", "mark:5:9"), dao.calls);
+	}
+
+	@Test void dueSoonNotificationWithUnavailableAssignmentIsConflictWithoutMarking() throws Exception {
+		var dao = new FakeDao();
+		dao.stored = dueSoonNotification(31L);
+		var control = new StudentNotificationControl(dao, (u, a, s) -> fail("unexpected"),
+				(u, a) -> TargetAccess.UNAVAILABLE);
+		assertEquals(OpenStatus.TARGET_UNAVAILABLE, control.open(STUDENT, 9).status());
+		assertTrue(dao.calls.stream().noneMatch(call -> call.startsWith("mark")));
 	}
 
 	@Test void taskPublishedNotificationWithUnavailableAssignmentIsConflictWithoutMarking() throws Exception {

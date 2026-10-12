@@ -106,7 +106,7 @@ public final class StudentNotificationControl {
 
 	private String resolveRedirectPath(AuthenticatedUser user, StudentNotification notification) throws SQLException {
 		String type = notification.getNotificationType();
-		if (StudentNotification.TYPE_TASK_PUBLISHED.equals(type)) {
+		if (StudentNotification.TYPE_TASK_PUBLISHED.equals(type) || StudentNotification.TYPE_DUE_SOON.equals(type)) {
 			if (notification.getAssignmentId() == null) {
 				return null;
 			}

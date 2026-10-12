@@ -142,6 +142,71 @@ public class StudentNotificationDao {
 		}
 	}
 
+	/* Removes only the expired notifications of students who belong to a class with a due-soon-eligible
+	 * assignment; this bulk sweep has no single assignment/class to scope by, so it is scoped the same
+	 * way the SELECT below targets its recipients. */
+	private static final String PURGE_EXPIRED_FOR_DUE_SOON_CANDIDATES = """
+			DELETE n FROM student_notifications n
+			JOIN student_class_memberships scm ON scm.student_user_id = n.student_user_id
+			  AND scm.membership_status = 'active'
+			JOIN task_class_assignments ca ON ca.classroom_id = scm.classroom_id
+			WHERE ca.assignment_status = 'published' AND ca.due_at IS NOT NULL
+			  AND ca.due_at > CURRENT_TIMESTAMP AND ca.due_at <= CURRENT_TIMESTAMP + INTERVAL 24 HOUR
+			  AND n.created_at <= CURRENT_TIMESTAMP(6) - INTERVAL %d DAY
+			""".formatted(RETENTION_DAYS);
+
+	/*
+	 * Reminds every active, not-yet-submitted student once per class assignment that its deadline is
+	 * within 24 hours. Assignments published less than 24 hours before their deadline never qualify
+	 * (TIMESTAMPDIFF below), and the dedupe UNIQUE on (student_user_id, due_soon_dedupe_key) stops a
+	 * later worker pass from inserting a second reminder for the same assignment. Submitted/awaiting
+	 * evaluation/completed participations are excluded so a student who already submitted is not reminded.
+	 */
+	private static final String INSERT_DUE_SOON = """
+			INSERT INTO student_notifications (
+			  student_user_id, notification_type, task_class_assignment_id, title, message
+			)
+			SELECT u.user_id, ?, ca.task_class_assignment_id,
+			       LEFT(CONCAT('課題「', t.title, '」の提出期限が近づいています'), 255),
+			       LEFT(CONCAT('クラス「', c.name, '」の課題「', t.title, '」の提出期限は ',
+			            DATE_FORMAT(ca.due_at, '%Y/%m/%d %H:%i'), ' です。期限までに提出してください。'), 500)
+			FROM task_class_assignments ca
+			JOIN tasks t ON t.task_id = ca.task_id
+			JOIN classrooms c ON c.classroom_id = ca.classroom_id
+			JOIN student_class_memberships scm ON scm.classroom_id = ca.classroom_id
+			  AND scm.membership_status = 'active'
+			JOIN users u ON u.user_id = scm.student_user_id AND u.user_type = 'student'
+			  AND u.account_status = 'active' AND u.deleted_at IS NULL
+			LEFT JOIN task_participations tp ON tp.task_class_assignment_id = ca.task_class_assignment_id
+			  AND tp.student_user_id = u.user_id
+			WHERE ca.assignment_status = 'published'
+			  AND ca.due_at IS NOT NULL
+			  AND ca.due_at > CURRENT_TIMESTAMP
+			  AND ca.due_at <= CURRENT_TIMESTAMP + INTERVAL 24 HOUR
+			  AND TIMESTAMPDIFF(MINUTE, ca.updated_at, ca.due_at) >= 1440
+			  AND (tp.progress_status IS NULL
+			    OR tp.progress_status NOT IN ('submitted', 'awaiting_evaluation', 'completed'))
+			ON DUPLICATE KEY UPDATE notification_id = notification_id
+			""";
+
+	/**
+	 * Scans every published, due-within-24-hours class assignment and records a one-time due-soon
+	 * reminder for each active student who has not yet submitted, inside the caller's transaction.
+	 * The same write also purges due-soon candidates' expired notifications. Returns the number of
+	 * reminders inserted (ignoring rows skipped by the dedupe UNIQUE).
+	 */
+	public static int insertDueSoonReminders(Connection connection) throws SQLException {
+		int inserted;
+		try (PreparedStatement statement = connection.prepareStatement(INSERT_DUE_SOON)) {
+			statement.setString(1, StudentNotification.TYPE_DUE_SOON);
+			inserted = statement.executeUpdate();
+		}
+		try (PreparedStatement purge = connection.prepareStatement(PURGE_EXPIRED_FOR_DUE_SOON_CANDIDATES)) {
+			purge.executeUpdate();
+		}
+		return inserted;
+	}
+
 	/**
 	 * Records the completion notification inside the caller's transaction; duplicates are ignored.
 	 * The same write also purges the owning student's notifications past the retention period.

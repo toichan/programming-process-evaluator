@@ -19,14 +19,23 @@
 - [x] N165-01 評価完了: 初回/再提出/失敗再試行の成功後に本人へ通知し、対象提出版の評価結果へ遷移する。教師プロンプト変更の再評価は除外する。
 - [x] N165-02 評価失敗: 本人へ失敗と明示再試行の導線を示す。API費用を伴う自動再試行を追加しない。
 - [x] N165-03 課題公開: 即時/予約/追加クラスの実公開後に対象生徒へ通知し、対象課題へ遷移する。下書き・予約設定時には公開通知しない。
-- [ ] N165-04 期限接近: 時刻・頻度合意後、未提出の有効な期限付き課題だけを対象にする。提出・期限延長・無効化を再確認して不要な通知を抑止する。
+- [x] N165-04 期限接近: 時刻・頻度合意後、未提出の有効な期限付き課題だけを対象にする。提出・期限延長・無効化を再確認して不要な通知を抑止する。
 - [ ] N165-05 期限延長: 変更されたクラスの対象者へ新期限を通知する。期限切れからの受付再開を区別する。
 - [ ] N165-06 演習配布: 本人の領域への反映成功後に通知し、本人の配布先を開く。部分失敗・予約・同一配信再試行で未配布者への成功通知や重複通知を作らない。
 - 後続: 期限超過 → 課題改訂再公開 → アンケート回答可能 → 回答途中の案内。教師による再評価完了通知は既存非通知合意を維持し、別途判断する。
 - 作業単位: `src/main` のEntity/DAO/Control/Servlet、共通生徒ヘッダーと通知UI、各イベントの確定処理、対象テスト。正確な対象ファイル・列・APIはN165-00で決め、未合意のDB設計は実装しない。
 - 検証条件: イベント確定後の保存/再読込、本人別未読/既読、他人生徒・他所属・無効対象の境界、再試行の重複防止、対象提出版/課題/配布先への認証HTTP遷移、未保存取消保持、通常幅/狭幅の本実装ブラウザー受入。対象テスト・WARを優先し、共有基盤の変更時に回帰検証する。
 - ローカル8080限定。本番ppeval.net・プロトタイプ・デプロイ/バックアップ設定・資格情報・外部AIは操作しない。DB変更は設計合意後の追加migrationを対象確認・検証して適用し、既存migrationを変更しない。
-- 現在の次の着手: N165-04「期限接近」。通知の確定頻度/時刻（24時間前1回）を既存の期限・延長・提出確定条件と突き合わせ、対象DB/API契約を文書へ反映してから実装する。初回範囲・表示・既読・保持・課題公開の仕様判断は完了。仕様/費用/運用負担が変わる新たな判断が判明した場合だけ該当実装前に確認する。
+- 現在の次の着手: N165-05「期限延長」。延長確定時点の対象クラスの有効な生徒へ新期限を通知し、期限切れからの受付再開（無効化解除）は別イベントとして区別する実装方針を確定してから着手する。
+
+#### 第165版 第4バッチ: 期限接近（N165-04、2026-10-12、専用受入・8080反映済み）
+
+- 範囲: 公開から24時間以上経過した有効な期限付き割当のうち、提出・評価待ち・完了のいずれでもない学生への期限24時間前リマインドのみを対象。公開直後（24時間未満経過）の割当、提出済み/評価待ち/完了済み学生、無効化・取消済み割当は対象外。延長後の重複リマインドはしない。
+- 対象: V28の`due_soon`型追加・必須参照（割当ID必須/評価ID・提出ID必須NULL）CHECK拡張・dedupe生成列`due_soon_dedupe_key`/専用UNIQUE、`StudentNotificationDao.insertDueSoonReminders(Connection)`（LEFT JOINで対象学生を正本から抽出し`ON DUPLICATE KEY UPDATE`で重複防止）、新規`StudentDueSoonReminderWorker`（60秒ポーリング、バックグラウンドスレッドで定期実行）、`StudentNotificationControl`の遷移先解決（既存の課題公開通知と同じ生徒用エディターへの遷移を再利用）、対象DB/Control/Workerテスト。既存一覧/ベル/POST離脱guardのUIを再利用する。
+- 状態/DB: `task_class_assignments`の`due_at`と`updated_at`（公開/最終更新時刻の代替指標）をTIMESTAMPDIFFで比較し、「現在時刻から期限までの残り時間が24時間以内」かつ「公開/更新から24時間以上経過」の両条件を満たす行のみ対象にする。対象学生は`task_participations.progress_status NOT IN ('submitted','awaiting_evaluation','completed')`またはレコード未作成（未着手）に限定し、LEFT JOINで学生の在籍（`membership_status='active'`）・アカウント（`account_status='active'`）の有効性も検証する。評価ID/提出IDは必ずNULL、割当IDは必須とし、`due_soon_dedupe_key`の専用UNIQUEで同一学生・同一割当への重複挿入を防止する（ON DUPLICATE KEY UPDATEで無視）。`task_class_assignments.updated_at`にDEFAULTがないため、legacyな既存割当（`updated_at IS NULL`）は自動的に対象外となる既知の挙動を確認済み。
+- API: 既存の個別既読POST/303・一覧・ベルを再利用し、新規APIは追加しない。Workerはユーザー操作とは独立したバックグラウンドポーリングのみで、HTTPエンドポイントは追加しない。
+- 検証: `./gradlew --offline --no-daemon test --tests 'control.student.StudentNotificationDatabaseTest' --tests 'control.student.StudentNotificationControlTest' --tests 'worker.student.StudentDueSoonReminderWorkerTest' war`の専用DB/isolated環境での対象テスト、および全体`gradle test war`でリグレッションなしを確認。開発中に`dueSoonRemindersExcludeSubmittedAndOutOfWindowAssignments`テストが失敗したが、原因はDAOロジックではなく、同一classroom内の複数学生を`student_user_id`でスコープせずCOUNTしていたテストのアサーション側の欠陥と判明し、修正後に全件成功した（DAOの除外条件・LEFT JOIN・TIMESTAMPDIFF判定は当初から正しく機能していた）。
+- ローカル反映: isolated DB環境でのテスト全件成功後、8080へV28適用（`flywayMigrate`成功）・WAR再ビルド・appのみ再起動、HTTPリダイレクトチェーン200到達・起動ログにエラーなしを確認。既存のpublished割当（`updated_at IS NULL`のlegacy行）はdue_soon対象外のため、ブラウザー受入用に専用デモ学生（`demo-progress-20261008-1`、in_progress/not_started/needs_action状態の3名）の割当`due_at`/`updated_at`を一時的にdue_soonウィンドウ内へ調整し、Worker実行後に対象3名（not_started/in_progress/needs_action）へのみ通知が作成され、submitted/completed状態の学生には作成されないことを確認した。通知クリックで対象課題の生徒用エディターへ遷移すること、一覧での既読化、ヘッダーベルの未読数反映も確認した。検証用に変更したパスワード・`due_at`/`updated_at`・作成した通知行は確認後に元の値へ復元済み（本番検証データとして永続化していない）。本番・プロトタイプ・外部AIは操作していない。
 
 #### 第165版 第3バッチ: 課題公開（N165-03、2026-10-12、専用受入済み・8080反映待ち）
 

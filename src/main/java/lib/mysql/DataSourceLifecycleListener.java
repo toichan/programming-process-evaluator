@@ -7,6 +7,7 @@ import javax.servlet.annotation.WebListener;
 import control.evaluation.EvaluationWorker;
 import control.evaluation.ReevaluationJobWorker;
 import control.evaluation.ReevaluationPreviewWorker;
+import control.student.StudentDueSoonReminderWorker;
 import control.teacher.TeacherTaskPublicationWorker;
 import control.teacher.TeacherDistributionWorker;
 
@@ -17,6 +18,7 @@ public final class DataSourceLifecycleListener implements ServletContextListener
 	private ReevaluationJobWorker reevaluationJobWorker;
 	private TeacherTaskPublicationWorker teacherTaskPublicationWorker;
 	private TeacherDistributionWorker teacherDistributionWorker;
+	private StudentDueSoonReminderWorker studentDueSoonReminderWorker;
 
 	@Override
 	public void contextInitialized(ServletContextEvent event) {
@@ -26,15 +28,20 @@ public final class DataSourceLifecycleListener implements ServletContextListener
 		reevaluationJobWorker = new ReevaluationJobWorker();
 		teacherTaskPublicationWorker = new TeacherTaskPublicationWorker();
 		teacherDistributionWorker = new TeacherDistributionWorker();
+		studentDueSoonReminderWorker = new StudentDueSoonReminderWorker();
 		evaluationWorker.start();
 		reevaluationPreviewWorker.start();
 		reevaluationJobWorker.start();
 		teacherTaskPublicationWorker.start();
 		teacherDistributionWorker.start();
+		studentDueSoonReminderWorker.start();
 	}
 
 	@Override
 	public void contextDestroyed(ServletContextEvent event) {
+		if (studentDueSoonReminderWorker != null) {
+			studentDueSoonReminderWorker.stop();
+		}
 		if (teacherDistributionWorker != null) {
 			teacherDistributionWorker.stop();
 		}

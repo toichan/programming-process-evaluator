@@ -145,6 +145,116 @@ class StudentNotificationDatabaseTest {
 		}
 	}
 
+	/*
+	 * due_soon rows are seeded through a dedicated task_class_assignment/participation created and rolled back
+	 * inside this single transaction, so the shared fixture's own assignment (due_at=NOW()+1 day, updated_at
+	 * left NULL by the fixture) never satisfies TIMESTAMPDIFF(...) >= 1440 and is naturally excluded.
+	 */
+	@Test void dueSoonRemindersCreateOneRowPerEligibleAssignmentAndDedupeOnRerun() throws SQLException {
+		try (Connection c = Client.createConnection()) {
+			c.setAutoCommit(false);
+			long taskId = number(c, "SELECT task_id FROM tasks WHERE task_code='review-task'");
+			long classroomId = number(c, "SELECT classroom_id FROM classrooms WHERE name='Synthetic Class'");
+			long dueSoonAssignment = insert(c, """
+					INSERT INTO task_class_assignments (task_id,classroom_id,assignment_status,publish_at,due_at,
+					  late_submission_policy,resubmission_policy,created_at,updated_at)
+					VALUES (?,?,'published',NOW() - INTERVAL 2 DAY,NOW() + INTERVAL 2 HOUR,
+					  'deny','allow',NOW() - INTERVAL 2 DAY,NOW() - INTERVAL 2 DAY)""", taskId, classroomId);
+			insert(c, """
+					INSERT INTO task_participations (student_user_id,task_class_assignment_id,learning_status,
+					  progress_status,save_status,evaluation_status,last_activity_at,active_duration_seconds)
+					VALUES (?,?,'in_progress','in_progress','draft','not_started',NOW(),30)""", student, dueSoonAssignment);
+
+			int inserted = StudentNotificationDao.insertDueSoonReminders(c);
+			assertTrue(inserted >= 1);
+			assertEquals(1, number(c, "SELECT COUNT(*) FROM student_notifications WHERE student_user_id=" + student
+					+ " AND notification_type='due_soon' AND task_class_assignment_id=" + dueSoonAssignment));
+			var notification = text(c, "SELECT title FROM student_notifications WHERE task_class_assignment_id="
+					+ dueSoonAssignment);
+			assertEquals("課題「Synthetic Review Task」の提出期限が近づいています", notification);
+			String message = text(c, "SELECT message FROM student_notifications WHERE task_class_assignment_id="
+					+ dueSoonAssignment);
+			assertTrue(message.startsWith("クラス「Synthetic Class」の課題「Synthetic Review Task」の提出期限は "));
+			assertTrue(message.endsWith(" です。期限までに提出してください。"));
+			assertEquals(0, number(c, "SELECT COUNT(*) FROM student_notifications WHERE task_class_assignment_id="
+					+ dueSoonAssignment + " AND (evaluation_id IS NOT NULL OR submission_id IS NOT NULL)"));
+
+			StudentNotificationDao.insertDueSoonReminders(c);
+			assertEquals(1, number(c, "SELECT COUNT(*) FROM student_notifications WHERE student_user_id=" + student
+					+ " AND notification_type='due_soon' AND task_class_assignment_id=" + dueSoonAssignment),
+					"a second worker pass must not duplicate the reminder");
+
+			c.rollback();
+			c.setAutoCommit(true);
+			assertEquals(0, number(c, "SELECT COUNT(*) FROM task_class_assignments WHERE task_class_assignment_id="
+					+ dueSoonAssignment), "rollback must leave no trace of the synthetic assignment");
+		}
+	}
+
+	@Test void dueSoonRemindersExcludeSubmittedAndOutOfWindowAssignments() throws SQLException {
+		try (Connection c = Client.createConnection()) {
+			c.setAutoCommit(false);
+			long taskId = number(c, "SELECT task_id FROM tasks WHERE task_code='review-task'");
+			long classroomId = number(c, "SELECT classroom_id FROM classrooms WHERE name='Synthetic Class'");
+
+			long submittedAssignment = assignmentDueSoon(c, taskId, classroomId, "NOW() - INTERVAL 2 DAY");
+			insert(c, """
+					INSERT INTO task_participations (student_user_id,task_class_assignment_id,learning_status,
+					  progress_status,save_status,evaluation_status,last_activity_at,active_duration_seconds)
+					VALUES (?,?,'completed','submitted','saved','not_started',NOW(),30)""", student, submittedAssignment);
+
+			long tooFarAssignment = insert(c, """
+					INSERT INTO task_class_assignments (task_id,classroom_id,assignment_status,publish_at,due_at,
+					  late_submission_policy,resubmission_policy,created_at,updated_at)
+					VALUES (?,?,'published',NOW() - INTERVAL 2 DAY,NOW() + INTERVAL 30 HOUR,
+					  'deny','allow',NOW() - INTERVAL 2 DAY,NOW() - INTERVAL 2 DAY)""", taskId, classroomId);
+			insert(c, """
+					INSERT INTO task_participations (student_user_id,task_class_assignment_id,learning_status,
+					  progress_status,save_status,evaluation_status,last_activity_at,active_duration_seconds)
+					VALUES (?,?,'in_progress','in_progress','draft','not_started',NOW(),30)""", student, tooFarAssignment);
+
+			long pastDueAssignment = insert(c, """
+					INSERT INTO task_class_assignments (task_id,classroom_id,assignment_status,publish_at,due_at,
+					  late_submission_policy,resubmission_policy,created_at,updated_at)
+					VALUES (?,?,'published',NOW() - INTERVAL 2 DAY,NOW() - INTERVAL 1 HOUR,
+					  'deny','allow',NOW() - INTERVAL 2 DAY,NOW() - INTERVAL 2 DAY)""", taskId, classroomId);
+			insert(c, """
+					INSERT INTO task_participations (student_user_id,task_class_assignment_id,learning_status,
+					  progress_status,save_status,evaluation_status,last_activity_at,active_duration_seconds)
+					VALUES (?,?,'in_progress','in_progress','draft','not_started',NOW(),30)""", student, pastDueAssignment);
+
+			long recentlyPublishedAssignment = insert(c, """
+					INSERT INTO task_class_assignments (task_id,classroom_id,assignment_status,publish_at,due_at,
+					  late_submission_policy,resubmission_policy,created_at,updated_at)
+					VALUES (?,?,'published',NOW() - INTERVAL 10 HOUR,NOW() + INTERVAL 2 HOUR,
+					  'deny','allow',NOW() - INTERVAL 10 HOUR,NOW() - INTERVAL 10 HOUR)""", taskId, classroomId);
+			insert(c, """
+					INSERT INTO task_participations (student_user_id,task_class_assignment_id,learning_status,
+					  progress_status,save_status,evaluation_status,last_activity_at,active_duration_seconds)
+					VALUES (?,?,'in_progress','in_progress','draft','not_started',NOW(),30)""", student, recentlyPublishedAssignment);
+
+			StudentNotificationDao.insertDueSoonReminders(c);
+			for (long excluded : List.of(submittedAssignment, tooFarAssignment, pastDueAssignment, recentlyPublishedAssignment)) {
+				assertEquals(0, number(c, "SELECT COUNT(*) FROM student_notifications WHERE student_user_id=" + student
+						+ " AND task_class_assignment_id=" + excluded),
+						"assignment " + excluded + " must not receive a due_soon reminder for this student");
+			}
+
+			c.rollback();
+			c.setAutoCommit(true);
+		}
+	}
+
+	private long assignmentDueSoon(Connection c, long taskId, long classroomId, String publishAndUpdatedAtExpression)
+			throws SQLException {
+		return insert(c, """
+				INSERT INTO task_class_assignments (task_id,classroom_id,assignment_status,publish_at,due_at,
+				  late_submission_policy,resubmission_policy,created_at,updated_at)
+				VALUES (?,?,'published',""" + publishAndUpdatedAtExpression + ",NOW() + INTERVAL 2 HOUR,"
+				+ "'deny','allow'," + publishAndUpdatedAtExpression + "," + publishAndUpdatedAtExpression + ")",
+				taskId, classroomId);
+	}
+
 	@Test void failureNotificationIsDeduplicatedAndExcludesTeacherAndReevaluation() throws SQLException {
 		try (Connection c = Client.createConnection()) {
 			long failed = insert(c, """
