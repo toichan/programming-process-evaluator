@@ -1,3 +1,7 @@
+.notification-page {
+	max-width: 100%;
+}
+
 .notification-list {
 	display: grid;
 	gap: 0.75rem;
