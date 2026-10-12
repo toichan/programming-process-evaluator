@@ -9,6 +9,7 @@ public final class StudentNotification {
 	public static final String TYPE_EVALUATION_FAILED = "evaluation_failed";
 	public static final String TYPE_TASK_PUBLISHED = "task_published";
 	public static final String TYPE_DUE_SOON = "due_soon";
+	public static final String TYPE_DEADLINE_EXTENDED = "deadline_extended";
 	private static final DateTimeFormatter LABEL = DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm");
 
 	private final long notificationId;

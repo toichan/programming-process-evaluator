@@ -1110,6 +1110,7 @@ public final class TeacherTaskDao {
 				throw new SQLException("Task assignment deadline update affected an unexpected row count.");
 			}
 		}
+		StudentNotificationDao.insertDeadlineExtended(connection, assignmentId);
 	}
 
 	public long insertPublishedTaskAssignment(

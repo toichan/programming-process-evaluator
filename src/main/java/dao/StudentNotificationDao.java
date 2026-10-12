@@ -142,6 +142,48 @@ public class StudentNotificationDao {
 		}
 	}
 
+	/*
+	 * Notifies every active student of the class whose assignment just had its deadline extended
+	 * (this also covers an expired assignment reopened by the same extension). Reads ca.due_at from
+	 * the row the caller already updated in this transaction, so the message always reflects the new
+	 * deadline. Unlike task_published/due_soon, no dedupe UNIQUE guards this insert: a student may
+	 * legitimately receive one of these per distinct extension of the same assignment.
+	 */
+	private static final String INSERT_DEADLINE_EXTENDED = """
+			INSERT INTO student_notifications (
+			  student_user_id, notification_type, task_class_assignment_id, title, message
+			)
+			SELECT u.user_id, ?, ca.task_class_assignment_id,
+			       LEFT(CONCAT('課題「', t.title, '」の提出期限が延長されました'), 255),
+			       LEFT(CONCAT('クラス「', c.name, '」の課題「', t.title, '」の提出期限は ',
+			            DATE_FORMAT(ca.due_at, '%Y/%m/%d %H:%i'), ' に延長されました。引き続き提出できます。'), 500)
+			FROM task_class_assignments ca
+			JOIN tasks t ON t.task_id = ca.task_id
+			JOIN classrooms c ON c.classroom_id = ca.classroom_id
+			JOIN student_class_memberships scm ON scm.classroom_id = ca.classroom_id
+			  AND scm.membership_status = 'active'
+			JOIN users u ON u.user_id = scm.student_user_id AND u.user_type = 'student'
+			  AND u.account_status = 'active' AND u.deleted_at IS NULL
+			WHERE ca.task_class_assignment_id = ?
+			""";
+
+	/**
+	 * Records a deadline-extended notification for every active student in the assignment's class,
+	 * inside the caller's transaction (called right after the assignment's due_at is updated).
+	 * The same write also purges the class's students' notifications past the retention period.
+	 */
+	public static void insertDeadlineExtended(Connection connection, long assignmentId) throws SQLException {
+		try (PreparedStatement statement = connection.prepareStatement(INSERT_DEADLINE_EXTENDED)) {
+			statement.setString(1, StudentNotification.TYPE_DEADLINE_EXTENDED);
+			statement.setLong(2, assignmentId);
+			statement.executeUpdate();
+		}
+		try (PreparedStatement purge = connection.prepareStatement(PURGE_EXPIRED_FOR_TASK_PUBLISHED_CLASS)) {
+			purge.setLong(1, assignmentId);
+			purge.executeUpdate();
+		}
+	}
+
 	/* Removes only the expired notifications of students who belong to a class with a due-soon-eligible
 	 * assignment; this bulk sweep has no single assignment/class to scope by, so it is scoped the same
 	 * way the SELECT below targets its recipients. */

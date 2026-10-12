@@ -32,16 +32,16 @@
 
 ## student_notifications（第165版/V25）
 
-本人別の期限付き通知。初回バッチN165-00/01は通常評価完了、N165-02/V26は通常評価失敗、N165-03/V27は課題公開を接続する。後続イベントは追加migration/契約で拡張する。通知導入前の履歴をbackfillしない。
+本人別の期限付き通知。初回バッチN165-00/01は通常評価完了、N165-02/V26は通常評価失敗、N165-03/V27は課題公開、N165-04/V28は期限接近、N165-05/V29は期限延長・受付再開を接続する。後続イベントは追加migration/契約で拡張する。通知導入前の履歴をbackfillしない。
 
 |フィールド名|型|NULL|制約・用途|
 |:--|:--|:--|:--|
 |notification_id|BIGINT|NO|PRIMARY KEY, AUTO_INCREMENT|
 |student_user_id|BIGINT|NO|users.user_idへのFK。通知閲覧/既読の本人範囲|
-|notification_type|VARCHAR(40)|NO|V25は`evaluation_completed`、V26で`evaluation_failed`、V27で`task_published`、V28で`due_soon`を追加|
-|evaluation_id|BIGINT|YES|evaluations.evaluation_idへのFK。通常評価完了/失敗通知の重複識別。`task_published`/`due_soon`では必ずNULL|
-|submission_id|BIGINT|YES|submissions.submission_idへのFK。対象提出版への遷移。`task_published`/`due_soon`では必ずNULL|
-|task_class_assignment_id|BIGINT|YES|task_class_assignments.task_class_assignment_idへのFK。対象課題への遷移。`task_published`/`due_soon`では必須|
+|notification_type|VARCHAR(40)|NO|V25は`evaluation_completed`、V26で`evaluation_failed`、V27で`task_published`、V28で`due_soon`、V29で`deadline_extended`を追加|
+|evaluation_id|BIGINT|YES|evaluations.evaluation_idへのFK。通常評価完了/失敗通知の重複識別。`task_published`/`due_soon`/`deadline_extended`では必ずNULL|
+|submission_id|BIGINT|YES|submissions.submission_idへのFK。対象提出版への遷移。`task_published`/`due_soon`/`deadline_extended`では必ずNULL|
+|task_class_assignment_id|BIGINT|YES|task_class_assignments.task_class_assignment_idへのFK。対象課題への遷移。`task_published`/`due_soon`/`deadline_extended`では必須|
 |task_published_dedupe_key|BIGINT|YES|V27追加の生成列（STORED）。`notification_type='task_published'`のときのみ`task_class_assignment_id`と同値、それ以外はNULL|
 |due_soon_dedupe_key|BIGINT|YES|V28追加の生成列（STORED）。`notification_type='due_soon'`のときのみ`task_class_assignment_id`と同値、それ以外はNULL|
 |title|VARCHAR(255)|NO|表示用見出し。HTMLとして扱わない|
@@ -54,10 +54,11 @@
 - N165-02は最終失敗と中断復旧の同じトランザクションで正本JOINから`evaluation_failed`を保存する。通常のstudent要求かつinitial、またはstudent要求の明示再試行（reevaluation、当該評価のstudent/成功/retry_requested監査あり）で、再評価jobなし/failedだけが対象。要求payloadは評価入力保存で置き換わるためtriggerを永続識別に使わない。完了通知も同じ通常/明示再試行条件を使う。技術的エラーは通知へ保存せず、課題名・提出版・現在状態と再試行可否の確認案内だけを保存する。通知種別/本人/評価IDの既存UNIQUEで重複防止し、再試行成功後も過去の失敗通知を新しい状態と混同しない。
 - N165-03/V27は`ck_student_notification_task_published_refs`で`task_published`の評価ID/提出IDを必ずNULL、割当IDを必須とする。`evaluation_id`がNULLの通知は既存UNIQUE `(student_user_id, notification_type, evaluation_id)` では重複防止できないため、生成列`task_published_dedupe_key`と専用UNIQUE `(student_user_id, task_published_dedupe_key)`で本人×割当単位の重複を防止する（非`task_published`行はNULLのため互いに衝突しない）。対象は実公開確定時点（即時公開、予約公開worker、追加クラスへの即時公開）の割当に属する有効な（`membership_status='active'`かつ`account_status='active'`・未削除）生徒全員で、下書き保存・予約設定時点では作成しない。同一割当への再通知はON DUPLICATE KEY UPDATEで無視し、公開処理と同一トランザクションで対象クラスの期限切れ通知を清掃する。
 - N165-04/V28は`ck_student_notification_due_soon_refs`で`due_soon`の評価ID/提出IDを必ずNULL、割当IDを必須とする。生成列`due_soon_dedupe_key`と専用UNIQUE `(student_user_id, due_soon_dedupe_key)`で本人×割当単位の重複を防止する（非`due_soon`行はNULLのため互いに衝突しない）。対象は`task_class_assignments.due_at`が現在時刻から24時間以内に迫り、かつ`updated_at`（公開/最終更新時刻）から24時間以上経過した有効な割当のうち、`task_participations.progress_status`が`submitted`/`awaiting_evaluation`/`completed`のいずれでもない（またはレコード未作成の未着手）有効な生徒。`updated_at`がNULLの既存legacy割当は対象外。60秒間隔の`StudentDueSoonReminderWorker`バックグラウンドポーリングのみで、新規HTTP APIは追加しない。
+- N165-05/V29は`ck_student_notification_deadline_extended_refs`で`deadline_extended`の評価ID/提出IDを必ずNULL、割当IDを必須とする。`deadline_extended`専用のdedupe生成列・UNIQUE制約は意図的に設けない。教師による提出期限延長（受付再開含む）は複数回起こり得るため、延長の都度、対象クラスの有効な（`membership_status='active'`かつ`account_status='active'`・未削除）生徒全員へ新規通知行を作成し、過去の延長通知（既読化済み含む）は変更・削除しない。`TeacherTaskDao.extendAssignmentDeadline`による`due_at`更新と同一トランザクションで通知を挿入する。新規HTTP APIは追加しない。
 - FKにCASCADEを設けない。通知の削除は業務データに影響せず、業務データの通常論理削除も通知を連鎖削除しない。
 - 一覧索引 `(student_user_id, created_at, notification_id)`、未読索引 `(student_user_id, read_at, created_at)`、保持期限索引 `(created_at)`。
 - `created_at > CURRENT_TIMESTAMP(6) - INTERVAL 90 DAY` が表示/件数/操作対象。ちょうど90日経過した通知は期限切れ。GETは表示から除外するだけで削除せず、書込時に本人の期限切れ通知を削除する。同じ完了イベント・同じ割当公開は期限後に再通知しない。
-- 参照IDがない/不整合の通知から任意URLへ移動しない。個別操作で通知本人・対象提出本人・現在の所属/閲覧条件を検証し、対象利用不可を明示する。`task_published`/`due_soon`はクリックで対象課題のエディターへ遷移し、対象割当が無効化・削除済みの場合は利用不可を案内する。
+- 参照IDがない/不整合の通知から任意URLへ移動しない。個別操作で通知本人・対象提出本人・現在の所属/閲覧条件を検証し、対象利用不可を明示する。`task_published`/`due_soon`/`deadline_extended`はクリックで対象課題のエディターへ遷移し、対象割当が無効化・削除済みの場合は利用不可を案内する。
 
 ## users
 

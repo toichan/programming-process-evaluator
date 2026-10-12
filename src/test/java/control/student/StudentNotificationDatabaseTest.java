@@ -255,6 +255,57 @@ class StudentNotificationDatabaseTest {
 				taskId, classroomId);
 	}
 
+	/*
+	 * deadline_extended intentionally has no dedupe UNIQUE guard: unlike task_published/due_soon, every
+	 * distinct extension of the same assignment is newsworthy and must produce its own notification.
+	 * A withdrawn classmate must never receive one, and the message must reflect the assignment's
+	 * current (already-updated) due_at.
+	 */
+	@Test void deadlineExtendedNotifiesOnlyActiveClassmatesAndAllowsRepeatExtensions() throws SQLException {
+		try (Connection c = Client.createConnection()) {
+			c.setAutoCommit(false);
+			long taskId = number(c, "SELECT task_id FROM tasks WHERE task_code='review-task'");
+			long classroomId = number(c, "SELECT classroom_id FROM classrooms WHERE name='Synthetic Class'");
+			long extendedAssignment = insert(c, """
+					INSERT INTO task_class_assignments (task_id,classroom_id,assignment_status,publish_at,due_at,
+					  late_submission_policy,resubmission_policy,created_at,updated_at)
+					VALUES (?,?,'expired',NOW() - INTERVAL 3 DAY,NOW() - INTERVAL 1 HOUR,
+					  'deny','allow',NOW() - INTERVAL 3 DAY,NOW() - INTERVAL 3 DAY)""", taskId, classroomId);
+			update(c, "UPDATE student_class_memberships SET membership_status='inactive' WHERE student_user_id=? AND classroom_id=?",
+					other, classroomId);
+
+			update(c, "UPDATE task_class_assignments SET assignment_status='published', due_at=NOW() + INTERVAL 3 DAY"
+					+ " WHERE task_class_assignment_id=" + extendedAssignment);
+			StudentNotificationDao.insertDeadlineExtended(c, extendedAssignment);
+			assertEquals(1, number(c, "SELECT COUNT(*) FROM student_notifications WHERE task_class_assignment_id="
+					+ extendedAssignment + " AND notification_type='deadline_extended'"));
+			assertEquals(0, number(c, "SELECT COUNT(*) FROM student_notifications WHERE task_class_assignment_id="
+					+ extendedAssignment + " AND student_user_id=" + other), "an inactive classmate must not be notified");
+			var title = text(c, "SELECT title FROM student_notifications WHERE task_class_assignment_id="
+					+ extendedAssignment);
+			assertEquals("課題「Synthetic Review Task」の提出期限が延長されました", title);
+			String message = text(c, "SELECT message FROM student_notifications WHERE task_class_assignment_id="
+					+ extendedAssignment);
+			assertTrue(message.startsWith("クラス「Synthetic Class」の課題「Synthetic Review Task」の提出期限は "));
+			assertTrue(message.endsWith(" に延長されました。引き続き提出できます。"));
+			assertEquals(0, number(c, "SELECT COUNT(*) FROM student_notifications WHERE task_class_assignment_id="
+					+ extendedAssignment + " AND (evaluation_id IS NOT NULL OR submission_id IS NOT NULL)"));
+
+			update(c, "UPDATE task_class_assignments SET due_at=NOW() + INTERVAL 5 DAY"
+					+ " WHERE task_class_assignment_id=" + extendedAssignment);
+			StudentNotificationDao.insertDeadlineExtended(c, extendedAssignment);
+			assertEquals(2, number(c, "SELECT COUNT(*) FROM student_notifications WHERE student_user_id=" + student
+					+ " AND task_class_assignment_id=" + extendedAssignment
+					+ " AND notification_type='deadline_extended'"),
+					"a second, distinct extension must add another notification rather than being deduped");
+
+			c.rollback();
+			c.setAutoCommit(true);
+			assertEquals(0, number(c, "SELECT COUNT(*) FROM task_class_assignments WHERE task_class_assignment_id="
+					+ extendedAssignment), "rollback must leave no trace of the synthetic assignment");
+		}
+	}
+
 	@Test void failureNotificationIsDeduplicatedAndExcludesTeacherAndReevaluation() throws SQLException {
 		try (Connection c = Client.createConnection()) {
 			long failed = insert(c, """
