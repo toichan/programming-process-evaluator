@@ -18,7 +18,7 @@ import lib.mysql.Client;
 
 public final class ReevaluationJobDao {
 	public ReevaluationJobStatus loadStatus(
-			Connection connection, long jobId, long taskId, long teacherUserId) throws SQLException {
+			Connection connection, long jobId, long taskId) throws SQLException {
 		long promptVersionId;
 		String status;
 		int targetCount;
@@ -39,11 +39,10 @@ public final class ReevaluationJobDao {
 				FROM reevaluation_jobs j
 				JOIN tasks t ON t.task_id = j.task_id
 				WHERE j.reevaluation_job_id = ? AND j.task_id = ?
-				  AND t.created_by_user_id = ? AND t.deleted_at IS NULL
+				  AND t.deleted_at IS NULL
 				""")) {
 			statement.setLong(1, jobId);
 			statement.setLong(2, taskId);
-			statement.setLong(3, teacherUserId);
 			try (ResultSet rows = statement.executeQuery()) {
 				if (!rows.next()) {
 					throw new TeacherTaskNotFoundException();
@@ -62,11 +61,11 @@ public final class ReevaluationJobDao {
 		}
 		return new ReevaluationJobStatus(
 				jobId, taskId, promptVersionId, status, targetCount, completedCount, failedCount,
-				progressPercent, startedAt, completedAt, loadTargetResults(connection, jobId, taskId, teacherUserId));
+				progressPercent, startedAt, completedAt, loadTargetResults(connection, jobId, taskId));
 	}
 
 	private static List<ReevaluationJobTargetResult> loadTargetResults(
-			Connection connection, long jobId, long taskId, long teacherUserId) throws SQLException {
+			Connection connection, long jobId, long taskId) throws SQLException {
 		List<ReevaluationJobTargetResult> results = new ArrayList<>();
 		try (PreparedStatement statement = connection.prepareStatement("""
 				SELECT u.login_id AS student_login_id,
@@ -92,12 +91,11 @@ public final class ReevaluationJobDao {
 				  GROUP BY dr.evaluation_id
 				) scores ON scores.evaluation_id = e.evaluation_id
 				WHERE jt.reevaluation_job_id = ? AND j.task_id = ?
-				  AND t.created_by_user_id = ? AND t.deleted_at IS NULL
+				  AND t.deleted_at IS NULL
 				ORDER BY c.grade_name, c.name, u.login_id, jt.reevaluation_job_target_id
 				""")) {
 			statement.setLong(1, jobId);
 			statement.setLong(2, taskId);
-			statement.setLong(3, teacherUserId);
 			try (ResultSet rows = statement.executeQuery()) {
 				while (rows.next()) {
 					results.add(new ReevaluationJobTargetResult(

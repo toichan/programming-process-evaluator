@@ -30,12 +30,34 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
+  function syncDraftFieldsTo(form) {
+    if (!form || form.id === 'promptDraftForm') return;
+    if (promptEditor) promptEditor.save();
+    const values = {
+      aiModel: document.getElementById('modelSelect')?.value || '',
+      commonPrompt: promptInput?.value || '',
+      additionalInstruction: additionalInstruction?.value || draftAdditionalInstruction?.value || ''
+    };
+    Object.entries(values).forEach(function(entry) {
+      const [name, value] = entry;
+      let field = form.elements.namedItem(name);
+      if (!field) {
+        field = document.createElement('input');
+        field.type = 'hidden';
+        field.name = name;
+        form.append(field);
+      }
+      field.value = value;
+    });
+  }
+
   document.querySelectorAll('form').forEach(function(form) {
     let confirmedAction = null;
     form.addEventListener('submit', function(event) {
       if (promptEditor && form.id === 'promptDraftForm') {
         promptEditor.save();
       }
+      syncDraftFieldsTo(form);
       const submitter = event.submitter;
       const action = submitter ? submitter.value : '';
       const reevaluationMessages = {

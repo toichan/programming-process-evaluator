@@ -242,7 +242,7 @@
 													<input type="hidden" name="hintIds" value="<c:out value='${hintInput.hintId}'/>">
 													<div class="field-block"><label class="mini-label">コマンド名</label><input class="form-control" name="hintTitles" value="<c:out value='${hintInput.hint.title}'/>"></div>
 													<div class="field-block"><label class="mini-label">説明</label><textarea class="form-control" name="hintContents" rows="2"><c:out value="${hintInput.hint.content}"/></textarea></div>
-													<div class="field-block"><label class="mini-label">使用方法</label><input class="form-control" name="hintUsageSyntaxes" value="<c:out value='${hintInput.hint.usageSyntax}'/>"></div>
+													<input type="hidden" name="hintUsageSyntaxes" value="<c:out value='${hintInput.hint.usageSyntax}'/>">
 													<div class="field-block"><label class="mini-label">サンプルコード</label><textarea class="form-control hint-code" name="hintCodes" rows="2"><c:out value="${hintInput.hint.code}"/></textarea></div>
 													<button class="btn btn-sm btn-outline-danger remove-row" type="button" aria-label="ヒントを削除">削除</button>
 												</div>
@@ -254,7 +254,7 @@
 													<input type="hidden" name="hintIds" value="<c:out value='${submittedTeacherTaskValues["hintIds"][status.index]}' default='0'/>">
 													<div class="field-block"><label class="mini-label">コマンド名</label><input class="form-control" name="hintTitles" value="<c:out value='${hintTitle}'/>"></div>
 													<div class="field-block"><label class="mini-label">説明</label><textarea class="form-control" name="hintContents" rows="2"><c:out value="${submittedTeacherTaskValues['hintContents'][status.index]}"/></textarea></div>
-													<div class="field-block"><label class="mini-label">使用方法</label><input class="form-control" name="hintUsageSyntaxes" value="<c:out value='${submittedTeacherTaskValues["hintUsageSyntaxes"][status.index]}'/>"></div>
+													<input type="hidden" name="hintUsageSyntaxes" value="<c:out value='${submittedTeacherTaskValues["hintUsageSyntaxes"][status.index]}'/>">
 													<div class="field-block"><label class="mini-label">サンプルコード</label><textarea class="form-control hint-code" name="hintCodes" rows="2"><c:out value="${submittedTeacherTaskValues['hintCodes'][status.index]}"/></textarea></div>
 													<button class="btn btn-sm btn-outline-danger remove-row" type="button" aria-label="ヒントを削除">削除</button>
 												</div>
@@ -267,15 +267,11 @@
 						<div class="d-flex gap-2 mt-4 justify-content-center flex-wrap">
 							<c:choose>
 								<c:when test="${teacherTaskPublicationStatus == 'published'}">
-									<button class="btn btn-primary" type="submit" id="createRevisionButton">改訂案を作成</button>
+									<button class="btn btn-primary" type="submit" id="createRevisionAndConfigurePromptButton">改訂案を保存してプロンプト設定</button>
+									<button class="btn btn-outline-secondary" type="submit" id="createRevisionButton">改訂案を保存</button>
 								</c:when>
 								<c:otherwise>
-									<button class="btn btn-primary" type="submit" id="publishTaskButton">
-										<c:choose>
-											<c:when test="${teacherTaskPublicationStatus == 'requires_update'}">改訂を公開</c:when>
-											<c:otherwise>保存・公開</c:otherwise>
-										</c:choose>
-									</button>
+									<button class="btn btn-primary" type="submit" id="saveAndConfigurePromptButton">保存してプロンプト設定</button>
 									<button class="btn btn-outline-secondary" type="submit" id="saveDraftButton">
 										<c:choose>
 											<c:when test="${teacherTaskPublicationStatus == 'requires_update'}">改訂案を保存</c:when>
@@ -306,7 +302,7 @@
 									<h3 id="previewEditorName">課題名未設定</h3>
 									<p id="previewEditorDescription">説明未設定</p>
 									<div class="info-block"><div class="info-label">実装する機能</div><ul id="previewEditorFeatures" class="mb-0"><li>未設定</li></ul></div>
-									<div class="info-block"><div class="info-label">入力制限</div><p id="previewEditorConstraint" class="mb-0">未設定</p></div>
+									<div class="info-block"><div class="info-label">入力制限</div><ul id="previewEditorConstraint" class="mb-0"><li>未設定</li></ul></div>
 									<div class="info-block" id="previewEditorRulesBlock" hidden><div class="info-label">作成時のルール</div><ul id="previewEditorRules" class="mb-0"></ul></div>
 									<div class="info-block io-block"><div class="info-label">想定入出力</div><div id="previewEditorCases"><p class="mb-0 text-muted">未設定</p></div></div>
 									<div id="previewHintCards"></div>
@@ -359,7 +355,6 @@
 											<c:if test="${not empty matchedClass.gradeName}"><c:out value="${matchedClass.gradeName}"/></c:if><c:out value="${matchedClass.name}"/>
 											<c:choose>
 												<c:when test="${assignment.assignmentStatus == 'scheduled'}"><span class="badge text-bg-info ms-1">公開予約</span></c:when>
-												<c:when test="${assignment.assignmentStatus == 'published'}"><span class="badge text-bg-success ms-1">公開中</span></c:when>
 												<c:when test="${assignment.assignmentStatus == 'expired'}"><span class="badge text-bg-secondary ms-1">期限切れ</span></c:when>
 												<c:when test="${assignment.assignmentStatus == 'requires_update'}"><span class="badge text-bg-warning ms-1">要更新</span></c:when>
 												<c:otherwise><span class="badge text-bg-light ms-1">未公開</span></c:otherwise>
@@ -388,13 +383,23 @@
 								<td><c:out value="${task.updatedAt}"/></td>
 								<td>
 									<div class="d-flex gap-2">
-										<c:if test="${task.createdByUserId == teacherTaskUserId}">
-											<c:if test="${not (task.publicationStatus == 'published' && task.learningStarted)}">
-												<a class="btn btn-sm btn-outline-primary" href="<c:url value='/teacher/task'><c:param name='taskId' value='${task.taskId}'/></c:url>">
-													編集
-												</a>
-											</c:if>
-											<a class="btn btn-sm btn-outline-secondary" href="<c:url value='/teacher/task'><c:param name='taskId' value='${task.taskId}'/><c:param name='view' value='history'/></c:url>">履歴</a>
+										<c:if test="${not (task.publicationStatus == 'published' && task.learningStarted)}">
+											<a class="btn btn-sm btn-outline-primary" href="<c:url value='/teacher/task'><c:param name='taskId' value='${task.taskId}'/></c:url>">
+												編集
+											</a>
+										</c:if>
+										<a class="btn btn-sm btn-outline-secondary" href="<c:url value='/teacher/task'><c:param name='taskId' value='${task.taskId}'/><c:param name='view' value='history'/></c:url>">履歴</a>
+										<c:if test="${task.publicationStatus == 'draft' || task.publicationStatus == 'requires_update'}">
+											<form class="task-state-form" method="post" action="<c:url value='/teacher/task'/>"
+												data-confirm-title="保存済みの課題を公開しますか？"
+												data-confirm-message="対象クラス・公開日時・提出期限および適用中のプロンプト設定をサーバーで再確認して公開します。">
+												<input type="hidden" name="action" value="publishTaskFromList">
+												<input type="hidden" name="csrfToken" value="<c:out value='${csrfToken}'/>">
+												<input type="hidden" name="requestToken" value="<c:out value='${teacherTaskPublishTokens[task.taskId]}'/>">
+												<input type="hidden" name="taskId" value="<c:out value='${task.taskId}'/>">
+												<input type="hidden" name="expectedVersion" value="<c:out value='${task.version}'/>">
+												<button class="btn btn-sm btn-outline-success" type="submit">公開</button>
+											</form>
 										</c:if>
 										<c:if test="${task.publicationStatus == 'published' && task.learningStarted}">
 											<form class="task-state-form" method="post" action="<c:url value='/teacher/task'/>"

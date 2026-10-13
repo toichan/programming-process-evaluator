@@ -104,7 +104,7 @@
 			</div>
 			<div class="evaluation-link-row">
 				<a class="btn btn-outline-secondary" href="<c:out value='${surveyEvaluationUrl}'/>">評価を確認する</a>
-				<a class="btn btn-outline-secondary" href="<c:out value='${surveyCodeLogUrl}'/>">ソースコード編集ログを確認する</a>
+				<a class="btn btn-outline-secondary" href="<c:out value='${surveyCodeLogUrl}'/>">ログを確認する</a>
 			</div>
 		</section>
 

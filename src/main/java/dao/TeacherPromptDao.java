@@ -40,18 +40,17 @@ public final class TeacherPromptDao {
 
 	public long ensureStandardRubric(Connection connection, long teacherUserId, long taskId) throws SQLException {
 		requireWriteTransaction(connection);
-		taskDao.findDraft(connection, teacherUserId, taskId, true)
+		taskDao.findPromptTask(connection, teacherUserId, taskId, true)
 				.orElseThrow(TeacherTaskNotFoundException::new);
 		long standardRubricId = standardRubricDao.requireActiveId(connection);
 		Long currentRubricId = null;
 		try (PreparedStatement statement = connection.prepareStatement("""
 				SELECT rubric_id FROM tasks
-				WHERE task_id = ? AND created_by_user_id = ?
+				WHERE task_id = ?
 				  AND publication_status = 'draft' AND deleted_at IS NULL
 				FOR UPDATE
 				""")) {
 			statement.setLong(1, taskId);
-			statement.setLong(2, teacherUserId);
 			try (ResultSet rows = statement.executeQuery()) {
 				if (!rows.next()) {
 					throw new TeacherTaskNotFoundException();
@@ -65,12 +64,11 @@ public final class TeacherPromptDao {
 		if (currentRubricId == null || currentRubricId != standardRubricId) {
 			try (PreparedStatement statement = connection.prepareStatement("""
 					UPDATE tasks SET rubric_id = ?
-					WHERE task_id = ? AND created_by_user_id = ?
+					WHERE task_id = ?
 					  AND publication_status = 'draft' AND deleted_at IS NULL
 					""")) {
 				statement.setLong(1, standardRubricId);
 				statement.setLong(2, taskId);
-				statement.setLong(3, teacherUserId);
 				if (statement.executeUpdate() != 1) {
 					throw new SQLException("The standard rubric could not be assigned to the task.");
 				}
@@ -224,11 +222,10 @@ public final class TeacherPromptDao {
 				JOIN tasks t ON t.task_id = j.task_id
 				JOIN prompt_versions pv ON pv.prompt_version_id = j.prompt_version_id
 				JOIN users requester ON requester.user_id = j.requested_by_user_id
-				WHERE j.task_id = ? AND t.created_by_user_id = ? AND t.deleted_at IS NULL
+				WHERE j.task_id = ? AND t.deleted_at IS NULL
 				ORDER BY requested_at DESC, j.reevaluation_job_id DESC
 				""")) {
 			statement.setLong(1, taskId);
-			statement.setLong(2, teacherUserId);
 			try (ResultSet rows = statement.executeQuery()) {
 				while (rows.next()) {
 					jobs.add(new ReevaluationJobHistory(
@@ -419,6 +416,55 @@ public final class TeacherPromptDao {
 				additionalInstruction);
 	}
 
+	public long copyPromptToDraftFromTask(
+			Connection connection,
+			long teacherUserId,
+			long sourceTaskId,
+			long targetTaskId) throws SQLException {
+		requireWriteTransaction(connection);
+		if (sourceTaskId == targetTaskId) {
+			throw new IllegalArgumentException("コピー元とコピー先には別の課題を選択してください。");
+		}
+		String modelId;
+		String commonPrompt;
+		String additionalInstruction;
+		try (PreparedStatement statement = connection.prepareStatement("""
+				SELECT pv.ai_model, pv.common_prompt, pv.additional_evaluation_instruction
+				FROM tasks source
+				JOIN tasks target ON target.school_id = source.school_id
+				JOIN prompt_versions pv
+				  ON pv.prompt_version_id = source.active_prompt_version_id
+				 AND pv.task_id = source.task_id
+				WHERE source.task_id = ? AND target.task_id = ?
+				  AND source.deleted_at IS NULL AND target.deleted_at IS NULL
+				  AND source.publication_status IN ('draft','published','requires_update')
+				  AND target.publication_status IN ('draft','requires_update')
+				  AND pv.prompt_status IN ('configured','versioned')
+				FOR UPDATE
+				""")) {
+			statement.setLong(1, sourceTaskId);
+			statement.setLong(2, targetTaskId);
+			try (ResultSet rows = statement.executeQuery()) {
+				if (!rows.next()) {
+					throw new IllegalArgumentException("同じ学校の課題に適用済みプロンプトがありません。");
+				}
+				modelId = rows.getString("ai_model");
+				commonPrompt = rows.getString("common_prompt");
+				additionalInstruction = rows.getString("additional_evaluation_instruction");
+			}
+		}
+		long versionId = saveDraft(
+				connection, teacherUserId, targetTaskId, null, 0,
+				modelId == null || modelId.isBlank() ? GeminiModelCatalog.DEFAULT_MODEL : modelId,
+				commonPrompt, additionalInstruction);
+		JsonObject details = new JsonObject();
+		details.addProperty("source_task_id", sourceTaskId);
+		details.addProperty("prompt_version_id", versionId);
+		recordAudit(connection, teacherUserId, targetTaskId, "copy_prompt_from_task",
+				"同じ学校のプロンプトを新しい課題専用の下書きへコピー", null, details);
+		return versionId;
+	}
+
 	public long beginGeneration(Connection connection, long teacherUserId, long taskId, long promptVersionId,
 			long expectedRowVersion, String stage) throws SQLException {
 		requireWriteTransaction(connection);
@@ -534,9 +580,10 @@ public final class TeacherPromptDao {
 		}
 		try (PreparedStatement statement = connection.prepareStatement("""
 				UPDATE evaluation_examples SET example_status = 'active'
-				WHERE prompt_version_id = ? AND example_status = 'inactive'
+				WHERE evaluation_example_id = ? AND prompt_version_id = ? AND example_status = 'inactive'
 				""")) {
-			statement.setLong(1, promptVersionId);
+			statement.setLong(1, current.evaluationExamples().getFirst().id());
+			statement.setLong(2, promptVersionId);
 			if (statement.executeUpdate() == 0) {
 				throw new SQLException("No generated evaluation examples were available to save.");
 			}
@@ -576,14 +623,13 @@ public final class TeacherPromptDao {
 				UPDATE tasks
 				SET active_prompt_version_id = ?, updated_by_user_id = ?,
 				    updated_at = CURRENT_TIMESTAMP, version = version + 1
-				WHERE task_id = ? AND created_by_user_id = ? AND version = ?
+				WHERE task_id = ? AND version = ?
 				  AND publication_status IN ('draft','requires_update') AND deleted_at IS NULL
 				""")) {
 			statement.setLong(1, promptVersionId);
 			statement.setLong(2, teacherUserId);
 			statement.setLong(3, taskId);
-			statement.setLong(4, teacherUserId);
-			statement.setLong(5, expectedTaskVersion);
+			statement.setLong(4, expectedTaskVersion);
 			if (statement.executeUpdate() != 1) {
 				throw new PromptVersionConflictException();
 			}

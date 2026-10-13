@@ -19,4 +19,15 @@ class TeacherPromptApplicationViewTest {
 		assertTrue(script.contains("form.elements.namedItem('applyConfirmed').value = 'yes'"));
 		assertTrue(script.contains("pageFeedback.confirm"));
 	}
+
+	@Test
+	void placesFluctuationInstructionSaveAfterEvaluationExampleGeneration() throws Exception {
+		String view = Files.readString(Path.of("src/main/webapp/WEB-INF/teacher/prompt/prompt.jsp"));
+		int generateButton = view.indexOf("value=\"generateEvaluationExamples\"");
+		int saveButton = view.indexOf("value=\"saveResolutions\"");
+
+		assertTrue(view.contains("揺らぎ項目指示を保存"));
+		assertFalse(view.contains("教師対応を保存"));
+		assertTrue(generateButton >= 0 && saveButton > generateButton);
+	}
 }

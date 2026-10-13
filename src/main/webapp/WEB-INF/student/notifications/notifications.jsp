@@ -8,6 +8,8 @@
 		<h1 class="section-title">通知</h1>
 		<p class="text-secondary mb-0">通知を選ぶと、関連する評価結果や課題へ移動します。通知は作成から90日間表示されます。</p>
 	</section>
+	<div id="notificationFeedback"
+		data-task-target-unavailable="<c:out value='${taskTargetUnavailable}'/>" aria-live="polite"></div>
 	<div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3">
 		<p class="mb-0">未読 <strong><c:out value="${notificationPage.unreadCount}"/></strong> 件</p>
 		<form method="post" action="<c:url value='/student/notifications/read-all'/>">

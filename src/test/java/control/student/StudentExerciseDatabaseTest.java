@@ -308,6 +308,28 @@ class StudentExerciseDatabaseTest {
 	}
 
 	@Test
+	void foreignOwnerWriteRejectionPreservesTheAuthorizedUsersPersistedFile() throws SQLException {
+		var file = create(null, null, 0, Type.FILE, "owned.py");
+		var saved = control.save(student, file.exerciseId(), file.entryId(), file.version(), "print('owner data')");
+
+		assertThrows(ExerciseNotFoundException.class,
+				() -> control.save(other, file.exerciseId(), file.entryId(), saved.version(), "print('foreign write')"));
+		assertEquals("print('owner data')", control.loadPage(student, file.exerciseId(), file.entryId())
+				.entries().stream().filter(entry -> entry.entryId() == file.entryId()).findFirst().orElseThrow().content());
+		try (Connection connection = Client.createConnection();
+				var statement = connection.prepareStatement("""
+						SELECT current_content FROM student_exercise_entries WHERE exercise_entry_id = ?
+						""")) {
+			assertEquals(System.getenv("DB_NAME"), connection.getCatalog());
+			statement.setLong(1, file.entryId());
+			try (var rows = statement.executeQuery()) {
+				assertTrue(rows.next());
+				assertEquals("print('owner data')", rows.getString(1));
+			}
+		}
+	}
+
+	@Test
 	void renamesAndMovesHierarchyWithoutChangingCodeOrIndividualTrash() throws SQLException {
 		var folder = create(null, null, 0, Type.FOLDER, "元");
 		var child = create(folder.exerciseId(), folder.entryId(), 1, Type.FOLDER, "子");

@@ -117,7 +117,7 @@ IC-005 Web接続結果（2026-10-03）: T008〜T011完了。確定済みJSON/CSR
 | チェック項目 | 判定 (OK/要修正/要確認) | 根拠文書 | 差分・懸念 | 修正案 |
 |---|---|---|---|---|
 | 公開状態の語彙 | OK | [状態命名標準](../state-rules/state-naming-standard.md) §3-3、[tasks](../database-design/table-definitions.md#tasks) | DBの4値は命名標準に対応する。これは遷移条件までの合意を意味しない | 状態値は維持し、操作ごとの条件を契約化する |
-| 下書き保存と公開 | OK | [機能仕様書](../function-specification.md)「課題保存・公開」、[課題状態ルール](../state-rules/teacher/task-state-rules.md) §3 | 下書き保存では公開・予約公開を開始せず、保存・公開で公開処理を行うと統一済み | 文書反映済み。実装検証は別途行う |
+| 下書き保存と公開 | OK | [機能仕様書](../function-specification.md)「課題保存・公開」、[課題状態ルール](../state-rules/teacher/task-state-rules.md) §3 | 課題編集では下書き保存のみを行う。「保存してプロンプト設定」は正常保存後にプロンプト設定へ遷移する。課題一覧からの公開操作のみが公開・予約公開を開始し、権限・状態・設定済みプロンプト・公開条件をサーバー側で再検証する | 文書反映済み。実装検証は別途行う |
 | 削除からの復元先 | OK | [課題状態ルール](../state-rules/teacher/task-state-rules.md) §3・6-3、[機能仕様書](../function-specification.md)「課題復元」 | 下書きへ復元し、公開・予約公開を再開しない方針で統一済み | A案採用・文書反映済み |
 | 削除対象と履歴 | OK | [課題状態ルール](../state-rules/teacher/task-state-rules.md) §3・5・6-3、[tasks](../database-design/table-definitions.md#tasks)、[audit_logs](../database-design/table-definitions.md#audit_logs) | 要更新からの削除を遷移表にも反映し、復元時も削除履歴を保持する契約を記録済み | 文書反映済み。DB・監査の動作検証は未実施 |
 | 公開中の内容更新 | OK | [機能仕様書](../function-specification.md)「課題編集」、[課題状態ルール](../state-rules/teacher/task-state-rules.md) §5・6-1・6-2 | 全生徒が未着手なら要更新として編集し、再公開まで直前の公開内容を維持する。学習開始後の影響項目は直接上書きせず、新しい課題として複製する | 本実装時に学習開始判定、更新対象項目、楽観ロック等の競合制御を具体化する |
@@ -128,7 +128,7 @@ IC-005 Web接続結果（2026-10-03）: T008〜T011完了。確定済みJSON/CSR
 
 | 案 | 復元後の動作 | 影響 |
 |---|---|---|
-| A: 下書きへ復元（採用） | 内容・関連データを保持して下書きへ戻し、教師が確認して保存・公開を実行する | 状態遷移表の既存記述に沿う。復元だけで期限切れの公開設定や対象クラスへの公開が再開されることを防げる |
+| A: 下書きへ復元（採用） | 内容・関連データを保持して下書きへ戻し、教師が内容・対象クラス等を確認して課題一覧から公開する | 状態遷移表の既存記述に沿う。復元だけで期限切れの公開設定や対象クラスへの公開が再開されることを防げる |
 | B: 削除前の状態へ復元（不採用） | 削除前が公開中なら公開中へ戻す | 削除前状態を確実に取得する保存契約、期限・対象クラス・プロンプトの再検証、検証失敗時の遷移先が必要 |
 
 A案の合意済み対応（管理者の操作範囲は引き続き要確認）:
@@ -234,6 +234,7 @@ A案の合意済み対応（管理者の操作範囲は引き続き要確認）:
 | 2026-10-12 | 第165版 N165-06 演習配布通知契約 | V30で`exercise_distributed`と配信対象ID・本人演習IDを保存し、成功した生徒単位の演習領域作成と同一トランザクションで通知を作る。予約設定では作成せず、workerによる配布成功時だけ通知。再試行・同一配信の既配布スキップは本人×配信対象のUNIQUEで重複させない。通知クリック時は本人/配布完了/領域状態を再検証し、生徒授業演習Servletの`/student/exercise?exerciseId=...`へ303。既存配布履歴のbackfillなし | 機能仕様書REQ-NOTIFICATION-165/REQ-NOTIFICATION-LINK-165、[DB定義](../database-design/table-definitions.md#student_notifications第166版v31)、[演習配布計画](./feature-plans/teacher-exercise-distribution.md) | 既存配信transactionと授業演習ページを再利用し、新規HTTP endpoint/UIを追加しない。対象は専用DB・実HTTP・ローカル8080のmigration/app反映を検証し、本番/プロトタイプ/外部AIは変更しない |
 | 2026-10-12 | 第166版 N166-01 期限超過通知契約 | V31で`assignment_expired`を追加。期限workerが`published`→`expired`へ遷移させた同一transactionで監査と通知を確定し、active membership/有効studentアカウントかつ未提出者を対象にする。期限後提出allow/denyを本文で示し、allowまたは期限延長後に現時点で編集可能なら対象editor、期限後提出不可ならアクセス検証後にstudent homeへ303。再開後の再期限切れは新しい遷移として通知し、旧期限切れ履歴をbackfillしない | 機能仕様REQ-NOTIFICATION-166、課題状態ルール、[DB定義](../database-design/table-definitions.md#student_notifications第166版v31) | ユーザーが対象条件とhome fallbackを確認済み。専用DB/全体回帰成功後、local8080へV31適用・validation済み。生徒browserでallow通知の一覧表示・editor遷移・既読化を受入。deny→homeはControl/Servletテスト済み、browserでは未確認。本番/プロトタイプ/外部AIは変更しない |
 | 2026-10-12 | 第167版 N167-01 課題改訂再公開通知契約 | 既存`task_published`を再利用し、`tasks.supersedes_task_id IS NOT NULL`の新revisionに限って改訂再公開が分かるタイトル/本文を使う。即時公開では改訂再公開transaction、予約公開ではworkerの実`scheduled`→`published`遷移transactionで対象クラスの有効生徒へ通知する。クリック先は新revisionのassignment editor。本人×新assignmentの既存dedupeを利用し、新migration/backfillはしない | 機能仕様REQ-NOTIFICATION-167、公開後課題改訂計画、[DB定義](../database-design/table-definitions.md#student_notifications第166版v31) | 専用MySQLで即時/予約両経路の通知文面・作成時点・重複防止を検証し全体回帰成功。local8080のGretty開発アプリは変更コードを反映して再起動。個別の改訂通知の認証browser受入は未実施。本番/プロトタイプ/外部AIは変更しない |
+| 2026-10-13 | IC-001/007 教師間共有・プロンプトpreview継続 | 教師作成レコードは同じ学校への有効な所属と対象機能権限があれば作成者以外も閲覧・編集可能とする。作成者/更新者/実行者の履歴は分け、別学校への共有は拒否する。他課題の共通プロンプト選択は権限内の同一校に限定し、選択元版を変更せず対象課題専用の下書きへ内容を複製する。評価方針は教師共通プロンプト、形式・範囲・根拠検証・非捏造は固定システムプロンプトが担う。preview生成は画面遷移後もサーバーで継続し、再訪時に同じjob/結果を表示するが、最終確定には教師の明示確認を要求する | 機能仕様書第170版、課題/プロンプト/配信状態ルール、教師プロンプト設計計画 | ユーザー承認済み。既存30分TTL・snapshot・同校/権限・状態制約を維持して本実装・専用DB/HTTP/browser受入を行う。外部AI・本番DB/本番サイトは変更しない |
 | 2026-10-06 | IC-001 予約公開・期限切れ | クラス別割当の予約公開はアプリ内定期処理で確認し、1分間隔・予定時刻から最大約1分以内に `scheduled` から `published` へ遷移させる。提出期限到来後は `expired` へ遷移させるが、期限後提出 `allow` なら未提出者の初回提出のみ許可し、再提出は拒否する | 機能仕様書第127版、課題状態ルール、DBテーブル定義、実装契約 IC-001 | ユーザー確認済み。実装・稼働環境検証は未実施 |
 | 2026-10-06 | IC-001 公開後改訂の受入 | 学習開始前の課題内容変更は同一系列の新revisionとし、再公開まで旧版を維持する。新版に別assignmentと新しいprompt設定を要求し、再公開時に旧assignmentをアーカイブする。学習開始後の同系列改訂は拒否する | 機能仕様書「既存課題の編集」、課題状態ルール、DBテーブル定義、[公開後課題改訂計画](./feature-plans/teacher-task-revision.md) | 実装・専用MySQL DB統合テスト・全体build成功。認証browserと実worker runtimeは未確認 |
 | 2026-10-02 | IC-006 同意・アンケート・AI実行条件 | 同意状態（未確認/同意/不同意/撤回）に関わらず通常学習・AI評価・コードログ収集は継続する。研究エクスポート・集計のみ同意済みレコードに限定する。アンケートは同意済みのみアクセス可とし、再編集は既定不可、許可する場合は新しい回答履歴として保存する | 機能仕様書第45版、アンケート状態ルール、本書 | 合意済み・本実装未着手 |

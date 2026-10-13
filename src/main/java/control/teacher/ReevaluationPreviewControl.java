@@ -141,6 +141,24 @@ public final class ReevaluationPreviewControl {
 		}
 	}
 
+	public String findOpenPreviewCode(AuthenticatedUser user, long taskId) throws SQLException {
+		requireTeacher(user);
+		requirePositive(taskId);
+		try (Connection connection = connectionFactory.open()) {
+			connection.setAutoCommit(false);
+			try {
+				permissionDao.requirePromptDesignAccess(connection, user.userId());
+				requireTaskAccess(connection, user.userId(), taskId);
+				String code = previewDao.findOpenPreviewCode(connection, taskId, user.userId()).orElse(null);
+				connection.commit();
+				return code;
+			} catch (SQLException | RuntimeException failure) {
+				rollback(connection, failure);
+				throw failure;
+			}
+		}
+	}
+
 	public ReevaluationJobStatus loadJobStatus(AuthenticatedUser user, long taskId, long jobId)
 			throws SQLException {
 		requireTeacher(user);
@@ -151,7 +169,7 @@ public final class ReevaluationPreviewControl {
 			try {
 				permissionDao.requirePromptDesignAccess(connection, user.userId());
 				requireTaskAccess(connection, user.userId(), taskId);
-				ReevaluationJobStatus status = jobDao.loadStatus(connection, jobId, taskId, user.userId());
+				ReevaluationJobStatus status = jobDao.loadStatus(connection, jobId, taskId);
 				connection.commit();
 				return status;
 			} catch (SQLException | RuntimeException failure) {
@@ -309,12 +327,11 @@ public final class ReevaluationPreviewControl {
 	private void requireTaskAccess(Connection connection, long teacherUserId, long taskId) throws SQLException {
 		try (PreparedStatement task = connection.prepareStatement("""
 				SELECT task_id, school_id FROM tasks
-				WHERE task_id = ? AND created_by_user_id = ? AND deleted_at IS NULL
+				WHERE task_id = ? AND deleted_at IS NULL
 				  AND publication_status IN ('draft','published','requires_update')
 				FOR UPDATE
 				""")) {
 			task.setLong(1, taskId);
-			task.setLong(2, teacherUserId);
 			try (ResultSet rows = task.executeQuery()) {
 				if (!rows.next()) {
 					throw new TeacherPromptDao.TeacherTaskNotFoundException();

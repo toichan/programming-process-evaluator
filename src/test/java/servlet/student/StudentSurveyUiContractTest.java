@@ -46,6 +46,11 @@ class StudentSurveyUiContractTest {
 		assertTrue(survey.contains("<c:param name=\"submissionId\" value=\"${surveyPage.evaluationSubmissionId}\"/>"));
 		assertTrue(survey.contains("<c:url var=\"surveyCodeLogUrl\" value=\"/student/evaluation/log\">"));
 		assertTrue(survey.contains("<c:param name=\"submissionId\" value=\"${surveyPage.evaluationSubmissionId}\"/>"));
+		assertTrue(survey.contains("items=\"${surveyPage.evaluationDimensions}\""));
+		assertTrue(survey.contains("${dimension.summaryDescription}"));
+		assertTrue(survey.contains("${dimension.scoreText}"));
+		assertTrue(survey.contains(">評価を確認する</a>"));
+		assertTrue(survey.contains(">ログを確認する</a>"));
 		assertTrue(home.contains("<c:url value='/student/survey'>"));
 		assertTrue(home.contains("<c:param name='assignmentId' value='${task.taskClassAssignmentId}'/>"));
 		assertTrue(home.contains("<c:param name='evaluationId' value='${task.latestCompletedEvaluationId}'/>"));

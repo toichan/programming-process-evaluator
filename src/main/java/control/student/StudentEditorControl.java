@@ -34,14 +34,26 @@ public final class StudentEditorControl {
 
 	private final StudentEditorDao editorDao;
 	private final PythonRunnerClient runnerClient;
+	private final EditorPageLoader editorPageLoader;
+
+	@FunctionalInterface
+	interface EditorPageLoader {
+		Optional<StudentEditorPage> findEditorPage(long studentUserId, long assignmentId) throws SQLException;
+	}
 
 	public StudentEditorControl() {
 		this(new StudentEditorDao(), new PythonRunnerClient());
 	}
 
 	StudentEditorControl(StudentEditorDao editorDao, PythonRunnerClient runnerClient) {
+		this(editorDao, runnerClient, editorDao::findEditorPage);
+	}
+
+	StudentEditorControl(
+			StudentEditorDao editorDao, PythonRunnerClient runnerClient, EditorPageLoader editorPageLoader) {
 		this.editorDao = editorDao;
 		this.runnerClient = runnerClient;
+		this.editorPageLoader = editorPageLoader;
 	}
 
 	public Optional<StudentEditorPage> loadPage(AuthenticatedUser user, long assignmentId) throws SQLException {
@@ -239,7 +251,7 @@ public final class StudentEditorControl {
 			String draftUpdatedAt) throws SQLException, IOException, InterruptedException {
 		requireStudent(user);
 		validateSource(sourceCode);
-		StudentEditorPage page = editorDao.findEditorPage(user.userId(), assignmentId).orElse(null);
+		StudentEditorPage page = editorPageLoader.findEditorPage(user.userId(), assignmentId).orElse(null);
 		if (page == null) {
 			throw new IllegalArgumentException("The requested task is not available.");
 		}
@@ -257,9 +269,10 @@ public final class StudentEditorControl {
 			PythonExecutionResult execution = timed.result();
 			int duration = timed.durationMilliseconds();
 			String resultStatus = "error";
+			String actualOutput = execution.getStandardOutput();
 			if ("succeeded".equals(execution.getStatus())) {
 				resultStatus = normalizeOutput(testCase.getExpectedOutput())
-						.equals(normalizeOutput(execution.getStandardOutput()))
+						.equals(normalizeOutput(actualOutput))
 								? "matched" : "mismatched";
 			}
 			results.add(new EditorSubmissionCheckCase(
@@ -268,7 +281,7 @@ public final class StudentEditorControl {
 					testCase.getTitle(),
 					testCase.getInput(),
 					testCase.getExpectedOutput(),
-					execution.getStandardOutput(),
+					actualOutput,
 					execution.getStandardError(),
 					execution.getStatus(),
 					resultStatus,

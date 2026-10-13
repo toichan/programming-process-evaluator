@@ -56,6 +56,11 @@ class TeacherExerciseServletTest {
 		assertTrue(js.contains("window.PPECodeEditor.create"));
 		assertTrue(js.contains("window.PPECodeEditor.applyPreferences"));
 		assertTrue(js.contains("lesson-tree-folder-toggle"));
+		assertTrue(js.contains("function toggleFolder(key)"));
+		assertTrue(js.contains("if (folder) toggleFolder(key)"));
+		assertTrue(js.contains("row.addEventListener('click'"));
+		assertTrue(js.contains("event.target.closest('.lesson-tree-folder-header') !== row"));
+		assertTrue(js.contains("toggle.addEventListener('click', () => toggleFolder(key))"));
 		assertTrue(js.contains("lesson-entry-check"));
 		assertTrue(js.contains("selectedRoots()"));
 		assertFalse(js.contains("method: 'POST'")); assertFalse(js.contains("/student/editor/preferences"));

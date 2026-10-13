@@ -4,7 +4,7 @@
 <c:set var="screenPageTitle" value="ソースコード編集ログ"/>
 <c:set var="screenStylesheet" value="/css/student/evaluation/log.css"/>
 <c:set var="screenScript" value="/js/student/evaluation/log.js"/>
-<c:set var="screenAssetVersion" value="159"/>
+<c:set var="screenAssetVersion" value="162"/>
 <%@ include file="/WEB-INF/template/page-start.jspf" %>
 <%@ include file="/WEB-INF/student/shared/navigation.jspf" %>
 <c:url var="surveyUrl" value="/student/survey"><c:param name="assignmentId" value="${codeLogPage.assignmentId}"/><c:param name="evaluationId" value="${surveyNavigation.evaluationId}"/><c:param name="surveyId" value="${surveyNavigation.surveyId}"/></c:url>
@@ -111,13 +111,13 @@
 				<div class="sticky-xl-top sidebar-stack">
 					<section class="sample-section sidebar-section">
 						<div class="sidebar-switcher mb-3" role="tablist" aria-label="ソースコード編集ログ表示切り替え">
-							<button class="sidebar-switch-button is-active" type="button" data-sidebar-panel="timeline">ソースコード編集ログ一覧</button>
+							<button class="sidebar-switch-button is-active" type="button" data-sidebar-panel="timeline">ログ一覧</button>
 							<button class="sidebar-switch-button" type="button" data-sidebar-panel="reasons">評価の理由</button>
 						</div>
 						<div id="timelinePanel" class="sidebar-panel is-active">
 							<div class="section-heading-row mb-3">
 								<div>
-									<h2 class="card-title mb-2">ソースコード編集ログ一覧</h2>
+									<h2 class="card-title mb-2">ログ一覧</h2>
 									<p class="text-muted mb-0">各保存時点の概要を確認できます。</p>
 								</div>
 							</div>
@@ -166,7 +166,6 @@
 										<button class="reason-filter is-active" type="button" data-reason-filter="all" aria-pressed="true">すべて</button>
 										<button class="reason-filter" type="button" data-reason-filter="thinking" aria-pressed="false">思考・判断・表現</button>
 										<button class="reason-filter" type="button" data-reason-filter="attitude" aria-pressed="false">態度</button>
-										<button class="reason-filter" type="button" data-reason-filter="other" aria-pressed="false">その他</button>
 									</div>
 									<div class="log-timeline-scroll">
 										<div class="reason-list">

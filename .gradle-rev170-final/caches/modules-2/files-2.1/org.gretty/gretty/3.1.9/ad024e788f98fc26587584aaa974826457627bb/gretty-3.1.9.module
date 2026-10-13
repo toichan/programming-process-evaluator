@@ -1,0 +1,147 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "group": "org.gretty",
+    "module": "gretty",
+    "version": "3.1.9",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "6.9.4",
+      "buildId": "xd7vyki7zvab3ltxqbf2jk4aq4"
+    }
+  },
+  "variants": [
+    {
+      "name": "apiElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.version": 8,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-api"
+      },
+      "dependencies": [
+        {
+          "group": "org.gretty",
+          "module": "gretty-core",
+          "version": {
+            "requires": "3.1.9"
+          }
+        },
+        {
+          "group": "org.springframework.boot",
+          "module": "spring-boot-loader-tools",
+          "version": {
+            "requires": "2.6.3"
+          }
+        },
+        {
+          "group": "org.eclipse.jetty",
+          "module": "jetty-util",
+          "version": {
+            "requires": "8.2.0.v20160908"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "gretty-3.1.9.jar",
+          "url": "gretty-3.1.9.jar",
+          "size": 760629,
+          "sha512": "5e48ecc393c06716e0ce3f3041c6dc5018103de75e74e2cfb432f2a19e0f9222dbd41473d354c08671f4e67bcc9b859ae43ee23b307f6cfcca2bcc3376e42c07",
+          "sha256": "a3047c16bb38bbd6b6dcc1032f642b8bbea109b07137e0a6bd0f38749f4e5974",
+          "sha1": "ff2c4da2cb9b22fa676b068d371a811ac71bcfd7",
+          "md5": "cddf9103ba2b8354e11481a6e848587d"
+        }
+      ]
+    },
+    {
+      "name": "runtimeElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.version": 8,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-runtime"
+      },
+      "dependencies": [
+        {
+          "group": "org.gretty",
+          "module": "gretty-core",
+          "version": {
+            "requires": "3.1.9"
+          }
+        },
+        {
+          "group": "org.springframework.boot",
+          "module": "spring-boot-loader-tools",
+          "version": {
+            "requires": "2.6.3"
+          }
+        },
+        {
+          "group": "org.eclipse.jetty",
+          "module": "jetty-util",
+          "version": {
+            "requires": "8.2.0.v20160908"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "gretty-3.1.9.jar",
+          "url": "gretty-3.1.9.jar",
+          "size": 760629,
+          "sha512": "5e48ecc393c06716e0ce3f3041c6dc5018103de75e74e2cfb432f2a19e0f9222dbd41473d354c08671f4e67bcc9b859ae43ee23b307f6cfcca2bcc3376e42c07",
+          "sha256": "a3047c16bb38bbd6b6dcc1032f642b8bbea109b07137e0a6bd0f38749f4e5974",
+          "sha1": "ff2c4da2cb9b22fa676b068d371a811ac71bcfd7",
+          "md5": "cddf9103ba2b8354e11481a6e848587d"
+        }
+      ]
+    },
+    {
+      "name": "javadocElements",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "javadoc",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "gretty-3.1.9-javadoc.jar",
+          "url": "gretty-3.1.9-javadoc.jar",
+          "size": 198778,
+          "sha512": "6c47fa4a11a2c17712be1c9fb8aba4d0ee8470633a3ce2287bf3023e86f37b2902ab26f169ef359f4a5ed61e9bf3eceacb666558369d8da8f327eb8aacc63bec",
+          "sha256": "4d54a0c694f554c4d9510b0cd4abc6193a05f0093865b7892d7b1f241a5a3424",
+          "sha1": "71046020ef8c592e25a2c3356e91747d6883bcbe",
+          "md5": "db8432826fa9c7229529c860ae0023ea"
+        }
+      ]
+    },
+    {
+      "name": "sourcesElements",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "sources",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "gretty-3.1.9-sources.jar",
+          "url": "gretty-3.1.9-sources.jar",
+          "size": 61905,
+          "sha512": "46ecd5555d8f06627feedca219aa42efd15a0a35d8f569f990f676edffa380cf9e721ec0af854c32ec7d24c54a8a2cc28bf8e2ad77027dd17edb4ab9dab292b0",
+          "sha256": "30ebf1e0d46bc34cb8aa293d2d70ff417ed5aaf9358922b71fd6bbfe6d67ceb8",
+          "sha1": "b7e318270663ace3835023951a4038aad51e65ec",
+          "md5": "5a48d7c139b9d83bd6981ea5813d2d89"
+        }
+      ]
+    }
+  ]
+}

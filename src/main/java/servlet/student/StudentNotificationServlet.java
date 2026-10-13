@@ -30,6 +30,8 @@ public final class StudentNotificationServlet extends HttpServlet {
 	static final String READ_ALL_PATH = "/student/notifications/read-all";
 	static final String TARGET_UNAVAILABLE_MESSAGE =
 			"通知の対象の評価結果を表示できません。課題の公開状態や所属が変更された可能性があります。";
+	private static final String TASK_TARGET_UNAVAILABLE_NOTICE =
+			StudentNotificationServlet.class.getName() + ".taskTargetUnavailable";
 
 	private final transient StudentNotificationControl notifications;
 	private final transient HomeLoader homes;
@@ -86,7 +88,11 @@ public final class StudentNotificationServlet extends HttpServlet {
 			request.setAttribute("studentHome", home);
 			request.setAttribute("taskCount", home.getTasks().size());
 			request.setAttribute("notificationPage", page);
-			request.setAttribute("csrfToken", CsrfTokens.getOrCreate(request.getSession()));
+			var session = request.getSession();
+			request.setAttribute("taskTargetUnavailable",
+					Boolean.TRUE.equals(session.getAttribute(TASK_TARGET_UNAVAILABLE_NOTICE)));
+			session.removeAttribute(TASK_TARGET_UNAVAILABLE_NOTICE);
+			request.setAttribute("csrfToken", CsrfTokens.getOrCreate(session));
 			request.getRequestDispatcher("/WEB-INF/student/notifications/notifications.jsp")
 					.forward(request, response);
 		} catch (SecurityException e) {
@@ -142,6 +148,10 @@ public final class StudentNotificationServlet extends HttpServlet {
 		OpenResult result = notifications.open(user, notificationId);
 		if (result.status() == OpenStatus.NOT_FOUND) {
 			response.sendError(HttpServletResponse.SC_NOT_FOUND);
+		} else if (result.status() == OpenStatus.TARGET_UNAVAILABLE
+				&& LIST_PATH.equals(result.redirectPath())) {
+			request.getSession().setAttribute(TASK_TARGET_UNAVAILABLE_NOTICE, Boolean.TRUE);
+			seeOther(request, response, result.redirectPath());
 		} else if (result.status() == OpenStatus.TARGET_UNAVAILABLE) {
 			response.sendError(HttpServletResponse.SC_CONFLICT, TARGET_UNAVAILABLE_MESSAGE);
 		} else {

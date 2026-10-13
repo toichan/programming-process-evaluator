@@ -38,6 +38,20 @@ class TeacherTaskServletTest {
 	}
 
 	@Test
+	void parsesPublicationOnlyAsATaskListStateOperation() {
+		var operation = TeacherTaskServlet.parseTaskStateOperation(Map.of(
+				"action", List.of("publishTaskFromList"),
+				"csrfToken", List.of("csrf"),
+				"requestToken", List.of("request"),
+				"taskId", List.of("14"),
+				"expectedVersion", List.of("3")));
+
+		assertEquals("publishTaskFromList", operation.action());
+		assertEquals(14, operation.taskId());
+		assertEquals(3, operation.expectedVersion());
+	}
+
+	@Test
 	void readsTheAuthenticatedUserAttributeProvidedByTheFilter() {
 		AuthenticatedUser user = new AuthenticatedUser(1, "teacher", "Synthetic", UserType.TEACHER, false, "test");
 		HttpServletRequest request = (HttpServletRequest) Proxy.newProxyInstance(

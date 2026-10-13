@@ -62,10 +62,9 @@ public final class TeacherPromptControl {
 			connection.setAutoCommit(false);
 			try {
 				permissionDao.requirePromptDesignAccess(connection, user.userId());
-				var schools = permissionDao.findPromptAuthorizedSchools(connection, user.userId()).stream()
-						.map(entity.TeacherSchoolOption::schoolId).collect(java.util.stream.Collectors.toSet());
-				List<TeacherTaskDetails> tasks = taskDao.findPromptTasks(connection, user.userId()).stream()
-						.filter(task -> schools.contains(task.input().schoolId())).toList();
+				List<Long> schools = permissionDao.findPromptAuthorizedSchools(connection, user.userId()).stream()
+						.map(entity.TeacherSchoolOption::schoolId).toList();
+				List<TeacherTaskDetails> tasks = taskDao.findPromptTasks(connection, schools);
 				requireAuthorizedClasses(connection, user.userId(), tasks);
 				if (selectedTaskId == null) {
 					connection.commit();
@@ -125,6 +124,30 @@ public final class TeacherPromptControl {
 						expectedRowVersion, modelId, commonPrompt, additionalInstruction);
 				connection.commit();
 				return savedId;
+			} catch (SQLException | RuntimeException failure) {
+				rollback(connection, failure);
+				throw failure;
+			}
+		}
+	}
+
+	public long copyPromptFromTask(AuthenticatedUser user, long targetTaskId, long sourceTaskId)
+			throws SQLException {
+		requireTeacher(user);
+		validatePositiveId(targetTaskId, "課題");
+		validatePositiveId(sourceTaskId, "コピー元課題");
+		try (Connection connection = connectionFactory.open()) {
+			connection.setAutoCommit(false);
+			try {
+				TeacherTaskDetails target = requireTaskAccess(connection, user, targetTaskId);
+				TeacherTaskDetails source = requireTaskAccess(connection, user, sourceTaskId);
+				if (target.input().schoolId() != source.input().schoolId()) {
+					throw new SecurityException("Prompt sources must belong to the same school.");
+				}
+				long newVersionId = promptDao.copyPromptToDraftFromTask(
+						connection, user.userId(), sourceTaskId, targetTaskId);
+				connection.commit();
+				return newVersionId;
 			} catch (SQLException | RuntimeException failure) {
 				rollback(connection, failure);
 				throw failure;

@@ -173,6 +173,36 @@ class StudentNotificationServletTest {
 		assertEquals(List.of("find:5:9"), dao.calls);
 	}
 
+	@Test void unavailableTaskNotificationRedirectsToNeutralOutcomeAndMarksRead() throws Exception {
+		var dao = new FakeDao();
+		dao.storedNotification = new StudentNotification(9, StudentNotification.TYPE_TASK_PUBLISHED,
+				"課題が公開されました", "課題を確認できます。", LocalDateTime.now(), false, 31L, null);
+		var exchange = new Exchange(StudentNotificationServlet.OPEN_PATH, STUDENT).withValidCsrf();
+		exchange.parameters.put("notificationId", "9");
+		servlet(dao, Access.UNAVAILABLE).doPost(exchange.request, exchange.response);
+		assertEquals(303, exchange.status);
+		assertEquals("/app/student/notifications", exchange.headers.get("Location"));
+		assertNull(exchange.errorMessage, "response must not distinguish a deleted target from an unauthorized one");
+		assertEquals(List.of("find:5:9", "mark:5:9"), dao.calls);
+
+		exchange.servletPath = StudentNotificationServlet.LIST_PATH;
+		servlet(dao, Access.UNAVAILABLE).doGet(exchange.request, exchange.response);
+		assertEquals(Boolean.TRUE, exchange.attributes.get("taskTargetUnavailable"));
+		servlet(dao, Access.UNAVAILABLE).doGet(exchange.request, exchange.response);
+		assertEquals(Boolean.FALSE, exchange.attributes.get("taskTargetUnavailable"),
+				"the safe outcome notice is consumed once");
+	}
+
+	@Test void queryParametersCannotForgeTaskUnavailableOutcome() throws Exception {
+		var dao = new FakeDao();
+		var exchange = new Exchange(StudentNotificationServlet.LIST_PATH, STUDENT);
+		exchange.parameters.put("targetUnavailable", "task");
+		servlet(dao, Access.READABLE).doGet(exchange.request, exchange.response);
+		assertEquals(Boolean.FALSE, exchange.attributes.get("taskTargetUnavailable"));
+		assertEquals("/WEB-INF/student/notifications/notifications.jsp", exchange.forwarded);
+		assertFalse(exchange.sessionAttributes.containsKey("targetUnavailable"));
+	}
+
 	@Test void invalidAccountIsForbiddenWithoutMarking() throws Exception {
 		var dao = new FakeDao();
 		var exchange = new Exchange(StudentNotificationServlet.OPEN_PATH, STUDENT).withValidCsrf();

@@ -1,5 +1,13 @@
 # 教師プロンプト設計・AI生成 S2 実装計画
 
+### 2026-10-13 追加合意・ローカル画面修正
+
+- 既存S2実装の再評価previewは、画面を離れてもサーバー側処理を継続し、再訪時は同じpreview/jobと保存済み結果を表示する。既存snapshot・30分有効期限・対象者別失敗再試行・全結果確認後の明示確定は変更しない。
+- 課題/プロンプトは作成者だけに限定せず、同一校の有効な所属と該当機能権限を持つ教師が操作できる。旧記録の作成者・版履歴は保持し、実行者監査を追加する。学校境界を越える共有はしない。
+- 他課題の共通プロンプトを選択したときは、選択元版を更新せず、同校・権限範囲を検証したうえで対象課題専用の下書きとして内容を複製する。
+- 教師が指定する共通プロンプトは評価方針/優先度を担い、出力契約・スコア範囲・根拠検証・非捏造はシステム固定プロンプトが担う。
+- 揺らぎ生成/previewの開始前に入力を保存し、評価例は評価と対応する編集ログの全項目を省略せず生成する。画面遷移図とprototypeは引き続き参照専用。実API呼出し・本番反映はしない。
+
 - 2026-10-08縦断受入で初回適用の欠落を検出。新規課題には再評価対象の提出がなく、評価例保存後もactive版がNULLのままで公開できなかった。ユーザー確認により、未公開かつ学習開始前だけの「未公開課題に適用」を追加する。`POST /teacher/prompt` の `applyUnpublishedPrompt` は課題版/プロンプト版・CSRF・明示確認・所有/学校/クラス権限・学習開始を検証し、既存再評価や公開済み課題の適用は迂回しない。追加AI呼出し・job・評価履歴は生成しない。
 - 初回適用の実装・受入・8080反映済み。実Proで生成・保存した版を正規HTTPで適用し、課題公開まで完了した。未確認400、不正CSRF403、課題/プロンプト版競合409、公開済み課題への適用400、active参照・監査保存、適用時の再評価job/評価行0を確認。版表示の「適用中」は存在しないprompt statusではなく課題のactive参照から判定する。[縦断記録](../error-report.md#2026-10-08-不同意案内の削除と教師からアンケートまでの縦断受入)を参照。
 
@@ -9,7 +17,7 @@
 
 ## 目的と範囲
 
-- 権限を持つ教師が自分の課題を選び、課題に紐づくプロンプト版を編集・保存し、AIによる揺らぎ項目と評価例を確認して、DBから再表示できるようにする。
+- 権限を持つ教師が同じ学校の課題を選び、課題に紐づくプロンプト版を編集・保存し、AIによる揺らぎ項目と評価例を確認して、DBから再表示できるようにする。
 - 揺らぎ項目、生成状態、評価例、プロンプト版をサーバー側で検証し、DBへ保存する。ブラウザー内の固定サンプルや`localStorage`を業務データの正本にしない。
 - 全課題はDBに登録済みの共通標準ルーブリックを評価用ルーブリックとして使う。課題ごとの選択・作成・編集は行わず、同じactive標準版を課題の`rubric_id`へ関連付ける。
 - 課題内容の編集は課題編集画面を正本とする。プロンプト設計画面では課題情報を参照・AI入力へ使用し、task内容は更新しない。
@@ -133,7 +141,7 @@ AIリクエストはDBロックを保持したまま送信しない。揺らぎ�
 
 - **Requirements**: REQ-101, REQ-102, REQ-106, REQ-107, REQ-109
 - **Design inputs**: Prompt prototype Step 1/History、教師認証filter、S1の`TeacherTaskServlet`。
-- **Description**: 選択課題と既存prompt版をDBから取得し、CSRF・request size・文字数・model allowlist・task owner・draft stateを検証して保存する。課題内容は課題編集画面から読み取るだけで、prompt routeから`tasks`の内容を更新しない。作成者/更新者/日時/操作結果を記録し、過去版を読取専用にする。非所有、公開、削除、存在しないIDに対する読み書きを拒否する。
+- **Description**: 選択課題と既存prompt版をDBから取得し、CSRF・request size・文字数・model allowlist・同一学校/機能権限・draft stateを検証して保存する。課題内容は課題編集画面から読み取るだけで、prompt routeから`tasks`の内容を更新しない。作成者/更新者/日時/操作結果を記録し、過去版を読取専用にする。同一学校で必要な機能権限を持つ教師は編集できる。別学校、権限外、公開、削除、存在しないIDに対する読み書きは拒否する。
 
 #### Phase 3: AI揺らぎ項目・教師対応（REQ-103, REQ-104, REQ-109）
 
@@ -175,7 +183,7 @@ AIリクエストはDBロックを保持したまま送信しない。揺らぎ�
 
 - **Requirements**: REQ-101〜109
 - **Design inputs**: S1受入チェック、`TeacherPermissionDao`、shared feedback、AI integration design。
-- **Description**: 合成の教師/学校/課題/提出だけを持つ専用DBでmigration/統合テスト、全Gradleテスト、WAR、HTTP認証/認可、prompt保存後再読込、AI応答検証、履歴/監査rollback、失敗/再試行、再評価jobの対象固定・二重起動防止・部分失敗/進捗を検証する。ブラウザーでプロトタイプとの外観、正常/エラー/空状態、明示確認前にactive版が変わらないこと、320px以上のレスポンシブ、アクセシビリティを確認する。合成payloadのGemini実API呼出しは明示的な費用/資格情報確認後だけ実施し、実行結果/未確認事項を計画とerror-reportへ記録する。
+- **Description**: 合成の教師/学校/課題/提出だけを持つ専用DBでmigration/統合テスト、全Gradleテスト、WAR、HTTP認証/認可、prompt保存後再読込、同一学校の権限内共有と別学校/権限外の拒否、AI応答検証、履歴/監査rollback、失敗/再試行、再評価jobの対象固定・二重起動防止・部分失敗/進捗を検証する。ブラウザーでプロトタイプとの外観、正常/エラー/空状態、明示確認前にactive版が変わらないこと、320px以上のレスポンシブ、アクセシビリティを確認する。合成payloadのGemini実API呼出しは明示的な費用/資格情報確認後だけ実施し、実行結果/未確認事項を計画とerror-reportへ記録する。
 
 ##### Plan 5.3: preview staging schemaと予測生成（実装済み）
 
@@ -210,7 +218,7 @@ T001〜T020はS2全体の実装チェックポイントが追跡する20件。T0
 - [x] T004 [Plan:2.1] `src/main/java/entity/TeacherPromptVersion.java`と関連DTOに、prompt version、揺らぎ項目、教師対応、評価例の型・不変条件を実装する。
 - [x] T005 [Plan:2.1] `src/main/java/dao/TeacherPromptDao.java`を追加し、認可済み課題の版読込、下書き保存、生成状態、項目/評価例、履歴、監査をtransaction対応で実装する。
 - [x] T006 [Plan:2.1,5.1] 必要な場合だけ`src/main/resources/db/migration/V17__support_teacher_prompt_and_reevaluation_workflow.sql`（着手時に最新migration番号へ調整）を追加し、既存schemaにないprompt競合制御/再評価対象固定に必要な最小構造を追加してDB定義/クラス図を更新する。`reevaluation_jobs`が既存なことを前提に再利用し、schemaで要件を満たす場合migrationは作らない。
-- [x] T007 [Plan:2.1,2.2] `src/main/java/control/teacher/TeacherPromptControl.java`と既存`TeacherTaskControl`/`TeacherTaskDao`を接続し、TeacherPermissionDao、task owner、draft-only scope、prompt version/state、競合、監査失敗rollbackを検証する。新規課題へactive共通標準rubricを設定し、既存の未削除draftでNULLの`rubric_id`を同じ版へ関連付け、教師向け個別選択UIは追加しない。
+- [x] T007 [Plan:2.1,2.2] `src/main/java/control/teacher/TeacherPromptControl.java`と既存`TeacherTaskControl`/`TeacherTaskDao`を接続し、TeacherPermissionDao、同一学校/機能権限、draft-only scope、prompt version/state、競合、監査失敗rollbackを検証する。新規課題へactive共通標準rubricを設定し、既存の未削除draftでNULLの`rubric_id`を同じ版へ関連付け、教師向け個別選択UIは追加しない。
 - [x] T008 [Plan:2.2] `src/main/java/servlet/teacher/TeacherPromptServlet.java`を追加し、`/teacher/prompt`で課題別読込・下書き保存・履歴表示をCSRFおよびサーバー側入力検証付きで接続する。課題情報は参照/AI入力にのみ使い、課題内容を更新しない。
 
 ### Phase 3: 揺らぎ項目と教師対応
@@ -326,7 +334,7 @@ src/test/java/
 1. 着手時に`git status`と本計画・[roadmap](../implementation-roadmap.md)・[prompt/task state rules](../../state-rules/teacher/prompt-state-rules.md)・[implementation contract](../implementation-contract.md)を読み直し、未コミット変更を保持する。
 2. 専用Compose projectと専用MySQL schemaを作り、V1〜V17を適用する。合成のログイン可能な教師アカウント（`PasswordHasher`でhashしたtest-only password）、学校/クラス権限、draft taskを同じ専用DBにseedする。平文credentialはソース、fixture、ログ、レポートに保存しない。shared 8080 DBへの接続先取り違えをassertでfail-closedにする。
 3. ブラウザーで教師login → `/teacher/prompt`初期表示（課題未選択）→ 合成draft選択 → 共通rubric/版履歴表示 → prompt draft保存 → redirect後reloadでのDB再読込まで確認する。教師ナビの「課題編集」「プロンプト設計」リンク、`aria-current`、404資産の有無、error/empty state、少なくともdesktopと狭幅表示を確認する。
-4. 同じ専用環境で他所有task/非教師の拒否と未認証遷移を確認する。保存前後でactive prompt IDと既存評価行が変わらないことをDBで検証する。全体再評価ボタンはdisabledのままとし、Gemini実APIは費用・資格情報利用確認がない限り呼ばない。
+4. 同じ専用環境で同一学校かつ権限内の他教師によるtask操作を確認し、別学校/権限外の教師、非教師の拒否と未認証遷移も確認する。保存前後でactive prompt IDと既存評価行が変わらないことをDBで検証する。全体再評価ボタンはdisabledのままとし、Gemini実APIは費用・資格情報利用確認がない限り呼ばない。
 5. UI受入で発見した実装不具合だけを最小修正し、関連JUnit回帰テスト→全Gradle test/WAR→専用DB再受入を再実行する。受入記録を[error-report](../error-report.md)、本計画、[tasks-to-impl checkpoint](./checkpoints/teacher-prompt-ai/tasks-to-impl.yaml)へ反映する。
 6. 2026-10-05の一問ずつの確認により、preview方式・対象集合・snapshot時点/一時保存方針/30分期限・部分失敗・初回適用・対象ゼロ件・通知方針を決定し、機能仕様第124版等へ反映した。残るpreview staging schema/cleanupとjob履歴の設計を確認し、すべての実装契約が整った後にT017/T018の実装計画を別途提示する。
 
@@ -379,7 +387,7 @@ src/test/java/
 
 | REQ ID | 既存仕様・機能範囲 | Plan Items | Implementation Evidence |
 |---|---|---|---|
-| REQ-101 | 教師が自分の課題を選択しpromptを操作する（教師共通追記、課題選択） | 1.1, 2.1, 2.2, 5.2, 5.5 | TeacherPromptControl/Servlet、他所有・他ロール拒否テスト |
+| REQ-101 | 権限を持つ教師が同一学校の課題を選択しpromptを操作する（教師共通追記、課題選択） | 1.1, 2.1, 2.2, 5.2, 5.5 | TeacherPromptControl/Servlet、同一学校共有/別学校・権限外拒否テスト |
 | REQ-102 | 課題別共通promptと追加評価指示を保存する（機能仕様「プロンプト設計」） | 2.1, 2.2, 3.2 | TeacherPromptVersion/Dao、DB再読込 |
 | REQ-103 | 課題情報とpromptから揺らぎ項目を生成・検証する（AI設計§3.2） | 3.1 | TeacherPromptAiClient、schema/失敗/再試行テスト |
 | REQ-104 | 揺らぎごとの教師方針と追加評価指示を統合する（機能仕様「揺らぎ項目への対応記述」） | 3.2 | TeacherPromptControl、item resolution state、統合ルール |

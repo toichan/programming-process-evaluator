@@ -12,8 +12,10 @@ public final class TeacherReviewFixture {
 			long secondSubmission, long completedEvaluation, long pendingEvaluation) {}
 
 	public static void guard(Map<String, String> environment) {
+		String databaseHost = environment.getOrDefault("DB_HOST", "");
+		boolean isolatedPhase20Host = databaseHost.matches("ppe-p20-[a-z0-9-]+-db-1");
 		if (!"true".equals(environment.get("TEACHER_REVIEW_DB_TEST"))
-				|| !"ppe-preparation-20261008-db-1".equals(environment.get("DB_HOST"))
+				|| (!"ppe-preparation-20261008-db-1".equals(databaseHost) && !isolatedPhase20Host)
 				|| !environment.getOrDefault("DB_NAME", "").matches("ppe_teacher_review_test_[a-z0-9_]+")) {
 			throw new IllegalStateException("Teacher review fixture requires its explicitly isolated test database and host.");
 		}

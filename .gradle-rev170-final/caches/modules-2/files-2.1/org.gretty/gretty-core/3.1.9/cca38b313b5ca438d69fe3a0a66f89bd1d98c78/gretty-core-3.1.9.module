@@ -1,0 +1,189 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "group": "org.gretty",
+    "module": "gretty-core",
+    "version": "3.1.9",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "6.9.4",
+      "buildId": "xd7vyki7zvab3ltxqbf2jk4aq4"
+    }
+  },
+  "variants": [
+    {
+      "name": "apiElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.version": 8,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-api"
+      },
+      "dependencies": [
+        {
+          "group": "commons-cli",
+          "module": "commons-cli",
+          "version": {
+            "requires": "1.3.1"
+          }
+        },
+        {
+          "group": "commons-configuration",
+          "module": "commons-configuration",
+          "version": {
+            "requires": "1.10"
+          }
+        },
+        {
+          "group": "commons-io",
+          "module": "commons-io",
+          "version": {
+            "requires": "2.22.0"
+          }
+        },
+        {
+          "group": "org.apache.commons",
+          "module": "commons-lang3",
+          "version": {
+            "requires": "3.12.0"
+          }
+        },
+        {
+          "group": "org.bouncycastle",
+          "module": "bcprov-jdk15on",
+          "version": {
+            "requires": "1.70"
+          }
+        },
+        {
+          "group": "org.gretty",
+          "module": "gretty-common",
+          "version": {
+            "requires": "3.1.9"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "gretty-core-3.1.9.jar",
+          "url": "gretty-core-3.1.9.jar",
+          "size": 59248,
+          "sha512": "8f5723205f48491d7069ec9f759429398cf3420bddb8d259cc2a5a0709ba4a29d8a6f90e53b1463e3f9a8d7f372e5c62ea9dc3bc284b8e5cc808e86a783d93cd",
+          "sha256": "d5e7ed4c39886263a8a1eeafdc438a4e812ebad6b30aefb09c73ccd025fe459d",
+          "sha1": "b4c8fa48ec8a11088d6eac3cb6c0622a2e84d32d",
+          "md5": "ba873d9f0fb5d606b505d0738446ee2a"
+        }
+      ]
+    },
+    {
+      "name": "runtimeElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.version": 8,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-runtime"
+      },
+      "dependencies": [
+        {
+          "group": "commons-cli",
+          "module": "commons-cli",
+          "version": {
+            "requires": "1.3.1"
+          }
+        },
+        {
+          "group": "commons-configuration",
+          "module": "commons-configuration",
+          "version": {
+            "requires": "1.10"
+          }
+        },
+        {
+          "group": "commons-io",
+          "module": "commons-io",
+          "version": {
+            "requires": "2.22.0"
+          }
+        },
+        {
+          "group": "org.apache.commons",
+          "module": "commons-lang3",
+          "version": {
+            "requires": "3.12.0"
+          }
+        },
+        {
+          "group": "org.bouncycastle",
+          "module": "bcprov-jdk15on",
+          "version": {
+            "requires": "1.70"
+          }
+        },
+        {
+          "group": "org.gretty",
+          "module": "gretty-common",
+          "version": {
+            "requires": "3.1.9"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "gretty-core-3.1.9.jar",
+          "url": "gretty-core-3.1.9.jar",
+          "size": 59248,
+          "sha512": "8f5723205f48491d7069ec9f759429398cf3420bddb8d259cc2a5a0709ba4a29d8a6f90e53b1463e3f9a8d7f372e5c62ea9dc3bc284b8e5cc808e86a783d93cd",
+          "sha256": "d5e7ed4c39886263a8a1eeafdc438a4e812ebad6b30aefb09c73ccd025fe459d",
+          "sha1": "b4c8fa48ec8a11088d6eac3cb6c0622a2e84d32d",
+          "md5": "ba873d9f0fb5d606b505d0738446ee2a"
+        }
+      ]
+    },
+    {
+      "name": "javadocElements",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "javadoc",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "gretty-core-3.1.9-javadoc.jar",
+          "url": "gretty-core-3.1.9-javadoc.jar",
+          "size": 68487,
+          "sha512": "0cf90b7cb81e09e852948fcc001dcd69f8fe82e578e64bda935a676a026f24de05c0bb09f4e9ba15fdbd62d0a65c9948bac7b3c73886ff3faf40e086b39f7e57",
+          "sha256": "baa1aa7115f75dad3c8b70e20e8617beb19d044962e3d6a89bf2c11b5e5853fa",
+          "sha1": "839befd0406f9ff328e5babaa7935c9852235490",
+          "md5": "31910ced0c097396cf812df11e6a6ad5"
+        }
+      ]
+    },
+    {
+      "name": "sourcesElements",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "sources",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "gretty-core-3.1.9-sources.jar",
+          "url": "gretty-core-3.1.9-sources.jar",
+          "size": 12847,
+          "sha512": "1ea29bee042fa59f9c9d2f638f443d538dfcc1a4c86facd5825a62c7c329ec02525c5cd9bf6a5357f7dfadefc72205ac34c14fe597f8bb822a01634e5dd77869",
+          "sha256": "fe69991155ebba149c4f80cea9e8f44df8ba42f93ae2dee3bd15e169372a1aee",
+          "sha1": "d7a5e130556fd057bfb71478d3226b43f60c176d",
+          "md5": "245ad52aa9ed05abca3fe144e5ed6f59"
+        }
+      ]
+    }
+  ]
+}

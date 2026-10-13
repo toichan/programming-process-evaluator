@@ -200,8 +200,39 @@
 				</div>
 			</div>
 
+			<c:if test="${not empty promptPage.selectedTask}">
+				<div class="row g-2 align-items-end mb-3">
+					<div class="col-lg-8">
+						<label for="promptSourceTaskId" class="form-label">同じ学校の適用済みプロンプトをコピー</label>
+						<form id="copyPromptForm" method="post" action="<c:url value='/teacher/prompt'/>">
+							<input type="hidden" name="csrfToken" value="<c:out value='${csrfToken}'/>">
+							<input type="hidden" name="taskId" value="<c:out value='${teacherPromptTaskId}'/>">
+							<input type="hidden" name="promptVersionId" value="<c:out value='${teacherPromptVersionId}'/>">
+							<input type="hidden" name="expectedRowVersion" value="<c:out value='${empty promptVersion ? 0 : promptVersion.rowVersion}'/>">
+							<div class="input-group">
+								<select class="form-select" id="promptSourceTaskId" name="sourceTaskId" required>
+									<option value="">コピー元を選択</option>
+									<c:forEach items="${promptPage.tasks}" var="sourceTask">
+										<c:if test="${sourceTask.taskId != promptPage.selectedTask.taskId
+												and sourceTask.input.schoolId == promptPage.selectedTask.input.schoolId
+												and (sourceTask.promptStatus == 'configured' or sourceTask.promptStatus == 'versioned')}">
+											<option value="<c:out value='${sourceTask.taskId}'/>">
+												<c:out value="${sourceTask.input.title}"/>（<c:out value="${sourceTask.createdByLoginId}"/>）
+											</option>
+										</c:if>
+									</c:forEach>
+								</select>
+								<button class="btn btn-outline-primary" type="submit" name="action" value="copyPromptFromTask"
+									>新しい下書きへコピー</button>
+							</div>
+						</form>
+						<div class="form-text">コピー後はこの課題専用の下書きとして保存されます。元の課題のプロンプトは変更されません。</div>
+					</div>
+				</div>
+			</c:if>
+
 			<c:if test="${empty promptPage.selectedTask}">
-				<div class="empty-state mb-3">教師が作成した課題を選択してください。公開済み課題の内容は変更できませんが、評価プロンプトは新しい版として作成できます。</div>
+				<div class="empty-state mb-3">担当学校の課題を選択してください。公開済み課題の内容は変更できませんが、評価プロンプトは新しい版として作成できます。</div>
 			</c:if>
 			<c:if test="${not empty promptPage.selectedTask}">
 				<c:if test="${not empty promptPage.standardRubric}">
@@ -261,6 +292,8 @@
 						<input type="hidden" name="taskId" value="<c:out value='${teacherPromptTaskId}'/>">
 						<input type="hidden" name="promptVersionId" value="<c:out value='${promptVersion.promptVersionId}'/>">
 						<input type="hidden" name="expectedRowVersion" value="<c:out value='${promptVersion.rowVersion}'/>">
+						<input type="hidden" name="aiModel" value="<c:out value='${teacherPromptModel}'/>">
+						<input type="hidden" name="commonPrompt" value="<c:out value='${teacherPromptText}'/>">
 						<div class="fluctuation-list">
 							<c:forEach items="${promptVersion.fluctuationItems}" var="item" varStatus="loop">
 								<article class="fluctuation-item">
@@ -298,13 +331,13 @@
 								rows="3" maxlength="4000" <c:if test="${not teacherPromptEditableDraft}">readonly</c:if>><c:out value="${teacherPromptAdditionalInstruction}"/></textarea>
 						</div>
 						<div class="d-flex gap-2 mt-3 flex-wrap justify-content-center">
-							<button class="btn btn-outline-primary" type="submit" name="action" value="saveResolutions"
-								<c:if test="${not teacherPromptCanSaveResolutions}">disabled</c:if>>
-								教師対応を保存
-							</button>
 							<button class="btn btn-primary" type="submit" name="action" value="generateEvaluationExamples"
 								<c:if test="${not teacherPromptCanGenerateExamples}">disabled</c:if>>
 								確定して評価例を生成する
+							</button>
+							<button class="btn btn-outline-primary" type="submit" name="action" value="saveResolutions"
+								<c:if test="${not teacherPromptCanSaveResolutions}">disabled</c:if>>
+								揺らぎ項目指示を保存
 							</button>
 						</div>
 					</form>

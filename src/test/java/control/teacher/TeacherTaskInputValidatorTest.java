@@ -62,6 +62,12 @@ class TeacherTaskInputValidatorTest {
 	}
 
 	@Test
+	void preservesUserEnteredTaskTitleCasing() {
+		assertEquals("pYtHoN API", validator.validateAndNormalize(
+				input("pYtHoN API", "", List.of(), List.of(), List.of())).title());
+	}
+
+	@Test
 	void rejectsNulAndUnpairedSurrogateCharacters() {
 		assertThrows(IllegalArgumentException.class,
 				() -> validator.validateAndNormalize(input("Ta" + (char) 0 + "sk", "", List.of(), List.of(), List.of())));

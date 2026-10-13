@@ -42,7 +42,7 @@ public final class TeacherPromptServlet extends HttpServlet {
 			"action", "csrfToken", "taskId", "promptVersionId", "expectedRowVersion",
 			"aiModel", "commonPrompt", "additionalInstruction",
 			"fluctuationIds", "teacherResolutions", "resolutionStatuses", "previewCode",
-			"expectedTaskVersion", "applyConfirmed");
+			"expectedTaskVersion", "applyConfirmed", "sourceTaskId");
 	private static final TeacherPromptControl PROMPTS = new TeacherPromptControl();
 	private static final ReevaluationPreviewControl REEVALUATIONS = new ReevaluationPreviewControl();
 	private static final TeacherNavigationControl NAVIGATION = new TeacherNavigationControl();
@@ -126,8 +126,18 @@ public final class TeacherPromptServlet extends HttpServlet {
 					}
 				}
 				switch (action) {
-					case "startReevaluationPreview" -> previewCode = REEVALUATIONS.startPreview(
-							user, taskId, requireVersionValue(promptVersionId), expectedRowVersion);
+					case "startReevaluationPreview" -> {
+						TeacherPromptVersion selected = reloadSelectedVersion(
+								user, taskId, requireVersionValue(promptVersionId));
+						if ("draft".equals(selected.promptStatus())) {
+							promptVersionId = saveDraft(
+									user, taskId, promptVersionId, expectedRowVersion, values);
+							selected = reloadSelectedVersion(user, taskId, promptVersionId);
+							expectedRowVersion = selected.rowVersion();
+						}
+						previewCode = REEVALUATIONS.startPreview(
+								user, taskId, requireVersionValue(promptVersionId), expectedRowVersion);
+					}
 					case "retryReevaluationPreview" -> REEVALUATIONS.retryFailed(user, previewCode);
 					case "cancelReevaluationPreview" -> REEVALUATIONS.cancelPreview(user, previewCode);
 					case "confirmReevaluationPreview" -> {
@@ -181,8 +191,13 @@ public final class TeacherPromptServlet extends HttpServlet {
 		return switch (action) {
 			case "applyUnpublishedPrompt" -> {
 				requireVersion(promptVersionId);
+				TeacherPromptVersion selected = reloadSelectedVersion(user, taskId, promptVersionId);
+				if ("draft".equals(selected.promptStatus()) && values.containsKey("commonPrompt")) {
+					promptVersionId = saveDraft(user, taskId, promptVersionId, expectedRowVersion, values);
+					selected = reloadSelectedVersion(user, taskId, promptVersionId);
+				}
 				PROMPTS.applyUnpublishedPrompt(user, taskId, promptVersionId,
-						nonNegativeLong(requiredScalar(values, "expectedTaskVersion")), expectedRowVersion,
+						nonNegativeLong(requiredScalar(values, "expectedTaskVersion")), selected.rowVersion(),
 						"yes".equals(scalar(values, "applyConfirmed")));
 				yield promptVersionId;
 			}
@@ -197,6 +212,8 @@ public final class TeacherPromptServlet extends HttpServlet {
 				yield PROMPTS.saveDraft(user, taskId, null, 0,
 						GeminiModelCatalog.DEFAULT_MODEL, source.commonPrompt(), source.additionalInstruction());
 			}
+			case "copyPromptFromTask" -> PROMPTS.copyPromptFromTask(
+					user, taskId, positiveId(requiredScalar(values, "sourceTaskId"), "コピー元課題"));
 			case "generateFluctuations" -> {
 				long savedId = saveDraft(user, taskId, promptVersionId, expectedRowVersion, values);
 				TeacherPromptVersion saved = reloadSelectedVersion(user, taskId, savedId);
@@ -205,13 +222,17 @@ public final class TeacherPromptServlet extends HttpServlet {
 			}
 			case "saveResolutions" -> {
 				requireVersion(promptVersionId);
-				PROMPTS.saveResolutions(user, taskId, promptVersionId, expectedRowVersion,
+				promptVersionId = saveDraft(user, taskId, promptVersionId, expectedRowVersion, values);
+				TeacherPromptVersion saved = reloadSelectedVersion(user, taskId, promptVersionId);
+				PROMPTS.saveResolutions(user, taskId, promptVersionId, saved.rowVersion(),
 						resolutions(values), scalar(values, "additionalInstruction"));
 				yield promptVersionId;
 			}
 			case "generateEvaluationExamples" -> {
 				requireVersion(promptVersionId);
-				PROMPTS.saveResolutions(user, taskId, promptVersionId, expectedRowVersion,
+				promptVersionId = saveDraft(user, taskId, promptVersionId, expectedRowVersion, values);
+				TeacherPromptVersion saved = reloadSelectedVersion(user, taskId, promptVersionId);
+				PROMPTS.saveResolutions(user, taskId, promptVersionId, saved.rowVersion(),
 						resolutions(values), scalar(values, "additionalInstruction"));
 				TeacherPromptVersion resolved = reloadSelectedVersion(user, taskId, promptVersionId);
 				yield PROMPTS.generateEvaluationExamples(
@@ -287,6 +308,9 @@ public final class TeacherPromptServlet extends HttpServlet {
 			String notice) throws SQLException, ServletException, IOException {
 		if (previewCode != null && jobId != null) {
 			throw new IllegalArgumentException("プレビューと再評価jobは同時に表示できません。");
+		}
+		if (previewCode == null && jobId == null && taskId != null) {
+			previewCode = REEVALUATIONS.findOpenPreviewCode(user, taskId);
 		}
 		ReevaluationPreview preview = previewCode == null ? null : REEVALUATIONS.loadPreview(user, previewCode);
 		if (preview != null) {
@@ -409,8 +433,9 @@ public final class TeacherPromptServlet extends HttpServlet {
 		return switch (action) {
 			case "applyUnpublishedPrompt" -> "未公開課題にプロンプトを適用しました。課題編集画面から公開できます。";
 			case "saveDraft" -> "共通プロンプトを保存しました。";
+			case "copyPromptFromTask" -> "同じ学校のプロンプトを新しい下書きへコピーしました。";
 			case "generateFluctuations" -> "揺らぎ項目を生成しました。";
-			case "saveResolutions" -> "教師対応を保存しました。";
+			case "saveResolutions" -> "揺らぎ項目指示を保存しました。";
 			case "generateEvaluationExamples" -> "合成評価例を生成しました。";
 			case "saveEvaluationExamples" -> "評価例を保存しました。";
 			case "duplicateDraft" -> "プロンプトを新しい下書きとして複製しました。";

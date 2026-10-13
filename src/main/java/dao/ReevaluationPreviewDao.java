@@ -142,6 +142,26 @@ public final class ReevaluationPreviewDao implements ReevaluationPreviewWorkRepo
 		}
 	}
 
+	public java.util.Optional<String> findOpenPreviewCode(
+			Connection connection, long taskId, long teacherUserId) throws SQLException {
+		try (PreparedStatement statement = connection.prepareStatement("""
+				SELECT preview_code
+				FROM reevaluation_previews
+				WHERE task_id = ? AND requested_by_user_id = ?
+				  AND preview_status IN ('generating','retryable','ready')
+				  AND expires_at > CURRENT_TIMESTAMP(6)
+				ORDER BY created_at DESC, reevaluation_preview_id DESC
+				LIMIT 1
+				""")) {
+			statement.setLong(1, taskId);
+			statement.setLong(2, teacherUserId);
+			try (ResultSet rows = statement.executeQuery()) {
+				return rows.next() ? java.util.Optional.of(rows.getString("preview_code"))
+						: java.util.Optional.empty();
+			}
+		}
+	}
+
 	public PreviewSnapshot lockPreview(Connection connection, String previewCode, long teacherUserId)
 			throws SQLException {
 		requireTransaction(connection);

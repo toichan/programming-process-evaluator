@@ -26,31 +26,31 @@
 - 作業単位: `src/main` のEntity/DAO/Control/Servlet、共通生徒ヘッダーと通知UI、各イベントの確定処理、対象テスト。正確な対象ファイル・列・APIはN165-00で決め、未合意のDB設計は実装しない。
 - 検証条件: イベント確定後の保存/再読込、本人別未読/既読、他人生徒・他所属・無効対象の境界、再試行の重複防止、対象提出版/課題/配布先への認証HTTP遷移、未保存取消保持、通常幅/狭幅の本実装ブラウザー受入。対象テスト・WARを優先し、共有基盤の変更時に回帰検証する。
 - ローカル8080限定。本番ppeval.net・プロトタイプ・デプロイ/バックアップ設定・資格情報・外部AIは操作しない。DB変更は設計合意後の追加migrationを対象確認・検証して適用し、既存migrationを変更しない。
-- N166-01進捗（期限超過通知）: 第166版機能仕様、V31、Entity/DAO/Control、DB/Controlテスト、DB定義・実装契約を反映。専用MySQLでV1〜V31 migrate/validate、期限超過DB統合テスト、全体回帰512件（374成功、138 skip、失敗/エラー0）、WARが成功。local8080にV31適用・validation後、appのみ再起動。認証済み生徒browserで通知一覧に期限超過通知が表示され、allow案内を確認してクリックし、対象エディターへ遷移・既読化されたことをDBで確認。期限後提出denyのホーム遷移はControl/Servletテストで確認済みだがbrowserでは未確認。
-- N167-01進捗（課題改訂再公開通知、2026-10-13受入完了）: 既存`task_published`を再利用し、新revisionの即時再公開/予約公開worker確定で改訂版と分かるタイトル・本文を設定する。既存の本人×新assignment重複排除と新revision editor遷移を維持し、migrationは追加しない。専用MySQLの即時・予約統合テストと全体回帰513件（375成功、138 skip、失敗/エラー0）、WAR成功を確認。改訂課題での揺らぎ・評価例生成が404となる不具合を修正し、関連52件（47成功、5 skip、失敗/エラー0）、WAR/`flywayValidate`も成功。local8080の認証browserで合成taskId=18/version=4のGemini生成・教師対応・評価例保存・prompt適用・改訂再公開を確認した。DB上で旧task 17=`requires_update`/旧assignment=`archived`、新task 18/新assignment=`published`を確認。有効な在籍生徒5人に改訂通知が各1件作られ、生徒browserで改訂版のタイトル/本文、通知クリック後の新assignment editor遷移、DB既読化を確認した。実生徒データ・提出・編集ログは送信していない。評価例の旧inactive行一括active化リスクに対する製品修正・回帰テストは別途未実施。
+- N166-01進捗（期限超過通知）: 第166版機能仕様、V31、Entity/DAO/Control、DB/Controlテスト、DB定義・実装契約を反映。専用MySQLでV1〜V31 migrate/validate、期限超過DB統合テスト、全体回帰512件（374成功、138 skip、失敗/エラー0）、WARが成功。local8080にV31適用・validation後、appのみ再起動。認証済み生徒browserで通知一覧に期限超過通知が表示され、allow案内を確認してクリックし、対象エディターへ遷移・既読化されたことをDBで確認。期限後提出denyも工程20のPlaywrightで通知から生徒homeへの遷移、直接editor URLのHTTP 404を確認済み。
+- N167-01進捗（課題改訂再公開通知、2026-10-13受入完了）: 既存`task_published`を再利用し、新revisionの即時再公開/予約公開worker確定で改訂版と分かるタイトル・本文を設定する。既存の本人×新assignment重複排除と新revision editor遷移を維持し、migrationは追加しない。専用MySQLの即時・予約統合テストと全体回帰513件（375成功、138 skip、失敗/エラー0）、WAR成功を確認。改訂課題での揺らぎ・評価例生成が404となる不具合を修正し、関連52件（47成功、5 skip、失敗/エラー0）、WAR/`flywayValidate`も成功。local8080の認証browserで合成taskId=18/version=4のGemini生成・教師対応・評価例保存・prompt適用・改訂再公開を確認した。DB上で旧task 17=`requires_update`/旧assignment=`archived`、新task 18/新assignment=`published`を確認。有効な在籍生徒5人に改訂通知が各1件作られ、生徒browserで改訂版のタイトル/本文、通知クリック後の新assignment editor遷移、DB既読化を確認した。実生徒データ・提出・編集ログは送信していない。評価例の旧inactive行一括active化リスクは当時未修正だったが、工程20で修正・回帰確認済み。
 - N165-06 local8080ブラウザー追補（2026-10-12）: 教師ログイン後、合成Pythonファイルを「デモ学校 / 1年 A組」へ即時配信し、履歴の「配信完了」を確認。DBでは対象targetが`distributed`、対象生徒5人に`exercise_distributed`通知が各1件（合計5件）作成された。認証済み生徒browserで通知一覧上の通知表示、クリック後`/student/exercise?exerciseId=17`への遷移、演習領域`N165-06-notification-test`の表示、戻った通知一覧での既読化と未読数2→1を確認し、教師配信から生徒通知UXまで受入完了。
 - N167-01 browser受入準備（2026-10-12〜13、当時の状況）: N167通知の個別browser受入用に合成課題taskId=17/version=3を準備した。既存公開課題からの独立系列コピーはHTTP 400「複製元に現在適用中のプロンプトがありません。」となり作成されなかった。ユーザーが追加課金後にGemini利用を許可したため、taskId=17の揺らぎ・評価例生成、prompt適用、初回公開まで実施した。初回公開通知5件は改訂通知ではない。続いてtaskId=17を親とする改訂taskId=18/revision 2/version 4を作成し、揺らぎ生成POSTがHTTP 404となったため生成経路を修正した。404原因・回帰テスト・当時の検証結果は[エラーレポート](./error-report.md)を参照。以後のGemini生成、改訂再公開、生徒通知browser受入は上記N167-01進捗と[公開後課題改訂 実装計画](./feature-plans/teacher-task-revision.md)に記録済み。
 - N168-01 アンケート回答可能通知（2026-10-12）: 評価完了と同一トランザクションで、最新の研究協力同意・有効な課題別アンケートと設問・対象課題/評価へのアクセスを確認して通知し、教師主導再評価および過去評価への遡及通知は除外する実装を追加。
   - 対象テストコマンド: `docker compose exec -T -e DB_HOST=ppe-preparation-20261008-db-1 -e DB_PORT=3306 -e DB_NAME=ppe_teacher_review_test_n16801 -e DB_USER=root -e DB_PASSWORD=[一時テスト値のため省略] -e TEACHER_REVIEW_DB_TEST=true app gradle test --tests entity.StudentNotificationTest --tests control.student.StudentNotificationControlTest --tests control.student.StudentNotificationDatabaseTest --tests servlet.student.StudentNotificationServletTest --warning-mode all`。exit 0、54成功・0失敗・0エラー・0skip。
   - 隔離MySQLでV1〜V32をmigrateし、`flywayInfo`で全migration success/V32、`flywayValidate`成功。`docker compose exec -T app gradle war --warning-mode all`もexit 0。local開発DBへV32を適用し`flywayValidate`成功。試験用DBコンテナは検証後に削除した。
-  - 認証済みbrowserで生徒ホームと既存合成アンケートの正規URL表示を確認したが、新規`survey_available`通知の生成・クリック受入は未確認。通知一覧はV32適用後に再確認できず、認証セッションがログイン画面へ遷移した。Gemini APIは呼び出していない。
+  - 2026-10-13追補: 認証済みbrowserで新規`survey_available`通知を確認。s008の合成評価3/割当13に結び付く既存survey4は既に回答済みだったため、回答を変更せず、受入専用の合成survey/question/evaluation_requestと通知を一時作成し、DAOの通知作成条件に沿って対象を用意した。通知一覧で未読表示、クリック後の`/student/survey?assignmentId=13&evaluationId=3&surveyId=6`遷移、設問と未回答状態の表示、未読数3→2、戻った一覧で既読表示を確認した。回答は保存・提出していない。確認後、一時survey/question/request/notificationを削除し、既存survey4の回答1件が維持されたことを確認。Gemini APIは未使用。これは通知・画面遷移のbrowser受入であり、実際の評価完了トランザクション自体はN168のDBテスト54件で別途検証済み。
 - N169-01 アンケート回答途中の案内（2026-10-13）: 下書き保存から24時間後も未提出の回答に対し、最新同意・課題/所属・評価・アンケート/設問の有効性を確認して一度だけ案内するworkerを追加。既存survey通知の本人認可付き遷移先を再利用し、回答を変更しない。専用MySQLにV1〜V33を適用し`flywayValidate`成功。対象58件（Entity 6、Control 21、DB統合19、Worker 1、Servlet 11）は失敗/エラー/skip 0で成功し、WAR build成功。local開発DBもV33適用・validation成功。認証済みbrowserでは合成の24時間超過・未提出回答から通知が生成され、通知一覧への表示、クリック後の正規アンケートURLへの遷移、保存済み回答の再表示、回答状態が`in_progress`のまま、通知の既読化を確認した。受入用の合成survey/回答/通知は確認後に削除し、専用テストDBコンテナも削除した。
 - N167-01 Gemini生成の再開準備（2026-10-13）: ユーザー許可に基づき、合成課題taskId=17/version=3の揺らぎ項目生成を1回実行したが、Interactions APIがHTTP 429を返し生成状態は`failed`。課題は未公開、通知なし。実生徒データは送信していない。quota/Retry-After状況の確認まで追加要求を保留する。詳細は[エラーレポート](./error-report.md#n167-02-gemini揺らぎ生成のhttp-429-2026-10-13-0110-jst)を参照。
-- 現在の次の着手: N167-01の改訂通知受入は完了。次はN168-01の個別`survey_available`通知browser受入。合成イベントの作成方法を確定し、実生徒データ・Gemini実APIを使わずに生成・表示・遷移・既読化を確認する。期限延長・対象クラス追加は別スライスとして仕様・画面導線を照合してから着手する。
+- 現在の次の着手（2026-10-13 18:16 JST）: N169-01までの通知実装・browser受入は完了。工程20はclean build/JUnit、複数の専用MySQL suite、Playwright計9件を5つの別fixture環境/実行バッチで実施済み。既存の認証/エディター、N166 deny/教師レビュー/狭幅、教師の即時公開から対象生徒のeditor、予約公開workerによる実公開・通知からeditor遷移/既読、P20-03の教師権限/所有範囲と認証済み管理者URL拒否の追加受入を確認した。今回のJava fixture追加前の全体clean buildは141 suites / 527 tests（349 passed、0 failures/errors、178 skipped）。後続fixtureは対象指定でcompile/test済みだが、全体clean buildは再実行していない。標準buildのskipや未網羅の業務/権限経路を合格扱いしない。P20-03の記録済みDB/browser sliceは成功したが、工程20全体の権限・主要導線網羅は未完了。次はP20-04の課題改訂・通知接続の未確認導線を受入し、続いてP20-06の提出/再提出、残るopt-inと最終回帰を計画に沿って確認する。詳細は[工程20横断テスト計画](./feature-plans/phase-20-cross-feature-validation.md)を参照。期限延長・対象クラス追加は完了済みの工程10スライスであり、工程20では必要な回帰範囲だけを確認する。
 
 #### 第166版 第1バッチ: 課題期限超過通知（N166-01、実装・DB/ローカル/browser受入済み）
 
 - 範囲: `published`から`expired`への実遷移時に、有効な在籍アカウントの未提出生徒へ期限後提出可否を案内する通知を作成する。実遷移・監査・通知は同一transaction。期限延長後に再公開され、その後再度期限切れになった場合は別イベント。既存期限切れのbackfillなし。
 - DB/遷移: V31で`assignment_expired`と必須課題割当参照を追加。allowなら期限後提出可能な課題エディターへ、denyなら本人・割当状態をサーバー検証して生徒ホームへ遷移する。
 - 検証: 専用MySQLでV1〜V31 migrate/validate成功。`expirationTransitionNotifiesActiveUnsubmittedStudentsWithLatePolicyGuidance`成功。全体回帰512件（374成功、138 skip、失敗/エラー0）とWAR成功。local8080にV31適用/validation後appを再起動し、host別redirect後のlogin routeはHTTP 200。認証browserで通知一覧の期限超過・allow文面・クリック後の対象editor表示を確認し、該当通知のread_at更新もDBで確認。
-- 制約/未確認: 期限後提出denyの遷移はControl/Servletテストでカバーしたがbrowserでは未確認。認証教師によるN165-06配布通知の8080受入も引き続き未完了。本番・プロトタイプ・外部AI変更なし。
+- 当時の制約/未確認（更新）: 実装時点では期限後提出denyの遷移はControl/Servletテストのみだったが、工程20で期限切れ`DENY`通知から生徒homeへの遷移とeditor直接URLのHTTP 404をPlaywrightで確認済み。N165-06配布通知は後続の工程13認証browser受入で確認済み。本番・プロトタイプ・外部AI変更なし。
 
 #### 第167版 第1バッチ: 課題改訂再公開通知（N167-01、実装・テスト済み）
 
 - 範囲: 同一課題系列の新revisionが実際に公開されたとき、対象クラスの有効生徒へ改訂版と分かる通知を作成する。通知から新revisionの課題エディターへ移動する。
 - 通知契約: 既存`task_published`を用い、`supersedes_task_id`の有無で初回公開と改訂再公開の表示文面を分ける。即時公開では再公開のtransaction内、予約公開ではworkerが`scheduled`→`published`へ遷移したtransaction内で作成。予約設定・改訂案作成時は通知しない。既存の本人×assignment UNIQUEを利用し、migration/backfillなし。
 - 検証: 専用MySQLで既存V1〜V31 migrate/validate、即時改訂通知および予約公開前は未通知/worker公開後は1件のみとなるDB統合テスト、全体回帰513件（375成功、138 skip、失敗/エラー0）、WARが成功。local8080の開発アプリは変更コード反映後にTomcat startedを確認。
-- 未確認: 個別の改訂再公開を発生させた認証browser受入は未実施。既存課題のpromptが適用済みでない場合のコピーはHTTP 400となる。合成の新規課題taskId=17とprompt version 3 draftを用意したが、公開可能なprompt設定に必要な生成操作は外部Gemini実API保留方針により実行していない。taskId=17は未公開のまま。通知のリンク解決分岐はなく、既存`task_published`の認可済みエディター遷移を再利用する。本番・プロトタイプ・外部AIは変更しない。
+- 当時の未確認事項（後続受入で解消）: 個別の改訂再公開browser受入は未実施で、taskId=17は未公開だった。その後ユーザーのGemini利用許可を得てtaskId=18改訂の生成・公開と通知browser受入を完了している。既存課題の適用済みpromptがない場合のコピーは当時HTTP 400で不成立。通知のリンク解決分岐は追加せず、既存`task_published`の認可済みエディター遷移を再利用する。本番・プロトタイプは変更していない。
 
 #### 第165版 第6バッチ: 演習配布通知（N165-06、2026-10-12、専用DB/全体回帰・8080反映済み）
 
@@ -258,7 +258,7 @@
 | 17. 評価確認 | プロトタイプ再現・DB/認証HTTP/通常・狭幅ブラウザー受入済み（2026-10-08、第156版） | [評価画面最終受入](./feature-plans/teacher-submission-evaluation-review.md#評価画面のプロトタイプ再現最終受入2026-10-08第156版)。3カード/独立サマリー・分布/条件式/10列・9sort/全画面詳細/理由・ログ/JSON・ZIP・監査CSVを実DBへ接続。全体260成功/132skip/失敗0、8080反映済み。実AI・再評価の受入は工程19と区別 |
 | 18. アンケート結果確認 | 実装・DB/認証HTTP・認証ブラウザー受入済み（2026-10-08） | [工程18最終受入](#工程18最終受入2026-10-08)。プロトタイプの集計/条件式/一覧/詳細、最新同意/割当学校認可、仮名化CSV/TXTを接続。全体257成功/132skip/失敗0、8080反映済み |
 | 19. AI連携の最終実装・受入 | 実装・合成実API縦断/認証画面確認済み。Pro高思考・時間上限拡張を8080へ反映済み | [教師プロンプト計画](./feature-plans/teacher-prompt-ai.md)、[評価計画](./feature-plans/student-evaluation-survey.md)、[AI連携設計](../ai-api-integration-design.md)。教師生成・preview・確定と通常評価の実API→DB成功。本番quota/費用・品質校正・実データ送信・負荷試験は別ゲート |
-| 20. 機能横断検証 | 未完了 | 全教師/管理者機能の認可、状態遷移、主要導線、異常系、DB再構築を通した最終確認が必要 |
+| 20. 機能横断検証 | 部分実施、`PARTIAL / NEEDS_SIGNOFF` | [工程20テスト計画](./feature-plans/phase-20-cross-feature-validation.md)に従い、clean build/JUnit、専用MySQL統合、Playwright計9件（5環境/5バッチ）、評価例DAO修正・回帰、N166 deny、教師レビュー/出力、390px表示、教師の即時/予約公開から生徒editor到達、P20-03教師権限/所有範囲と認証後の管理者境界まで確認。未実行opt-in試験と主要導線/権限の全量受入が残る |
 
 ここでいう「実装済み」は対象計画に記録された範囲に限ります。教師ログイン基盤の存在は教師向け業務機能の完成を意味せず、Gemini構造化出力が一部の合成要求で成功したことも本番評価経路の完了を意味しません。
 
@@ -275,31 +275,33 @@
 | 教師 | アンケート結果確認 | 低 | 18 | 実装・受入済み。[工程18最終受入](#工程18最終受入2026-10-08)。回答別履歴・下書き、6条件式/全列sort、仮名化出力と監査を検証 |
 | 教師 | 課題編集 | ― | 10 | 下書き/学校所属/削除・復元/公開・期限処理/改訂/独立系列コピー/期限延長/対象クラス追加を実装し、専用DB統合テストと認証browser受入済み |
 | 教師 | プロンプト設計 | 中 | 10、AI連携は19 | 基本編集/版管理と合成provider受入は完了。Gemini実API受入は延期 |
-| 教師 | コード配信（授業演習コード配信） | 中 | 13 | 配信処理は専用DB検証・8080開発DB適用・認証browser受入済み。今回の画面再現・単一校制約は実装とDB検証済み、認証後画面受入待ち |
+| 教師 | コード配信（授業演習コード配信） | 中 | 13 | 配信処理・画面再現・単一校制約を実装し、専用DB検証と認証browser受入済み。[コード配信計画](./feature-plans/teacher-exercise-distribution.md)を参照 |
 | 管理者 | 教師アカウント管理 | 中 | 11 | 実装・受入済み。管理者IDは小文字adminに固定 |
 | 管理者 | 学校管理 | 中 | 11 | 学校登録・名称/レベル管理・管理者2タブ統合は実装済み |
 
 この対応表は機能仕様書の対象機能を漏れなくロードマップへ割り当てるための索引であり、詳細要件・受入条件はリンク先仕様と各工程を正本とする。
 
-### 次の着手と意図的な保留（2026-10-07更新）
+### 次の着手と意図的な保留（2026-10-13 18:16 JST時点）
 
-- **最新の次作業（2026-10-08）:** 工程18の実装・受入を完了。工程19は合成実API受入済みで本番条件は別ゲートのため、次は工程20の機能横断検証。以下の旧着手順は各工程当時の履歴として扱う。
+- **現在の次作業:** 工程20の残る主要導線・権限境界と未実行opt-in試験をテスト計画と照合し、追加受入してから最終判定する。先行確認済みのN166 deny・教師4画面/出力・390px表示、教師の即時公開から対象生徒editorへの遷移、予約公開workerによる実公開・一度だけの通知作成・通知から対象editorへの遷移と既読永続化に加え、P20-03の教師権限/所有範囲DB境界と認証後の管理者URL拒否を専用DB/Playwrightで受け入れた。Playwrightは計9件を5つの別fixture環境/実行バッチで確認した。最新全体clean buildは141 suites / 527 tests（349 passed、0 failures/errors、178 skipped）、V1–V33 migration/validationと専用MySQL試験も成功。標準buildのskipや未網羅の業務/権限経路を合格扱いしない。次はテスト計画P20-04の課題改訂・通知接続の未確認導線を受入し、続いてP20-06の提出/再提出と残るopt-in項目を確認する。詳細な結果と判定は[工程20テスト計画](./feature-plans/phase-20-cross-feature-validation.md)および[Runtime Validation Report](./feature-plans/runtime-validation-report.md)を参照する。
 - 工程9「授業演習」はT001〜T051が完了している。過去の第95〜104版記録にあるT030/T031未完了や「次は演習のこの機能」といった記述は当時点の履歴であり、現在の状態として扱わない。詳細・最終検証の範囲と限界は[授業演習計画](./feature-plans/student-exercise.md)を参照する。
 - **工程10 S1・S2/T014受入完了**: [初回スライス計画](./feature-plans/teacher-task-draft.md)のT001〜T015と、[教師プロンプト計画](./feature-plans/teacher-prompt-ai.md)のS2/T014を参照。再評価job履歴一覧、履歴からの詳細表示、対象生徒別の提出revision・状態・評価点を隔離認証browserで確認済み。専用V1〜V18 DB test、全体JUnit 204件（135 pass / 0 fail / 69 skip）とWAR生成も成功。証跡は[エラーレポート](./error-report.md)と[S2実装チェックポイント](./feature-plans/checkpoints/teacher-prompt-ai/tasks-to-impl.yaml)を参照。共有8080/DBは変更していない。
 - **工程10 S3完了**: [S3計画](./feature-plans/teacher-task-s3.md)に従い、必須の単一学校所属（V19、フォーム〜DAO）と、同一学校の課題管理権限教師による論理削除・下書き復元を実装。編集は作成者に限定し、管理者操作は含めない。空の専用DBとプロジェクト専用Compose DBへV1〜V19を適用し、専用DB統合testと認証browserで削除・復元を確認した。プロジェクト専用Compose DBを再構築し、新しい合成デモを投入済み。migration自体はデータ削除をせず、共有DB/他DBは変更していない。
 - **工程10 公開・改訂・独立コピー・期限/クラス変更実装と受入完了**: 公開・予約公開・期限処理は[教師課題公開計画](./feature-plans/teacher-task-publication.md)、学習開始前の同系列改訂と学習開始後の独立コピーは[公開後改訂計画](./feature-plans/teacher-task-revision.md)、期限延長と対象クラス追加は[専用計画](./feature-plans/teacher-task-deadline-and-class-changes.md)を参照する。専用MySQL統合テスト31件（27成功/4 browser-fixture skip/0失敗）で期限切れ割当の再開、既存提出履歴保持、stale version拒否、重複/他校クラス拒否、監査・冪等再送、archivedを含む過去割当クラスを追加候補から除外する履歴取得を確認した。認証browserで期限延長・クラス追加と成功通知を確認した。専用Compose環境は検証後に削除済み。AI実API確認は工程19へ延期する。
-- **工程11・12・12a完了、工程13受入中**: 管理者の教師/学校管理、[生徒アカウント管理](./feature-plans/teacher-student-accounts.md)、[教師本人のアカウント管理](./feature-plans/authentication-and-login.md#工程12aの完了記録2026-10-07)を実装・検証した。工程13は共有8080 DB適用と認証browserでの基本画面操作を確認済みで、単一校制約は画面とDBテストで確認済み。選択項目の一括移動、実アップロード、即時/予約配信、履歴操作など配信計画に残る受入を完了してから工程14へ進む。テスト環境はデモDBを使う通常環境または専用DBから作業に適した方を選ぶ。
+- **工程11・12・12a・13完了**: 管理者の教師/学校管理、[生徒アカウント管理](./feature-plans/teacher-student-accounts.md)、[教師本人のアカウント管理](./feature-plans/authentication-and-login.md#工程12aの完了記録2026-10-07)、および[工程13コード配信](./feature-plans/teacher-exercise-distribution.md)は実装・検証・認証browser受入済み。工程13について過去に記載した「受入中」「履歴操作などの受入待ち」は当時の記録であり、現在状態ではない。
 - **課題配信と授業演習コード配信の区別**: 課題の公開/改訂は工程10の課題状態操作、授業演習コード配信は工程13の演習フォルダ/ファイルの配布であり、別機能として管理する。
 - **AI稼働確認の再開・合成受入**: 2026-10-08の明示指示とモデル/時間条件の承認により、Pro高思考の教師縦断・通常評価の実API/DB確認と認証画面確認を実施した。既定は3.1 Pro Preview、既存版は元のモデルを保持する。実提出/コードログを使う検証、採点品質校正、本番quota/費用・負荷試験は未実施。詳細は[教師プロンプト計画](./feature-plans/teacher-prompt-ai.md)の最新受入記録を参照する。
 - OS標準のフォルダ選択/ZIP保存ダイアログと全ブラウザー/OS組合せは未確認。通常Chromeの単体.py保存と内容一致は利用者確認済み。教師工程へ進む承認をこれらの検証完了とは扱わず、演習計画の残事項として保持する。
 - 教師工程前デバッグは、[計画T001〜T014](./feature-plans/pre-teacher-debugging.md)の修正・再検証・ローカル反映・専用環境清掃・記録まで完了し、報告済み。対象5件の未解決ブロッカーはない。同計画と[エラーレポート](./error-report.md)は完了済みの作業記録として保持する。
 - 工程8「評価・アンケート」全体の実設定・ユーザー手動E2Eは、教師向け画面完成後、設定が可能になってから再開する。今回の既知バグに必要な専用合成DB・認証HTTP・回答保存確認だけを先行し、T006全体やその他の未確認事項を完了扱いにしない。
-- 工程7「生徒エディター」の30秒スナップショット、同時編集競合、重複提出の冪等性、提出後の再提出確定は[エディター計画](./feature-plans/student-editor.md)の未確認事項として保持する。教師側の課題編集・配信・提出閲覧との接続に影響する項目は、そのスライスの回帰確認へ組み込む。
+- 工程7「生徒エディター」の30秒スナップショットと二つのbrowser context間のstale編集拒否は工程20で実時間Playwright確認済み。重複提出の冪等性・提出後の再提出確定の全経路は[エディター計画](./feature-plans/student-editor.md)の未確認事項として保持する。教師側の課題編集・配信・提出閲覧との接続に影響する項目は、そのスライスの回帰確認へ組み込む。
 - 生徒/教師ID統一とパスワード変更UX・更新後遷移・認証情報履歴の保存は本実装へ反映済み。根拠・検証・未確認事項は[生徒ホーム等の計画](./feature-plans/student-home-consent-account.md)を参照する。
 - 管理者の2タブ統合・モーダル中心UIは既存デザインに沿って本実装へ接続済み。`/admin/home`は`/admin/teachers`へリダイレクトし、`/admin/schools`の独立APIは維持する。プロトタイプは変更していない。
 - **公開URLの横断整理（2026-10-08）**: [URL整理方針](./url-routing-policy.md)に従い、24 Servletのmappingと全JSP業務URLを確認。本人account・教師のstudents・管理者のteachers・生徒password/consentを正規化し、旧URL7種は認証後にGET/HEAD302、POST等307で誘導する。全体JUnit343件（223成功/120ゲートskip/失敗0）とWAR、専用合成MySQL/実アプリの認証HTTP5件、教師/生徒/管理者の画面・JSON読込を確認した。8080へ反映して両login200、host別rootと保護URLの認証redirect、実class定数を確認済み。専用DB/grant/containerは削除し、課題10/11のmetadata hashと18081の稼働を保持。全ブラウザー・CLIのポインタ操作保証は対象外とし、統合ブラウザーの一部click timeoutと代替確認は[エラーレポート](./error-report.md)に記録した。
 
-### 新セッションでの工程10の準備
+### 工程10着手時の準備記録（履歴）
+
+以下は工程10開始時点の準備記録であり、現在の着手順ではない。現状と次作業は本書冒頭の工程一覧・「次の着手と意図的な保留」を正とする。
 
 1. [AGENTS.md](../../AGENTS.md)の教師工程引継ぎと作業ツリーの未コミット変更を確認する。完了済みの基盤・演習・デバッグを作り直さない。
 2. 工程10の機能仕様・状態ルール・DB/API契約と、既存の認証・DAO・Control・DBを確認する。学校/クラスの権限、課題状態、適用版、配信状態を初回スライスの前提として確認する。既存UIの把握に必要な場合のみ課題/プロンプト/配信プロトタイプを参照し、変更・同期は行わない。
@@ -607,13 +609,13 @@
 
 ## 10. 教師の課題編集・公開・改訂を完了する
 
-**現在の状態:** 下書き作成/編集、必須の単一学校所属、学校内クラス割当、論理削除/下書き復元、公開/予約公開、学習開始前の同系列改訂/再公開、学習開始後の独立系列コピーは実装済み。専用DB統合テスト、改訂と独立コピーの認証browser受入、workerの期限境界・履歴保持・60秒以内の遷移を確認済み。期限延長/対象追加は[専用計画](./feature-plans/teacher-task-deadline-and-class-changes.md)に従って実装・受入中。プロンプトの基本編集/版管理は実装済みだが、Gemini実API利用は工程19へ延期する。
+**現在の状態:** 下書き作成/編集、必須の単一学校所属、学校内クラス割当、論理削除/下書き復元、公開/予約公開、学習開始前の同系列改訂/再公開、学習開始後の独立系列コピー、期限延長、対象クラス追加は実装・専用DB/認証browser受入済み。教師プロンプトの合成およびGemini実API受入も工程19で実施済み。各範囲の記録は[課題公開計画](./feature-plans/teacher-task-publication.md)、[公開後改訂計画](./feature-plans/teacher-task-revision.md)、[期限延長・クラス変更計画](./feature-plans/teacher-task-deadline-and-class-changes.md)、[教師プロンプト計画](./feature-plans/teacher-prompt-ai.md)を参照する。
 
 **参照資料:** [機能仕様](../function-specification.md)「課題編集」、[課題状態ルール](../state-rules/teacher/task-state-rules.md)、[実装契約](./implementation-contract.md)、[テーブル定義](../database-design/table-definitions.md)、[教師課題S3計画](./feature-plans/teacher-task-s3.md)、[公開計画](./feature-plans/teacher-task-publication.md)、[公開後改訂計画](./feature-plans/teacher-task-revision.md)。
 
 **合意済み事項（2026-10-06）:** 課題全体とクラス別割当の公開状態を分離する。アプリ内定期処理を1分間隔で実行し、予約公開・提出期限到来をDB時刻で判定する。遷移は予定時刻/期限から最大約1分以内。期限切れ後も `late_submission_policy=allow` なら未提出者の初回提出のみ許可し、期限後再提出は禁止する。
 
-**作業:** 公開条件（共通標準ルーブリック・現在適用プロンプト版を含む）、クラス別公開日時・提出期限、公開/予約/要更新/期限切れ遷移、改訂時の提出・評価履歴保持を照合する。公開/予約処理と期限判定は実装済みで、期限境界・履歴保持・worker SLAのruntime受入も完了した。同系列改訂は学習開始前のみ作成し、旧版維持・新prompt/assignment設定・再公開を一transactionで処理する。学習開始後の独立系列コピーは専用DB統合テストに加え、現行UIの認証browserでも確認済み。期限延長・対象クラス追加は[専用計画](./feature-plans/teacher-task-deadline-and-class-changes.md)に仕様/導線と実装の受入条件を記録し、本実装を進める。
+**作業:** 公開条件（共通標準ルーブリック・現在適用プロンプト版を含む）、クラス別公開日時・提出期限、公開/予約/要更新/期限切れ遷移、改訂時の提出・評価履歴保持を照合する。公開/予約処理、期限判定、同系列改訂、学習開始後の独立系列コピー、期限延長、対象クラス追加は実装・受入済み。詳細な証跡は上記機能別計画を参照する。工程20では必要な回帰範囲を横断テスト計画に従って確認する。
 
 **完了条件:** 課題状態とクラス別公開状態が仕様どおり永続化され、生徒側アクセス/期限判定と一致すること。
 
@@ -647,7 +649,7 @@
 
 ## 12a. 教師本人のアカウント管理を実装する
 
-**現在の状態:** 2026-10-07にT-SELF-001〜005を実装・検証し、V22と画面/APIを8080へ反映済み。全体270件中181成功・89明示ゲートskip・失敗0、対象DB6件成功、認証HTTP/ブラウザー受入を確認した。正確なコマンド・確認範囲・未確認事項は[認証計画の完了記録](./feature-plans/authentication-and-login.md#工程12aの完了記録2026-10-07)を参照する。工程13・14も実装・受入済み。次は工程15「授業演習コード確認」。
+**現在の状態:** 2026-10-07にT-SELF-001〜005を実装・検証し、V22と画面/APIを8080へ反映済み。全体270件中181成功・89明示ゲートskip・失敗0、対象DB6件成功、認証HTTP/ブラウザー受入を確認した。正確なコマンド・確認範囲・未確認事項は[認証計画の完了記録](./feature-plans/authentication-and-login.md#工程12aの完了記録2026-10-07)を参照する。工程13・14も実装・受入済みであり、工程15も後続工程として完了済み。現在の次作業は工程20。
 
 **参照資料:** [機能仕様](../function-specification.md)「教師本人のアカウント管理機能」REQ-001〜003、[認証計画](./feature-plans/authentication-and-login.md)、[アカウント状態ルール](../state-rules/admin/account-state-rules.md)、[DBテーブル定義](../database-design/table-definitions.md#users)。
 
@@ -663,7 +665,7 @@
 
 ## 13. 授業演習コード配信を実装する
 
-**現在の状態:** 配信処理は専用MySQL検証と8080適用・認証browser受入済み（2026-10-07）。画面再現・単一校制約の実装と専用DB検証は完了したが、認証後の画面受入が残る。課題の公開/改訂とは別機能であり、実装・検証記録は[コード配信計画](./feature-plans/teacher-exercise-distribution.md)を正とする。
+**現在の状態:** 配信処理、画面再現、単一校制約は専用MySQL検証と認証browser受入まで完了済み（2026-10-07）。課題の公開/改訂とは別機能であり、詳細な実装・検証記録は[コード配信計画](./feature-plans/teacher-exercise-distribution.md)を正とする。
 
 **参照資料:** [機能仕様](../function-specification.md)「コード配信機能」、[配信状態ルール](../state-rules/teacher/distribution-state-rules.md)、[授業演習計画](./feature-plans/student-exercise.md)、DB設計/クラス図。
 
@@ -775,6 +777,8 @@
 **前提:** 工程10〜19が完了。AI試験は承認範囲と隔離環境を遵守する。
 
 **確認手順:** 空DB migration/seedから教師・管理者・生徒の主要導線、認可境界、状態遷移、DB再読込、重複送信、異常系、CSV、狭幅UIを通して確認する。AI確認はmock/合成/実APIのどの層かを明示し、未確認を合格に含めない。実コマンド、結果、browser証跡、残課題を記録する。
+
+**現在の状態（2026-10-13）:** 部分実施。今回のfixture追加前の直近全体clean buildはGradle 8.10.2/JDK 21でexit 0、JUnit 141 suites / 527 tests（349 passed、0 failures、0 errors、178 skipped）、WAR成功。追加したfixtureは対象指定でcompile/test済みだが、全体clean buildは再実行していない。複数領域の専用MySQL統合試験に加え、Node.js v24.21.0/Playwright 1.64.0で認証/管理者境界、30秒自動保存後の再読込、二つのbrowser context間のstale保存拒否、N166 deny通知からhomeへの遷移/直接editor拒否、教師の進捗/提出/評価/アンケート画面・出力、390px表示、教師の即時公開から対象生徒のeditor到達、予約公開workerから実公開・通知・対象editor・既読化、P20-03教師権限/所有範囲のDB境界と認証後の管理者URL拒否を確認（計9 tests passed、5つの別fixture環境/実行バッチ）。専用DBの新規fixture test 6件は対象ごとに成功。`git diff --check` exit 0。専用Compose/DB/schema/volume/networkは清掃し、binary-log trust設定は`OFF`を確認済み。残るopt-in試験、P20-04課題改訂・通知接続等の他主要導線/権限境界のブラウザー網羅、他ブラウザー/OS等が未確認のため完了扱いしない。判定は`PARTIAL / NEEDS_SIGNOFF`。詳細なコマンド・pass/skip数・範囲は[工程20横断テスト計画](./feature-plans/phase-20-cross-feature-validation.md)と[Runtime Validation Report](./feature-plans/runtime-validation-report.md)に記録。
 
 **段階2完了条件:** [詳細手順の完了条件](./implementation-and-local-development.md)を満たし、ローカル構築と主要機能/異常系を別の開発者が再現できること。
 

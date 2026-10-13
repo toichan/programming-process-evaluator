@@ -110,26 +110,27 @@ public final class TeacherTaskServlet extends HttpServlet {
 				long taskId = registry.createOrReuse(submittedForm.requestToken(),
 						() -> TASKS.createDraft(user, submittedForm.input(), submittedForm.requestToken()));
 				redirectSaved(response, request, taskId);
-			} else if ("createRevision".equals(form.action())) {
+			} else if ("saveAndConfigurePrompt".equals(form.action())) {
+				long taskId;
+				if (form.taskId() == 0) {
+					TeacherTaskCreateRegistry registry = existingRegistry(request.getSession(false));
+					TeacherTaskForm submittedForm = form;
+					taskId = registry.createOrReuse(submittedForm.requestToken(),
+							() -> TASKS.createDraft(user, submittedForm.input(), submittedForm.requestToken()));
+				} else {
+					TASKS.updateDraft(user, form.taskId(), form.expectedVersion(), form.input(), form.requestToken());
+					taskId = form.taskId();
+				}
+				redirectPrompt(response, request, taskId);
+			} else if ("createRevision".equals(form.action())
+					|| "createRevisionAndConfigurePrompt".equals(form.action())) {
 				long taskId = TASKS.createRevision(
 						user, form.taskId(), form.expectedVersion(), form.input(), form.requestToken());
-				redirectSaved(response, request, taskId);
-			} else if ("publishTask".equals(form.action())) {
-				TeacherTaskForm submittedForm = form;
-				if (submittedForm.taskId() == 0) {
-					TeacherTaskCreateRegistry registry = existingRegistry(request.getSession(false));
-					registry.createOrReuse(submittedForm.requestToken(),
-							() -> TASKS.publishTask(
-									user, 0, 0, submittedForm.input(), submittedForm.requestToken()));
+				if ("createRevisionAndConfigurePrompt".equals(form.action())) {
+					redirectPrompt(response, request, taskId);
 				} else {
-					TASKS.publishTask(
-							user,
-							submittedForm.taskId(),
-							submittedForm.expectedVersion(),
-							submittedForm.input(),
-							submittedForm.requestToken());
+					redirectSaved(response, request, taskId);
 				}
-				redirectPublished(response, request);
 			} else {
 				TASKS.updateDraft(user, form.taskId(), form.expectedVersion(), form.input(), form.requestToken());
 				redirectSaved(response, request, form.taskId());
@@ -215,9 +216,11 @@ public final class TeacherTaskServlet extends HttpServlet {
 				.filter(task -> "requires_update".equals(task.publicationStatus())).count());
 		Map<Long, String> deleteTokens = new HashMap<>();
 		Map<Long, String> independentCopyTokens = new HashMap<>();
+		Map<Long, String> publishTokens = new HashMap<>();
 		for (var task : page.tasks()) {
 			deleteTokens.put(task.taskId(), UUID.randomUUID().toString());
 			independentCopyTokens.put(task.taskId(), UUID.randomUUID().toString());
+			publishTokens.put(task.taskId(), UUID.randomUUID().toString());
 		}
 		Map<Long, String> restoreTokens = new HashMap<>();
 		for (var task : page.deletedTasks()) {
@@ -248,6 +251,7 @@ public final class TeacherTaskServlet extends HttpServlet {
 		}
 		request.setAttribute("teacherTaskDeleteTokens", deleteTokens);
 		request.setAttribute("teacherTaskIndependentCopyTokens", independentCopyTokens);
+		request.setAttribute("teacherTaskPublishTokens", publishTokens);
 		request.setAttribute("teacherTaskRestoreTokens", restoreTokens);
 		request.setAttribute("teacherTaskDeadlineTokens", assignmentDeadlineTokens);
 		request.setAttribute("teacherTaskClassAssignmentTokens", classAssignmentTokens);
@@ -340,7 +344,9 @@ public final class TeacherTaskServlet extends HttpServlet {
 		TeacherTaskCreateRegistry registry = registry(request.getSession(false), true);
 		String createToken = submittedForm != null
 				&& ("createDraft".equals(submittedForm.action())
-						|| "createRevision".equals(submittedForm.action()))
+						|| "saveAndConfigurePrompt".equals(submittedForm.action())
+						|| "createRevision".equals(submittedForm.action())
+						|| "createRevisionAndConfigurePrompt".equals(submittedForm.action()))
 				? submittedForm.requestToken()
 				: registry.issueToken();
 		request.setAttribute("teacherTaskCreateToken", createToken);
@@ -373,6 +379,12 @@ public final class TeacherTaskServlet extends HttpServlet {
 				response.sendRedirect(response.encodeRedirectURL(
 						request.getContextPath() + "/teacher/task?taskId=" + copiedTaskId));
 				return;
+			} else if ("publishTaskFromList".equals(operation.action())) {
+				TASKS.publishExistingTask(user, operation.taskId(), operation.expectedVersion(), operation.requestToken());
+				HttpSession session = request.getSession(false);
+				if (session != null) {
+					session.setAttribute(TASK_STATE_NOTICE_ATTRIBUTE, "課題を公開しました。");
+				}
 			} else if ("deleteTask".equals(operation.action())) {
 				TASKS.deleteTask(user, operation.taskId(), operation.expectedVersion(), operation.requestToken());
 				HttpSession session = request.getSession(false);
@@ -405,7 +417,8 @@ public final class TeacherTaskServlet extends HttpServlet {
 		return "deleteTask".equals(action)
 				|| "restoreTask".equals(action)
 				|| "duplicateTask".equals(action)
-				|| "copyToNewTaskSeries".equals(action);
+				|| "copyToNewTaskSeries".equals(action)
+				|| "publishTaskFromList".equals(action);
 	}
 
 	private void processPublishedAssignmentOperation(
@@ -682,6 +695,12 @@ public final class TeacherTaskServlet extends HttpServlet {
 			session.setAttribute(SAVED_NOTICE_ATTRIBUTE, Boolean.TRUE);
 		}
 		response.sendRedirect(response.encodeRedirectURL(request.getContextPath() + "/teacher/task?taskId=" + taskId));
+	}
+
+	private void redirectPrompt(HttpServletResponse response, HttpServletRequest request, long taskId)
+			throws IOException {
+		response.sendRedirect(response.encodeRedirectURL(
+				request.getContextPath() + "/teacher/prompt?taskId=" + taskId));
 	}
 
 	private void redirectPublished(HttpServletResponse response, HttpServletRequest request)

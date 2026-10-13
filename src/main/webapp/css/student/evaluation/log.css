@@ -240,6 +240,53 @@ body {
   overflow: hidden;
 }
 
+.execution-output-status {
+  margin: 0 0 0.9rem;
+  color: var(--bs-gray-700);
+  font-weight: 700;
+}
+
+.execution-stream {
+  min-width: 0;
+  margin-top: 0.75rem;
+  overflow: hidden;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.8rem;
+  background: #0f172a;
+}
+
+.execution-stream-heading {
+  margin: 0;
+  padding: 0.55rem 0.8rem;
+  background: #e2e8f0;
+  color: #1e293b;
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.execution-stream-content {
+  max-height: 14rem;
+  margin: 0;
+  padding: 0.8rem;
+  overflow: auto;
+  color: #e2e8f0;
+  font: 500 0.88rem/1.6 "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.execution-stream-stdin .execution-stream-heading {
+  border-left: 0.3rem solid #0ea5e9;
+}
+
+.execution-stream-stdout .execution-stream-heading {
+  border-left: 0.3rem solid #10b981;
+}
+
+.execution-stream-stderr .execution-stream-heading {
+  border-left: 0.3rem solid #ef4444;
+}
+
 .sidebar-switcher {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

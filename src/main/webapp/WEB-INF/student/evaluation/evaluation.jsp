@@ -4,7 +4,7 @@
 <c:set var="screenPageTitle" value="評価結果"/>
 <c:set var="screenStylesheet" value="/css/student/evaluation/evaluation.css"/>
 <c:set var="screenScript" value="/js/student/evaluation/evaluation.js"/>
-<c:set var="screenAssetVersion" value="159"/>
+<c:set var="screenAssetVersion" value="162"/>
 <%@ include file="/WEB-INF/template/page-start.jspf" %>
 <%@ include file="/WEB-INF/student/shared/navigation.jspf" %>
 <c:url var="surveyUrl" value="/student/survey"><c:param name="assignmentId" value="${evaluationPage.assignmentId}"/><c:param name="evaluationId" value="${surveyNavigation.evaluationId}"/><c:param name="surveyId" value="${surveyNavigation.surveyId}"/></c:url>
@@ -75,6 +75,24 @@
 						<span class="hero-score-pill attitude">プロンプト <c:out value="${evaluationPage.promptVersion}"/></span>
 					</c:if>
 				</div>
+				<c:if test="${not empty evaluationPage.evaluation}">
+					<c:forEach var="dimension" items="${evaluationPage.evaluation.dimensions}">
+						<c:choose>
+							<c:when test="${dimension.label == '思考力・判断力・表現力'}">
+								<c:set var="thinkingToolbarScore" value="${dimension.score}"/>
+							</c:when>
+							<c:when test="${dimension.label == '主体的に学習に取り組む態度'}">
+								<c:set var="attitudeToolbarScore" value="${dimension.score}"/>
+							</c:when>
+						</c:choose>
+					</c:forEach>
+					<c:if test="${not empty thinkingToolbarScore and not empty attitudeToolbarScore}">
+						<div class="dimension-score-toolbar" role="group" aria-label="観点別総合スコア">
+							<span>思：<c:out value="${thinkingToolbarScore}"/></span>
+							<span>態：<c:out value="${attitudeToolbarScore}"/></span>
+						</div>
+					</c:if>
+				</c:if>
 			</div>
 		</section>
 
@@ -87,9 +105,6 @@
 					<section class="sample-section overview-section mb-4">
 						<h2 class="card-title mb-2">前回提出分の評価</h2>
 						<p class="text-muted">以下は今回の提出ではなく、提出版 v<c:out value="${evaluationPage.previousCompletedEvaluation.revisionNumber}"/> の評価です。</p>
-						<c:if test="${not empty evaluationPage.previousCompletedEvaluation.feedbackSummary}">
-							<p class="mb-0"><c:out value="${evaluationPage.previousCompletedEvaluation.feedbackSummary}"/></p>
-						</c:if>
 						<c:if test="${not empty evaluationPage.previousCompletedEvaluation.dimensions}">
 							<ul class="mt-3 mb-0">
 								<c:forEach var="dimension" items="${evaluationPage.previousCompletedEvaluation.dimensions}">
@@ -185,18 +200,6 @@
 						</div>
 					</c:otherwise>
 				</c:choose>
-				<c:if test="${not empty evaluationPage.evaluation.feedbackSummary}">
-					<div class="mt-4">
-						<h3 class="h5">フィードバック</h3>
-						<p class="mb-0"><c:out value="${evaluationPage.evaluation.feedbackSummary}"/></p>
-					</div>
-				</c:if>
-				<c:if test="${not empty evaluationPage.evaluation.processAnalysis}">
-					<div class="mt-4">
-						<h3 class="h5">学習過程の分析</h3>
-						<p class="mb-0"><c:out value="${evaluationPage.evaluation.processAnalysis}"/></p>
-					</div>
-				</c:if>
 			</section>
 
 			<section class="sample-section breakdown-section mb-4">
@@ -246,7 +249,6 @@
 							<button class="reason-filter is-active" type="button" data-reason-filter="all" aria-pressed="true">すべて</button>
 							<button class="reason-filter" type="button" data-reason-filter="thinking" aria-pressed="false">思考・判断・表現</button>
 							<button class="reason-filter" type="button" data-reason-filter="attitude" aria-pressed="false">態度</button>
-							<button class="reason-filter" type="button" data-reason-filter="other" aria-pressed="false">その他</button>
 						</div>
 						<div class="reason-list">
 							<c:forEach var="reason" items="${evaluationPage.evaluation.reasons}">

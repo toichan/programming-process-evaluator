@@ -90,6 +90,26 @@ public final class StudentSurveyQuestion {
 				default -> option.label();
 			};
 		}
+		if ("q3ProcessResistanceScore".equals(code)) {
+			return switch (option.value()) {
+				case "1" -> "とても感じる";
+				case "2" -> "やや感じる";
+				case "3" -> "どちらともいえない";
+				case "4" -> "あまり感じない";
+				case "5" -> "全く感じない";
+				default -> option.label();
+			};
+		}
+		if ("q4UsabilityScore".equals(code)) {
+			return switch (option.value()) {
+				case "1" -> "とても使いにくい";
+				case "2" -> "やや使いにくい";
+				case "3" -> "どちらともいえない";
+				case "4" -> "やや使いやすい";
+				case "5" -> "とても使いやすい";
+				default -> option.label();
+			};
+		}
 		return option.label();
 	}
 

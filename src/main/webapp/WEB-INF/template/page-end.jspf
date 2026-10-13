@@ -61,7 +61,7 @@
 	<c:if test="${screenDesign == 'student'}">
 		<script src="${pageContext.request.contextPath}/js/student/shared/rubric.js?v=106" defer></script>
 		<script src="${pageContext.request.contextPath}/js/student/shared/help-modals.js?v=107" defer></script>
-		<script src="${pageContext.request.contextPath}/js/student/shared/notifications.js?v=165" defer></script>
+		<script src="${pageContext.request.contextPath}/js/student/shared/notifications.js?v=170" defer></script>
 	</c:if>
 	<c:if test="${passwordChangeNotice}">
 		<script src="${pageContext.request.contextPath}/js/shared/password-change-notice.js" defer></script>

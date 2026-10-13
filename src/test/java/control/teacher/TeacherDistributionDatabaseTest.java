@@ -30,6 +30,8 @@ import lib.mysql.Client;
 class TeacherDistributionDatabaseTest {
 	private final TeacherDistributionControl control = new TeacherDistributionControl();
 	private AuthenticatedUser teacher;
+	private AuthenticatedUser peerTeacher;
+	private AuthenticatedUser foreignTeacher;
 	private long schoolId;
 	private long classroomId;
 	private long outsideClassroomId;
@@ -57,6 +59,30 @@ class TeacherDistributionDatabaseTest {
 				statement.setLong(2, teacherId);
 				statement.executeUpdate();
 			}
+			long peerTeacherId = insertUser(connection, "teacher-distribution-peer", "teacher");
+			peerTeacher = new AuthenticatedUser(peerTeacherId, "teacher-distribution-peer", "Synthetic",
+					UserType.TEACHER, false, "distribution-test");
+			try (var statement = connection.prepareStatement("""
+					INSERT INTO teacher_feature_permissions
+					  (teacher_user_id, feature_code, is_enabled, updated_by_user_id, updated_at)
+					VALUES (?, 'code-distribution', TRUE, ?, UTC_TIMESTAMP())
+					""")) {
+				statement.setLong(1, peerTeacherId);
+				statement.setLong(2, peerTeacherId);
+				statement.executeUpdate();
+			}
+			long foreignTeacherId = insertUser(connection, "teacher-distribution-foreign", "teacher");
+			foreignTeacher = new AuthenticatedUser(foreignTeacherId, "teacher-distribution-foreign", "Synthetic",
+					UserType.TEACHER, false, "distribution-test");
+			try (var statement = connection.prepareStatement("""
+					INSERT INTO teacher_feature_permissions
+					  (teacher_user_id, feature_code, is_enabled, updated_by_user_id, updated_at)
+					VALUES (?, 'code-distribution', TRUE, ?, UTC_TIMESTAMP())
+					""")) {
+				statement.setLong(1, foreignTeacherId);
+				statement.setLong(2, foreignTeacherId);
+				statement.executeUpdate();
+			}
 			initialized = true;
 			schoolId = insert(connection, """
 					INSERT INTO schools (school_code, name, school_status, security_level, created_at)
@@ -74,6 +100,26 @@ class TeacherDistributionDatabaseTest {
 			outsideClassroomId = insertClassroom(connection, outsideSchoolId, "Outside");
 			sameSchoolClassroomId = insertClassroom(connection, schoolId, "Target2");
 			crossSchoolClassroomId = insertClassroom(connection, crossSchoolId, "CrossSchool");
+			try (var statement = connection.prepareStatement("""
+					INSERT INTO teacher_school_permissions
+					  (teacher_user_id, school_id, access_status, updated_by_user_id, updated_at)
+					VALUES (?, ?, 'enabled', ?, UTC_TIMESTAMP())
+					""")) {
+				statement.setLong(1, peerTeacherId);
+				statement.setLong(2, schoolId);
+				statement.setLong(3, peerTeacherId);
+				statement.executeUpdate();
+			}
+			try (var statement = connection.prepareStatement("""
+					INSERT INTO teacher_school_permissions
+					  (teacher_user_id, school_id, access_status, updated_by_user_id, updated_at)
+					VALUES (?, ?, 'enabled', ?, UTC_TIMESTAMP())
+					""")) {
+				statement.setLong(1, foreignTeacherId);
+				statement.setLong(2, crossSchoolId);
+				statement.setLong(3, foreignTeacherId);
+				statement.executeUpdate();
+			}
 			try (var statement = connection.prepareStatement("""
 					INSERT INTO teacher_school_permissions
 					  (teacher_user_id, school_id, access_status, updated_by_user_id, updated_at)
@@ -116,6 +162,72 @@ class TeacherDistributionDatabaseTest {
 				statement.executeUpdate();
 			}
 		}
+	}
+
+	@Test
+	void sharesOnlySchoolScopedTemplatesAndPreservesEditorAndExecutorAttribution() throws Exception {
+		var items = List.of(new TemplateItem("week1/main.py", StudentExerciseEntry.Type.FILE, "print('shared')"));
+		control.saveDraft(teacher, input(0, 0, items, List.of(), UUID.randomUUID().toString()));
+		var unscoped = control.loadPage(teacher).templates().getFirst();
+		assertTrue(control.loadPage(peerTeacher).templates().isEmpty());
+		assertThrows(IllegalArgumentException.class,
+				() -> control.loadTemplate(peerTeacher, unscoped.templateId()));
+		assertTrue(control.loadPage(foreignTeacher).templates().isEmpty());
+		assertThrows(IllegalArgumentException.class,
+				() -> control.loadTemplate(foreignTeacher, unscoped.templateId()));
+
+		var firstRun = control.schedule(teacher, input(unscoped.templateId(), unscoped.version(), items,
+				List.of(new Target(classroomId, null)), UUID.randomUUID().toString()));
+		var sharedPage = control.loadPage(peerTeacher);
+		assertTrue(sharedPage.templates().stream().anyMatch(item -> item.templateId() == unscoped.templateId()));
+		assertEquals(items, control.loadTemplate(peerTeacher, unscoped.templateId()).items());
+		assertTrue(control.loadPage(foreignTeacher).templates().isEmpty());
+		assertThrows(SecurityException.class,
+				() -> control.loadTemplate(foreignTeacher, unscoped.templateId()));
+		assertTrue(sharedPage.distributions().stream().flatMap(distribution -> distribution.history().stream())
+				.anyMatch(entry -> entry.actorId() == teacher.userId() && entry.action().equals("配信設定")));
+		setDistributionFeature(peerTeacher.userId(), false);
+		assertThrows(SecurityException.class, () -> control.loadPage(peerTeacher));
+		assertThrows(SecurityException.class, () -> control.loadTemplate(peerTeacher, unscoped.templateId()));
+		setDistributionFeature(peerTeacher.userId(), true);
+
+		var current = sharedPage.templates().stream()
+				.filter(item -> item.templateId() == unscoped.templateId()).findFirst().orElseThrow();
+		control.saveDraft(peerTeacher, new TeacherDistributionInput(current.templateId(), current.version(),
+				"Shared update", "Lesson", items, List.of(), UUID.randomUUID().toString()));
+		assertEquals(teacher.userId(), scalar("SELECT created_by_user_id FROM distribution_templates WHERE distribution_template_id="
+				+ unscoped.templateId()));
+		assertEquals(peerTeacher.userId(), scalar("SELECT updated_by_user_id FROM distribution_templates WHERE distribution_template_id="
+				+ unscoped.templateId()));
+		assertTrue(control.loadPage(peerTeacher).distributions().stream()
+				.flatMap(distribution -> distribution.history().stream())
+				.anyMatch(entry -> entry.actorId() == peerTeacher.userId() && entry.action().equals("テンプレート編集")));
+
+		var afterEdit = control.loadPage(peerTeacher).templates().stream()
+				.filter(item -> item.templateId() == unscoped.templateId()).findFirst().orElseThrow();
+		var peerRun = control.schedule(peerTeacher, input(afterEdit.templateId(), afterEdit.version(), items,
+				List.of(new Target(sameSchoolClassroomId, null)), UUID.randomUUID().toString()));
+		var peerRunRow = control.loadPage(peerTeacher).distributions().stream()
+				.filter(distribution -> distribution.distributionId() == peerRun.distributionId())
+				.findFirst().orElseThrow();
+		assertEquals(peerTeacher.loginId(), peerRunRow.executedBy());
+		assertTrue(peerRunRow.history().stream().anyMatch(entry -> entry.actorId() == peerTeacher.userId()));
+
+		var latest = control.loadPage(teacher).templates().stream()
+				.filter(item -> item.templateId() == unscoped.templateId()).findFirst().orElseThrow();
+		control.schedule(teacher, input(latest.templateId(), latest.version(), items,
+				List.of(new Target(crossSchoolClassroomId, null)), UUID.randomUUID().toString()));
+		assertTrue(control.loadPage(peerTeacher).templates().stream()
+				.noneMatch(item -> item.templateId() == unscoped.templateId()));
+		assertTrue(control.loadPage(peerTeacher).distributions().stream()
+				.noneMatch(distribution -> distribution.templateId() == unscoped.templateId()));
+		assertTrue(control.loadPage(foreignTeacher).templates().stream()
+				.noneMatch(item -> item.templateId() == unscoped.templateId()));
+		assertTrue(control.loadPage(foreignTeacher).distributions().stream()
+				.noneMatch(distribution -> distribution.templateId() == unscoped.templateId()));
+		assertThrows(IllegalArgumentException.class,
+				() -> control.loadTemplate(peerTeacher, unscoped.templateId()));
+		assertThrows(IllegalArgumentException.class, () -> control.stop(peerTeacher, firstRun.distributionId()));
 	}
 
 	@Test
@@ -314,6 +426,17 @@ class TeacherDistributionDatabaseTest {
 				assertTrue(keys.next());
 				return keys.getLong(1);
 			}
+		}
+	}
+
+	private void setDistributionFeature(long teacherId, boolean enabled) throws SQLException {
+		try (Connection connection = Client.createConnection(); var statement = connection.prepareStatement("""
+				UPDATE teacher_feature_permissions SET is_enabled = ?
+				WHERE teacher_user_id = ? AND feature_code = 'code-distribution'
+				""")) {
+			statement.setBoolean(1, enabled);
+			statement.setLong(2, teacherId);
+			assertEquals(1, statement.executeUpdate());
 		}
 	}
 

@@ -9,6 +9,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -40,6 +42,7 @@ import control.auth.PasswordHasher;
 import control.evaluation.EvaluationProvider;
 import control.evaluation.EvaluationProviderException;
 import control.evaluation.ReevaluationPreviewWorker;
+import control.student.StudentEditorControl;
 import control.student.StandardRubricSource;
 import entity.EditorHint;
 import entity.EditorSubmissionCheck;
@@ -100,6 +103,21 @@ class TeacherTaskDatabaseTest {
 		assertThrows(SecurityException.class, () -> prompts.loadPage(teacher(), taskId, null));
 	}
 
+	private String findLoginId(long userId) throws SQLException {
+		try (Connection connection = Client.createConnection();
+				PreparedStatement statement = connection.prepareStatement(
+						"SELECT login_id FROM users WHERE user_id = ?")) {
+			assertEquals(System.getenv("DB_NAME"), connection.getCatalog());
+			statement.setLong(1, userId);
+			try (ResultSet rows = statement.executeQuery()) {
+				if (!rows.next()) {
+					throw new SQLException("Synthetic browser user was not found.");
+				}
+				return rows.getString(1);
+			}
+		}
+	}
+
 	@Test
 	void createsRetainedSyntheticTeacherFixtureForIsolatedBrowserAcceptance() throws SQLException {
 		Assumptions.assumeTrue("true".equals(System.getenv("TEACHER_TASK_BROWSER_FIXTURE")));
@@ -155,6 +173,159 @@ class TeacherTaskDatabaseTest {
 		System.out.printf("TASK_ASSIGNMENT_BROWSER_FIXTURE loginId=%s taskId=%d assignmentId=%d "
 				+ "classroomId=%d addableClassroomId=%d%n",
 				teacherLoginId, taskId, assignmentId, classroomId, secondClassroomId);
+	}
+
+	@Test
+	void createsRetainedEditorFixtureForPhase20BrowserAcceptance() throws SQLException {
+		Assumptions.assumeTrue("true".equals(System.getenv("TEACHER_TASK_EDITOR_BROWSER_FIXTURE")));
+		assertTrue(System.getenv("DB_NAME").matches("ppe_teacher_task_test_[a-z0-9_]+"));
+		String teacherPassword = System.getenv("TEACHER_TASK_BROWSER_PASSWORD");
+		String studentPassword = System.getenv("TEACHER_TASK_STUDENT_BROWSER_PASSWORD");
+		assertTrue(teacherPassword != null && teacherPassword.length() >= 12,
+				"A throwaway teacher password must be supplied for the isolated browser fixture.");
+		assertTrue(studentPassword != null && studentPassword.length() >= 12,
+				"A throwaway student password must be supplied for the isolated browser fixture.");
+
+		long studentId = insertStudentFixture();
+		try (Connection connection = Client.createConnection();
+				PreparedStatement statement = connection.prepareStatement("""
+						UPDATE users SET password_hash = ?
+						WHERE user_id = ? AND login_id = ?
+						""")) {
+			assertEquals(System.getenv("DB_NAME"), connection.getCatalog());
+			statement.setString(1, new PasswordHasher().hash(teacherPassword.toCharArray()));
+			statement.setLong(2, teacherId);
+			statement.setString(3, teacherLoginId);
+			assertEquals(1, statement.executeUpdate());
+			statement.setString(1, new PasswordHasher().hash(studentPassword.toCharArray()));
+			statement.setLong(2, studentId);
+			statement.setString(3, findLoginId(studentId));
+			assertEquals(1, statement.executeUpdate());
+		}
+
+		long taskId = TASKS.createDraft(
+				teacher(),
+				inputWithAssignments(
+						"Phase 20 editor browser acceptance",
+						List.of(new ClassAssignmentInput(
+								0, classroomId, null, LocalDateTime.now().plusDays(1), LateSubmissionPolicy.ALLOW))),
+				UUID.randomUUID().toString());
+		activateConfiguredPrompt(teacher(), taskId);
+		publishDraft(teacher(), taskId);
+		long assignmentId = findAssignmentId(taskId, classroomId);
+		retainFixtureAfterTest = true;
+		System.out.printf("PPE_P20_EDITOR_FIXTURE teacherLoginId=%s studentLoginId=%s taskId=%d assignmentId=%d%n",
+				teacherLoginId, findLoginId(studentId), taskId, assignmentId);
+	}
+
+	@Test
+	void createsRetainedDraftAndStudentForPhase20PublicationBrowserAcceptance() throws Exception {
+		Assumptions.assumeTrue("true".equals(System.getenv("TEACHER_TASK_PUBLICATION_BROWSER_FIXTURE")));
+		assertTrue(System.getenv("DB_NAME").matches("ppe_teacher_task_test_[a-z0-9_]+"));
+		String teacherPassword = System.getenv("TEACHER_TASK_BROWSER_PASSWORD");
+		String studentPassword = System.getenv("TEACHER_TASK_STUDENT_BROWSER_PASSWORD");
+		assertTrue(teacherPassword != null && teacherPassword.length() >= 12,
+				"A throwaway teacher password must be supplied for the isolated browser fixture.");
+		assertTrue(studentPassword != null && studentPassword.length() >= 12,
+				"A throwaway student password must be supplied for the isolated browser fixture.");
+
+		try (Connection connection = Client.createConnection();
+				PreparedStatement statement = connection.prepareStatement(
+						"UPDATE users SET password_hash = ? WHERE user_id = ? AND login_id = 'teacher-demo'")) {
+			assertEquals(System.getenv("DB_NAME"), connection.getCatalog());
+			statement.setString(1, new PasswordHasher().hash(teacherPassword.toCharArray()));
+			statement.setLong(2, teacherId);
+			assertEquals(1, statement.executeUpdate());
+		}
+
+		long studentId = insertStudentFixture();
+		String studentLoginId = findLoginId(studentId);
+		try (Connection connection = Client.createConnection();
+				PreparedStatement statement = connection.prepareStatement(
+						"UPDATE users SET password_hash = ? WHERE user_id = ? AND login_id = ?")) {
+			assertEquals(System.getenv("DB_NAME"), connection.getCatalog());
+			statement.setString(1, new PasswordHasher().hash(studentPassword.toCharArray()));
+			statement.setLong(2, studentId);
+			statement.setString(3, studentLoginId);
+			assertEquals(1, statement.executeUpdate());
+		}
+
+		String taskTitle = "Phase 20 publication browser acceptance";
+		long taskId = TASKS.createDraft(
+				teacher(),
+				inputWithAssignments(
+						taskTitle,
+						List.of(new ClassAssignmentInput(
+								0, classroomId, null, LocalDateTime.now().plusDays(1),
+								LateSubmissionPolicy.DENY))),
+				UUID.randomUUID().toString());
+		activateConfiguredPrompt(teacher(), taskId);
+		long assignmentId = findAssignmentId(taskId, classroomId);
+		retainFixtureAfterTest = true;
+
+		Path fixtureFile = Path.of("build", "phase20-publication-browser-fixture.properties");
+		Files.createDirectories(fixtureFile.getParent());
+		Files.writeString(fixtureFile, String.join(System.lineSeparator(),
+				"taskId=" + taskId,
+				"assignmentId=" + assignmentId,
+				"studentLoginId=" + studentLoginId) + System.lineSeparator());
+	}
+
+	@Test
+	void createsRetainedScheduledPublicationFixtureForPhase20BrowserAcceptance() throws Exception {
+		Assumptions.assumeTrue(
+				"true".equals(System.getenv("TEACHER_TASK_SCHEDULED_PUBLICATION_BROWSER_FIXTURE")));
+		assertTrue(System.getenv("DB_NAME").matches("ppe_teacher_task_test_[a-z0-9_]+"));
+		String teacherPassword = System.getenv("TEACHER_TASK_BROWSER_PASSWORD");
+		String studentPassword = System.getenv("TEACHER_TASK_STUDENT_BROWSER_PASSWORD");
+		assertTrue(teacherPassword != null && teacherPassword.length() >= 12,
+				"A throwaway teacher password must be supplied for the isolated browser fixture.");
+		assertTrue(studentPassword != null && studentPassword.length() >= 12,
+				"A throwaway student password must be supplied for the isolated browser fixture.");
+
+		try (Connection connection = Client.createConnection();
+				PreparedStatement statement = connection.prepareStatement(
+						"UPDATE users SET password_hash = ? WHERE user_id = ? AND login_id = 'teacher-demo'")) {
+			assertEquals(System.getenv("DB_NAME"), connection.getCatalog());
+			statement.setString(1, new PasswordHasher().hash(teacherPassword.toCharArray()));
+			statement.setLong(2, teacherId);
+			assertEquals(1, statement.executeUpdate());
+		}
+
+		long studentId = insertStudentFixture();
+		String studentLoginId = findLoginId(studentId);
+		try (Connection connection = Client.createConnection();
+				PreparedStatement statement = connection.prepareStatement(
+						"UPDATE users SET password_hash = ? WHERE user_id = ? AND login_id = ?")) {
+			assertEquals(System.getenv("DB_NAME"), connection.getCatalog());
+			statement.setString(1, new PasswordHasher().hash(studentPassword.toCharArray()));
+			statement.setLong(2, studentId);
+			statement.setString(3, studentLoginId);
+			assertEquals(1, statement.executeUpdate());
+		}
+
+		String taskTitle = "Phase 20 scheduled publication notification acceptance";
+		LocalDateTime publishAt = LocalDateTime.now().plusMinutes(10);
+		long taskId = TASKS.createDraft(
+				teacher(),
+				inputWithAssignments(
+						taskTitle,
+						List.of(new ClassAssignmentInput(
+								0, classroomId, publishAt, publishAt.plusDays(1), LateSubmissionPolicy.DENY))),
+				UUID.randomUUID().toString());
+		activateConfiguredPrompt(teacher(), taskId);
+		publishDraft(teacher(), taskId);
+		long assignmentId = findAssignmentId(taskId, classroomId);
+		assertEquals("scheduled", findAssignmentStatus(assignmentId));
+		assertEquals(0, countTaskPublishedNotifications(studentId, assignmentId));
+		retainFixtureAfterTest = true;
+
+		Path fixtureFile = Path.of("build", "phase20-scheduled-publication-browser-fixture.properties");
+		Files.createDirectories(fixtureFile.getParent());
+		Files.writeString(fixtureFile, String.join(System.lineSeparator(),
+				"taskId=" + taskId,
+				"assignmentId=" + assignmentId,
+				"studentLoginId=" + studentLoginId) + System.lineSeparator());
 	}
 
 	@Test
@@ -649,6 +820,92 @@ class TeacherTaskDatabaseTest {
 	}
 
 	@Test
+	void periodicSnapshotPersistsAndAStaleEditorVersionCannotOverwriteIt() throws SQLException {
+		AuthenticatedUser owner = teacher();
+		TeacherTaskInput taskInput = inputWithAssignments(
+				"Periodic snapshot acceptance",
+				List.of(new ClassAssignmentInput(
+						0, classroomId, null, LocalDateTime.now().plusDays(2), LateSubmissionPolicy.ALLOW)));
+		long taskId = TASKS.createDraft(owner, taskInput, UUID.randomUUID().toString());
+		activateConfiguredPrompt(owner, taskId);
+		publishDraft(owner, taskId);
+		long assignmentId = findAssignmentId(taskId, classroomId);
+		long studentId = insertStudentFixture();
+		AuthenticatedUser student = new AuthenticatedUser(
+				studentId, "synthetic-editor-student", "Synthetic editor student", UserType.STUDENT, false, "test");
+		StudentEditorControl editor = new StudentEditorControl();
+		StudentEditorPage initialPage = editor.loadPage(student, assignmentId).orElseThrow();
+
+		assertThrows(SecurityException.class, () -> editor.saveDraft(
+				owner, assignmentId, "print('unauthorized')", initialPage.getDraftUpdatedAt(), true));
+		String snapshotCode = "print('periodic snapshot')";
+		assertEquals(EditorSaveResult.Status.SAVED, editor.saveDraft(
+				student, assignmentId, snapshotCode, initialPage.getDraftUpdatedAt(), true).status());
+		assertEquals(EditorSaveResult.Status.CONFLICT, editor.saveDraft(
+				student, assignmentId, "print('stale tab')", initialPage.getDraftUpdatedAt(), false).status());
+
+		StudentEditorPage reloaded = editor.loadPage(student, assignmentId).orElseThrow();
+		assertEquals(snapshotCode, reloaded.getCode());
+		assertTrue(reloaded.getCodeLogs().stream().anyMatch(log ->
+				"periodic_snapshot".equals(log.getEventType()) && snapshotCode.equals(log.getSnapshot())));
+		try (Connection connection = Client.createConnection();
+				PreparedStatement statement = connection.prepareStatement("""
+						SELECT COUNT(*) FROM code_logs
+						WHERE participation_id = ? AND event_type = 'periodic_snapshot' AND snapshot_text = ?
+						""")) {
+			assertEquals(System.getenv("DB_NAME"), connection.getCatalog());
+			statement.setLong(1, reloaded.getParticipationId());
+			statement.setString(2, snapshotCode);
+			try (ResultSet rows = statement.executeQuery()) {
+				assertTrue(rows.next());
+				assertEquals(1, rows.getInt(1));
+			}
+		}
+	}
+
+	@Test
+	void duplicateSubmissionIsIdempotentAndResubmissionPersistsTheNextRevision() throws SQLException {
+		AuthenticatedUser owner = teacher();
+		TeacherTaskInput taskInput = inputWithAssignments(
+				"Submission idempotency acceptance",
+				List.of(new ClassAssignmentInput(
+						0, classroomId, null, LocalDateTime.now().plusDays(2), LateSubmissionPolicy.ALLOW)));
+		long taskId = TASKS.createDraft(owner, taskInput, UUID.randomUUID().toString());
+		activateConfiguredPrompt(owner, taskId);
+		publishDraft(owner, taskId);
+		long assignmentId = findAssignmentId(taskId, classroomId);
+		long studentId = insertStudentFixture();
+		AuthenticatedUser student = new AuthenticatedUser(
+				studentId, "synthetic-submission-student", "Synthetic submission student", UserType.STUDENT, false, "test");
+		StudentEditorControl editor = new StudentEditorControl();
+		StudentEditorPage initialPage = editor.loadPage(student, assignmentId).orElseThrow();
+		String requestKey = UUID.randomUUID().toString();
+		EditorSubmissionCheck firstCheck = submissionCheck(initialPage, studentId);
+
+		assertThrows(SecurityException.class, () -> editor.submit(owner, assignmentId, requestKey, firstCheck));
+		EditorSubmissionResult first = editor.submit(student, assignmentId, requestKey, firstCheck);
+		EditorSubmissionResult duplicate = editor.submit(student, assignmentId, requestKey, firstCheck);
+		assertEquals(EditorSubmissionResult.Status.SUBMITTED, first.status());
+		assertEquals(EditorSubmissionResult.Status.DUPLICATE, duplicate.status());
+		assertEquals(first.submissionId(), duplicate.submissionId());
+		assertEquals(1, first.revisionNumber());
+		assertEquals(1, countStudentSubmissions(studentId, assignmentId));
+
+		assertEquals(EditorSaveResult.Status.SAVED, editor.startResubmission(student, assignmentId).status());
+		StudentEditorPage resubmissionPage = editor.loadPage(student, assignmentId).orElseThrow();
+		String revisedCode = "print('synthetic revision two')";
+		assertEquals(EditorSaveResult.Status.SAVED, editor.saveDraft(
+				student, assignmentId, revisedCode, resubmissionPage.getDraftUpdatedAt(), false).status());
+		StudentEditorPage revisedPage = editor.loadPage(student, assignmentId).orElseThrow();
+		EditorSubmissionResult second = editor.submit(
+				student, assignmentId, UUID.randomUUID().toString(), submissionCheck(revisedPage, studentId));
+		assertEquals(EditorSubmissionResult.Status.SUBMITTED, second.status());
+		assertEquals(2, second.revisionNumber());
+		assertEquals(2, countStudentSubmissions(studentId, assignmentId));
+		assertEquals(revisedCode, editor.loadPage(student, assignmentId).orElseThrow().getLatestSubmittedCode());
+	}
+
+	@Test
 	void createsAndPublishesNewRevisionWhilePreservingThePublishedRevisionUntilReplacement() throws SQLException {
 		AuthenticatedUser owner = teacher();
 		TeacherTaskInput sourceInput = inputWithAssignments(
@@ -788,9 +1045,30 @@ class TeacherTaskDatabaseTest {
 				owner, revisionTaskId, promptVersionId, resolved.rowVersion());
 		assertEquals("completed", examples.evaluationExamplesStatus());
 		assertEquals(2, examples.evaluationExamples().getFirst().getSimulatedResults().size());
+		assertEquals(1, examples.evaluationExamples().size());
+		long generatedExampleId = examples.evaluationExamples().getFirst().id();
+		long olderInactiveExampleId;
+		try (Connection connection = Client.createConnection();
+				PreparedStatement statement = connection.prepareStatement("""
+						INSERT INTO evaluation_examples (
+						  prompt_version_id, example_input, example_output, example_status, created_at
+						) VALUES (?, CAST(? AS JSON), CAST(? AS JSON), 'inactive', DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 1 DAY))
+						""", Statement.RETURN_GENERATED_KEYS)) {
+			assertEquals(System.getenv("DB_NAME"), connection.getCatalog());
+			statement.setLong(1, promptVersionId);
+			statement.setString(2, "{}");
+			statement.setString(3, "{\"simulated_results\":[]}");
+			assertEquals(1, statement.executeUpdate());
+			try (ResultSet keys = statement.getGeneratedKeys()) {
+				assertTrue(keys.next());
+				olderInactiveExampleId = keys.getLong(1);
+			}
+		}
 		var configured = prompts.saveEvaluationExamples(
 				owner, revisionTaskId, promptVersionId, examples.rowVersion());
 		assertEquals("configured", configured.promptStatus());
+		assertEquals("active", findEvaluationExampleStatus(generatedExampleId));
+		assertEquals("inactive", findEvaluationExampleStatus(olderInactiveExampleId));
 		assertEquals(2, providerCalls.get());
 		assertEquals("requires_update", TASKS.loadPage(owner, revisionTaskId, schoolId)
 				.selectedTask().publicationStatus());
@@ -898,6 +1176,9 @@ class TeacherTaskDatabaseTest {
 			try {
 				teacherLoginId = "true".equals(System.getenv("TEACHER_TASK_BROWSER_FIXTURE"))
 						|| "true".equals(System.getenv("TEACHER_TASK_ASSIGNMENT_BROWSER_FIXTURE"))
+						|| "true".equals(System.getenv("TEACHER_TASK_EDITOR_BROWSER_FIXTURE"))
+						|| "true".equals(System.getenv("TEACHER_TASK_PUBLICATION_BROWSER_FIXTURE"))
+						|| "true".equals(System.getenv("TEACHER_TASK_SCHEDULED_PUBLICATION_BROWSER_FIXTURE"))
 						? "teacher-demo"
 						: "task-test-" + UUID.randomUUID().toString().replace("-", "");
 				teacherId = insertUser(connection, teacherLoginId, "Synthetic task teacher");
@@ -1678,7 +1959,7 @@ class TeacherTaskDatabaseTest {
 	}
 
 	@Test
-	void teacherWithSchoolPermissionCannotLoadAnotherTeachersDraft() throws SQLException {
+	void sameSchoolTaskManagerCanLoadAnotherTeachersDraft() throws SQLException {
 		AuthenticatedUser owner = teacher();
 		long taskId = TASKS.createDraft(owner, input("Owner-only draft"), UUID.randomUUID().toString());
 		long otherTeacherId;
@@ -1698,16 +1979,14 @@ class TeacherTaskDatabaseTest {
 		AuthenticatedUser otherTeacher = new AuthenticatedUser(
 				otherTeacherId, loginId, "Other authorized teacher", UserType.TEACHER, false, "test");
 
-		assertThrows(TaskDraftNotFoundException.class,
-				() -> TASKS.loadPage(otherTeacher, taskId, schoolId));
-		assertThrows(TaskDraftNotFoundException.class,
-				() -> TASKS.loadAuditEntries(otherTeacher, taskId));
+		assertEquals(taskId, TASKS.loadPage(otherTeacher, taskId, schoolId).selectedTask().taskId());
+		assertTrue(TASKS.loadAuditEntries(otherTeacher, taskId).isEmpty());
 		assertThrows(TaskDraftNotFoundException.class,
 				() -> TASKS.loadPage(owner, 987654321L, schoolId));
 	}
 
 	@Test
-	void sameSchoolTaskManagerCanDeleteAndRestoreWithoutEditingAnotherTeachersTask() throws SQLException {
+	void sameSchoolTaskManagerCanEditDeleteAndRestoreAnotherTeachersTask() throws SQLException {
 		AuthenticatedUser owner = teacher();
 		long taskId = TASKS.createDraft(owner, input("Managed task"), UUID.randomUUID().toString());
 		String otherLoginId = "task-test-" + UUID.randomUUID().toString().replace("-", "");
@@ -1728,8 +2007,19 @@ class TeacherTaskDatabaseTest {
 				otherTeacherId, otherLoginId, "Same-school task manager", UserType.TEACHER, false, "test");
 		var created = TASKS.loadPage(owner, taskId, schoolId).selectedTask();
 
-		assertThrows(TaskDraftNotFoundException.class, () -> TASKS.loadPage(manager, taskId, schoolId));
-		TASKS.deleteTask(manager, taskId, created.version(), UUID.randomUUID().toString());
+		var managerView = TASKS.loadPage(manager, taskId, schoolId).selectedTask();
+		assertEquals(taskId, managerView.taskId());
+		TeacherTaskInput originalInput = managerView.input();
+		TeacherTaskInput managerInput = new TeacherTaskInput(
+				"Managed by colleague", originalInput.theme(), originalInput.difficulty(),
+				originalInput.description(), originalInput.inputConstraints(), originalInput.creationRules(),
+				originalInput.initialCode(), originalInput.features(), originalInput.testCases(),
+				originalInput.hints(), originalInput.classAssignments(), originalInput.schoolId());
+		TASKS.updateDraft(manager, taskId, managerView.version(), managerInput, UUID.randomUUID().toString());
+		var edited = TASKS.loadPage(owner, taskId, schoolId).selectedTask();
+		assertEquals("Managed by colleague", edited.input().title());
+		assertEquals(otherTeacherId, edited.updatedByUserId());
+		TASKS.deleteTask(manager, taskId, edited.version(), UUID.randomUUID().toString());
 		var deleted = TASKS.loadPage(manager, null, null).deletedTasks().stream()
 				.filter(task -> task.taskId() == taskId)
 				.findFirst()
@@ -1742,7 +2032,43 @@ class TeacherTaskDatabaseTest {
 		assertEquals("draft", restored.publicationStatus());
 		assertEquals(created.input().schoolId(), restored.input().schoolId());
 		assertEquals(1, countUnpublishedAssignments(taskId));
-		assertEquals(List.of("create_draft", "delete_task", "restore_task"), findTaskAuditActions(taskId));
+		assertEquals(List.of("create_draft", "update_draft", "delete_task", "restore_task"),
+				findTaskAuditActions(taskId));
+	}
+
+	@Test
+	void sameSchoolPromptManagerCopiesAnAppliedSourceIntoATargetOwnedDraft() throws SQLException {
+		AuthenticatedUser owner = teacher();
+		long sourceTaskId = TASKS.createDraft(owner, input("Prompt source"), UUID.randomUUID().toString());
+		long targetTaskId = TASKS.createDraft(owner, input("Prompt target"), UUID.randomUUID().toString());
+		activateConfiguredPrompt(owner, sourceTaskId);
+		long sourcePromptId = findActivePromptVersionId(sourceTaskId);
+		String loginId = "prompt-copy-" + UUID.randomUUID().toString().replace("-", "");
+		long editorId;
+		try (Connection connection = Client.createConnection()) {
+			connection.setAutoCommit(false);
+			try {
+				editorId = insertUser(connection, loginId, "Same-school prompt editor");
+				fixtureUserIds.add(editorId);
+				insertPermissionFixtures(connection, editorId, schoolId);
+				connection.commit();
+			} catch (SQLException | RuntimeException | Error failure) {
+				rollback(connection, failure);
+				throw failure;
+			}
+		}
+		AuthenticatedUser editor = new AuthenticatedUser(
+				editorId, loginId, "Same-school prompt editor", UserType.TEACHER, false, "test");
+
+		long targetPromptId = new TeacherPromptControl().copyPromptFromTask(editor, targetTaskId, sourceTaskId);
+		var copied = new TeacherPromptControl().loadPage(editor, targetTaskId, targetPromptId).selectedVersion();
+
+		assertNotEquals(sourcePromptId, targetPromptId);
+		assertEquals(targetTaskId, copied.taskId());
+		assertEquals("draft", copied.promptStatus());
+		assertEquals("Synthetic publication prompt", copied.commonPrompt());
+		assertEquals(loginId, copied.updatedByLoginId());
+		assertNull(findActivePromptVersionId(targetTaskId));
 	}
 
 	@Test
@@ -2624,6 +2950,20 @@ class TeacherTaskDatabaseTest {
 		try (Connection connection = Client.createConnection()) {
 			assertEquals(System.getenv("DB_NAME"), connection.getCatalog());
 			return new TeacherPromptDao().findActivePromptVersionId(connection, taskId);
+		}
+	}
+
+	private String findEvaluationExampleStatus(long evaluationExampleId) throws SQLException {
+		try (Connection connection = Client.createConnection();
+				PreparedStatement statement = connection.prepareStatement("""
+						SELECT example_status FROM evaluation_examples WHERE evaluation_example_id = ?
+						""")) {
+			assertEquals(System.getenv("DB_NAME"), connection.getCatalog());
+			statement.setLong(1, evaluationExampleId);
+			try (ResultSet rows = statement.executeQuery()) {
+				assertTrue(rows.next());
+				return rows.getString("example_status");
+			}
 		}
 	}
 

@@ -1,0 +1,10 @@
+{
+  "name": "programming-process-evaluator-browser-tests",
+  "private": true,
+  "scripts": {
+    "test:phase20": "playwright test --config=playwright.config.js"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.0"
+  }
+}

@@ -278,6 +278,82 @@
   flex-wrap: wrap;
 }
 
+.distribution-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  white-space: normal;
+}
+
+td.distribution-actions {
+  display: table-cell;
+  min-width: 12rem;
+  max-width: 19rem;
+  vertical-align: top;
+}
+
+.distribution-actions form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  max-width: 100%;
+}
+
+.distribution-actions .form-control {
+  min-width: 0;
+  max-width: 12rem;
+}
+
+#distributionHistoryTable td.distribution-actions {
+  white-space: normal;
+}
+
+.distribution-operation-history-wrap {
+  max-width: 100%;
+}
+
+.distribution-operation-history-table {
+  min-width: 740px;
+  table-layout: fixed;
+}
+
+.teacher-screen .table-responsive.distribution-operation-history-wrap > .distribution-operation-history-table {
+  width: 100% !important;
+  min-width: 740px !important;
+  table-layout: fixed !important;
+}
+
+.teacher-screen .table-responsive.distribution-operation-history-wrap > .distribution-operation-history-table > :not(caption) > * > * {
+  white-space: normal !important;
+  overflow-wrap: anywhere !important;
+}
+
+.teacher-screen .table-responsive.distribution-operation-history-wrap > .distribution-operation-history-table th:nth-child(1) { width: 16% !important; }
+.teacher-screen .table-responsive.distribution-operation-history-wrap > .distribution-operation-history-table th:nth-child(2) { width: 20% !important; }
+.teacher-screen .table-responsive.distribution-operation-history-wrap > .distribution-operation-history-table th:nth-child(3) { width: 20% !important; }
+.teacher-screen .table-responsive.distribution-operation-history-wrap > .distribution-operation-history-table th:nth-child(4) { width: 10% !important; }
+
+.distribution-operation-history-table th,
+.distribution-operation-history-table td {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  vertical-align: top;
+}
+
+.distribution-operation-history-table th:nth-child(1) { width: 10rem; }
+.distribution-operation-history-table th:nth-child(2) { width: 10rem; }
+.distribution-operation-history-table th:nth-child(3) { width: 12rem; }
+.distribution-operation-history-table th:nth-child(4) { width: 5rem; }
+
+.distribution-operation-detail .distribution-json {
+  max-height: 14rem;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .history-filter-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(180px, 1fr));
