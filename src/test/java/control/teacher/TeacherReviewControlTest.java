@@ -17,6 +17,10 @@ class TeacherReviewControlTest {
 			assertThrows(SecurityException.class, () -> control.list(user, false, TeacherReviewFilter.empty()));
 			assertThrows(SecurityException.class, () -> control.detail(user, false, 1, null));
 			assertThrows(SecurityException.class, () -> control.preview(user, 1, "print(1)", ""));
+			assertThrows(SecurityException.class, () -> control.startPreview(user, 1, "print(1)"));
+			assertThrows(SecurityException.class, () -> control.pollPreview(user, 1, "a".repeat(32), 0));
+			assertThrows(SecurityException.class, () -> control.sendPreviewInput(user, 1, "a".repeat(32), ""));
+			assertThrows(SecurityException.class, () -> control.cancelPreview(user, 1, "a".repeat(32), 0));
 			assertThrows(SecurityException.class, () -> control.exportCsv(user, TeacherReviewFilter.empty()));
 			assertThrows(SecurityException.class, () -> control.exportSubmissionCsv(user, TeacherReviewFilter.empty()));
 			assertThrows(SecurityException.class, () -> control.submissionFile(user, 1));
@@ -46,6 +50,8 @@ class TeacherReviewControlTest {
 		assertThrows(IllegalArgumentException.class, () -> control.preview(teacher, 0, "", ""));
 		assertThrows(IllegalArgumentException.class, () -> control.preview(teacher, 1, "x".repeat(65537), ""));
 		assertThrows(IllegalArgumentException.class, () -> control.preview(teacher, 1, "", "x".repeat(8193)));
+		assertThrows(IllegalArgumentException.class, () -> control.startPreview(teacher, 0, ""));
+		assertThrows(IllegalArgumentException.class, () -> control.startPreview(teacher, 1, "x".repeat(65537)));
 	}
 	@Test void exportLimitIncludesExact32MiBBoundary() {
 		assertDoesNotThrow(() -> TeacherReviewControl.requireExportSize(32L * 1024 * 1024));

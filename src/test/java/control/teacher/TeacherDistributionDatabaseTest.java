@@ -18,6 +18,8 @@ import org.junit.jupiter.api.Test;
 
 import control.auth.AuthenticatedUser;
 import control.auth.PasswordHasher;
+import control.student.StudentNotificationControl;
+import control.student.StudentNotificationControl.OpenStatus;
 import entity.StudentExerciseEntry;
 import entity.TeacherDistributionInput;
 import entity.TeacherDistributionInput.Target;
@@ -33,6 +35,8 @@ class TeacherDistributionDatabaseTest {
 	private long outsideClassroomId;
 	private long sameSchoolClassroomId;
 	private long crossSchoolClassroomId;
+	private long studentUserId;
+	private AuthenticatedUser student;
 	private boolean initialized;
 
 	@BeforeEach
@@ -90,13 +94,15 @@ class TeacherDistributionDatabaseTest {
 				statement.setLong(3, teacherId);
 				statement.executeUpdate();
 			}
-			long studentId = insertUser(connection, "student-distribution-test", "student");
+			studentUserId = insertUser(connection, "student-distribution-test", "student");
+			student = new AuthenticatedUser(studentUserId, "student-distribution-test", "Synthetic",
+					UserType.STUDENT, false, "distribution-test");
 			try (var statement = connection.prepareStatement("""
 					INSERT INTO student_profiles
 					  (user_id, school_id, student_code, security_level, first_login_status, must_change_password)
 					VALUES (?, ?, 'distribution-test-code', 1, 'completed', FALSE)
 					""")) {
-				statement.setLong(1, studentId);
+				statement.setLong(1, studentUserId);
 				statement.setLong(2, schoolId);
 				statement.executeUpdate();
 			}
@@ -105,7 +111,7 @@ class TeacherDistributionDatabaseTest {
 					  (student_user_id, classroom_id, membership_status, joined_at)
 					VALUES (?, ?, 'active', UTC_TIMESTAMP())
 					""")) {
-				statement.setLong(1, studentId);
+				statement.setLong(1, studentUserId);
 				statement.setLong(2, classroomId);
 				statement.executeUpdate();
 			}
@@ -138,6 +144,16 @@ class TeacherDistributionDatabaseTest {
 		assertFalse(first.processingUnavailable());
 		assertEquals("completed", distributionStatus(first.distributionId()));
 		assertEquals("print('initial')", entryContent("Lesson/week1/solution.py"));
+		long firstTargetId = scalar("SELECT distribution_target_id FROM student_exercises WHERE student_user_id = "
+				+ studentUserId);
+		long firstExerciseId = scalar("SELECT student_exercise_id FROM student_exercises WHERE student_user_id = "
+				+ studentUserId);
+		assertEquals(1, notificationCount(firstTargetId));
+		var firstNotification = new StudentNotificationControl().open(student, notificationId(firstTargetId));
+		assertEquals(OpenStatus.OPENED, firstNotification.status());
+		assertEquals("/student/exercise?exerciseId=" + firstExerciseId, firstNotification.redirectPath());
+		assertEquals(1, scalar("SELECT COUNT(*) FROM student_notifications WHERE notification_id="
+				+ notificationId(firstTargetId) + " AND read_at IS NOT NULL"));
 
 		try (Connection connection = Client.createConnection(); var statement = connection.prepareStatement("""
 				UPDATE student_exercise_entries
@@ -154,6 +170,9 @@ class TeacherDistributionDatabaseTest {
 		assertEquals(1, second.completedImmediateTargets());
 		assertEquals("student-edited", entryContent("Lesson/week1/solution.py"));
 		assertEquals("print('initial')", entryContent("Lesson（再配信）/week1/solution.py"));
+		long secondTargetId = scalar("SELECT distribution_target_id FROM student_exercises WHERE student_user_id = "
+				+ studentUserId + " AND distribution_target_id <> " + firstTargetId);
+		assertEquals(1, notificationCount(secondTargetId));
 
 		var retry = control.schedule(teacher,
 				input(template.templateId(), secondVersion, items,
@@ -161,6 +180,9 @@ class TeacherDistributionDatabaseTest {
 		assertEquals(second.distributionId(), retry.distributionId());
 		assertEquals(0, retry.expectedImmediateTargets());
 		assertEquals(2, scalar("SELECT COUNT(*) FROM student_exercises"));
+		assertEquals(2, scalar("SELECT COUNT(*) FROM student_notifications WHERE student_user_id="
+				+ studentUserId + " AND notification_type='exercise_distributed'"),
+				"retrying the same distribution must not create duplicate delivery notifications");
 		assertThrows(SecurityException.class, () -> control.schedule(teacher,
 				input(0, 0, items, List.of(new Target(outsideClassroomId, null)),
 						UUID.randomUUID().toString())));
@@ -207,6 +229,7 @@ class TeacherDistributionDatabaseTest {
 		assertEquals("distributed", targetStatus(targetId));
 		assertEquals("print('initial')", entryContent("Lesson（再配信2）/week1/solution.py"));
 		assertEquals(3, scalar("SELECT COUNT(*) FROM student_exercises"));
+		assertEquals(1, notificationCount(targetId), "scheduled delivery is notified only after it succeeds");
 
 		try (Connection connection = Client.createConnection(); var statement = connection.prepareStatement("""
 				UPDATE teacher_school_permissions SET access_status = 'disabled'
@@ -225,6 +248,7 @@ class TeacherDistributionDatabaseTest {
 		if (!initialized) return;
 		try (Connection connection = Client.createConnection(); var statement = connection.createStatement()) {
 			for (String sql : List.of(
+					"DELETE FROM student_notifications",
 					"DELETE FROM student_exercise_entries WHERE entry_type = 'file'",
 					"DELETE FROM student_exercise_entries WHERE parent_entry_id IS NOT NULL",
 					"DELETE FROM student_exercise_entries WHERE parent_entry_id IS NULL",
@@ -304,6 +328,16 @@ class TeacherDistributionDatabaseTest {
 		try (Connection connection = Client.createConnection()) {
 			return scalar(connection, sql);
 		}
+	}
+
+	private static long notificationId(long targetId) throws SQLException {
+		return scalar("SELECT notification_id FROM student_notifications WHERE notification_type="
+				+ "'exercise_distributed' AND distribution_target_id=" + targetId);
+	}
+
+	private long notificationCount(long targetId) throws SQLException {
+		return scalar("SELECT COUNT(*) FROM student_notifications WHERE student_user_id=" + studentUserId
+				+ " AND notification_type='exercise_distributed' AND distribution_target_id=" + targetId);
 	}
 
 	private static String distributionStatus(long distributionId) throws SQLException {

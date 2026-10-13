@@ -6,6 +6,47 @@
 | 2026-10-08 | 工程16/17の承認済み参照機能を実装する計画。AWS操作、既存開発DB、実Gemini評価、手動採点・再評価は対象外 |
 | 2026-10-08 | 本実装、専用MySQL読み戻し、認証HTTP/runner、代表ブラウザー操作を検証。残る本番TLS・実AI縦断・利用者手動受入を区別 |
 | 2026-10-08 | 明示されたプロトタイプ再現に従い提出画面だけを補完。集計/9列ソート/全画面詳細/左右CodeMirror/単体・ZIP・CSVを追加し、評価画面と参照不変性を維持 |
+| 2026-10-11 | 第157版の対話型一時実行・編集ログ表記・ローカルデモ投入と、実DB/runner/認証ブラウザー受入を追加。本番/schema/バックアップ設定は変更しない |
+| 2026-10-11 | 第159版の教師表の表示領域最小幅、評価・編集ログの表示統一とデモ再確認を追加 |
+
+## 第159版の追加
+
+- [機能仕様](../../function-specification.md)のREQ-TABLE-159 / REQ-EVALUATION-159に対応する。
+  共通教師表は表示領域を最小幅とし、長い内容は表の枠内で横スクロールする。縦スクロールはページ全体を維持する。
+- 生徒/教師の評価は保存済みscoreTextを優先し、観点メーターと理由フィルター、
+  ソースコード編集ログの日時・ID・差分をプロトタイプと整合させる。原本・認可・状態・履歴を保持する。
+- ローカルtest-teacherの閲覧可能な教師デモを冪等生成・DAO再読込で確認する。
+  第158版時点のs008同意未回答記録は過去の状態であり、第159版調査では最新同意はagreed。
+  今回資格情報・同意・既存回答を変更せず、専用合成課題へ回答用アンケートだけを追加する。
+- 通常幅/狭幅で短い一覧・モーダル表の領域充填と長い表の局所スクロール、
+  評価・編集ログの代表操作をブラウザーで受け入れる。本番/プロトタイプ/schema/backup設定は変更しない。
+
+### 第159版の受入記録
+
+- 初回専用`flywayMigrate test war`は418件（279成功/139条件付きskip/失敗0）・WAR成功。
+  追加の保存済み根拠関係テストを含む最終結果は後記する。
+- 専用18092の正規合成教師/生徒で評価、理由フィルター、ログ切替・前後移動、
+  変更行の追加/削除強調、観点メーター、スクリプト文字列のテキスト表示を確認。
+- 1440/375pxの評価一覧は表幅1298px、領域1114/309pxで局所横スクロール、
+  ページ横あふれなし。提出詳細の短い入出力表は通常幅1342pxで領域1342pxと一致、
+  狭幅768pxで領域277px内の局所横スクロールを確認。生徒評価/編集ログ・教師評価詳細もページ横あふれなし。
+- 保存済み根拠は理由または理由詳細とのDB関係から取得し、対象提出・参加者・時刻範囲の
+  認可済みログに照合できたIDだけを選択リンクへ渡す。根拠未保存・不一致は明示する。
+- 本人のs008画面へ代理ログイン/回答はせず、デモはDAO再読込まで、
+  ブラウザー受入は独立合成利用者で行う。全物理クリック/全端末互換性は未確認。
+- 最終`sh scripts/testing/evaluation-survey-ui-local.sh`は専用builder内の
+  `gradle --offline --no-daemon flywayMigrate test war --console plain`がexit0、
+  420件（281成功/139条件付きskip/失敗0）・WAR成功。
+  専用HTTPの`gradle --offline --no-daemon test --tests servlet.student.StudentEvaluationSurveyRuntimeTest --console plain`
+  は1件成功/skip0、exit0。
+- ローカル`docker exec programming-process-evaluator-app-live gradle -I /tmp/oct11-v158-demo.init.gradle --project-cache-dir=/tmp/oct11-v158-demo-cache --no-daemon test --tests 'servlet.student.EvaluationPrototypeUiContractTest' --tests 'entity.StudentSurveyNavigationTest' --tests 'servlet.auth.SharedUiContractTest' war --warning-mode all`
+  は11件成功/失敗0/skip0とWAR成功、exit0。
+- 実DBテストで理由/詳細根拠の対応、有効な提出前ログID、提出後/別参加者IDの非露出を確認。
+  最終教師ブラウザーで根拠ボタン→logId2→保存済みprint(0)・1/2を確認し、
+  無効根拠は選択ボタンなしを確認。生徒の未知logId99999は不一致案内を表示。
+- ローカル8080だけを再起動しlogin200、変更JS3本/共通表CSSのSHA-256がソースと一致。
+  本番・prototype・schema/migration・backup設定変更なし。専用fixtureは受入後に所有確認して清掃済み。
+  専用DB/runtime/builder/HTTP/networkは残っておらず、8080/共有DB/runnerと別projectのdocotsubu DBは維持。
 
 ## 目的と参照資料
 - [機能仕様](../../function-specification.md)の「提出課題確認機能」「評価確認機能」を本実装へ接続する。仕様本文の変更・新規採点操作は行わない。
@@ -14,14 +55,98 @@
 - 汎用教師評価状態の「編集・確定」操作は今回の自動評価の参照機能に追加しない。
 
 ## データ・URL契約
+
+### 第158版の閲覧用デモ（2026-10-11、投入・DB受入済み）
+
+- T-DEMO-001/REQ-REVIEW-DEMO-001: 既存s008（開発DB user15、学校1/クラス1）の資格情報・同意を保持し、
+  独立した合成課題/公開割当/完了提出/評価/3時点編集ログを追加する。
+  既存進捗デモの評価生成を共有し、2観点/6項目/理由・根拠を持つ合成評価と明記する。
+- `seedStudentReviewDemo`は`seedReviewDemo`と同じ明示development/db/DB名/opt-in guard、
+  transaction/全体rollbackと固定codeによる冪等性を使用する。
+  課題code `LOCAL-S008-REVIEW-20261011`、評価code `LOCAL-S008-REVIEW-EVALUATION`。
+  既存学校の権限を持つtest-teacherでも閲覧でき、既存教師権限を変更しない。
+  課題割当は既存契約どおりクラス単位なので同クラスにも合成課題が表示されるが、
+  完了提出/評価/編集ログはs008だけへ追加する。
+
+#### 第158版デモ受入（2026-10-11、開発8080）
+
+- `docker exec -e PPE_ENV=development -e PPE_SEED_REVIEW_DEMO=true programming-process-evaluator-app-live gradle -I /tmp/oct11-v158-demo.init.gradle --project-cache-dir=/tmp/oct11-v158-demo-cache --no-daemon test --tests 'control.dev.*Test' --rerun-tasks --warning-mode all`
+  は3件成功、失敗0/skip0。独立build出力で並行ビルドとの干渉を避けた。
+- `seedStudentReviewDemo`の同一処理を試験内で2回実行し、課題/評価各1、
+  assignment13/提出8/編集ログ3時点をMySQLへ保存して再読込した。
+  生徒DAOで2観点/6指標/減算→加算のログ、別生徒の閲覧拒否、
+  test-teacherの教師一覧に提出8が含まれることを確認。
+- users/student_profiles/consent_records全行は試験前後で同一。既存教師デモ2評価/2回答も回帰成功。
+- s008には初回同意回答がまだない。資格情報再設定や同意の代理回答はせず、
+  生徒本人の正規ログイン/同意後の実画面確認は未確認として保持する。
+- 公開環境には投入していない。teacher-demoには評価閲覧権限がないため、
+  ローカルの評価閲覧権限があるtest-teacherで確認する（権限変更なし）。
+- ユーザー再確認（2026-10-11）: 今回の修正・デモ投入・最終反映先はローカル8080のみ。
+  プロトタイプとppeval.net本番環境・本番DB・バックアップ設定は操作しない。
+- DAO読戻し/2回実行の重複なし/全users・profiles・consent不変/他生徒の拒否を検証する。
+  s008には同意回答がまだなく、ログイン後の通常初回導線は維持する。
+  本番デモ投入/外部AI/新規認証sessionの偽装/資格情報再設定は行わない。
+
+### 第157版の追加（2026-10-11）
+
+- 提出作業コピーの実行を生徒共通terminalの対話型入力・結果取得・停止へ接続する。
+  提出/評価/ソースコード編集ログは変更せず、操作ごとに教師・対象・学校権限とCSRFを検証する。
+- 編集履歴のUI名は「ソースコード編集ログ」、英語は「Source Code Edit Logs」。
+  DB/API/JSON識別子は保持する。
+- ローカル既存進捗デモへの追加は `seedReviewDemo` を使う。実行先はComposeサービス
+  `db` / DB `programming_process_evaluator`、`PPE_ENV=development` と
+  `PPE_SEED_REVIEW_DEMO=true` の明示指定を必須とする。本番・バックアップ手順では実行しない。
+- `docker exec -e PPE_ENV=development -e PPE_SEED_REVIEW_DEMO=true programming-process-evaluator-app-live gradle --no-daemon seedReviewDemo`
+  を実行。完了済み評価2・アンケート回答2/回答値12を保存し、2回目は追加重複なし。
+  合成課題 `PROGRESS-DEMO-20261008`、既存ログインロック済み生徒4/5のみが対象。
+  同意状態・資格情報・既存提出を上書きせず、合成評価であることを明記する。
+  AI呼出し・schema/migration・本番への投入はなし。
+- `docker exec -e PPE_ENV=development -e PPE_SEED_REVIEW_DEMO=true programming-process-evaluator-app-live gradle --no-daemon test --tests 'control.dev.ReviewDemo*Test' --rerun-tasks`
+  は2件成功/失敗0/skip0。現在権限でのDAO一覧/詳細、編集ログ、2観点、全6回答を再読込確認。
+  初回のENUM・テスト不備と修正履歴は[エラーレポート](../error-report.md)に保持。
+
 | 操作 | URL/入力 | 権限・保存 |
 |---|---|---|
 | 提出一覧/詳細 | GET `/teacher/submissions`、`view=detail&submissionId` | `submission-review`。教師本人と現在の学校権限をDB検証 |
 | 一時実行 | POST 同URL、`action=preview`、`submissionId`、`code`、`standardInput`、`csrfToken` | 実行前後に同じ対象の権限を再検証。認証済みPythonRunnerClientと既存入力上限を使用。提出・下書き・評価・実行ログに保存しない |
+| 対話実行開始 | POST 同URL、`action=preview-start`、`submissionId`、`code`、`csrfToken` | 教師・提出に紐づく一時session。既存batch previewも互換保持 |
+| 結果取得 | GET 同URL、`view=preview-session`、`submissionId`、`sessionId`、`after`（出力cursor） | 毎回現在権限とsession所有者/対象を検証 |
+| 入力/停止 | POST 同URL、`action=preview-input|preview-cancel`、`submissionId`、`sessionId`、`csrfToken`（入力時`line`、停止時`after`） | 入力はrunnerへ送信。停止・詳細切替・閉じる時はsessionを解放。業務データ不変 |
 | 評価一覧/詳細 | GET `/teacher/evaluations`、`view=detail&submissionId`、任意`evaluationId` | `evaluation-review`。提出に属する自動評価履歴だけ。最新履歴を初期表示し、過去評価を選択可能 |
 | 評価CSV | GET 同URL、`view=csv`、一覧と同じフィルター/ソート | 最新同意が`agreed`の行のみ。教師向け一覧と同じログインIDを含むため研究用匿名化出力ではない。監査成功保存後に応答。秘密・コード・理由本文は監査へ含めない |
 | 提出CSV | GET `/teacher/submissions?view=csv` | 一覧の絞込/全列sortと同じ、最新同意agreedのみ、commit済み監査必須 |
 | 提出単体/一括ZIP | GET 同URL、`view=file&submissionId` / `view=zip`＋一覧条件 | 現在のsubmission-review/学校権限、保存済み提出コードのみ。提出ID/版を含む安全なファイル名。ZIPは32 MiB上限・空対象拒否 |
+
+### 第157版の受入記録（2026-10-11 JST）
+
+- 全体: `docker exec programming-process-evaluator-app-live gradle --no-daemon test war --rerun-tasks --warning-mode all`。
+  405件中270成功/135条件付きskip、失敗・error0、WAR成功。opt-inを全件検証済みとはしない。
+- 提出対象unit: `JAVA_HOME=/Users/t.toida/.jdk/jdk-21.0.10/jdk-21.0.10+7/Contents/Home gradle -I build/sub-iso.init.gradle --project-cache-dir build/submission-interactive-gradle-cache test --tests control.teacher.TeacherReviewControlTest --tests servlet.teacher.TeacherReviewServletTest --tests control.teacher.TeacherSubmissionExecutionRegistryTest --console=plain --quiet`。
+  12件中10成功/2実runner条件付きskip、失敗0。並行実装途中のdemoテストを除外する一時init scriptを使用したが、最終全体回帰にはdemoテストも含めてコンパイル成功。
+- 専用DB/実runner: `ppe-submission-review-tools`内で
+  `gradle -I build/sub-iso.init.gradle --project-cache-dir build/submission-interactive-gradle-cache-docker flywayMigrate test --tests control.teacher.TeacherReviewDatabaseTest --tests control.teacher.TeacherSubmissionExecutionRegistryTest --console=plain --quiet`。
+  `TEACHER_REVIEW_DB_TEST=true` / `TEACHER_SUBMISSION_RUNNER_TEST=true`、専用DB `ppe_teacher_review_test_submission`。
+  DB2件/registry3件の計5成功、skip/失敗0。共有runnerを実使用し、外部AIは呼ばない。
+- 18091認証HTTP: 開始200→複数入力→exit0、停止200→以後poll403、CSRFなし/別提出ID403。
+  提出3/編集ログ3/評価4の件数不変。製品データ保存は行わない。
+  ブラウザー受入後も提出3/編集ログ3/実行記録1/評価4/回答1/回答値6、
+  提出全3件のlocked状態と保存コードSHA-256がfixture設定時と一致。
+- 最新WARと共通表CSS一致を確認した18091認証ブラウザー:
+  `input()`2回へalpha/betaを送信し、promptと`alpha:beta`、実行完了を確認。
+  無限待機の停止、実行中の次へ→2/3、戻る→1/3の停止結果保持、閉じる時のcancel200を確認。
+  1440/375pxで提出詳細のエディター/terminalが表示され、ページ横溢れなし。
+- 評価詳細で保存済み結果・理由、編集ログ2時点の読み取り専用コードと
+  「Source Code Edit Logs」を確認。アンケート詳細は全6設問/理由とシステム評価を確認。
+  両詳細は1440/375pxでページ横溢れなし。
+- 教師の生徒管理/本人情報/課題/プロンプト/配信/提出/評価/アンケート一覧を1440/375pxで確認。
+  表は内容幅・親`overflow-x:auto`へ統一し、ページ幅を超えない。狭幅の提出表は親309px/内容1286px。
+  課題/プロンプト/配信の一部は空状態であり、全編集操作の再受入を意味しない。
+- 統合ブラウザーがhidden状態のため、一部クリックはDOMイベント、待機はtimer pollingで検証。
+  requestAnimationFrameによる厳密first paint、OS保存ダイアログ、全OS/ブラウザー互換性は未確認。
+- 開発8080へ反映済み、既存教師の資格情報を再設定せず操作受入は専用DBで実施。
+  本番への変更反映・本番デモ投入・commitは未実施。
+- 18091の専用runtime/DB/tools/network/volumeと一時build/資格情報を清掃済み。
+  全体WAR/テスト結果と共有app/DB/runner、別プロジェクトDBは保持。
 
 ### プロトタイプ差分補完の作業単位
 

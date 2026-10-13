@@ -117,6 +117,7 @@ window.addEventListener('DOMContentLoaded', () => {
   let unificationPreview = null;
   history.replaceState({ exercisePosition: historyPosition }, '', window.location.href);
   function isDirty() { return editor.getValue() !== savedCode; }
+  function hasUnsavedInput() { return isDirty() || input.value.length > 0; }
   function active(entry) {
     if (!entry) return false;
     for (let current = entry; current; current = index.get(current.parentId)) {
@@ -184,11 +185,11 @@ window.addEventListener('DOMContentLoaded', () => {
       feedback.inlineAlert('処理中です。完了してから移動してください。', 'warning');
       return false;
     }
-    if (!isDirty()) return true;
+    if (!hasUnsavedInput()) return true;
     return feedback.confirm({
-      title: '未保存の変更', message: '保存していないコードを破棄して移動しますか？',
+      title: '未保存の変更', message: '保存していないコードや送信前の実行入力を破棄して移動しますか？',
       confirmLabel: '破棄して移動', cancelLabel: '編集を続ける',
-      details: ['現在のファイルの未保存コードは失われます。']
+      details: ['現在のファイルの未保存コードや送信前の実行入力は失われます。']
     });
   }
   async function navigate(url) {
@@ -1530,16 +1531,13 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   });
   document.querySelectorAll('a[href]').forEach((link) => link.addEventListener('click', (event) => {
-    if ((!isDirty() && !busy) || link.target === '_blank' || link.getAttribute('href').startsWith('#')) return;
+    if ((!hasUnsavedInput() && !busy) || link.target === '_blank' || link.getAttribute('href').startsWith('#')) return;
     event.preventDefault(); navigate(link.href);
   }));
-  document.querySelectorAll('nav form[action]').forEach((form) => form.addEventListener('submit', async (event) => {
-    if (!isDirty() && !busy) return;
-    event.preventDefault();
-    if (await mayLeave()) { leaving = true; form.submit(); }
-  }));
+  window.PPEConfirmLeave = mayLeave;
+  window.PPEAllowNavigation = () => { leaving = true; };
   window.addEventListener('beforeunload', (event) => {
-    if (!leaving && (isDirty() || busy)) { event.preventDefault(); event.returnValue = ''; }
+    if (!leaving && (hasUnsavedInput() || busy)) { event.preventDefault(); event.returnValue = ''; }
   });
   window.addEventListener('pagehide', () => {
     if (sessionId) navigator.sendBeacon(`${page.dataset.baseUrl}/session/cancel`, new URLSearchParams({

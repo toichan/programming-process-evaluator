@@ -167,6 +167,8 @@ public final class EvaluationWorkerDao implements EvaluationWorkRepository {
 					audit.setLong(1, evaluationId);
 					audit.executeUpdate();
 				}
+				StudentNotificationDao.insertEvaluationFailed(
+						connection, rows.getLong("evaluation_request_id"), evaluationId);
 			}
 		}
 	}
@@ -336,6 +338,8 @@ public final class EvaluationWorkerDao implements EvaluationWorkRepository {
 					update.setLong(4, job.evaluationId());
 					update.executeUpdate();
 				}
+				StudentNotificationDao.insertEvaluationCompleted(connection, job.requestId(), job.evaluationId());
+				StudentNotificationDao.insertSurveyAvailable(connection, job.requestId(), job.evaluationId());
 				connection.commit();
 			} catch (SQLException | RuntimeException e) {
 				rollback(connection, e);
@@ -569,6 +573,7 @@ public final class EvaluationWorkerDao implements EvaluationWorkRepository {
 					audit.setString(3, job.externalRequestId());
 					audit.executeUpdate();
 				}
+				StudentNotificationDao.insertEvaluationFailed(connection, job.requestId(), job.evaluationId());
 				connection.commit();
 			} catch (SQLException | RuntimeException e) {
 				rollback(connection, e);
@@ -1172,7 +1177,7 @@ public final class EvaluationWorkerDao implements EvaluationWorkRepository {
 					statement.setLong(2, referenceId);
 					statement.setNull(3, java.sql.Types.BIGINT);
 					statement.setString(4, "code_log");
-					statement.setString(5, "コードログ");
+					statement.setString(5, "ソースコード編集ログ");
 					statement.setString(6, "code_log");
 				}
 				statement.setString(7, Long.toString(referenceId));
@@ -1207,7 +1212,7 @@ public final class EvaluationWorkerDao implements EvaluationWorkRepository {
 				return point.getAsJsonObject().get("summary").getAsString();
 			}
 		}
-		return "評価根拠として参照されたコードログ。";
+		return "評価根拠として参照されたソースコード編集ログ。";
 	}
 
 	private static long parseLogId(String value) {

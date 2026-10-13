@@ -36,6 +36,10 @@ public final class TeacherProgressServlet extends HttpServlet {
 		AuthenticatedUser user;
 		try {
 			user = authenticatedTeacher(request);
+			if ("preview-session".equals(TeacherExerciseServlet.single(request, "view"))) {
+				preview(request, response, user, true);
+				return;
+			}
 			if ("detail".equals(request.getParameter("view"))) {
 				writeDetail(request, response, user);
 				return;
@@ -49,6 +53,8 @@ public final class TeacherProgressServlet extends HttpServlet {
 				return;
 			}
 			render(request, response, user);
+		} catch (entity.PythonExecutionInput.TooLargeException failure) {
+			TeacherPreviewHttp.error(response, 413, failure.getMessage());
 		} catch (IllegalArgumentException failure) {
 			response.sendError(HttpServletResponse.SC_BAD_REQUEST, failure.getMessage());
 		} catch (ProgressRecordNotFoundException failure) {
@@ -58,7 +64,44 @@ public final class TeacherProgressServlet extends HttpServlet {
 		} catch (SQLException failure) {
 			getServletContext().log("Teacher progress could not be loaded.", failure);
 			response.sendError(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
+		} catch (control.student.PythonRunnerRequestException failure) {
+			TeacherPreviewHttp.error(response, failure.statusCode(), "実行サービスが操作を受け付けませんでした。");
+		} catch (InterruptedException failure) {
+			Thread.currentThread().interrupt();
+			TeacherPreviewHttp.error(response, 503, "実行サービスに接続できません。");
+		} catch (IOException | IllegalStateException failure) {
+			getServletContext().log("Teacher progress preview service failed.", failure);
+			TeacherPreviewHttp.error(response, 503, "実行サービスに接続できません。");
 		}
+	}
+
+	@Override protected void doPost(HttpServletRequest request, HttpServletResponse response) throws IOException {
+		try {
+			if (!TeacherPreviewHttp.allowPost(request, response)) return;
+			preview(request, response, authenticatedTeacher(request), false);
+		} catch (entity.PythonExecutionInput.TooLargeException failure) { TeacherPreviewHttp.error(response, 413, failure.getMessage()); }
+		catch (IllegalArgumentException failure) { TeacherPreviewHttp.error(response, 400, failure.getMessage()); }
+		catch (ProgressRecordNotFoundException failure) { TeacherPreviewHttp.error(response, 404, "対象の最新コードを参照できません。"); }
+		catch (SecurityException failure) { TeacherPreviewHttp.error(response, 403, "実行対象を操作する権限がありません。"); }
+		catch (control.student.PythonRunnerRequestException failure) { TeacherPreviewHttp.error(response, failure.statusCode(), "実行サービスが操作を受け付けませんでした。"); }
+		catch (InterruptedException failure) { Thread.currentThread().interrupt(); TeacherPreviewHttp.error(response, 503, "実行サービスに接続できません。"); }
+		catch (SQLException | IOException | IllegalStateException failure) {
+			getServletContext().log("Teacher progress preview failed.", failure);
+			TeacherPreviewHttp.error(response, 503, "実行・対象の確認に失敗しました。再試行してください。");
+		}
+	}
+	private void preview(HttpServletRequest request, HttpServletResponse response, AuthenticatedUser user, boolean poll)
+			throws SQLException, IOException, InterruptedException {
+		long assignment = requiredPositiveId(request, "assignmentId"), student = requiredPositiveId(request, "studentUserId");
+		TeacherPreviewHttp.dispatch(request, response, poll, (action, id, cursor, value) -> switch (action) {
+			case "preview-start" -> PROGRESS.startPreview(user, assignment, student, value);
+			case "preview-session" -> PROGRESS.pollPreview(user, assignment, student, id, cursor);
+			case "preview-cancel" -> PROGRESS.cancelPreview(user, assignment, student, id, cursor);
+			default -> {
+				PROGRESS.sendPreviewInput(user, assignment, student, id, value);
+				yield java.util.Map.of("accepted", true);
+			}
+		});
 	}
 
 	private static AuthenticatedUser authenticatedTeacher(HttpServletRequest request) {
@@ -80,7 +123,10 @@ public final class TeacherProgressServlet extends HttpServlet {
 		request.setAttribute("screenPageTitle", "課題進捗確認機能");
 		request.setAttribute("screenDesign", "teacher");
 		request.setAttribute("screenUsesCodeMirror", Boolean.TRUE);
+		request.setAttribute("screenUsesCodeEditor", Boolean.TRUE);
+		request.setAttribute("csrfToken", servlet.auth.CsrfTokens.getOrCreate(request.getSession(false)));
 		request.setAttribute("screenStylesheet", "/css/teacher/progress/progress.css");
+		request.setAttribute("screenAssetVersion", "163");
 		request.setAttribute("screenScript", "/js/teacher/progress/progress.js");
 		request.getRequestDispatcher("/WEB-INF/teacher/progress/progress.jsp").forward(request, response);
 	}
@@ -94,7 +140,7 @@ public final class TeacherProgressServlet extends HttpServlet {
 	}
 
 	private static long requiredPositiveId(HttpServletRequest request, String parameterName) {
-		String value = request.getParameter(parameterName);
+		String value = TeacherExerciseServlet.single(request, parameterName);
 		if (value == null || !value.matches("[1-9][0-9]{0,18}")) {
 			throw new IllegalArgumentException("課題または生徒IDが不正です。");
 		}

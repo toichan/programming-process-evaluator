@@ -1,7 +1,7 @@
 <%@ page contentType="text/html; charset=UTF-8" pageEncoding="UTF-8" session="false" %>
 <%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
 <%@ include file="/WEB-INF/template/page-start.jspf" %>
-<div class="page-content py-5" id="teacherExerciseReview" data-endpoint="<c:url value='/teacher/exercises'/>">
+<div class="page-content py-5" id="teacherExerciseReview" data-endpoint="<c:url value='/teacher/exercises'/>" data-csrf-token="<c:out value='${csrfToken}'/>">
   <div class="container-fluid px-4">
     <section class="exercise-hero mb-4">
       <div>
@@ -73,13 +73,56 @@
         </div>
       </section>
       <div class="exercise-detail-grid">
-        <section class="detail-card">
+        <section class="detail-card exercise-explorer">
           <div class="d-flex justify-content-between align-items-center mb-3 gap-2 flex-wrap"><h3 class="detail-title mb-0">フォルダ・ファイル構成</h3><span class="small text-muted">最終保存時点のみ表示</span></div>
-          <div id="exerciseTree" class="exercise-tree" aria-label="授業演習フォルダツリー"></div>
+          <details class="lesson-tool-panel">
+            <summary>表示設定</summary>
+            <div class="lesson-tool-body">
+              <label class="form-label" for="exerciseSearch">名前で検索</label>
+              <input id="exerciseSearch" type="search" class="form-control mb-2" autocomplete="off">
+              <label class="form-label" for="exerciseSort">並び順</label>
+              <select id="exerciseSort" class="form-select mb-2"><option value="name">名前順</option><option value="updated">更新日時の新しい順</option></select>
+              <div class="lesson-folder-controls">
+                <button id="exerciseExpandAll" type="button" class="btn btn-outline-secondary btn-sm">すべて展開する</button>
+                <button id="exerciseCollapseAll" type="button" class="btn btn-outline-secondary btn-sm">すべて折りたたむ</button>
+                <button id="exerciseRevealFile" type="button" class="btn btn-outline-secondary btn-sm" disabled>表示中のファイルを表示</button>
+              </div>
+            </div>
+          </details>
+          <details class="lesson-tool-panel">
+            <summary>選択操作<span id="exerciseSelectionStatus" class="lesson-tool-status" aria-live="polite"></span></summary>
+            <div class="lesson-tool-body">
+              <div class="lesson-selection-actions">
+                <button id="exerciseSelectMode" type="button" class="btn btn-outline-secondary btn-sm" aria-pressed="false">選択</button>
+                <button id="exerciseSelectionFinish" type="button" class="btn btn-outline-secondary btn-sm" hidden>選択を終了</button>
+                <button id="exerciseSelectAll" type="button" class="btn btn-outline-secondary btn-sm" hidden>全選択</button>
+              </div>
+              <div id="exerciseSelectionBar" class="lesson-selection-bar" role="group" aria-label="チェックした項目の操作" hidden>
+                <p id="exerciseSelectionCount" class="small mb-1" aria-live="polite">選択0件</p>
+                <div class="lesson-selection-actions">
+                  <button id="downloadExerciseSelected" type="button" class="btn btn-outline-secondary btn-sm" disabled>ダウンロード</button>
+                  <button id="exerciseClearSelected" type="button" class="btn btn-outline-secondary btn-sm">選択解除</button>
+                </div>
+              </div>
+            </div>
+          </details>
+          <div id="exerciseTree" class="lesson-file-tree" aria-label="授業演習フォルダツリー"></div>
         </section>
         <section class="detail-card exercise-code-card">
           <div class="d-flex justify-content-between align-items-center mb-3 gap-2 flex-wrap"><h3 class="detail-title mb-0">最終保存コード</h3></div>
+          <details class="lesson-tool-panel" id="exerciseEditorSettings">
+            <summary>エディター設定</summary>
+            <div class="lesson-tool-body exercise-editor-settings">
+              <div><label class="form-label" for="editorFontSize">文字サイズ <output id="editorFontSizeValue">16px</output></label><input id="editorFontSize" type="range" class="form-range" min="10" max="24" value="16"></div>
+              <div class="form-check"><input id="editorLineWrapping" class="form-check-input" type="checkbox"><label for="editorLineWrapping" class="form-check-label">行を折り返す</label></div>
+              <div><label class="form-label" for="editorIndentWidth">インデント幅</label><select id="editorIndentWidth" class="form-select"><option value="2">2文字</option><option value="4" selected>4文字</option></select></div>
+              <div><label class="form-label" for="editorTheme">配色</label><select id="editorTheme" class="form-select"><option value="dark">ダーク</option><option value="light">ライト</option><option value="high_contrast">ハイコントラスト</option></select></div>
+              <button id="resetEditorPreferences" type="button" class="btn btn-outline-secondary btn-sm">初期設定に戻す</button>
+              <p class="small text-muted mb-0">表示設定はこの画面を開いている間だけ有効です。生徒のコード・設定は変更しません。</p>
+            </div>
+          </details>
           <textarea id="exerciseCodeViewer" class="code-source" spellcheck="false" readonly aria-label="最終保存コード"></textarea>
+          <%@ include file="/WEB-INF/teacher/shared/preview-execution.jspf" %>
         </section>
       </div>
     </div>

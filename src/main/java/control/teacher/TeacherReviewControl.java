@@ -19,6 +19,7 @@ import lib.web.CsvCells;
 public final class TeacherReviewControl {
 	private final TeacherReviewDao dao = new TeacherReviewDao();
 	private final PreviewRunner runner;
+	private final TeacherSubmissionExecutionRegistry executions = new TeacherSubmissionExecutionRegistry();
 
 	public TeacherReviewControl() {
 		this((code, input) -> new PythonRunnerClient().executePreview(code, input));
@@ -47,6 +48,47 @@ public final class TeacherReviewControl {
 		PythonExecutionResult result = runner.execute(code, standardInput);
 		detail(user, false, submissionId, null);
 		return result;
+	}
+	public InteractiveExecutionUpdate startPreview(AuthenticatedUser user, long submissionId, String code)
+			throws SQLException, IOException, InterruptedException {
+		requireTeacher(user);
+		StudentExerciseInput.requireId(submissionId);
+		StudentExerciseInput.validateCode(code);
+		detail(user, false, submissionId, null);
+		String id = executions.start(user.userId(), submissionId, code);
+		try {
+			return pollPreview(user, submissionId, id, 0);
+		} catch (SQLException | IOException | InterruptedException | RuntimeException failure) {
+			try { executions.discard(user.userId(), submissionId, id); }
+			catch (SecurityException ignored) { /* A completed session was already released. */ }
+			throw failure;
+		}
+	}
+	public InteractiveExecutionUpdate pollPreview(AuthenticatedUser user, long submissionId, String id, long cursor)
+			throws SQLException, IOException, InterruptedException {
+		requireTeacher(user);
+		requirePreviewAccess(user, submissionId, id);
+		return executions.poll(user.userId(), submissionId, id, cursor);
+	}
+	public void sendPreviewInput(AuthenticatedUser user, long submissionId, String id, String line)
+			throws SQLException, IOException, InterruptedException {
+		requireTeacher(user);
+		requirePreviewAccess(user, submissionId, id);
+		executions.input(user.userId(), submissionId, id, line);
+	}
+	public InteractiveExecutionUpdate cancelPreview(AuthenticatedUser user, long submissionId, String id, long cursor)
+			throws SQLException, IOException, InterruptedException {
+		requireTeacher(user);
+		requirePreviewAccess(user, submissionId, id);
+		return executions.cancel(user.userId(), submissionId, id, cursor);
+	}
+	private void requirePreviewAccess(AuthenticatedUser user, long submissionId, String id) throws SQLException {
+		try { detail(user, false, submissionId, null); }
+		catch (SecurityException | TeacherReviewDao.NotFoundException failure) {
+			try { executions.discard(user.userId(), submissionId, id); }
+			catch (IllegalArgumentException | SecurityException ignored) { /* Never cancel another owner's session. */ }
+			throw failure;
+		}
 	}
 	public String exportCsv(AuthenticatedUser user, TeacherReviewFilter filter) throws SQLException {
 		requireTeacher(user);

@@ -3,8 +3,11 @@
 <c:set var="screenDesign" value="student"/>
 <c:set var="screenPageTitle" value="評価結果"/>
 <c:set var="screenStylesheet" value="/css/student/evaluation/evaluation.css"/>
+<c:set var="screenScript" value="/js/student/evaluation/evaluation.js"/>
+<c:set var="screenAssetVersion" value="159"/>
 <%@ include file="/WEB-INF/template/page-start.jspf" %>
 <%@ include file="/WEB-INF/student/shared/navigation.jspf" %>
+<c:url var="surveyUrl" value="/student/survey"><c:param name="assignmentId" value="${evaluationPage.assignmentId}"/><c:param name="evaluationId" value="${surveyNavigation.evaluationId}"/><c:param name="surveyId" value="${surveyNavigation.surveyId}"/></c:url>
 <main class="pt-2 pb-5">
 	<div class="container">
 		<nav class="learning-flow-nav mb-2" aria-label="学習フロー">
@@ -18,13 +21,8 @@
 				</li>
 				<li class="learning-flow-step">
 					<c:choose>
-						<c:when test="${surveyAvailableForEvaluation}">
-							<c:forEach var="task" items="${studentHome.tasks}">
-								<c:if test="${task.taskClassAssignmentId == evaluationPage.assignmentId and task.latestCompletedEvaluationId == evaluationPage.evaluation.evaluationId}">
-									<a class="learning-flow-link is-green"
-										href="<c:url value='/student/survey'><c:param name='assignmentId' value='${task.taskClassAssignmentId}'/><c:param name='evaluationId' value='${evaluationPage.evaluation.evaluationId}'/><c:param name='surveyId' value='${task.activeSurveyId}'/></c:url>">アンケート</a>
-								</c:if>
-							</c:forEach>
+						<c:when test="${surveyNavigation.available}">
+							<a class="learning-flow-link is-green" href="<c:out value='${surveyUrl}'/>">アンケート</a>
 						</c:when>
 						<c:otherwise><span class="learning-flow-link is-green" aria-disabled="true">アンケート</span></c:otherwise>
 					</c:choose>
@@ -48,22 +46,18 @@
 				</p>
 				<div class="hero-action-row mt-4">
 					<a class="btn btn-warning btn-lg hero-log-button"
-						href="<c:url value='/student/evaluation/log'><c:param name='submissionId' value='${evaluationPage.selectedSubmissionId}'/></c:url>">ログを見る</a>
+						href="<c:url value='/student/evaluation/log'><c:param name='submissionId' value='${evaluationPage.selectedSubmissionId}'/></c:url>">ソースコード編集ログを見る</a>
 					<c:choose>
-						<c:when test="${surveyAvailableForEvaluation}">
-							<c:forEach var="task" items="${studentHome.tasks}">
-								<c:if test="${task.taskClassAssignmentId == evaluationPage.assignmentId and task.latestCompletedEvaluationId == evaluationPage.evaluation.evaluationId}">
-									<a class="btn btn-success btn-lg"
-										href="<c:url value='/student/survey'><c:param name='assignmentId' value='${task.taskClassAssignmentId}'/><c:param name='evaluationId' value='${evaluationPage.evaluation.evaluationId}'/><c:param name='surveyId' value='${task.activeSurveyId}'/></c:url>">アンケートに答える</a>
-								</c:if>
-							</c:forEach>
+						<c:when test="${surveyNavigation.available}">
+							<a class="btn btn-success btn-lg" href="<c:out value='${surveyUrl}'/>">アンケートに答える</a>
 						</c:when>
 						<c:otherwise>
 							<span class="btn btn-success btn-lg is-disabled-action" aria-disabled="true"
-								title="評価完了後、対象アンケートがある場合に回答できます">アンケートに答える</span>
+								title="<c:out value='${surveyNavigation.unavailableReason}'/>">アンケートに答える</span>
 						</c:otherwise>
 					</c:choose>
 				</div>
+				<c:if test="${not surveyNavigation.available}"><p class="text-muted mt-2 mb-0" role="status"><c:out value="${surveyNavigation.unavailableReason}"/></p></c:if>
 			</div>
 			<div class="hero-meta-card">
 				<div class="meta-label">対象課題</div>
@@ -166,7 +160,7 @@
 						<div class="row g-4 mt-1">
 							<c:forEach var="dimension" items="${evaluationPage.evaluation.dimensions}">
 								<div class="col-lg-6">
-									<article class="score-panel">
+									<article class="score-panel ${dimension.label == '主体的に学習に取り組む態度' ? 'attitude-panel' : 'thinking-panel'}">
 										<div class="panel-kicker"><c:out value="${dimension.label}"/></div>
 										<div class="panel-score-row mt-3">
 											<div class="panel-score">
@@ -179,6 +173,11 @@
 												<h3 class="panel-title"><c:out value="${dimension.summaryTitle}"/></h3>
 												<p class="panel-description mb-0"><c:out value="${dimension.summaryDescription}"/></p>
 											</div>
+										</div>
+										<div class="score-meter" aria-hidden="true">
+											<c:forEach begin="1" end="5" var="level">
+												<span class="${level <= dimension.score + 0.5 ? 'is-filled' : ''}"></span>
+											</c:forEach>
 										</div>
 									</article>
 								</div>
@@ -243,9 +242,20 @@
 						<p class="text-muted mb-0">評価理由は登録されていません。</p>
 					</c:when>
 					<c:otherwise>
+						<div id="evaluationReasonFilters" class="reason-filter-group mb-3" role="group" aria-label="評価理由の観点">
+							<button class="reason-filter is-active" type="button" data-reason-filter="all" aria-pressed="true">すべて</button>
+							<button class="reason-filter" type="button" data-reason-filter="thinking" aria-pressed="false">思考・判断・表現</button>
+							<button class="reason-filter" type="button" data-reason-filter="attitude" aria-pressed="false">態度</button>
+							<button class="reason-filter" type="button" data-reason-filter="other" aria-pressed="false">その他</button>
+						</div>
 						<div class="reason-list">
 							<c:forEach var="reason" items="${evaluationPage.evaluation.reasons}">
-								<article class="reason-card">
+								<c:set var="reasonCategory" value="other"/>
+								<c:choose>
+									<c:when test="${reason.dimensionLabel == '主体的に学習に取り組む態度'}"><c:set var="reasonCategory" value="attitude"/></c:when>
+									<c:when test="${reason.dimensionLabel == '思考力・判断力・表現力'}"><c:set var="reasonCategory" value="thinking"/></c:when>
+								</c:choose>
+								<article class="reason-card ${reasonCategory == 'attitude' ? 'accent-reason' : ''}" data-category="<c:out value='${reasonCategory}'/>">
 									<div class="reason-title-row">
 										<h3><c:out value="${reason.title}"/></h3>
 										<c:if test="${not empty reason.dimensionLabel}">
@@ -260,6 +270,35 @@
 											</c:forEach>
 										</ul>
 									</c:if>
+									<div class="reason-evidence" aria-label="保存済み根拠">
+										<c:choose>
+											<c:when test="${empty reason.evidence}">
+												<p class="small text-muted mb-0">この理由に紐づく保存済み根拠はありません。</p>
+											</c:when>
+											<c:otherwise>
+												<ul class="list-unstyled mb-0">
+													<c:forEach var="evidence" items="${reason.evidence}">
+														<li class="mt-2">
+															<c:if test="${not empty evidence.label}"><strong><c:out value="${evidence.label}"/></strong></c:if>
+															<c:if test="${not empty evidence.detailText}"><span class="small text-muted">（詳細: <c:out value="${evidence.detailText}"/>）</span></c:if>
+															<c:if test="${not empty evidence.summary}"><p class="small mb-1"><c:out value="${evidence.summary}"/></p></c:if>
+															<c:choose>
+																<c:when test="${not empty evidence.codeLogId}">
+																	<a class="btn btn-outline-primary btn-sm" href="<c:url value='/student/evaluation/log'><c:param name='submissionId' value='${evaluationPage.selectedSubmissionId}'/><c:param name='logId' value='${evidence.codeLogId}'/></c:url>">対応する編集ログ <c:out value="${evidence.codeLogId}"/> を開く</a>
+																</c:when>
+																<c:when test="${evidence.hasCodeLogReference}">
+																	<p class="small text-muted mb-0">編集ログ根拠は保存されていますが、この提出版の認可済みログ一覧で照合できません。</p>
+																</c:when>
+																<c:otherwise>
+																	<p class="small text-muted mb-0">この根拠に対応する編集ログIDは保存されていません。</p>
+																</c:otherwise>
+															</c:choose>
+														</li>
+													</c:forEach>
+												</ul>
+											</c:otherwise>
+										</c:choose>
+									</div>
 								</article>
 							</c:forEach>
 						</div>
@@ -290,4 +329,5 @@
 		</section>
 	</div>
 </main>
+<%@ include file="/WEB-INF/student/shared/home-action.jspf" %>
 <%@ include file="/WEB-INF/template/page-end.jspf" %>

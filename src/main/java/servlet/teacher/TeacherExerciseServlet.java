@@ -32,7 +32,9 @@ public final class TeacherExerciseServlet extends HttpServlet {
 			var user = teacher(request);
 			var filter = filter(request);
 			String view = single(request, "view");
-			if ("list".equals(view)) {
+			if ("preview-session".equals(view)) {
+				preview(request, response, user, true);
+			} else if ("list".equals(view)) {
 				response.setContentType("application/json; charset=UTF-8");
 				JSON.toJson(exercises.list(user, filter), response.getWriter());
 			} else if ("detail".equals(view)) {
@@ -44,8 +46,11 @@ public final class TeacherExerciseServlet extends HttpServlet {
 				response.setContentType("text/csv; charset=UTF-8");
 				response.setHeader("Content-Disposition", "attachment; filename=\"exercise_list.csv\"");
 				response.getWriter().write(csv);
-			} else if ("download".equals(view) || "zip".equals(view) || "bulk".equals(view)) {
-				ExerciseDownload download = "bulk".equals(view) ? exercises.bulk(user, filter)
+			} else if ("download".equals(view) || "zip".equals(view) || "bulk".equals(view) || "selected".equals(view)) {
+				ExerciseDownload download = "selected".equals(view)
+						? exercises.selectedDownload(user, requiredId(request, "studentId"), requiredId(request, "classroomId"),
+								selectedIds(request))
+						: "bulk".equals(view) ? exercises.bulk(user, filter)
 						: exercises.download(user, requiredId(request, "studentId"), requiredId(request, "classroomId"),
 								"download".equals(view) ? requiredId(request, "entryId") : null);
 				response.setContentType(download.contentType());
@@ -60,6 +65,7 @@ public final class TeacherExerciseServlet extends HttpServlet {
 				request.setAttribute("screenDesign", "teacher");
 				request.setAttribute("screenBodyClass", "teacher-exercise-review-screen");
 				request.setAttribute("screenUsesCodeMirror", true);
+				request.setAttribute("screenUsesCodeEditor", true);
 				request.setAttribute("screenPageTitle", "授業演習コード確認");
 				request.setAttribute("screenStylesheet", "/css/teacher/exercise/exercise.css");
 				request.setAttribute("screenScript", "/js/teacher/exercise/exercise.js");
@@ -69,11 +75,45 @@ public final class TeacherExerciseServlet extends HttpServlet {
 		catch (IllegalArgumentException failure) { error(response, 400, failure.getMessage()); }
 		catch (ExerciseNotFoundException failure) { error(response, 404, "対象の授業演習を参照できません。"); }
 		catch (SecurityException failure) { error(response, 403, "この授業演習を確認する権限がありません。"); }
+		catch (control.student.PythonRunnerRequestException failure) { error(response, failure.statusCode(), "実行サービスが操作を受け付けませんでした。"); }
+		catch (InterruptedException failure) { Thread.currentThread().interrupt(); error(response, 503, "実行サービスに接続できません。"); }
+		catch (IOException | IllegalStateException failure) {
+			getServletContext().log("Teacher exercise preview service failed.", failure);
+			error(response, 503, "実行サービスに接続できません。");
+		}
 		catch (SQLException failure) {
 			getServletContext().log("Teacher exercise review read failed.", failure);
 			error(response, 503, "授業演習データを取得できませんでした。時間をおいて再試行してください。");
 		}
 	}
+	@Override protected void doPost(HttpServletRequest request, HttpServletResponse response) throws IOException {
+			try {
+				if (!TeacherPreviewHttp.allowPost(request, response)) return;
+				preview(request, response, teacher(request), false);
+			} catch (PythonExecutionInput.TooLargeException failure) { error(response, 413, failure.getMessage()); }
+			catch (IllegalArgumentException failure) { error(response, 400, failure.getMessage()); }
+			catch (ExerciseNotFoundException failure) { error(response, 404, "対象の授業演習ファイルを参照できません。"); }
+			catch (SecurityException failure) { error(response, 403, "実行対象を操作する権限がありません。"); }
+			catch (control.student.PythonRunnerRequestException failure) { error(response, failure.statusCode(), "実行サービスが操作を受け付けませんでした。"); }
+			catch (InterruptedException failure) { Thread.currentThread().interrupt(); error(response, 503, "実行サービスに接続できません。"); }
+			catch (SQLException | IOException | IllegalStateException failure) {
+				getServletContext().log("Teacher exercise preview failed.", failure);
+				error(response, 503, "実行・対象の確認に失敗しました。再試行してください。");
+			}
+		}
+		private void preview(HttpServletRequest request, HttpServletResponse response, AuthenticatedUser user, boolean poll)
+				throws SQLException, IOException, InterruptedException {
+			long student = requiredId(request, "studentId"), classroom = requiredId(request, "classroomId"), entry = requiredId(request, "entryId");
+			TeacherPreviewHttp.dispatch(request, response, poll, (action, id, cursor, value) -> switch (action) {
+				case "preview-start" -> exercises.startPreview(user, student, classroom, entry, value);
+				case "preview-session" -> exercises.pollPreview(user, student, classroom, entry, id, cursor);
+				case "preview-cancel" -> exercises.cancelPreview(user, student, classroom, entry, id, cursor);
+				default -> {
+					exercises.sendPreviewInput(user, student, classroom, entry, id, value);
+					yield java.util.Map.of("accepted", true);
+				}
+			});
+		}
 	private static void error(HttpServletResponse response, int status, String message) throws IOException {
 		response.setStatus(status);
 		response.setContentType("application/json; charset=UTF-8");
@@ -105,5 +145,19 @@ public final class TeacherExerciseServlet extends HttpServlet {
 	static TeacherExerciseFilter filter(HttpServletRequest request) {
 		return new TeacherExerciseFilter(optionalId(request, "schoolId"), optionalId(request, "classroomId"),
 				single(request, "consent"), single(request, "search"), single(request, "sort"), single(request, "direction"));
+	}
+	static java.util.List<Long> selectedIds(HttpServletRequest request) {
+		String value = single(request, "entryIds");
+		if (value == null || value.isEmpty() || value.length() > 200_000)
+			throw new IllegalArgumentException("ダウンロード対象を選択してください。");
+		var parts = value.split(",", -1);
+		if (parts.length > 10_000) throw new IllegalArgumentException("選択は10,000件までです。");
+		var ids = new java.util.ArrayList<Long>();
+		for (String part : parts) {
+			if (!part.matches("[1-9][0-9]{0,18}")) throw new IllegalArgumentException("対象IDが不正です。");
+			try { ids.add(Long.valueOf(part)); }
+			catch (NumberFormatException failure) { throw new IllegalArgumentException("対象IDが不正です。", failure); }
+		}
+		return java.util.List.copyOf(ids);
 	}
 }

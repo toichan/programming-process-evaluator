@@ -21,11 +21,51 @@ class TeacherExerciseControlTest {
 			assertThrows(SecurityException.class, () -> control.csv(user, TeacherExerciseFilter.empty()));
 			assertThrows(SecurityException.class, () -> control.bulk(user, TeacherExerciseFilter.empty()));
 			assertThrows(SecurityException.class, () -> control.download(user, 1, 1, 1L));
+			assertThrows(SecurityException.class, () -> control.selectedDownload(user, 1, 1, List.of(1L)));
 		}
 		assertThrows(SecurityException.class, () -> control.detail(null, 1, 1));
 		var teacher = new AuthenticatedUser(1, "dummy", "dummy", UserType.TEACHER, false, "test");
 		assertThrows(IllegalArgumentException.class, () -> control.detail(teacher, 0, 1));
 		assertThrows(IllegalArgumentException.class, () -> control.download(teacher, 1, 1, -1L));
+		assertThrows(IllegalArgumentException.class, () -> control.selectedDownload(teacher, 1, 1, List.of()));
+		assertThrows(IllegalArgumentException.class, () -> control.selectedDownload(teacher, 1, 1, List.of(-1L)));
+	}
+	@Test void selectedArchivesNormalizeAncestorsPreserveEmptyFoldersAndScopeBoundaries() throws Exception {
+		var folder = entry(1, 1, null, StudentExerciseEntry.Type.FOLDER, "folder", "folder", null);
+		var nested = entry(2, 1, 1L, StudentExerciseEntry.Type.FOLDER, "empty", "folder/empty", null);
+		var file = entry(3, 1, 1L, StudentExerciseEntry.Type.FILE, "a.py", "folder/a.py", "saved\n");
+		var outside = entry(4, 1, null, StudentExerciseEntry.Type.FILE, "b.py", "b.py", "other");
+		var scopeFile = entry(5, 2, null, StudentExerciseEntry.Type.FILE, "a.py", "folder/a.py", "another scope");
+		var detail = new TeacherExerciseDetail(row(1, "withdrawn", 3), List.of(
+				new TeacherExerciseDetail.Scope(1, "one", List.of(folder, nested, file, outside)),
+				new TeacherExerciseDetail.Scope(2, "two", List.of(scopeFile))));
+		var download = TeacherExerciseControl.selectedDownload(detail, List.of(1L, 2L, 3L, 3L));
+		assertTrue(download.archive());
+		assertEquals(3, download.entries().size());
+		assertEquals(List.of("s1/領域-1/folder", "s1/領域-1/folder/empty", "s1/領域-1/folder/a.py"),
+				download.entries().stream().map(StudentExerciseEntry::path).toList());
+		var bytes = new ByteArrayOutputStream(); download.write(bytes);
+		var paths = new java.util.HashSet<String>();
+		try (var zip = new ZipInputStream(new ByteArrayInputStream(bytes.toByteArray()))) {
+			java.util.zip.ZipEntry item;
+			while ((item = zip.getNextEntry()) != null) {
+				assertTrue(paths.add(item.getName()));
+				if (!item.isDirectory()) assertEquals("saved\n", new String(zip.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8));
+			}
+		}
+		assertTrue(paths.contains("s1/領域-1/folder/empty/"));
+		var single = TeacherExerciseControl.selectedDownload(detail, List.of(3L, 3L));
+		assertFalse(single.archive()); assertEquals("saved\n", single.entries().get(0).content());
+		assertEquals(1, TeacherExerciseControl.selectedDownload(detail, List.of(2L)).entries().size());
+		assertEquals(4, TeacherExerciseControl.selectedDownload(detail, List.of(1L, 5L)).entries().size());
+		assertThrows(ExerciseNotFoundException.class, () -> TeacherExerciseControl.selectedDownload(detail, List.of(3L, 999L)));
+		assertThrows(IllegalArgumentException.class, () -> TeacherExerciseControl.selectedDownload(detail, List.of()));
+		assertThrows(IllegalArgumentException.class, () -> TeacherExerciseControl.selectedDownload(detail,
+				java.util.Collections.nCopies(10_001, 1L)));
+	}
+	private static StudentExerciseEntry entry(long id, long scope, Long parent, StudentExerciseEntry.Type type,
+			String name, String path, String content) {
+		return new StudentExerciseEntry(id, scope, parent, type, name, path, "", content, StudentExerciseEntry.Status.ACTIVE, null);
 	}
 	@Test void filtersValidateAndMatchCurrentConsentAndSort() {
 		assertThrows(IllegalArgumentException.class, () -> new TeacherExerciseFilter(-1L, null, "", "", "", ""));

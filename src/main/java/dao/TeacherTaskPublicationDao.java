@@ -99,6 +99,11 @@ public final class TeacherTaskPublicationDao {
 					statement.setString(3, fromStatus);
 					if (statement.executeUpdate() == 1) {
 						recordSystemAudit(connection, assignmentId, action, fromStatus, toStatus);
+						if ("published".equals(toStatus)) {
+							StudentNotificationDao.insertTaskPublished(connection, assignmentId);
+						} else if ("expired".equals(toStatus)) {
+							StudentNotificationDao.insertAssignmentExpired(connection, assignmentId);
+						}
 						transitioned++;
 					}
 				}

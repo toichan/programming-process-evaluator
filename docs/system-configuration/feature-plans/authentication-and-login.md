@@ -2,6 +2,18 @@
 
 現在の状態（2026-10-07更新）: **認証・学校管理・工程11/12/12aは実装・検証済み**。以下は初回計画と追加バッチの履歴であり、旧未実装記述や教師の強制変更不要方針を現在の状態として扱わない。第135版で初期/再設定後の教師本人変更を必須化した。本番TLS/cookieや実管理者アカウント等の未確認事項は保持する。
 
+## 第157版のID表示・生徒ログアウト確認（2026-10-11）
+
+- 全ロールの画面表示はログインIDを使用する。既存`users.display_name`列とDTOは互換保持し、
+  schema変更や既存アカウントの書換えは行わない。初期管理者作成の表示名入力を廃止しIDを保存する。
+- 生徒共通footerも既存shared feedbackのログアウト確認を読み込む。
+  専用合成環境18090でキャンセル→再読込後もhome、確定→login、home直指定→loginを確認。
+  未保存エディターのbeforeunloadとOS標準ダイアログ全組合せの再検証は今回含めない。
+- 共通契約の自動テストと全体回帰405件（270成功/135skip/失敗0）を確認。
+  専用18091で教師ヘッダーの教師IDと、既存合成管理者のログイン→統合管理画面の
+  「管理者: admin」を確認。表示名の入力は要求されない。
+  新規の実管理者作成や本番資格情報変更は行っていない。
+
 ## 工程12a: 教師本人のアカウント管理
 
 仕様のREQ-001（本人情報）、REQ-002（初回必須/任意変更）、REQ-003（認可/履歴/失効）を対象とする。既存の教師profile/passwordプロトタイプと生徒のパスワード部品を利用し、プロトタイプは変更しない。関連状態/DB契約は[状態ルール](../../state-rules/admin/account-state-rules.md)・[DB定義](../../database-design/table-definitions.md#users)を参照する。外部API連携はない。
@@ -141,7 +153,7 @@ T001〜T004完了。今回の専用DB3個/付与権限・一時fixtureファイ�
 ## 管理者の固定ID修正（2026-10-07）
 
 - ユーザー再確認により管理者IDは小文字の`admin`に固定。任意IDのadminロールを認証していた実装を修正し、教師ログインでは入力ID・保存済みIDの両方が正確に`admin`であること、正しいパスワード・利用中状態・管理者ロールを要求する。管理URLもロールと固定IDを検証する。
-- `admin`の大文字/小文字違いは教師IDとして登録できない。初期管理者作成タスクはID入力を廃止して固定IDを使い、表示名・パスワードのみ従来どおり対話入力する。
+- `admin`の大文字/小文字違いは教師IDとして登録できない。初期管理者作成タスクは固定IDを使う。第157版で表示名入力も廃止し、パスワードのみ対話入力する。表示は全ロールでログインIDを使用し、互換display_name列へはIDを保存する。
 - 通常デモDBの既存管理者を固定IDへ修正した。内部user_idと関連履歴・パスワードハッシュを維持し、ID修正を監査へ記録。管理者を追加して1アカウント制約を破ることはしない。資格情報の実値はこの文書に記載しない。
 - 検証コマンド: `docker compose run --rm --no-deps -e GRADLE_USER_HOME=/tmp/gradle-teacher-validation app gradle --project-cache-dir=/tmp/teacher-validation-project test --tests 'control.auth.*Test' --tests entity.TeacherAccountInputTest --tests servlet.auth.LoginServletTest --tests servlet.admin.TeacherAccountServletTest war --no-daemon --warning-mode all` 成功（19件成功、失敗/skip0、WAR成功）。変更Java/テストのエディター診断0。
 - restart後の8080の認証browserで正しい`admin`資格情報から統合管理画面へ遷移し、管理者ラベルも`admin`であることを確認。旧デモID・`Admin`・`ADMIN`・誤パスワードを拒否。管理画面POSTで予約ID3種類の教師作成は400、正常生徒ログインと管理URL403も確認した。

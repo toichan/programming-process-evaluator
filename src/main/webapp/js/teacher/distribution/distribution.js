@@ -1149,7 +1149,7 @@
   }
 
   function statusLabel(status) {
-    return ({ draft: '下書き', scheduled: '配信予定', in_progress: '配信中', completed: '配信完了', stopped: '停止' })[status] || status;
+    return ({ draft: '下書き', scheduled: '配信設定済み', in_progress: '配信中', completed: '配信完了', stopped: '停止中' })[status] || status;
   }
 
   function historyRows() {

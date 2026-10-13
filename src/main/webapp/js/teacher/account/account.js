@@ -117,14 +117,30 @@ window.addEventListener('DOMContentLoaded', () => {
       checkbox.type = 'checkbox'; checkbox.value = account.userId; checkbox.disabled = account.status === 'deleted';
       checkbox.setAttribute('aria-label', `${account.loginId}を選択`); selection.append(checkbox); tr.append(selection);
       const id = node('td'); id.append(node('code', account.loginId)); tr.append(id);
-      const password = node('td');
-      if (account.passwordAvailable) password.append(button('reveal', '確認', account));
-      else password.textContent = '確認不可';
+      const password = node('td', undefined, 'password-cell');
+      const passwordContent = node('div', undefined, 'password-content');
+      passwordContent.append(node('span', account.passwordAvailable ? '••••••••' : '確認不可',
+        `password-mask${account.passwordAvailable ? '' : ' is-unavailable'}`));
+      if (account.passwordAvailable) passwordContent.append(button('reveal', '確認', account));
+      password.append(passwordContent);
       tr.append(password);
-      [`レベル${account.securityLevel}`, account.schoolName, classNames(account), firstLogin(account), consentLabels[account.consent], statusLabels[account.status], date(account.createdAt)].forEach(text => tr.append(node('td', text)));
+      const security = node('td');
+      security.append(node('span', `レベル${account.securityLevel}`, `security-chip level-${account.securityLevel}`));
+      tr.append(security, node('td', account.schoolName), node('td', classNames(account)));
+      const first = node('td');
+      const firstLabel = firstLogin(account);
+      first.append(node('span', firstLabel, `status-pill ${firstLabel === '完了' ? 'status-done' : firstLabel === '未完了' ? 'status-pending' : 'status-na'}`));
+      const consent = node('td');
+      consent.append(node('span', consentLabels[account.consent],
+        `consent ${account.consent === 'agreed' ? 'consent-ok' : account.consent === 'unconfirmed' ? 'consent-pending' : 'consent-no'}`));
+      const statusCell = node('td');
+      const status = node('span', statusLabels[account.status], 'badge account-status-badge');
+      status.dataset.status = account.status;
+      statusCell.append(status);
+      tr.append(first, consent, statusCell, node('td', date(account.createdAt)));
       const actions = node('td'); const group = node('div', undefined, 'account-actions');
       if (account.status !== 'deleted') {
-        if (account.securityLevel === 2) group.append(button('reset', 'PW再設定', account));
+        if (account.securityLevel === 2) group.append(button('reset', 'PW再設定', account, 'outline-warning'));
         if (account.loginLocked) group.append(button('unlock', 'ロック解除', account));
         group.append(button(account.status === 'active' ? 'suspend' : 'activate', account.status === 'active' ? '停止' : '停止解除', account));
         group.append(button('delete', '削除', account, 'outline-danger'));

@@ -97,7 +97,7 @@ public final class StudentCodeLogPage {
 				case "manual_save" -> "手動保存";
 				case "submission" -> "提出";
 				case "edit" -> "編集";
-				default -> "コードログ";
+				default -> "ソースコード編集ログ";
 			};
 		}
 		public LocalDateTime getObservedAt() { return observedAt; }

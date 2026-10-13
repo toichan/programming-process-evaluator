@@ -26,7 +26,8 @@ class TeacherReviewDatabaseTest {
 		Assumptions.assumeTrue("true".equals(System.getenv("TEACHER_REVIEW_DB_TEST")));
 		TeacherReviewFixture.guard(System.getenv());
 		TeacherReviewFixture.Data data;
-		try (var c = Client.createConnection()) { data = TeacherReviewFixture.install(c); }
+		try (var c = Client.createConnection()) { data = TeacherReviewFixture.installOrFind(c); }
+		EvidenceFixture evidenceFixture = installEvidenceFixture(data);
 		var teacher = login(data.teacher(), "review_teacher", UserType.TEACHER);
 		var outsider = login(data.outsider(), "review_outsider", UserType.TEACHER);
 		var denied = login(data.deniedTeacher(), "review_denied", UserType.TEACHER);
@@ -53,6 +54,9 @@ class TeacherReviewDatabaseTest {
 		assertEquals(4, evaluated.row().thinkingScore());
 		assertEquals("<script>dummy only</script>", evaluated.evaluation().reasons().getFirst().getBody());
 		assertEquals("Synthetic detail", evaluated.evaluation().reasons().getFirst().getDetails().getFirst());
+		assertPersistedEvidenceIsScoped(evaluated.evaluation().reasons().getFirst().getEvidence(), evidenceFixture);
+		assertTrue(evaluated.logs().stream().anyMatch(log -> log.logId() == evidenceFixture.submissionLogId()));
+		assertTrue(evaluated.logs().stream().anyMatch(log -> log.logId() == evidenceFixture.inWindowLogId()));
 		assertEquals(2, evaluated.logs().size());
 		assertEquals("print(0)", evaluated.logs().getFirst().snapshot());
 		assertEquals("print(input())", evaluated.logs().getLast().snapshot());
@@ -77,7 +81,13 @@ class TeacherReviewDatabaseTest {
 		var studentDao = new StudentEvaluationDao();
 		assertTrue(studentDao.findEvaluationPage(data.withdrawnStudent(), data.assignment(), data.submission()).isEmpty());
 		assertTrue(studentDao.findCodeLogPage(data.withdrawnStudent(), data.submission()).isEmpty());
-		assertEquals(2, studentDao.findEvaluationPage(data.student(), data.assignment(), data.submission()).orElseThrow().getEvaluation().getDimensions().size());
+		var studentPage = studentDao.findEvaluationPage(data.student(), data.assignment(), data.submission()).orElseThrow();
+		assertEquals(2, studentPage.getEvaluation().getDimensions().size());
+		assertPersistedEvidenceIsScoped(
+				studentPage.getEvaluation().getReasons().getFirst().getEvidence(), evidenceFixture);
+		var studentLogs = studentDao.findCodeLogPage(data.student(), data.submission()).orElseThrow().getEntries();
+		assertTrue(studentLogs.stream().anyMatch(entry -> entry.getLogId() == evidenceFixture.submissionLogId()));
+		assertTrue(studentLogs.stream().anyMatch(entry -> entry.getLogId() == evidenceFixture.inWindowLogId()));
 
 		long executions = count("code_executions"), logs = count("code_logs"), evaluations = count("evaluations");
 		assertEquals("preview only", control.preview(teacher, data.submission(), "print('preview only')", "dummy stdin").getStandardOutput());
@@ -85,6 +95,29 @@ class TeacherReviewDatabaseTest {
 		assertEquals(logs, count("code_logs"));
 		assertEquals(evaluations, count("evaluations"));
 		assertEquals(snapshot.code(), control.detail(teacher, false, data.submission(), null).code());
+		if ("true".equals(System.getenv("TEACHER_SUBMISSION_RUNNER_TEST"))) {
+			long submissionsBefore = count("submissions");
+			var running = control.startPreview(teacher, data.submission(), "print(input())\n");
+			String session = running.sessionId();
+			assertEquals("running", running.status());
+			assertThrows(NotFoundException.class, () -> control.pollPreview(outsider, data.submission(), session, 0));
+			assertThrows(SecurityException.class, () -> control.pollPreview(denied, data.submission(), session, 0));
+			assertThrows(SecurityException.class, () -> control.sendPreviewInput(teacher, data.secondSubmission(), session, "wrong submission"));
+			control.sendPreviewInput(teacher, data.submission(), session, "synthetic interactive");
+			entity.InteractiveExecutionUpdate completed = running;
+			long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(8);
+			while ("running".equals(completed.status()) && System.nanoTime() < deadline) {
+				Thread.sleep(50);
+				completed = control.pollPreview(teacher, data.submission(), session, 0);
+			}
+			assertEquals("succeeded", completed.status());
+			assertEquals("synthetic interactive\n", completed.standardOutput());
+			assertEquals(submissionsBefore, count("submissions"));
+			assertEquals(executions, count("code_executions"));
+			assertEquals(logs, count("code_logs"));
+			assertEquals(evaluations, count("evaluations"));
+			assertEquals(snapshot.code(), control.detail(teacher, false, data.submission(), null).code());
+		}
 
 		String csv = control.exportCsv(teacher, TeacherReviewFilter.empty());
 		assertTrue(csv.contains("review_student"));
@@ -198,6 +231,92 @@ class TeacherReviewDatabaseTest {
 		}
 	}
 	private static AuthenticatedUser login(long id, String login, UserType role) { return new AuthenticatedUser(id, login, login, role, false, "dummy-test"); }
+	private static EvidenceFixture installEvidenceFixture(TeacherReviewFixture.Data data) throws SQLException {
+		try (var connection = Client.createConnection()) {
+			long reasonId = scalar(connection,
+					"SELECT evaluation_reason_id FROM evaluation_reasons WHERE evaluation_id=? AND reason_code='synthetic-reason'",
+					data.completedEvaluation());
+			long detailId = scalar(connection,
+					"SELECT reason_detail_id FROM evaluation_reason_details WHERE evaluation_reason_id=?",
+					reasonId);
+			long submissionLogId = scalar(connection,
+					"SELECT code_log_id FROM code_logs WHERE submission_id=? AND event_type='submission'",
+					data.submission());
+			long inWindowLogId = scalar(connection,
+					"SELECT code_log_id FROM code_logs WHERE participation_id=? AND submission_id IS NULL AND snapshot_text='print(0)'",
+					data.participation());
+			long afterSubmissionLogId = scalar(connection,
+					"SELECT code_log_id FROM code_logs WHERE participation_id=? AND submission_id IS NULL AND snapshot_text='print(input().upper())'",
+					data.participation());
+			long foreignParticipationId = scalar(connection,
+					"SELECT participation_id FROM task_participations WHERE student_user_id=? AND task_class_assignment_id=?",
+					data.withdrawnStudent(), data.assignment());
+			long foreignLogId = TeacherReviewFixture.insert(connection, """
+					INSERT INTO code_logs
+					  (participation_id,event_type,snapshot_text,observed_at,created_at)
+					VALUES (?,'manual_save','foreign participant log',
+					  (SELECT submitted_at FROM submissions WHERE submission_id=?),NOW())
+					""", foreignParticipationId, data.submission());
+
+			TeacherReviewFixture.insert(connection, """
+					INSERT INTO evaluation_evidence
+					  (evaluation_reason_id,code_log_id,evidence_type,evidence_label,evidence_summary,sort_order)
+					VALUES (?,?,'code_log','理由直結の編集ログ','valid reason evidence',1)
+					""", reasonId, submissionLogId);
+			TeacherReviewFixture.insert(connection, """
+					INSERT INTO evaluation_evidence
+					  (reason_detail_id,code_log_id,evidence_type,evidence_label,evidence_summary,sort_order)
+					VALUES (?,?,'code_log','詳細直結の編集ログ','valid detail evidence',2)
+					""", detailId, inWindowLogId);
+			TeacherReviewFixture.insert(connection, """
+					INSERT INTO evaluation_evidence
+					  (evaluation_reason_id,code_log_id,evidence_type,evidence_label,evidence_summary,sort_order)
+					VALUES (?,?,'code_log','提出時刻範囲外の編集ログ','out-of-window evidence',3)
+					""", reasonId, afterSubmissionLogId);
+			TeacherReviewFixture.insert(connection, """
+					INSERT INTO evaluation_evidence
+					  (reason_detail_id,code_log_id,evidence_type,evidence_label,evidence_summary,sort_order)
+					VALUES (?,?,'code_log','別参加者の編集ログ','foreign-participant evidence',4)
+					""", detailId, foreignLogId);
+			return new EvidenceFixture(detailId, submissionLogId, inWindowLogId);
+		}
+	}
+
+	private static void assertPersistedEvidenceIsScoped(
+			java.util.List<StudentEvaluationPage.EvidenceResult> evidence,
+			EvidenceFixture fixture) {
+		assertEquals(4, evidence.size());
+		var reasonEvidence = evidence.stream()
+				.filter(item -> "valid reason evidence".equals(item.getSummary())).findFirst().orElseThrow();
+		assertNull(reasonEvidence.getReasonDetailId());
+		assertEquals(fixture.submissionLogId(), reasonEvidence.getCodeLogId());
+		assertTrue(reasonEvidence.getHasCodeLogReference());
+
+		var detailEvidence = evidence.stream()
+				.filter(item -> "valid detail evidence".equals(item.getSummary())).findFirst().orElseThrow();
+		assertEquals(fixture.reasonDetailId(), detailEvidence.getReasonDetailId());
+		assertEquals("Synthetic detail", detailEvidence.getDetailText());
+		assertEquals(fixture.inWindowLogId(), detailEvidence.getCodeLogId());
+		assertTrue(detailEvidence.getHasCodeLogReference());
+
+		for (String summary : new String[] { "out-of-window evidence", "foreign-participant evidence" }) {
+			var rejectedReference = evidence.stream()
+					.filter(item -> summary.equals(item.getSummary())).findFirst().orElseThrow();
+			assertNull(rejectedReference.getCodeLogId(), summary);
+			assertTrue(rejectedReference.getHasCodeLogReference(), summary);
+		}
+	}
+
+	private static long scalar(Connection connection, String sql, long... parameters) throws SQLException {
+		try (var statement = connection.prepareStatement(sql)) {
+			for (int i = 0; i < parameters.length; i++) statement.setLong(i + 1, parameters[i]);
+			try (var result = statement.executeQuery()) {
+				assertTrue(result.next(), "Expected one synthetic fixture row.");
+				return result.getLong(1);
+			}
+		}
+	}
+	private record EvidenceFixture(long reasonDetailId, long submissionLogId, long inWindowLogId) {}
 	private static long count(String table) throws SQLException {
 		try (var c = Client.createConnection(); var s = c.createStatement(); var r = s.executeQuery("SELECT COUNT(*) FROM " + table)) { r.next(); return r.getLong(1); }
 	}

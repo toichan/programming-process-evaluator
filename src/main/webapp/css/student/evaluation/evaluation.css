@@ -214,6 +214,10 @@ body {
   background: linear-gradient(90deg, #f59e0b, #ef4444);
 }
 
+.attitude-panel .score-meter .is-filled {
+  background: linear-gradient(90deg, #4ade80, #16a34a);
+}
+
 .breakdown-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

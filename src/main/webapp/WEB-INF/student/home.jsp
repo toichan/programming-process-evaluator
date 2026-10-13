@@ -6,6 +6,12 @@
 <%@ include file="/WEB-INF/template/page-start.jspf" %>
 <%@ include file="/WEB-INF/student/shared/navigation.jspf" %>
 <div class="container">
+	<c:if test="${studentHomeNotice == 'survey-submitted'}">
+		<div class="alert alert-success" role="status">アンケートの回答を保存しました。ご協力ありがとうございます。</div>
+	</c:if>
+	<c:if test="${studentHomeNotice == 'survey-already-submitted'}">
+		<div class="alert alert-info" role="status">このアンケートは提出済みです。回答を変更する場合は「回答を修正」から再提出してください。</div>
+	</c:if>
 	<c:if test="${studentHomeNotice == 'saved'}">
 		<div class="alert alert-success" role="status">研究協力への回答を記録しました。学習機能は通常どおり利用できます。</div>
 	</c:if>

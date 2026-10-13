@@ -781,6 +781,7 @@ public final class TeacherTaskDao {
 
 		int immediateCount = 0;
 		int scheduledCount = 0;
+		List<Long> immediatelyPublishedAssignmentIds = new ArrayList<>();
 		Timestamp databaseNow = currentDatabaseTimestamp(connection);
 		try (PreparedStatement statement = connection.prepareStatement("""
 				SELECT task_class_assignment_id, publish_at, due_at
@@ -801,6 +802,7 @@ public final class TeacherTaskDao {
 					}
 					if (publishAt == null || !publishAt.after(databaseNow)) {
 						immediateCount++;
+						immediatelyPublishedAssignmentIds.add(rows.getLong("task_class_assignment_id"));
 					} else {
 						scheduledCount++;
 					}
@@ -825,6 +827,9 @@ public final class TeacherTaskDao {
 			if (statement.executeUpdate() != expectedAssignmentCount) {
 				throw new SQLException("Task assignment publication did not update the expected rows.");
 			}
+		}
+		for (long assignmentId : immediatelyPublishedAssignmentIds) {
+			StudentNotificationDao.insertTaskPublished(connection, assignmentId);
 		}
 		try (PreparedStatement statement = connection.prepareStatement("""
 				UPDATE tasks
@@ -1105,6 +1110,7 @@ public final class TeacherTaskDao {
 				throw new SQLException("Task assignment deadline update affected an unexpected row count.");
 			}
 		}
+		StudentNotificationDao.insertDeadlineExtended(connection, assignmentId);
 	}
 
 	public long insertPublishedTaskAssignment(
@@ -1137,7 +1143,11 @@ public final class TeacherTaskDao {
 				if (!keys.next()) {
 					throw new SQLException("The new task class assignment ID was not returned.");
 				}
-				return keys.getLong(1);
+				long newAssignmentId = keys.getLong(1);
+				if ("published".equals(assignmentStatus)) {
+					StudentNotificationDao.insertTaskPublished(connection, newAssignmentId);
+				}
+				return newAssignmentId;
 			}
 		}
 	}

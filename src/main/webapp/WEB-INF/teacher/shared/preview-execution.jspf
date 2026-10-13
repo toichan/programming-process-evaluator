@@ -1,0 +1,13 @@
+<%@ page pageEncoding="UTF-8" %>
+<section class="teacher-preview mt-3" aria-label="一時作業コピーの動作確認">
+  <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap mb-2">
+    <h3 class="h6 mb-0">作業コピー（編集・動作確認用）</h3>
+    <button id="runWorkCodeButton" type="button" class="btn btn-primary btn-sm" disabled>作業コピーを実行</button>
+  </div>
+  <p class="small text-secondary">上の保存済み原本は変更しません。編集・入力・実行結果はこの詳細内だけで保持し、生徒のコード・状態・履歴には保存しません。</p>
+  <div id="previewAlert"></div>
+  <textarea id="workCodeEditor" class="form-control" spellcheck="false" aria-label="編集可能な一時作業コピー" disabled></textarea>
+  <c:set var="terminalInputMode" value="inline"/>
+  <%@ include file="/WEB-INF/student/shared/execution-terminal.jspf" %>
+</section>
+<script src="${pageContext.request.contextPath}/js/teacher/shared/preview-execution.js" defer></script>

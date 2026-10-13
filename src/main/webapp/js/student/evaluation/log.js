@@ -10,6 +10,10 @@
 	const nextButton = document.getElementById("nextCodeButton");
 	const indicator = document.getElementById("stepIndicator");
 	const boundaryMessage = document.getElementById("boundaryMessage");
+	const requestedEvidenceStatus = document.getElementById("requestedEvidenceStatus");
+	const reasonFilters = Array.from(document.querySelectorAll("[data-reason-filter]"));
+	const reasonCards = Array.from(document.querySelectorAll("#reasonsPanel .reason-card[data-category]"));
+	const requestedLogId = new URLSearchParams(window.location.search).get("logId");
 	let selectedIndex = items.length - 1;
 
 	const value = (entry, selector) => entry.querySelector(selector)?.textContent ?? "";
@@ -70,7 +74,7 @@
 		if (!status) {
 			const message = document.createElement("p");
 			message.className = "text-muted mb-0";
-			message.textContent = "選択したログに実行記録はありません。";
+			message.textContent = "選択したソースコード編集ログに実行記録はありません。";
 			outputPanel.append(message);
 			return;
 		}
@@ -115,7 +119,7 @@
 		codeBlock.replaceChildren();
 		if (snapshot === "") {
 			const message = document.createElement("span");
-			message.textContent = "このログにはコードスナップショットがありません。";
+			message.textContent = "このソースコード編集ログにはコードスナップショットがありません。";
 			codeBlock.append(message);
 		} else if (changes) {
 			changes.forEach(line => appendCodeLine(line.number, line.text, line.kind));
@@ -124,7 +128,7 @@
 		}
 
 		indicator.textContent = `${index + 1} / ${items.length}`;
-		document.getElementById("sourceCodeId").textContent = `ログID: ${entry.dataset.logId}`;
+		document.getElementById("sourceCodeId").textContent = `ソースコード編集ログID: ${entry.dataset.logId}`;
 		document.getElementById("executionId").textContent = entry.dataset.executionId
 			? `実行ID: ${entry.dataset.executionId}`
 			: "実行ID: -";
@@ -149,6 +153,21 @@
 			if (selectedIndex < items.length - 1) render(selectedIndex + 1);
 		});
 	}
+	reasonFilters.forEach(button => {
+		button.addEventListener("click", () => {
+			const category = button.dataset.reasonFilter;
+			reasonFilters.forEach(filter => {
+				const selected = filter === button;
+				filter.classList.toggle("is-active", selected);
+				filter.setAttribute("aria-pressed", String(selected));
+			});
+			reasonCards.forEach(card => {
+				const hidden = category !== "all" && card.dataset.category !== category;
+				card.classList.toggle("is-hidden", hidden);
+				card.setAttribute("aria-hidden", String(hidden));
+			});
+		});
+	});
 	document.querySelectorAll("[data-sidebar-panel]").forEach(button => {
 		button.addEventListener("click", () => {
 			document.querySelectorAll("[data-sidebar-panel]").forEach(tab => {
@@ -162,4 +181,13 @@
 	});
 
 	if (items.length > 0) render(selectedIndex);
+	if (requestedLogId !== null && requestedEvidenceStatus) {
+		const requestedIndex = logEntries.findIndex(entry => entry.dataset.logId === requestedLogId);
+		if (requestedIndex >= 0 && requestedIndex < items.length) {
+			render(requestedIndex);
+			requestedEvidenceStatus.textContent = `保存済み根拠のソースコード編集ログID ${requestedLogId} を表示しています。`;
+		} else {
+			requestedEvidenceStatus.textContent = "指定されたログはこの提出版の認可済み一覧にありません。別の提出版やログを推測して表示していません。";
+		}
+	}
 })();

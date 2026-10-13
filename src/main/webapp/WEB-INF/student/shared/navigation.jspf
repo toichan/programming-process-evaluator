@@ -59,13 +59,45 @@
 						<li>
 							<a class="dropdown-item task-shortcut-overview" href="<c:url value='/student/home#taskListSection'/>">
 								<span class="task-shortcut-overview-label">課題一覧</span>
-								<span class="task-shortcut-overview-text">公開中の課題と状況を確認する</span>
+								<span class="task-shortcut-overview-text"><c:out value="${taskCount}"/>件の課題と状態を確認する</span>
 							</a>
 						</li>
 						<li><hr class="dropdown-divider"></li>
-						<li class="dropdown-item-text text-muted small">
-							個別の課題操作は、課題画面の実装後に利用できます。
-						</li>
+						<c:forEach var="shortcut" items="${studentTaskShortcuts}">
+							<li>
+								<div class="dropdown-item-text task-shortcut-card">
+									<div class="task-shortcut-heading-row">
+										<span class="task-shortcut-level <c:out value='${shortcut.difficultyClass}'/>"><c:out value="${shortcut.difficultyLabel}"/></span>
+										<div class="task-shortcut-name"><c:out value="${shortcut.task.title}"/></div>
+									</div>
+									<div class="task-shortcut-action-group">
+										<div class="task-shortcut-action-item">
+											<a class="task-shortcut-link is-task" href="<c:url value='/student/editor'><c:param name='assignmentId' value='${shortcut.task.taskClassAssignmentId}'/></c:url>">エディター</a>
+											<span class="task-shortcut-status-badge <c:out value='${shortcut.progressClass}'/>"><c:out value="${shortcut.progressLabel}"/></span>
+										</div>
+										<div class="task-shortcut-action-item">
+											<c:choose>
+												<c:when test="${not empty shortcut.task.latestSubmissionId}">
+													<a class="task-shortcut-link is-evaluation" href="<c:url value='/student/evaluation'><c:param name='assignmentId' value='${shortcut.task.taskClassAssignmentId}'/><c:param name='submissionId' value='${shortcut.task.latestSubmissionId}'/></c:url>">評価結果</a>
+												</c:when>
+												<c:otherwise><span class="task-shortcut-link is-evaluation is-disabled" aria-disabled="true">評価結果</span></c:otherwise>
+											</c:choose>
+											<span class="task-shortcut-status-badge ${shortcut.task.evaluationStatus == 'completed' ? 'is-rated' : 'is-unrated'}"><c:out value="${shortcut.evaluationLabel}"/></span>
+										</div>
+										<div class="task-shortcut-action-item">
+											<c:choose>
+												<c:when test="${shortcut.survey.available}">
+													<a class="task-shortcut-link is-survey" href="<c:url value='/student/survey'><c:param name='assignmentId' value='${shortcut.task.taskClassAssignmentId}'/><c:param name='evaluationId' value='${shortcut.survey.evaluationId}'/><c:param name='surveyId' value='${shortcut.survey.surveyId}'/></c:url>">アンケート</a>
+												</c:when>
+												<c:otherwise><span class="task-shortcut-link is-survey is-disabled" aria-disabled="true" title="<c:out value='${shortcut.survey.unavailableReason}'/>">アンケート</span></c:otherwise>
+											</c:choose>
+											<span class="task-shortcut-status-badge ${shortcut.task.surveyStatus == 'submitted' ? 'is-completed' : 'is-pending'}"><c:out value="${shortcut.surveyLabel}"/></span>
+										</div>
+									</div>
+								</div>
+							</li>
+						</c:forEach>
+						<c:if test="${empty studentTaskShortcuts}"><li class="dropdown-item-text text-muted small">公開中の課題はありません。</li></c:if>
 					</ul>
 				</li>
 				<li class="nav-item">
@@ -101,15 +133,40 @@
 						ヘルプ
 					</button>
 				</li>
-				<li class="nav-item ms-lg-2">
-					<span class="nav-link notification-trigger" aria-label="通知（準備中）"
-						title="通知は後続工程で利用可能になります">
+				<li class="nav-item dropdown ms-lg-2">
+					<button type="button" class="nav-link notification-trigger dropdown-toggle"
+						id="studentNotificationDropdown" data-bs-toggle="dropdown" aria-expanded="false"
+						aria-label="通知、未読<c:out value='${studentUnreadNotificationCount}'/>件">
 						<svg width="20" height="20" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true">
 							<path d="M8 16a2 2 0 0 0 2-2H6a2 2 0 0 0 2 2z"/>
 							<path d="M8 1.918l-.797.161A4.002 4.002 0 0 0 4 6c0 .628-.134 2.197-.459 3.742-.16.767-.376 1.566-.663 2.258h10.244c-.287-.692-.502-1.49-.663-2.258C12.134 8.197 12 6.628 12 6a4.002 4.002 0 0 0-3.203-3.92L8 1.917zM14.22 12c.223.447.481.801.78 1H1c.299-.199.557-.553.78-1C2.68 10.2 3 6.88 3 6c0-2.42 1.72-4.44 4.005-4.901a1 1 0 1 1 1.99 0A5.002 5.002 0 0 1 13 6c0 .88.32 4.2 1.22 6z"/>
 						</svg>
-						<span class="visually-hidden">通知</span>
-					</span>
+						<span>通知</span>
+						<c:if test="${studentUnreadNotificationCount > 0}">
+							<span class="notification-count"><c:out value="${studentUnreadNotificationCount}"/></span>
+						</c:if>
+					</button>
+					<ul class="dropdown-menu dropdown-menu-end border-0 shadow-lg student-notification-menu"
+						aria-labelledby="studentNotificationDropdown">
+						<li class="dropdown-header">最近の通知（未読 <c:out value="${studentUnreadNotificationCount}"/> 件）</li>
+						<c:forEach var="notification" items="${studentRecentNotifications}">
+							<li>
+								<form method="post" action="<c:url value='/student/notifications/open'/>" data-notification-open>
+									<input type="hidden" name="csrfToken" value="<c:out value='${csrfToken}'/>">
+									<input type="hidden" name="notificationId" value="<c:out value='${notification.notificationId}'/>">
+									<button type="submit" class="dropdown-item student-notification-entry ${notification.read ? 'is-read' : 'is-unread'}">
+										<span class="student-notification-heading"><strong><c:out value="${notification.title}"/></strong>
+											<span>${notification.read ? '既読' : '未読'}</span></span>
+										<span><c:out value="${notification.message}"/></span>
+										<small><c:out value="${notification.createdAtLabel}"/></small>
+									</button>
+								</form>
+							</li>
+						</c:forEach>
+						<c:if test="${empty studentRecentNotifications}"><li class="dropdown-item-text text-secondary">通知はありません。</li></c:if>
+						<li><hr class="dropdown-divider"></li>
+						<li><a class="dropdown-item text-center" href="<c:url value='/student/notifications'/>">すべて見る</a></li>
+					</ul>
 				</li>
 				<li class="nav-item dropdown ms-lg-2">
 					<a class="nav-link dropdown-toggle d-flex align-items-center" href="#"
@@ -166,4 +223,4 @@
 		</div>
 	</div>
 </nav>
-<main class="py-5">
+<main class="<c:out value="${empty studentMainClass ? 'py-5' : studentMainClass}"/>">

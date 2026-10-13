@@ -261,6 +261,7 @@ public final class TeacherTaskServlet extends HttpServlet {
 		request.setAttribute("screenDesign", "teacher");
 		request.setAttribute("screenPageTitle", "課題編集");
 		request.setAttribute("screenStylesheet", "/css/teacher/task/task.css");
+		request.setAttribute("screenAssetVersion", "163");
 		request.setAttribute("screenScript", "/js/teacher/task/task.js");
 		request.setAttribute("screenUsesCodeMirror", Boolean.TRUE);
 		Map<String, List<String>> rawValues = rawValues(request);

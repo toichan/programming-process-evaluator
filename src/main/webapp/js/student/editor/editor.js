@@ -208,7 +208,7 @@ window.addEventListener('DOMContentLoaded', () => {
       draftUpdatedAt = result.updatedAt;
       page.dataset.draftUpdatedAt = result.updatedAt;
       lastSavedCode = source;
-      updateEditorStatus(`保存状態: 保存済み（${formatNow()}）。コードログへ記録しました。`);
+      updateEditorStatus(`保存状態: 保存済み（${formatNow()}）。ソースコード編集ログへ記録しました。`);
       clearError();
       addCodeLog(eventType === 'periodic_snapshot' ? '自動保存' : '手動保存', source, '');
       if (notifySuccess) {
@@ -551,7 +551,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
   codeEditor.on('change', () => {
     if (isDirty()) {
-      updateEditorStatus('保存状態: 未保存の変更があります。保存するとコードログへ記録されます。');
+      updateEditorStatus('保存状態: 未保存の変更があります。保存するとソースコード編集ログへ記録されます。');
     } else {
       updateEditorStatus('保存状態: 保存済みです。');
     }
@@ -626,11 +626,10 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   }, 30_000);
 
-  window.addEventListener('beforeunload', (event) => {
-    if (page.dataset.editable === 'true' && isDirty()) {
-      event.preventDefault();
-      event.returnValue = '';
-    }
+  window.PPEUnsavedNavigation.bind({
+    isDirty: () => (page.dataset.editable === 'true' && isDirty()) || terminalInput.value.length > 0,
+    feedback,
+    message: '保存していないコードや送信前の実行入力を破棄して移動しますか？'
   });
 
   window.addEventListener('pagehide', () => {

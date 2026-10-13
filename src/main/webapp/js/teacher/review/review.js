@@ -212,7 +212,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     function showLog() {
       const log = detail.logs[Number(times.value)];
-      document.getElementById('codeLogState').textContent = log ? `${log.eventType} / ${log.executionStatus || '実行なし'}` : 'この提出版のコードログはありません。';
+      document.getElementById('codeLogState').textContent = log ? `${log.eventType} / ${log.executionStatus || '実行なし'}` : 'この提出版のソースコード編集ログはありません。';
       document.getElementById('codeLogSnapshot').textContent = log ? log.snapshot || '' : '';
     }
     times.disabled = !detail.logs.length; times.onchange = showLog;

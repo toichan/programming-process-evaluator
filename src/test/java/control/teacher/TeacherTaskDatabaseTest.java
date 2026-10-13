@@ -24,15 +24,21 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+
 import control.auth.AuthenticatedUser;
 import control.auth.PasswordHasher;
 import control.evaluation.EvaluationProvider;
+import control.evaluation.EvaluationProviderException;
 import control.evaluation.ReevaluationPreviewWorker;
 import control.student.StandardRubricSource;
 import entity.EditorHint;
@@ -55,7 +61,9 @@ import lib.mysql.Client;
 import dao.ReevaluationPreviewDao;
 import dao.StudentEditorDao;
 import dao.StandardRubricDao;
+import dao.TeacherPermissionDao;
 import dao.TeacherPromptDao;
+import dao.TeacherTaskDao;
 import dao.TeacherTaskPublicationDao;
 
 class TeacherTaskDatabaseTest {
@@ -301,6 +309,157 @@ class TeacherTaskDatabaseTest {
 	}
 
 	@Test
+	void expirationTransitionNotifiesActiveUnsubmittedStudentsWithLatePolicyGuidance() throws SQLException {
+		AuthenticatedUser owner = teacher();
+		long allowAssignment = createExpiredAssignment(owner, "Expired allow acceptance", LateSubmissionPolicy.ALLOW);
+		long denyAssignment = createExpiredAssignment(owner, "Expired deny acceptance", LateSubmissionPolicy.DENY);
+		long eligibleStudent = insertStudentFixture();
+		long submittedStudent = insertStudentFixture();
+		long inactiveStudent = insertStudentFixture();
+		setStudentMembershipInactive(inactiveStudent);
+		insertSubmittedParticipation(submittedStudent, allowAssignment);
+		insertSubmittedParticipation(submittedStudent, denyAssignment);
+		setAssignmentDueTimePast(allowAssignment);
+		setAssignmentDueTimePast(denyAssignment);
+
+		TeacherTaskPublicationDao publicationDao = new TeacherTaskPublicationDao();
+		assertEquals(2, publicationDao.processDueAssignments());
+		assertEquals("expired", findAssignmentStatus(allowAssignment));
+		assertEquals("expired", findAssignmentStatus(denyAssignment));
+		assertEquals(1, countAssignmentNotifications(eligibleStudent, allowAssignment));
+		assertEquals(1, countAssignmentNotifications(eligibleStudent, denyAssignment));
+		assertEquals(0, countAssignmentNotifications(submittedStudent, allowAssignment));
+		assertEquals(0, countAssignmentNotifications(submittedStudent, denyAssignment));
+		assertEquals(0, countAssignmentNotifications(inactiveStudent, allowAssignment));
+		assertEquals(0, countAssignmentNotifications(inactiveStudent, denyAssignment));
+		assertTrue(assignmentNotificationMessage(eligibleStudent, allowAssignment)
+				.contains("期限後の初回提出は可能です"));
+		assertTrue(assignmentNotificationMessage(eligibleStudent, denyAssignment)
+				.contains("期限後の提出はできません"));
+		assertTrue(new StudentEditorDao().isExpiredDeniedAssignmentForStudent(eligibleStudent, denyAssignment));
+		assertFalse(new StudentEditorDao().isExpiredDeniedAssignmentForStudent(eligibleStudent, allowAssignment));
+		assertFalse(new StudentEditorDao().isExpiredDeniedAssignmentForStudent(inactiveStudent, denyAssignment));
+		assertEquals(1, countAssignmentAudits(allowAssignment, "expire_assignment"));
+		assertEquals(1, countAssignmentAudits(denyAssignment, "expire_assignment"));
+
+		assertEquals(0, publicationDao.processDueAssignments());
+		assertEquals(1, countAssignmentNotifications(eligibleStudent, allowAssignment));
+		assertEquals(1, countAssignmentNotifications(eligibleStudent, denyAssignment));
+	}
+
+	private long createExpiredAssignment(
+			AuthenticatedUser owner, String title, LateSubmissionPolicy lateSubmissionPolicy) throws SQLException {
+		long taskId = TASKS.createDraft(
+				owner,
+				inputWithAssignments(
+						title,
+						List.of(new ClassAssignmentInput(
+								0, classroomId, null, LocalDateTime.now().plusDays(1), lateSubmissionPolicy))),
+				UUID.randomUUID().toString());
+		activateConfiguredPrompt(owner, taskId);
+		publishDraft(owner, taskId);
+		return findAssignmentId(taskId, classroomId);
+	}
+
+	private void setStudentMembershipInactive(long studentId) throws SQLException {
+		try (Connection connection = Client.createConnection();
+				PreparedStatement statement = connection.prepareStatement("""
+						UPDATE student_class_memberships SET membership_status = 'inactive'
+						WHERE student_user_id = ? AND classroom_id = ?
+						""")) {
+			statement.setLong(1, studentId);
+			statement.setLong(2, classroomId);
+			assertEquals(1, statement.executeUpdate());
+		}
+	}
+
+	private void insertSubmittedParticipation(long studentId, long assignmentId) throws SQLException {
+		try (Connection connection = Client.createConnection();
+				PreparedStatement statement = connection.prepareStatement("""
+						INSERT INTO task_participations
+						  (student_user_id, task_class_assignment_id, learning_status, progress_status,
+						   save_status, evaluation_status, active_duration_seconds)
+						VALUES (?, ?, 'completed', 'submitted', 'saved', 'not_started', 0)
+						""")) {
+			statement.setLong(1, studentId);
+			statement.setLong(2, assignmentId);
+			assertEquals(1, statement.executeUpdate());
+		}
+	}
+
+	private int countAssignmentNotifications(long studentId, long assignmentId) throws SQLException {
+		try (Connection connection = Client.createConnection();
+				PreparedStatement statement = connection.prepareStatement("""
+						SELECT COUNT(*) FROM student_notifications
+						WHERE student_user_id = ? AND task_class_assignment_id = ?
+						  AND notification_type = 'assignment_expired'
+						""")) {
+			statement.setLong(1, studentId);
+			statement.setLong(2, assignmentId);
+			try (ResultSet rows = statement.executeQuery()) {
+				rows.next();
+				return rows.getInt(1);
+			}
+		}
+	}
+
+	private String assignmentNotificationMessage(long studentId, long assignmentId) throws SQLException {
+		try (Connection connection = Client.createConnection();
+				PreparedStatement statement = connection.prepareStatement("""
+						SELECT message FROM student_notifications
+						WHERE student_user_id = ? AND task_class_assignment_id = ?
+						  AND notification_type = 'assignment_expired'
+						""")) {
+			statement.setLong(1, studentId);
+			statement.setLong(2, assignmentId);
+			try (ResultSet rows = statement.executeQuery()) {
+				if (!rows.next()) {
+					throw new SQLException("Expected synthetic assignment-expired notification was not created.");
+				}
+				return rows.getString(1);
+			}
+		}
+	}
+
+	private int countTaskPublishedNotifications(long studentId, long assignmentId) throws SQLException {
+		try (Connection connection = Client.createConnection();
+				PreparedStatement statement = connection.prepareStatement("""
+						SELECT COUNT(*) FROM student_notifications
+						WHERE student_user_id = ? AND task_class_assignment_id = ?
+						  AND notification_type = 'task_published'
+						""")) {
+			statement.setLong(1, studentId);
+			statement.setLong(2, assignmentId);
+			try (ResultSet rows = statement.executeQuery()) {
+				rows.next();
+				return rows.getInt(1);
+			}
+		}
+	}
+
+	private String taskPublishedNotificationText(long studentId, long assignmentId, String column)
+			throws SQLException {
+		if (!Set.of("title", "message").contains(column)) {
+			throw new IllegalArgumentException("Unsupported notification text column.");
+		}
+		try (Connection connection = Client.createConnection();
+				PreparedStatement statement = connection.prepareStatement("""
+						SELECT %s FROM student_notifications
+						WHERE student_user_id = ? AND task_class_assignment_id = ?
+						  AND notification_type = 'task_published'
+						""".formatted(column))) {
+			statement.setLong(1, studentId);
+			statement.setLong(2, assignmentId);
+			try (ResultSet rows = statement.executeQuery()) {
+				if (!rows.next()) {
+					throw new SQLException("Expected task-published notification was not created.");
+				}
+				return rows.getString(1);
+			}
+		}
+	}
+
+	@Test
 	void publicationWorkerDoesNotExpireBeforeDeadlineAndExpiresAtTheBoundary()
 			throws SQLException, InterruptedException {
 		AuthenticatedUser owner = teacher();
@@ -496,12 +655,15 @@ class TeacherTaskDatabaseTest {
 				"Task revision source",
 				List.of(new ClassAssignmentInput(
 						0, classroomId, null, LocalDateTime.now().plusDays(2), LateSubmissionPolicy.ALLOW)));
+		long studentId = insertStudentFixture();
 		long sourceTaskId = TASKS.createDraft(owner, sourceInput, UUID.randomUUID().toString());
 		activateConfiguredPrompt(owner, sourceTaskId);
 		publishDraft(owner, sourceTaskId);
 		var source = TASKS.loadPage(owner, sourceTaskId, schoolId).selectedTask();
 		long oldAssignmentId = findAssignmentId(sourceTaskId, classroomId);
-		long studentId = insertStudentFixture();
+		assertEquals(1, countTaskPublishedNotifications(studentId, oldAssignmentId));
+		assertTrue(taskPublishedNotificationText(studentId, oldAssignmentId, "message")
+				.contains("が公開されました"));
 		assertTrue(new StudentEditorDao().findEditorPage(studentId, oldAssignmentId).isPresent());
 
 		TeacherTaskInput revisedInput = inputWithAssignments(
@@ -529,7 +691,158 @@ class TeacherTaskDatabaseTest {
 		assertEquals("published", TASKS.loadPage(owner, revisionTaskId, schoolId)
 				.selectedTask().publicationStatus());
 		assertEquals("archived", findAssignmentStatus(oldAssignmentId));
-		assertEquals("published", findAssignmentStatus(findAssignmentId(revisionTaskId, classroomId)));
+		long revisedAssignmentId = findAssignmentId(revisionTaskId, classroomId);
+		assertEquals("published", findAssignmentStatus(revisedAssignmentId));
+		assertEquals(1, countTaskPublishedNotifications(studentId, revisedAssignmentId));
+		assertTrue(taskPublishedNotificationText(studentId, revisedAssignmentId, "title")
+				.contains("改訂版"));
+		assertTrue(taskPublishedNotificationText(studentId, revisedAssignmentId, "message")
+				.contains("新しい改訂版"));
+	}
+
+	@Test
+	void generatesFluctuationsForRevisionWithoutDraftOnlyRubricInitialization()
+			throws SQLException, EvaluationProviderException {
+		AuthenticatedUser owner = teacher();
+		long sourceTaskId = TASKS.createDraft(owner, input("Prompt generation revision source"),
+				UUID.randomUUID().toString());
+		activateConfiguredPrompt(owner, sourceTaskId);
+		publishDraft(owner, sourceTaskId);
+		var source = TASKS.loadPage(owner, sourceTaskId, schoolId).selectedTask();
+		long revisionTaskId = TASKS.createRevision(
+				owner,
+				sourceTaskId,
+				source.version(),
+				input("Prompt generation revision"),
+				UUID.randomUUID().toString());
+		var revision = TASKS.loadPage(owner, revisionTaskId, schoolId).selectedTask();
+		assertEquals("requires_update", revision.publicationStatus());
+
+		AtomicInteger providerCalls = new AtomicInteger();
+		TeacherPromptControl prompts = new TeacherPromptControl(
+				new TeacherPermissionDao(),
+				new TeacherTaskDao(),
+				new TeacherPromptDao(),
+				new StandardRubricDao(),
+				new TeacherPromptAiClient((model, system, request, schema) -> {
+					providerCalls.incrementAndGet();
+					JsonObject response = new JsonObject();
+					JsonObject requestData = JsonParser.parseString(request).getAsJsonObject();
+					if (requestData.has("synthetic_submission_samples")) {
+						JsonArray results = new JsonArray();
+						for (var sample : requestData.getAsJsonArray("synthetic_submission_samples")) {
+							JsonObject result = new JsonObject();
+							result.add("sample_id", sample.getAsJsonObject().get("sample_id"));
+							result.addProperty("synthetic_code", "print('fictional sample')");
+							result.addProperty("scenario", sample.getAsJsonObject().get("description").getAsString());
+							result.addProperty("predicted_testcase_result", "仕様からの推定。実行していない。");
+							JsonObject scores = new JsonObject();
+							scores.addProperty("thinking_expression_level", 3);
+							scores.addProperty("proactive_attitude_level", 4);
+							result.add("scores", scores);
+							JsonObject reasons = new JsonObject();
+							reasons.addProperty("thinking_expression_reason", "合成例の理由");
+							reasons.addProperty("proactive_attitude_reason", "合成例の理由");
+							result.add("reasons", reasons);
+							results.add(result);
+						}
+						JsonObject output = new JsonObject();
+						output.add("simulated_results", results);
+						output.add("variance_alerts", new JsonArray());
+						output.add("pre_reeval_checklist", new JsonArray());
+						response.addProperty("output_text", output.toString());
+					} else {
+						response.addProperty("output_text", """
+								{"ambiguity_items":[{"title":"境界値の扱い","ambiguity_reason":"期待結果が複数解釈できる",
+								"risk_level":"medium","clarification_question":"境界値はどう扱いますか",
+								"recommended_rule_text":"境界値の動作をテストケースで確認する"}]}
+								""");
+					}
+					return response;
+				}),
+				Client::createConnection);
+		long promptVersionId = prompts.saveDraft(
+				owner, revisionTaskId, null, 0, "gemini-3.7-flash", "Synthetic revision prompt", null);
+		var draft = prompts.loadPage(owner, revisionTaskId, promptVersionId).selectedVersion();
+
+		var generated = prompts.generateFluctuations(
+				owner, revisionTaskId, promptVersionId, draft.rowVersion());
+
+		assertEquals(1, providerCalls.get());
+		assertEquals("completed", generated.fluctuationGenerationStatus());
+		assertEquals(1, generated.fluctuationItems().size());
+		var resolved = prompts.saveResolutions(
+				owner,
+				revisionTaskId,
+				promptVersionId,
+				generated.rowVersion(),
+				generated.fluctuationItems().stream().map(item ->
+						new entity.TeacherPromptVersion.FluctuationItem(
+								item.id(), item.title(), item.level(), item.description(), item.example(),
+								"仕様から確認できる合成例だけを対象にする。",
+								"resolved",
+								item.sortOrder()))
+						.toList(),
+				null);
+		var examples = prompts.generateEvaluationExamples(
+				owner, revisionTaskId, promptVersionId, resolved.rowVersion());
+		assertEquals("completed", examples.evaluationExamplesStatus());
+		assertEquals(2, examples.evaluationExamples().getFirst().getSimulatedResults().size());
+		var configured = prompts.saveEvaluationExamples(
+				owner, revisionTaskId, promptVersionId, examples.rowVersion());
+		assertEquals("configured", configured.promptStatus());
+		assertEquals(2, providerCalls.get());
+		assertEquals("requires_update", TASKS.loadPage(owner, revisionTaskId, schoolId)
+				.selectedTask().publicationStatus());
+		assertEquals("not_published", findAssignmentStatus(findAssignmentId(revisionTaskId, classroomId)));
+		assertEquals(1, countTaskRubric(revisionTaskId));
+	}
+
+	@Test
+	void scheduledRevisionNotifiesStudentsOnlyWhenTheNewRevisionIsPublished() throws SQLException {
+		AuthenticatedUser owner = teacher();
+		long studentId = insertStudentFixture();
+		long sourceTaskId = TASKS.createDraft(
+				owner,
+				inputWithAssignments(
+						"Scheduled revision source",
+						List.of(new ClassAssignmentInput(
+								0, classroomId, null, LocalDateTime.now().plusDays(2),
+								LateSubmissionPolicy.ALLOW))),
+				UUID.randomUUID().toString());
+		activateConfiguredPrompt(owner, sourceTaskId);
+		publishDraft(owner, sourceTaskId);
+		var source = TASKS.loadPage(owner, sourceTaskId, schoolId).selectedTask();
+		long oldAssignmentId = findAssignmentId(sourceTaskId, classroomId);
+		long revisionTaskId = TASKS.createRevision(
+				owner,
+				sourceTaskId,
+				source.version(),
+				inputWithAssignments(
+						"Scheduled revision updated",
+						List.of(new ClassAssignmentInput(
+								0, classroomId, LocalDateTime.now().plusMinutes(5),
+								LocalDateTime.now().plusDays(3), LateSubmissionPolicy.ALLOW))),
+				UUID.randomUUID().toString());
+		var revision = TASKS.loadPage(owner, revisionTaskId, schoolId).selectedTask();
+		activateConfiguredPrompt(owner, revisionTaskId);
+		TASKS.publishTask(owner, revisionTaskId, revision.version(), revision.input(), UUID.randomUUID().toString());
+
+		long revisedAssignmentId = findAssignmentId(revisionTaskId, classroomId);
+		assertEquals("scheduled", findAssignmentStatus(revisedAssignmentId));
+		assertEquals(1, countTaskPublishedNotifications(studentId, oldAssignmentId));
+		assertEquals(0, countTaskPublishedNotifications(studentId, revisedAssignmentId));
+		assertEquals("archived", findAssignmentStatus(oldAssignmentId));
+
+		setAssignmentPublishTimeDue(revisedAssignmentId);
+		TeacherTaskPublicationDao publicationDao = new TeacherTaskPublicationDao();
+		assertEquals(1, publicationDao.processDueAssignments());
+		assertEquals("published", findAssignmentStatus(revisedAssignmentId));
+		assertEquals(1, countTaskPublishedNotifications(studentId, revisedAssignmentId));
+		assertTrue(taskPublishedNotificationText(studentId, revisedAssignmentId, "title")
+				.contains("改訂版"));
+		assertEquals(0, publicationDao.processDueAssignments());
+		assertEquals(1, countTaskPublishedNotifications(studentId, revisedAssignmentId));
 	}
 
 	@Test
@@ -799,7 +1112,6 @@ class TeacherTaskDatabaseTest {
 		}
 	}
 
-	@Test
 	void syntheticProviderGeneratesPreviewThatCanBeConfirmed() throws Exception {
 		if ("true".equals(System.getenv("T031_RETAIN_PREVIEW_FIXTURE"))) {
 			assertEquals("ppe_teacher_task_test_t031", System.getenv("DB_NAME"));
@@ -1945,6 +2257,17 @@ class TeacherTaskDatabaseTest {
 				try (PreparedStatement statement = connection.prepareStatement("""
 						DELETE FROM prompt_versions
 						WHERE task_id IN (SELECT task_id FROM tasks WHERE created_by_user_id = ?)
+						""")) {
+					statement.setLong(1, teacherId);
+					statement.executeUpdate();
+				}
+				try (PreparedStatement statement = connection.prepareStatement("""
+						DELETE sn FROM student_notifications sn
+						JOIN task_class_assignments a
+						  ON a.task_class_assignment_id = sn.task_class_assignment_id
+						WHERE a.task_id IN (
+						  SELECT task_id FROM tasks WHERE created_by_user_id = ?
+						)
 						""")) {
 					statement.setLong(1, teacherId);
 					statement.executeUpdate();

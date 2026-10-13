@@ -77,7 +77,7 @@ public final class SchoolManagementServlet extends HttpServlet {
 			}
 			request.setAttribute("schools", schools);
 			request.setAttribute("csrfToken", CsrfTokens.getOrCreate(request.getSession(false)));
-			request.setAttribute("displayName", user(request).displayName());
+			request.setAttribute("adminLoginId", user(request).loginId());
 			request.getRequestDispatcher("/WEB-INF/admin/schools.jsp").forward(request, response);
 		} catch (IllegalArgumentException e) {
 			response.sendError(HttpServletResponse.SC_BAD_REQUEST, e.getMessage());

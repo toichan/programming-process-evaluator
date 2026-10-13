@@ -300,6 +300,10 @@ body {
   background: linear-gradient(180deg, rgba(236, 253, 245, 0.92), rgba(255, 255, 255, 0.96));
 }
 
+.reason-card.is-hidden {
+  display: none;
+}
+
 .reason-title-row {
   display: flex;
   justify-content: space-between;

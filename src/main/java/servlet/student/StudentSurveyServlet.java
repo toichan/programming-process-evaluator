@@ -78,7 +78,7 @@ public final class StudentSurveyServlet extends HttpServlet {
 		Long evaluationId = positiveLong(request.getParameter("evaluationId"));
 		String action = request.getParameter("action");
 		if (assignmentId == null || surveyId == null || evaluationId == null
-				|| (!"draft".equals(action) && !"submit".equals(action))) {
+				|| (!"draft".equals(action) && !"submit".equals(action) && !"revise".equals(action))) {
 			response.sendError(HttpServletResponse.SC_BAD_REQUEST);
 			return;
 		}
@@ -90,7 +90,7 @@ public final class StudentSurveyServlet extends HttpServlet {
 					surveyId,
 					evaluationId,
 					request.getParameterMap(),
-					"submit".equals(action));
+					!"draft".equals(action));
 			redirectAfterSave(request, response, assignmentId, surveyId, evaluationId, result);
 		} catch (IllegalArgumentException e) {
 			response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
@@ -127,8 +127,10 @@ public final class StudentSurveyServlet extends HttpServlet {
 		request.setAttribute("screenPageTitle", "アンケート");
 		request.setAttribute("screenStylesheet", "/css/student/survey/survey.css");
 		request.setAttribute("screenScript", "/js/student/survey/survey.js");
+		request.setAttribute("screenAssetVersion", "164");
 		request.setAttribute("csrfToken", CsrfTokens.getOrCreate(request.getSession(false)));
 		StudentHomePage home = STUDENTS.loadHome(user).orElse(null);
+		request.setAttribute("studentHome", home);
 		request.setAttribute("taskCount", home == null ? 0 : home.getTasks().size());
 		HttpSession session = request.getSession(false);
 		if (session != null) {
@@ -199,7 +201,13 @@ public final class StudentSurveyServlet extends HttpServlet {
 		};
 		HttpSession session = request.getSession(false);
 		if (session != null) {
-			session.setAttribute(NOTICE_ATTRIBUTE, notice);
+			session.setAttribute(result == SaveResult.SAVED ? NOTICE_ATTRIBUTE : "studentHomeNotice",
+					result == SaveResult.SAVED ? notice
+							: result == SaveResult.ALREADY_SUBMITTED ? "survey-already-submitted" : "survey-submitted");
+		}
+		if (result != SaveResult.SAVED) {
+			response.sendRedirect(response.encodeRedirectURL(request.getContextPath() + "/student/home"));
+			return;
 		}
 		response.sendRedirect(response.encodeRedirectURL(request.getContextPath() + "/student/survey?assignmentId="
 				+ assignmentId + "&evaluationId=" + evaluationId + "&surveyId=" + surveyId));

@@ -12,6 +12,11 @@ document.addEventListener('DOMContentLoaded', () => {
   let sequence = 0, returnFocus = null, originalEditor = null, workEditor = null;
   let sort = 'submitted', direction = 'desc';
   const copies = new Map();
+  const terminal = document.getElementById('terminalOutput');
+  const terminalInput = document.getElementById('terminalInput');
+  const terminalSend = document.getElementById('terminalSendButton');
+  const terminalCancel = document.getElementById('terminalCancelButton');
+  let execution = null, closing = false;
   const difficulty = value => ({ beginner: '初級', intermediate: '中級', advanced: '上級' }[value] || '未設定');
   const consent = value => ({ agreed: '同意', declined: '不同意', withdrawn: '不同意（撤回）' }[value] || '未確認');
   const rate = row => row.totalCases ? row.matchedCases / row.totalCases : 0;
@@ -40,7 +45,9 @@ document.addEventListener('DOMContentLoaded', () => {
       throw new Error(response.status === 400 ? '検索条件または取得対象を確認してください。' :
         response.status === 403 ? '権限がありません。画面を再読み込みしてください。' :
         response.status === 404 ? '対象の提出を参照できません。' :
-        response.status === 413 ? '取得対象は32 MiB以下、実行コードは64 KiB、標準入力は8 KiB以下にしてください。' :
+        response.status === 409 ? '実行は終了しています。結果を確認してください。' :
+        response.status === 429 ? '実行セッション数の上限です。実行を停止してから再試行してください。' :
+        response.status === 413 ? '取得対象は32 MiB以下、実行コードは64 KiB、標準入力は合計8 KiB以下にしてください。' :
         '読み込み・実行・取得に失敗しました。時間をおいて再試行してください。');
     }
     return response;
@@ -139,17 +146,99 @@ document.addEventListener('DOMContentLoaded', () => {
     } finally { loading = false; render(); }
   }
   function persist() {
-    if (selected) copies.set(selected.row.submissionId, { code: workEditor ? workEditor.getValue() : work.value, input: document.getElementById('previewInput').value });
+    if (!selected) return;
+    const copy = copyFor(selected);
+    copy.code = workEditor ? workEditor.getValue() : work.value;
+    copy.input = terminalInput.value;
+  }
+  function copyFor(detail) {
+    const id = detail.row.submissionId;
+    if (!copies.has(id)) copies.set(id, { submissionId: id, code: detail.code, input: '', segments: [],
+      cursor: 0, sessionId: null, status: null, time: '', truncated: false, sending: false, stopping: false });
+    return copies.get(id);
+  }
+  function renderExecution() {
+    terminal.replaceChildren();
+    if (!execution?.status) terminal.textContent = 'まだ実行していません。';
+    else for (const segment of execution.segments) terminal.append(element('span', segment.text, segment.style));
+    terminal.scrollTop = terminal.scrollHeight;
+    const running = Boolean(execution?.sessionId);
+    const labels = { running: '実行中（入力を送信できます）', succeeded: '実行完了', cancelled: '実行停止', timed_out: '時間切れ', failed: '実行エラー', unavailable: '実行エラー' };
+    text('runResultStatus', labels[execution?.status] || '実行待ち');
+    document.getElementById('runResultStatus').className = `badge ${!execution?.status ? 'text-bg-light border' : execution.status === 'succeeded' ? 'text-bg-success' : running ? 'text-bg-primary' : 'text-bg-danger'}`;
+    text('runResultTime', execution?.time || '実行すると結果がここに表示されます。');
+    terminalInput.disabled = !running || execution.sending || execution.stopping || busy;
+    terminalSend.disabled = terminalInput.disabled;
+    terminalCancel.hidden = !running;
+    terminalCancel.disabled = !running || execution.stopping || busy;
+    terminalCancel.textContent = execution?.stopping ? '停止中' : '停止';
+    navigation();
+  }
+  function consume(copy, result) {
+    for (const event of result.events || []) if (event.id > copy.cursor) {
+      copy.segments.push({ text: `${event.stream === 'input' ? '>>> ' : event.stream === 'stderr' ? '[エラー] ' : ''}${event.text}`,
+        style: event.stream === 'input' ? 'terminal-input-echo' : event.stream === 'stderr' ? 'terminal-stderr' : '' });
+    }
+    copy.cursor = Math.max(copy.cursor, Number(result.nextCursor) || 0);
+    if ((result.standardOutputTruncated || result.standardErrorTruncated) && !copy.truncated) {
+      copy.segments.push({ text: '\n[出力は上限で切り詰められました]\n', style: 'terminal-system-message' });
+      copy.truncated = true;
+    }
+    copy.status = result.status;
+    copy.time = result.status === 'running' ? '実行中...' : `最終実行: ${new Date().toLocaleTimeString('ja-JP')}`;
+    if (result.status !== 'running') {
+      copy.sessionId = null;
+      if (!copy.segments.length) copy.segments.push({ text: '（出力なし）\n', style: '' });
+      const message = result.errorCode === 'input_timeout' ? '30秒間無通信のため実行を終了しました' :
+        result.status === 'timed_out' ? '実行時間の上限に達しました' : result.status === 'cancelled' ? '実行を停止しました' : result.errorCode;
+      if (message) copy.segments.push({ text: `\n[${message}]\n`, style: 'terminal-system-message' });
+    }
+    if (execution === copy) renderExecution();
+  }
+  function postExecution(action, copy, extra = {}) {
+    return json(root.dataset.endpoint, { method: 'POST', body: new URLSearchParams({
+      action, submissionId: copy.submissionId, sessionId: copy.sessionId || '', after: copy.cursor,
+      csrfToken: root.dataset.csrfToken, ...extra
+    }) });
+  }
+  async function pollExecution(copy) {
+    while (copy.sessionId) {
+      await new Promise(resolve => setTimeout(resolve, 250));
+      if (!copy.sessionId || copy.stopping) continue;
+      const sessionId = copy.sessionId;
+      try {
+        const result = await json(url({ view: 'preview-session', submissionId: copy.submissionId, sessionId, after: copy.cursor }, new URLSearchParams()));
+        if (copy.sessionId !== sessionId || copy.stopping) continue;
+        consume(copy, result);
+      } catch (error) {
+        if (copy.sessionId !== sessionId || copy.stopping) continue;
+        previewFeedback.inlineAlert(error.message, 'warning');
+        // Keep the handle so stopping or closing can still release a live runner.
+        return;
+      }
+    }
+  }
+  async function stopExecution(copy = execution) {
+    if (!copy?.sessionId || copy.stopping) return;
+    copy.stopping = true; renderExecution();
+    try { consume(copy, await postExecution('preview-cancel', copy)); }
+    finally { copy.stopping = false; renderExecution(); }
   }
   function navigation() {
-    document.getElementById('detailPrevButton').disabled = busy || index <= 0;
-    document.getElementById('detailNextButton').disabled = busy || index < 0 || index >= rows.length - 1;
-    document.getElementById('runWorkCodeButton').disabled = busy || !selected;
+    document.getElementById('detailPrevButton').disabled = busy || execution?.stopping || index <= 0;
+    document.getElementById('detailNextButton').disabled = busy || execution?.stopping || index < 0 || index >= rows.length - 1;
+    document.getElementById('runWorkCodeButton').disabled = busy || !selected || Boolean(execution?.sessionId);
     document.getElementById('submissionFile').disabled = busy || downloading || !selected;
     modalElement.querySelectorAll('[data-bs-dismiss]').forEach(button => { button.disabled = busy; });
   }
   async function openDetail(position) {
-    if (busy || position < 0 || position >= rows.length) return;
+    if (busy || execution?.stopping || position < 0 || position >= rows.length) return;
+    if (execution?.sessionId) {
+      busy = true; navigation();
+      try { await stopExecution(); }
+      catch (error) { previewFeedback.inlineAlert(error.message, 'warning'); return; }
+      finally { busy = false; navigation(); }
+    }
     persist(); selected = null; busy = true; navigation();
     const requestSequence = ++sequence;
     try {
@@ -158,11 +247,11 @@ document.addEventListener('DOMContentLoaded', () => {
       index = position; selected = detail;
       text('detailMeta', `${detail.row.studentLoginId} / ${detail.row.schoolName} ${detail.row.className} / ${detail.row.taskName}（${difficulty(detail.row.difficulty)}） / 提出: ${detail.row.submittedAt} / 第${detail.row.revision}版${detail.row.historyLabel ? ` / ${detail.row.historyLabel}` : ''}`);
       text('detailPagerText', `${index + 1} / ${rows.length}`);
-      const copy = copies.get(detail.row.submissionId);
+      const copy = copyFor(detail); execution = copy;
       if (originalEditor) originalEditor.setValue(detail.code); else original.value = detail.code;
       if (workEditor) workEditor.setValue(copy?.code ?? detail.code); else work.value = copy?.code ?? detail.code;
-      document.getElementById('previewInput').value = copy?.input ?? '';
-      text('workCodeOutput', '未実行です。'); previewFeedback.clearInlineAlert();
+      terminalInput.value = copy.input;
+      renderExecution(); previewFeedback.clearInlineAlert();
       const summary = document.getElementById('ioMatchSummary');
       summary.textContent = detail.row.totalCases ? `${detail.row.matchedCases}/${detail.row.totalCases}件一致` : 'チェック結果なし';
       summary.className = `match-summary ${detail.row.totalCases && detail.row.matchedCases === detail.row.totalCases ? 'is-pass' : 'is-partial'}`;
@@ -183,9 +272,10 @@ document.addEventListener('DOMContentLoaded', () => {
       if (modalElement.classList.contains('show')) { originalEditor?.refresh(); workEditor?.refresh(); }
     } catch (error) {
       index = -1; originalEditor?.setValue(''); workEditor?.setValue(''); original.value = ''; work.value = '';
-      ['detailMeta', 'detailPagerText', 'ioMatchSummary', 'ioResultTableBody', 'workCodeOutput'].forEach(id => document.getElementById(id).replaceChildren());
+      execution = null; renderExecution();
+      ['detailMeta', 'detailPagerText', 'ioMatchSummary', 'ioResultTableBody'].forEach(id => document.getElementById(id).replaceChildren());
       (modalElement.classList.contains('show') ? previewFeedback : feedback).inlineAlert(error.message, 'warning');
-    } finally { busy = false; navigation(); }
+    } finally { busy = false; renderExecution(); }
   }
   async function download(view, detail = false) {
     const target = detail ? previewFeedback : feedback;
@@ -225,32 +315,68 @@ document.addEventListener('DOMContentLoaded', () => {
   modalElement.addEventListener('shown.bs.modal', () => { originalEditor?.refresh(); workEditor?.refresh(); });
   modalElement.addEventListener('hide.bs.modal', event => {
     if (busy) { event.preventDefault(); return; }
+    if (execution?.sessionId) {
+      event.preventDefault();
+      if (closing || execution.stopping) return;
+      closing = true; busy = true; navigation();
+      stopExecution().then(() => {
+        busy = false; closing = false; modal.hide();
+      }).catch(error => {
+        busy = false; closing = false; renderExecution();
+        previewFeedback.inlineAlert(error.message, 'warning');
+      });
+      return;
+    }
     persist();
     if (modalElement.contains(document.activeElement)) document.activeElement.blur();
   });
   modalElement.addEventListener('hidden.bs.modal', () => {
     selected = null; index = -1; ++sequence;
     originalEditor?.setValue(''); workEditor?.setValue(''); original.value = ''; work.value = '';
-    document.getElementById('previewInput').value = '';
-    ['detailMeta', 'ioResultTableBody', 'workCodeOutput'].forEach(id => document.getElementById(id).replaceChildren());
+    execution = null; terminalInput.value = ''; renderExecution();
+    ['detailMeta', 'ioResultTableBody'].forEach(id => document.getElementById(id).replaceChildren());
     if (returnFocus?.isConnected) returnFocus.focus();
     navigation();
   });
   document.getElementById('runWorkCodeButton').addEventListener('click', async () => {
-    if (!selected || busy) return;
-    const code = workEditor ? workEditor.getValue() : work.value, input = document.getElementById('previewInput').value;
+    if (!selected || busy || execution?.sessionId) return;
+    const code = workEditor ? workEditor.getValue() : work.value;
     previewFeedback.clearInlineAlert();
-    if (new TextEncoder().encode(code).length > 65536 || new TextEncoder().encode(input).length > 8192) {
-      previewFeedback.inlineAlert('コードは64 KiB、標準入力は8 KiB以下にしてください。', 'warning'); return;
+    if (new TextEncoder().encode(code).length > 65536) {
+      previewFeedback.inlineAlert('コードは64 KiB以下にしてください。', 'warning'); return;
     }
-    busy = true; navigation(); text('workCodeOutput', '実行中…');
+    const copy = execution;
+    copy.segments = []; copy.cursor = 0; copy.truncated = false; copy.status = 'running'; copy.time = '実行開始中...';
+    busy = true; renderExecution();
     try {
-      const result = await json(root.dataset.endpoint, { method: 'POST', body: new URLSearchParams({
-        action: 'preview', submissionId: selected.row.submissionId, code, standardInput: input, csrfToken: root.dataset.csrfToken
-      }) });
-      text('workCodeOutput', `${result.status} / 終了コード ${result.exitCode ?? '—'}\n標準出力${result.standardOutputTruncated ? '（上限で切り詰め）' : ''}\n${result.standardOutput}\n標準エラー${result.standardErrorTruncated ? '（上限で切り詰め）' : ''}\n${result.standardError}\n${result.errorCode || ''}`);
-    } catch (error) { text('workCodeOutput', '実行結果を取得できませんでした。'); previewFeedback.inlineAlert(error.message, 'warning'); }
-    finally { busy = false; navigation(); }
+      const result = await postExecution('preview-start', copy, { code });
+      copy.sessionId = result.sessionId; consume(copy, result);
+      if (copy.sessionId) pollExecution(copy);
+    } catch (error) {
+      copy.status = 'unavailable'; copy.time = '実行を開始できませんでした。';
+      previewFeedback.inlineAlert(error.message, 'warning');
+    } finally { busy = false; renderExecution(); if (copy.sessionId) terminalInput.focus(); }
+  });
+  document.getElementById('terminalInputForm').addEventListener('submit', async event => {
+    event.preventDefault();
+    const copy = execution;
+    if (!copy?.sessionId || terminalInput.disabled) return;
+    const line = terminalInput.value;
+    if (new TextEncoder().encode(line + '\n').length > 8192) {
+      previewFeedback.inlineAlert('標準入力は合計8 KiB以下にしてください。', 'warning'); return;
+    }
+    copy.sending = true; renderExecution();
+    try { await postExecution('preview-input', copy, { line }); terminalInput.value = ''; copy.input = ''; }
+    catch (error) { previewFeedback.inlineAlert(error.message, 'warning'); }
+    finally { copy.sending = false; renderExecution(); if (copy.sessionId) terminalInput.focus(); }
+  });
+  terminalCancel.addEventListener('click', () => stopExecution().catch(error => previewFeedback.inlineAlert(error.message, 'warning')));
+  window.addEventListener('pagehide', () => {
+    for (const copy of copies.values()) if (copy.sessionId) {
+      const body = new URLSearchParams({ action: 'preview-cancel', submissionId: copy.submissionId,
+        sessionId: copy.sessionId, after: copy.cursor, csrfToken: root.dataset.csrfToken });
+      fetch(root.dataset.endpoint, { method: 'POST', body, credentials: 'same-origin', keepalive: true }).catch(() => {});
+    }
   });
   if (typeof CodeMirror !== 'undefined') {
     originalEditor = CodeMirror.fromTextArea(original, { mode: 'python', lineNumbers: true, readOnly: true, cursorBlinkRate: -1, theme: 'material-darker' });

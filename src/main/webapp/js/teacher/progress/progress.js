@@ -22,8 +22,12 @@ let latestCodeEditor = null;
 let detailRequestSequence = 0;
 let codeDownloadEndpoint = null;
 let detailTrigger = null;
+let progressPreview = null;
 
 function initializeProgressPage() {
+  const root = document.getElementById('teacherProgress');
+  progressPreview = window.PPETeacherPreview.create({ endpoint: root.dataset.detailEndpoint,
+    csrfToken: root.dataset.csrfToken, modal: document.getElementById('historyDetailModal') });
   const rows = getRows();
   populateFilterOptions(rows);
   restoreFilterState();
@@ -115,7 +119,8 @@ function initializeEvents() {
   const modal = document.getElementById('historyDetailModal');
   modal?.addEventListener('show.bs.modal', function() { detailModalOpen = true; });
   modal?.addEventListener('shown.bs.modal', function() { latestCodeEditor?.refresh(); });
-  modal?.addEventListener('hide.bs.modal', function() {
+  modal?.addEventListener('hide.bs.modal', function(event) {
+    if (event.defaultPrevented) return;
     if (modal.contains(document.activeElement)) document.activeElement.blur();
   });
   modal?.addEventListener('hidden.bs.modal', function() {
@@ -321,6 +326,10 @@ async function openHistoryDetail(button) {
   const row = button.closest('tr[data-progress-row]');
   if (!row) return;
   const sequence = ++detailRequestSequence;
+  const originalLabel = button.textContent;
+  button.disabled = true;
+  button.textContent = '読み込み中…';
+  button.setAttribute('aria-busy', 'true');
   detailTrigger = button;
   codeDownloadEndpoint = null;
   document.getElementById('downloadLatestCode').disabled = true;
@@ -340,10 +349,6 @@ async function openHistoryDetail(button) {
   endpoint.searchParams.set('assignmentId', row.dataset.assignmentId);
   endpoint.searchParams.set('studentUserId', row.dataset.studentUserId);
   const modal = document.getElementById('historyDetailModal');
-  if (modal && window.bootstrap?.Modal) {
-    bootstrap.Modal.getOrCreateInstance(modal).show();
-  }
-
   try {
     const response = await fetch(endpoint, {
       credentials: 'same-origin',
@@ -356,6 +361,8 @@ async function openHistoryDetail(button) {
     renderActivities(timeline, detail.activities || []);
     if (detail.latestCode) {
       setLatestCode(detail.latestCode.code);
+      await progressPreview.select({ assignmentId: row.dataset.assignmentId, studentUserId: row.dataset.studentUserId },
+        detail.latestCode.code);
       setText('detailCodeUpdatedAt', '更新: ' + detail.latestCode.updatedAt);
       setText('detailCodeDescription', detail.latestCode.source === 'submission'
         ? '提出済み: 最新の提出版のコードを確認できます。'
@@ -364,7 +371,14 @@ async function openHistoryDetail(button) {
       codeDownloadEndpoint = endpoint;
       document.getElementById('downloadLatestCode').disabled = false;
     } else {
+      await progressPreview.select(null, '');
       setText('detailCodeDescription', '保存済み・提出済みのコードはありません。');
+    }
+    if (modal && window.bootstrap?.Modal) {
+      // Avoid the fade/backdrop delay: refresh the populated editor at visible dimensions before paint.
+      modal.classList.remove('fade');
+      bootstrap.Modal.getOrCreateInstance(modal).show();
+      latestCodeEditor?.refresh();
     }
   } catch (failure) {
     if (sequence !== detailRequestSequence) return;
@@ -375,6 +389,11 @@ async function openHistoryDetail(button) {
       message: failure.message || '詳細を取得できませんでした。',
       variant: 'danger'
     });
+  } finally {
+    button.disabled = false;
+    button.textContent = originalLabel;
+    button.removeAttribute('aria-busy');
+    if (sequence === detailRequestSequence && !modal?.classList.contains('show')) detailModalOpen = false;
   }
 
 }

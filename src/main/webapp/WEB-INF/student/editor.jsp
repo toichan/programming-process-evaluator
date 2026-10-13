@@ -4,6 +4,7 @@
 <c:set var="screenPageTitle" value="${editorPage.title}"/>
 <c:set var="screenStylesheet" value="/css/student/editor/editor.css"/>
 <c:set var="screenScript" value="/js/student/editor/editor.js"/>
+<c:set var="screenAssetVersion" value="164"/>
 <c:set var="screenUsesCodeMirror" value="true"/>
 <%@ include file="/WEB-INF/template/page-start.jspf" %>
 <%@ include file="/WEB-INF/student/shared/navigation.jspf" %>
@@ -150,7 +151,7 @@
 			<section class="sample-section log-section mt-4">
 				<div class="section-header-row">
 					<div>
-						<h2 class="card-title mb-2">コードログ</h2>
+						<h2 class="card-title mb-2">ソースコード編集ログ</h2>
 						<div class="log-status-row">
 							<div class="status-chip"><span class="status-dot"></span>編集内容を30秒間隔で記録</div>
 						</div>
@@ -165,7 +166,7 @@
 					<div id="codeLogList" class="code-log-list">
 						<c:choose>
 							<c:when test="${empty editorPage.codeLogs}">
-								<p id="emptyCodeLogs" class="text-muted mb-0">コードログはまだありません。</p>
+								<p id="emptyCodeLogs" class="text-muted mb-0">ソースコード編集ログはまだありません。</p>
 							</c:when>
 							<c:otherwise>
 								<c:forEach var="log" items="${editorPage.codeLogs}">
@@ -282,6 +283,7 @@
 </div>
 
 <%@ include file="/WEB-INF/student/shared/editor-settings.jspf" %>
+<%@ include file="/WEB-INF/student/shared/home-action.jspf" %>
 
 <div class="modal fade submit-check-modal" id="submitCheckModal" tabindex="-1"
 	 aria-labelledby="submitCheckModalLabel" aria-hidden="true">

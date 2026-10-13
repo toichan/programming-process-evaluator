@@ -11,7 +11,7 @@
 		crossorigin="anonymous">
 	<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;family=Noto+Sans+JP:wght@400;500;700&amp;display=swap"
 		rel="stylesheet">
-	<link href="${pageContext.request.contextPath}/css/template/template.css" rel="stylesheet">
+	<link href="${pageContext.request.contextPath}/css/template/template.css?v=160" rel="stylesheet">
 	<link href="${pageContext.request.contextPath}/css/shared/feedback.css" rel="stylesheet">
 	<c:if test="${screenDesign == 'teacher'}">
 		<link href="${pageContext.request.contextPath}/css/teacher/shared/components.css?v=teacher-menu-v5" rel="stylesheet">
@@ -20,7 +20,7 @@
 		<link href="${pageContext.request.contextPath}/css/teacher/account/login.css?v=prototype-match-1" rel="stylesheet">
 	</c:if>
 	<c:if test="${screenDesign == 'student'}">
-		<link href="${pageContext.request.contextPath}/css/student/shared/components.css?v=help-modal" rel="stylesheet">
+		<link href="${pageContext.request.contextPath}/css/student/shared/components.css?v=166" rel="stylesheet">
 		<c:if test="${screenUsesCodeMirror}">
 			<link href="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/lib/codemirror.css" rel="stylesheet">
 			<link href="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/theme/material-darker.css" rel="stylesheet">
@@ -31,7 +31,10 @@
 		<link href="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/theme/material-darker.css" rel="stylesheet">
 	</c:if>
 	<c:if test="${not empty screenStylesheet}">
-		<link href="<c:url value='${screenStylesheet}'/>" rel="stylesheet">
+		<link href="<c:url value='${screenStylesheet}'><c:if test='${not empty screenAssetVersion}'><c:param name='v' value='${screenAssetVersion}'/></c:if></c:url>" rel="stylesheet">
+	</c:if>
+	<c:if test="${screenDesign == 'teacher'}">
+		<link href="${pageContext.request.contextPath}/css/teacher/shared/tables.css?v=159" rel="stylesheet">
 	</c:if>
 </head>
 <body<c:choose><c:when test="${screenDesign == 'student'}"> class="student-screen"</c:when><c:when test="${screenDesign == 'teacher'}"> class="teacher-screen ${screenBodyClass}"</c:when><c:when test="${screenDesign == 'teacher-login'}"> class="teacher-login-screen"</c:when><c:when test="${screenDesign == 'admin'}"> class="admin-screen"</c:when></c:choose>>

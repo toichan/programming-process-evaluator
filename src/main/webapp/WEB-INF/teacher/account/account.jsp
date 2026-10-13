@@ -4,6 +4,7 @@
 <c:set var="screenDesign" value="teacher"/>
 <c:set var="screenStylesheet" value="/css/teacher/account/account.css"/>
 <c:set var="screenScript" value="/js/teacher/account/account.js"/>
+<c:set var="screenAssetVersion" value="161"/>
 <%@ include file="/WEB-INF/template/page-start.jspf" %>
 <div id="studentAccountConsole" class="page-content py-5" data-endpoint="<c:url value='/teacher/students'/>" data-csrf="<c:out value='${csrfToken}'/>">
 	<div class="container-fluid px-4">

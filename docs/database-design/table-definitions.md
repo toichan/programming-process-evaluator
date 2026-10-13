@@ -10,7 +10,7 @@
 |:--|:--|:--|:--|
 |復元可能な論理削除|users、tasks、student_exercise_entriesなど、利用者が削除・復元するルートまたは独立データ|`deleted` / `archived` 等の状態と `deleted_at` を正本とする。削除実行者・復元実行者・変更前後は `audit_logs` に記録する。対象自身に `deleted_by_user_id` がある場合は併用する|データ種別ごとの状態ルールに従い、関連データを保持したまま復元する|
 |無効化・アーカイブ|schools、classrooms、所属、権限、課題子項目、ルーブリック、配信テンプレート、アンケート定義など|既存の `inactive` / `disabled` / `archived` / `retired` 状態を論理削除または利用停止として扱う。操作は `audit_logs` に記録する|参照整合性と権限を検証し、許可されたものだけ有効状態へ戻す|
-|追記型・通常削除不可|提出、コードログ、コード実行、評価、同意、アンケート回答、認証・監査・エラー履歴、AI依頼・応答・入力スナップショット|通常の削除操作を提供せず履歴として保持する。訂正は新しい行や状態遷移で表し、過去行を物理削除・上書きしない|復元操作の対象外。保存期間満了や個人情報対応は別の管理手順で物理削除または匿名化する|
+|追記型・通常削除不可|提出、ソースコード編集ログ、コード実行、評価、同意、アンケート回答、認証・監査・エラー履歴、AI依頼・応答・入力スナップショット|通常の削除操作を提供せず履歴として保持する。訂正は新しい行や状態遷移で表し、過去行を物理削除・上書きしない|復元操作の対象外。保存期間満了や個人情報対応は別の管理手順で物理削除または匿名化する|
 
 ### テーブル別分類
 
@@ -19,6 +19,7 @@
 |復元可能な論理削除|users、tasks、student_exercises、student_exercise_entries|
 |無効化・アーカイブ|schools、classrooms、student_class_memberships、teacher_school_permissions、teacher_feature_permissions、task_features、task_class_assignments、task_test_cases、task_hints、rubrics、rubric_dimensions、rubric_criteria、criterion_levels、distribution_templates、distribution_template_files、consent_document_versions、surveys、survey_questions、survey_question_options|
 |期限付き一時データ|reevaluation_previews、reevaluation_preview_targets|preview作成から30分、またはconfirmed/cancelled/stale/expired状態への遷移後、worker cleanupで削除する。V18に限り親previewから子targetへのON DELETE CASCADEを使用|
+|期限付き通知|student_notifications|第165版/V25。作成から90日後に未読/既読とも表示対象外、本人単位の書込経路で通知行のみ清掃する。関連業務データは削除しない|
 |追記型・通常削除不可|password_reset_records、credential_history、task_participations、task_activity_sessions、submissions、code_logs、code_executions、code_execution_test_results、prompt_versions、prompt_fluctuation_items、evaluation_examples、evaluations、evaluation_scores、evaluation_dimension_results、evaluation_reasons、evaluation_evidence、evaluation_feedback、reevaluation_jobs、reevaluation_job_targets、distributions、distribution_targets、distribution_histories、consent_records、survey_responses、survey_answers、evaluation_requests、evaluation_responses、evaluation_input_snapshots、login_history、audit_logs、application_error_logs、research_subject_identifiers|
 
 共通ルール:
@@ -28,6 +29,43 @@
 - 論理削除・復元は業務行の状態更新と `audit_logs` の記録を同一トランザクションで行う。
 - 一意制約は論理削除後の識別子再利用方針を個別に決める。ログインID、課題コード、外部IDなど履歴参照に使う識別子は原則再利用しない。
 - 物理削除または匿名化を行う管理手順では、対象範囲、理由、実行者、実行日時、関連データへの影響を監査記録へ残す。
+
+## student_notifications（第169版/V33）
+
+本人別の期限付き通知。N165-00/01は通常評価完了、N165-02/V26は通常評価失敗、N165-03/V27は課題公開、N165-04/V28は期限接近、N165-05/V29は期限延長・受付再開、N165-06/V30は授業演習コード配布、N166-01/V31は期限超過、N168/V32は回答可能な課題別アンケート、N169/V33は24時間後も進行中のアンケート回答再開案内を接続する。通知導入前の履歴をbackfillしない。
+
+|フィールド名|型|NULL|制約・用途|
+|:--|:--|:--|:--|
+|notification_id|BIGINT|NO|PRIMARY KEY, AUTO_INCREMENT|
+|student_user_id|BIGINT|NO|users.user_idへのFK。通知閲覧/既読の本人範囲|
+|notification_type|VARCHAR(40)|NO|V25は`evaluation_completed`、V26で`evaluation_failed`、V27で`task_published`、V28で`due_soon`、V29で`deadline_extended`、V30で`exercise_distributed`、V31で`assignment_expired`、V32で`survey_available`、V33で`survey_in_progress`を追加|
+|evaluation_id|BIGINT|YES|evaluations.evaluation_idへのFK。通常評価完了/失敗・アンケート通知の重複識別。`task_published`/`due_soon`/`deadline_extended`/`exercise_distributed`/`assignment_expired`では必ずNULL|
+|submission_id|BIGINT|YES|submissions.submission_idへのFK。対象提出版への遷移。`task_published`/`due_soon`/`deadline_extended`/`exercise_distributed`/`assignment_expired`/`survey_available`/`survey_in_progress`では必ずNULL|
+|survey_id|BIGINT|YES|surveys.survey_idへのCASCADEなしFK。`survey_available`/`survey_in_progress`の対象アンケートを固定し、同タイプでは必須、それ以外ではNULL|
+|task_class_assignment_id|BIGINT|YES|task_class_assignments.task_class_assignment_idへのFK。対象課題への遷移。`task_published`/`due_soon`/`deadline_extended`/`assignment_expired`では必須|
+|distribution_target_id|BIGINT|YES|distribution_targets.distribution_target_idへのFK。演習配布通知の重複識別。`exercise_distributed`では必須、`assignment_expired`ではNULL|
+|student_exercise_id|BIGINT|YES|student_exercises.student_exercise_idへのFK。演習配布通知の本人所有リンク先。`exercise_distributed`では必須、`assignment_expired`ではNULL|
+|task_published_dedupe_key|BIGINT|YES|V27追加の生成列（STORED）。`notification_type='task_published'`のときのみ`task_class_assignment_id`と同値、それ以外はNULL|
+|due_soon_dedupe_key|BIGINT|YES|V28追加の生成列（STORED）。`notification_type='due_soon'`のときのみ`task_class_assignment_id`と同値、それ以外はNULL|
+|title|VARCHAR(255)|NO|表示用見出し。HTMLとして扱わない|
+|message|VARCHAR(500)|NO|課題名・提出版・クラス名の案内。コード/AI応答/資格情報は含めない|
+|created_at|DATETIME(6)|NO|DEFAULT CURRENT_TIMESTAMP(6)、DB時刻を正とする|
+|read_at|DATETIME(6)|YES|NULL=未読。個別クリック/本人の一括既読POSTで更新|
+
+- UNIQUE `(student_user_id, notification_type, evaluation_id)`。通常workerは本人/評価/提出/割当を正本JOINから取得し、通常評価の完了処理と同一トランザクションで通知を保存する。教師プロンプト変更の再評価は作成しない。
+- N169/V33はこのUNIQUEにより、進行中案内を同一生徒×評価につき1件に制限する。下書き保存から24時間経過後も`in_progress`の回答を60秒間隔で走査し、最新同意・有効な設問/アンケート・完了評価・公開課題/所属・本人状態を満たす場合だけ作成する。既存回答へのbackfillおよび再通知はしない。
+- CHECK `ck_student_notification_evaluation_refs`で評価完了/失敗通知の評価ID・提出ID・割当IDをすべて必須とする。列のNULL許容は将来の別イベント用であり、評価通知ではNULLを保存しない。
+- N165-02は最終失敗と中断復旧の同じトランザクションで正本JOINから`evaluation_failed`を保存する。通常のstudent要求かつinitial、またはstudent要求の明示再試行（reevaluation、当該評価のstudent/成功/retry_requested監査あり）で、再評価jobなし/failedだけが対象。要求payloadは評価入力保存で置き換わるためtriggerを永続識別に使わない。完了通知も同じ通常/明示再試行条件を使う。技術的エラーは通知へ保存せず、課題名・提出版・現在状態と再試行可否の確認案内だけを保存する。通知種別/本人/評価IDの既存UNIQUEで重複防止し、再試行成功後も過去の失敗通知を新しい状態と混同しない。
+- N165-03/V27は`ck_student_notification_task_published_refs`で`task_published`の評価ID/提出IDを必ずNULL、割当IDを必須とする。`evaluation_id`がNULLの通知は既存UNIQUE `(student_user_id, notification_type, evaluation_id)` では重複防止できないため、生成列`task_published_dedupe_key`と専用UNIQUE `(student_user_id, task_published_dedupe_key)`で本人×割当単位の重複を防止する（非`task_published`行はNULLのため互いに衝突しない）。対象は実公開確定時点（即時公開、予約公開worker、追加クラスへの即時公開）の割当に属する有効な（`membership_status='active'`かつ`account_status='active'`・未削除）生徒全員で、下書き保存・予約設定時点では作成しない。同一割当への再通知はON DUPLICATE KEY UPDATEで無視し、公開処理と同一トランザクションで対象クラスの期限切れ通知を清掃する。N167では`supersedes_task_id`を持つ改訂版の実公開も対象とし、既存`task_published`型のまま改訂再公開を明示するタイトル/本文を使う。即時公開は再公開transaction内、予約公開はworkerの`scheduled`→`published`遷移transaction内で通知し、新assignment単位の既存dedupeを利用する。追加migrationおよびbackfillは行わない。
+- N165-04/V28は`ck_student_notification_due_soon_refs`で`due_soon`の評価ID/提出IDを必ずNULL、割当IDを必須とする。生成列`due_soon_dedupe_key`と専用UNIQUE `(student_user_id, due_soon_dedupe_key)`で本人×割当単位の重複を防止する（非`due_soon`行はNULLのため互いに衝突しない）。対象は`task_class_assignments.due_at`が現在時刻から24時間以内に迫り、かつ`updated_at`（公開/最終更新時刻）から24時間以上経過した有効な割当のうち、`task_participations.progress_status`が`submitted`/`awaiting_evaluation`/`completed`のいずれでもない（またはレコード未作成の未着手）有効な生徒。`updated_at`がNULLの既存legacy割当は対象外。60秒間隔の`StudentDueSoonReminderWorker`バックグラウンドポーリングのみで、新規HTTP APIは追加しない。
+- N165-05/V29は`ck_student_notification_deadline_extended_refs`で`deadline_extended`の評価ID/提出IDを必ずNULL、割当IDを必須とする。`deadline_extended`専用のdedupe生成列・UNIQUE制約は意図的に設けない。教師による提出期限延長（受付再開含む）は複数回起こり得るため、延長の都度、対象クラスの有効な（`membership_status='active'`かつ`account_status='active'`・未削除）生徒全員へ新規通知行を作成し、過去の延長通知（既読化済み含む）は変更・削除しない。`TeacherTaskDao.extendAssignmentDeadline`による`due_at`更新と同一トランザクションで通知を挿入する。新規HTTP APIは追加しない。
+- N165-06/V30は`exercise_distributed`の評価ID/提出ID/課題割当IDを必ずNULL、`distribution_target_id`と本人の`student_exercise_id`を必須とする。両IDにはCASCADEなしのFKを設定する。生成列`exercise_distributed_dedupe_key`と専用UNIQUE `(student_user_id, exercise_distributed_dedupe_key)`で本人×配信対象を重複排除する。個々の生徒の演習領域とファイル構成を同一配信transaction内で作成できた場合だけ、その本人/配信対象/領域IDを通知へ保存する。予約作成時には通知せず、予約workerの配布確定時に作成する。同一配信の再試行・既配布スキップは通知を追加しない。通知クリック時は有効本人・本人所有の対象領域・配布完了を再確認し、利用可能なら`/student/exercise?exerciseId=...`へ遷移する。導入前の配布履歴を通知へbackfillしない。
+- N166-01/V31は`assignment_expired`の評価ID/提出ID/配信参照を必ずNULL、課題割当IDを必須とする。専用dedupe UNIQUEは設けない。`TeacherTaskPublicationDao`が`published`→`expired`へ実際に更新した場合のみ、同じトランザクションで、有効な在籍生徒の未提出者（participationなし、またはprogress statusがsubmitted/awaiting_evaluation/completed以外）へ作成する。期限切れ遷移・監査・通知が原子的であるためworker再実行では重複せず、期限延長で再公開された後の再度の期限切れは別イベントとして通知する。期限後提出の`allow`/`deny`に合わせて文面を分岐し、クリック時には提出可能ならエディター、拒否なら有効な期限切れ割当の本人向け確認を経て生徒ホームへ遷移する。V31導入前の期限切れはbackfillしない。
+- N168/V32は`survey_available`に評価ID・課題割当ID・アンケートIDを必須とし、提出ID・配信参照をNULLにする。既存UNIQUE `(student_user_id, notification_type, evaluation_id)`で本人×評価の重複を防ぐ。生徒本人が開始した初回評価/明示再試行の完了transactionで、active設問を持つactive課題別アンケート、最新同意`agreed`、有効な本人/所属/公開課題割当が揃う場合だけ作成する。教師主導の再評価、既存評価へのbackfill、完了後に有効化されたアンケートへの遡及作成は対象外。クリック時は保存済み3参照と現在の認可・同意・状態を再検証し、`/student/survey?assignmentId=...&evaluationId=...&surveyId=...`へ遷移する。通知表示/閲覧はアンケート回答を開始せず、明示下書き保存が開始条件のまま。
+- FKにCASCADEを設けない。通知の削除は業務データに影響せず、業務データの通常論理削除も通知を連鎖削除しない。
+- 一覧索引 `(student_user_id, created_at, notification_id)`、未読索引 `(student_user_id, read_at, created_at)`、保持期限索引 `(created_at)`。
+- `created_at > CURRENT_TIMESTAMP(6) - INTERVAL 90 DAY` が表示/件数/操作対象。ちょうど90日経過した通知は期限切れ。GETは表示から除外するだけで削除せず、書込時に本人の期限切れ通知を削除する。同じ完了イベント・同じ割当公開は期限後に再通知しない。
+- 参照IDがない/不整合の通知から任意URLへ移動しない。個別操作で通知本人・対象提出本人・現在の所属/閲覧条件を検証し、対象利用不可を明示する。`task_published`/`due_soon`/`deadline_extended`はクリックで対象課題のエディターへ遷移し、対象割当が無効化・削除済みの場合は利用不可を案内する。
 
 ## users
 
@@ -39,7 +77,7 @@
 |user_type|ユーザ種別|ENUM('student','teacher','admin')||NO||管理者は1アカウントのみ。DBの一意制約で保証|
 |login_id|ログインID（利用者向けIDの正本）|VARCHAR(64)||NO|UNIQUE|生徒ではstudent_id、教師ではteacher_idと呼ぶ。同一値を認証・画面・CSVで使用し、ロール別の重複列は追加しない|
 |password_hash|パスワードハッシュ|VARCHAR(255)||NO||平文パスワードを保存しない|
-|display_name|表示名（生徒では旧互換値）|VARCHAR(100)||NO||生徒は画面表示に使わず、今後の作成処理ではlogin_idを設定して別名を要求しない。教師の利用者向けIDにも使わない。管理者表示名と既存値は保持し、匿名化の除去対象から外さない|
+|display_name|旧互換表示名|VARCHAR(100)||NO||全ロールで画面表示・別名入力には使わず、今後の作成処理ではlogin_idを設定する。既存値と列は互換保持し、匿名化の除去対象から外さない。第157版の修正にschema変更はない|
 |account_status|アカウント状態|ENUM('active','suspended','deleted')||NO|||
 |account_version|アカウント更新版|BIGINT||NO|DEFAULT 1|V20追加。教師管理の楽観ロックとセッション失効に使用。権限変更・停止/解除・削除・パスワード再設定で加算。ログイン失敗回数の更新では加算しない|
 |teacher_must_change_password|教師の変更必須状態|BOOLEAN||NO|DEFAULT FALSE|V22追加。教師の発行/管理者再設定時TRUE、本人変更成功時FALSE。既存教師はTRUEへ移行し版を加算。生徒・管理者には適用しない|
@@ -639,7 +677,7 @@ AIが抽出した揺らぎ項目と教師の対応記述
 |evaluation_score_id|評価得点ID|BIGINT||YES|FOREIGN_KEY|evaluation_scores.evaluation_score_id|
 |evaluation_reason_id|評価理由ID|BIGINT||YES|FOREIGN_KEY|evaluation_reasons.evaluation_reason_id|
 |reason_detail_id|理由詳細ID|BIGINT||YES|FOREIGN_KEY|evaluation_reason_details.reason_detail_id|
-|code_log_id|コードログID|BIGINT||YES|FOREIGN_KEY|code_logs.code_log_id|
+|code_log_id|ソースコード編集ログID|BIGINT||YES|FOREIGN_KEY|code_logs.code_log_id|
 |code_execution_id|実行ID|BIGINT||YES|FOREIGN_KEY|code_executions.execution_id|
 |evidence_type|根拠種別|VARCHAR(64)||NO||compile/count/log等|
 |evidence_label|根拠表示名|VARCHAR(255)||YES|||
@@ -1010,7 +1048,11 @@ V13は旧階層を根から辿り、既存のtrashed/deleted項目をそれぞ�
 |started_at|開始日時|DATETIME||YES|||
 |submitted_at|提出日時|DATETIME||YES|||
 
-一意制約: `(student_user_id, survey_id, evaluation_id)`（Flyway V8）。工程8の課題別回答では `evaluation_id` を必須とし、同じ評価への重複回答を防ぐ。`evaluation_id` が異なれば同じ生徒・surveyでも別の回答履歴を保持できる。回答中は既存行から再開し、提出済み行は読み取り専用とする。
+一意制約: `(student_user_id, survey_id, evaluation_id)`（Flyway V8）。工程8の課題別回答では `evaluation_id` を必須とし、同じ評価への重複回答を防ぐ。`evaluation_id` が異なれば同じ生徒・surveyでも別の回答履歴を保持できる。第162版から提出済み回答を明示修正できる。確定前は現在回答を維持し、再提出時に旧版を`survey_response_revisions`へ追記してから現在回答を更新する。教師の集計/CSVは現在回答のみを対象とし、旧版を重複集計しない。
+
+### survey_response_revisions（V24）
+
+旧提出回答を保持する追記型テーブル。`revision_id` BIGINT主キー、`survey_response_id` BIGINT外部キー、`revision_number` INT、`submitted_at` DATETIME、`consent_status_at_submission` VARCHAR(20)、`answers_snapshot` JSON、`archived_at` DATETIME。一意制約は回答ID/版番号。snapshotは設問ID/コード/文面/型/選択肢（値・ラベル）/回答値/理由を保持する。現在版は履歴の最大版+1（初版1）とし、回答行lock中に検証・履歴作成・更新を行う。GETや編集開始では履歴を増やさない。通常削除不可で、回答と同じ最新同意による研究利用制約を適用する。
 
 ## survey_answers
 
@@ -1212,7 +1254,7 @@ AIへ渡した匿名化済み入力の再現用スナップショット
 |:--|:--|:--|
 |生徒ログイン/パスワード/アカウント詳細|users, student_profiles, student_class_memberships, login_history, credential_history|アカウント属性、所属、初回変更状態、成功/失敗ログイン、認証情報操作履歴|
 |生徒ホーム/課題一覧/エディター|schools, classrooms, tasks, task_class_assignments, task_participations, task_test_cases, task_hints|課題本文、学校クラス割当、期限、進捗/保存/再提出状態、入出力例、ヒント|
-|課題コードログ/実行/提出|code_logs, code_executions, code_execution_test_results, submissions, evaluations|30秒スナップショット、実行I/O/エラー、ケース別期待/実出力/判定、提出版、評価|
+|課題ソースコード編集ログ/実行/提出|code_logs, code_executions, code_execution_test_results, submissions, evaluations|30秒スナップショット、実行I/O/エラー、ケース別期待/実出力/判定、提出版、評価|
 |生徒授業演習/教師授業演習確認|student_exercises, student_exercise_entries, code_executions|演習名、フォルダ/ファイル階層、説明、最終保存コード、実行結果。演習は30秒スナップショット対象外|
 |同意確認/アンケート|consent_document_versions, consent_records, surveys, survey_questions, survey_question_options, survey_responses, survey_answers|同意文面の版と本文、回答時同意状態、回答ID、システム評価参照、設問/選択肢/評定/記述回答|
 |管理者の教師アカウント管理|users, teacher_school_permissions, teacher_feature_permissions, login_history, credential_history, audit_logs|教師アカウント、学校/機能権限、ログイン/削除/権限/認証情報変更履歴|

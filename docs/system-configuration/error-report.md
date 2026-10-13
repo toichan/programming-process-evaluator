@@ -2,6 +2,290 @@
 
 秘密情報・実際の生徒データ・研究データは記載しない。解消後も履歴を保持する。
 
+### 通知画面のブラウザー受入で操作・画像取得が失敗（2026-10-13 JST）
+
+- 対象/手順: 通知一覧とナビゲーション内の通知dropdownを確認するため、狭幅viewportでPlaywrightのlocator clickおよび画面captureを実行。
+- 期待結果: 通知UIの表示・幅を確認する。
+- 実際の事象: 非表示状態のcollapse内locator clickは可視性待ちでtimeout。続く画面captureは5回の試行後に `Failed to capture screenshot` となった。
+- 影響/原因: アプリのHTTP応答・画面遷移・データには影響なし。狭幅viewportでのメニュー開閉状態がbrowser操作対象と一致せず、capture tooling側でも画像取得できなかった。アプリ不具合を示す証拠はない。
+- 対応/再検証: viewportを切り替えたうえで画面要素の表示状態を確認し、PlaywrightでDOM上の幅を再計測。390px/606px/1280pxで通知一覧の左右余白、通知メニュー内2件の幅一致を確認し、390pxでdocument横overflowなし。視覚capture自体は未取得。
+
+### N167-02 Gemini揺らぎ生成のHTTP 429（2026-10-13 01:10 JST）
+
+- 対象/手順: ユーザーの許可を得て、local8080の教師画面から合成課題taskId=17/version=3の揺らぎ項目生成を1回実行。送信前に、揺らぎ項目・合成評価例生成ではGemini APIへ送信され得ること、および実生徒提出/個人情報を使わないことを共通プロンプトに明記した。課題情報・評価ルーブリック・合成サンプルのみを送信対象とした。
+- 期待結果: Gemini 3.1 Pro Previewから揺らぎ項目を受け取り、確認用の案として下書きに保存する。
+- 実際の事象: `POST https://generativelanguage.googleapis.com/v1beta/interactions` がHTTP 429を返し、生成状態は`failed`になった。アプリ例外は`AI retry deadline was exceeded.`、request latencyは851ms。画面にも「AI生成に失敗しました」と表示された。providerのerror code/message、`Retry-After`、provider request IDはアプリログ/監査記録から確認できず、内部監査の相関IDは記録済み。APIキー値は記録していない。
+- 影響/原因: 合成課題のprompt下書きは更新済みで、揺らぎ項目は0件、評価例は未生成。課題は未公開のままで、課題割当の公開・通知作成・生徒提出評価・再評価は行っていない。429の具体的なquota/容量理由は不明。
+- 対応/再検証: 発生時点では連続呼出しを避け、追加の実API要求を保留した。その後、ユーザーが追加課金とGemini利用を明示許可したため、2026-10-13に合成課題taskId=17/version=3で再試行し、揺らぎ生成は成功した。初回の評価例生成では実行できない形式のPythonコードが1件含まれたため採用せず、実行可能な改行・インデントと想定/実測の区別を追加指示して1回再生成し、2件を画面で確認した。教師対応・評価例保存・version 3適用後、taskId=17は初回公開した。実生徒データは送信していない。後続の改訂課題taskId=18での生成はN167-03の404で止まり、同課題に対するGemini呼び出しは開始されていない。
+
+### N169-01 テスト環境ガードと重複件数の期待値誤り（2026-10-13 JST）
+
+- 対象/手順: N169の隔離MySQLテストを実行し、`StudentNotificationDatabaseTest`で24時間境界・重複排除を検証。DB guard失敗時は統合テスト19件が失敗（exit 1）、後続Entity/Control/Worker単体の再実行は成功（exit 0）、正しいhostでの初回統合テストは重複件数の期待値1件が失敗（47件中1件、exit 1）。
+- 期待結果: 指定された隔離fixture環境で全対象テストが成功し、重複worker実行後もDB行が1件である。
+- 実際の事象: 初回は`DB_HOST=ppe-preparation-20261013-n169-db`が既存fixture guardの固定許可値`ppe-preparation-20261008-db-1`と異なり、DBテスト19件が環境ガードで失敗した。隔離コンテナをguard指定のネットワークalias/nameで作り直し解消。続いて重複投入テストがJDBCの`ON DUPLICATE KEY UPDATE`のaffected-row戻り値を0と期待したが1となり、対象DBテスト1件が失敗した。
+- 影響/原因: 初回は本番/共有開発DBへ接続せず、対象は隔離fixtureの事前条件とテスト期待値のみ。製品コード不具合ではなく、テストコンテナ名の不一致と、MySQL/JDBCの重複upsert戻り件数を実挿入件数と同一視したテスト設計の誤り。
+- 対応/再検証: fixtureが要求する専用host aliasを用いた。重複呼び出しの戻り値ではなく保存済み通知のDB件数が1件のままであることを検証するテストへ変更。`docker compose exec -T -e DB_HOST=ppe-preparation-20261008-db-1 -e DB_PORT=3306 -e DB_NAME=ppe_teacher_review_test_n16901 -e DB_USER=root -e DB_PASSWORD=[一時隔離DB値のため省略] -e TEACHER_REVIEW_DB_TEST=true app gradle test --tests entity.StudentNotificationTest --tests control.student.StudentNotificationControlTest --tests control.student.StudentNotificationDatabaseTest --tests control.student.StudentSurveyProgressReminderWorkerTest --tests servlet.student.StudentNotificationServletTest war flywayValidate --warning-mode all`はexit 0。対象58件（Entity 6、Control 21、DB統合19、Worker 1、Servlet 11）がすべて成功、失敗/エラー/skip 0。WARと隔離DBの`flywayValidate`も成功。local DBへのV33適用と`flywayValidate`も成功。
+
+### N169-02 共有ブラウザー参照の失効（2026-10-13 JST、00:59 +0900に記録）
+
+- 対象/手順: N169の認証済みbrowser受入を継続するため、前回の共有ページ参照を再利用し通知一覧を開く。
+- 期待結果: ログイン済み生徒の通知一覧を開き、N169通知を受け入れ確認できる。
+- 実際の事象: 前回のページ参照は利用不能となり、新しい共有ページはログイン画面を表示した。認証済みページのまま受入を続けられず、一時停止した。
+- 影響/原因: browser受入の遅延のみ。アプリコード・DBの既存データに影響はない。ブラウザーセッションが引き継がれなかった理由は特定できていない。
+- 対応/再検証: ユーザーが新しい共有ページへログイン後、通知一覧が表示された。合成の24時間超過回答をworkerが通知化し、通知一覧で未読表示、クリック後のアンケート遷移、保存済み回答と`in_progress`状態の維持、既読化を確認した。合成fixtureと専用テストDBコンテナを削除し、通知一覧が元のデモ通知だけに戻ることを確認した。未解決事項なし。
+
+### N167-03 改訂課題のGemini揺らぎ生成がHTTP 404（2026-10-13 01:58–02:04 JST）
+
+- 対象/手順: ユーザーのGemini利用許可後、初回公開済みの合成課題taskId=17を親とする改訂課題taskId=18/revision 2を作成し、draftのprompt version 4を保存。local8080の認証済み教師画面から「確定して揺らぎ項目を生成する」を2回実行した。
+- 期待結果: version 4の下書き保存後、Gemini 3.1 Pro Previewで揺らぎ項目の生成を開始し、結果を確認用案として保存する。
+- 実際の事象: いずれも`POST /teacher/prompt`がHTTP 404となり、汎用404画面へ遷移した。各要求で下書き保存の成功監査行は作成され、prompt versionの`row_version`は更新されたが、2回目の後も`fluctuation_generation_status=not_generated`、揺らぎ項目0件、生成開始/完了監査なし。したがって改訂課題に対するGemini要求は開始されていない。生徒提出・個人情報は送信していない。
+- 影響/原因: taskId=18は`requires_update`、`supersedes_task_id=17`、assignmentは未公開、prompt version 4はdraftのまま。ソース経路を追跡し、`TeacherPromptControl.beginGeneration()`が状態にかかわらず`ensureStandardRubric()`を呼ぶ一方、同処理は`TeacherTaskDao.findDraft()`で`publication_status='draft'`のみ許容することを確認した。改訂案は`requires_update`のため`TeacherTaskNotFoundException`が発生し、`TeacherPromptServlet.doPost()`が404へ変換する。アプリログに当該例外のstack traceはなく、コード経路とDB状態から原因を特定した。
+- 対応/再検証: `TeacherPromptControl.beginGeneration()`で認可済み課題を取得し、標準ルーブリック初期化は`draft`の場合だけ実行するよう修正した。`published`/`requires_update`では既存課題に紐づくルーブリックを使う。新しい専用MySQL統合テストは修正前に`TeacherTaskNotFoundException`で失敗し、修正後は改訂案で揺らぎ生成・教師対応保存・評価例生成/保存まで成功した。`TeacherTaskDatabaseTest`、プロンプトControl/AI client、Servlet、画面テスト計52件中47成功・5 skip・失敗/エラー0、WARと`flywayValidate`が成功。local8080アプリを再起動して修正コードをロードし、認証なしのプロンプトURLがログインへ302となることを確認した。その時点では教師browser session失効により実Gemini/ブラウザー受入待ちだったが、再ログイン後の最終受入は下記に記録する。
+- 検証環境での解消済みエラー: 最初の共有Compose MySQL上の専用schema作成ではV11のroutine作成がMySQL 1419で失敗し、作成した当該schemaだけを削除した。独立Compose MySQLへ切り替えた初回接続はDocker network経路がなく`Network is unreachable`となったため、使い捨てDBコンテナだけをapp networkへ接続して解消。独立MySQLでもbinlog設定によりV11が1419となったため、その専用コンテナ内だけ`log_bin_trust_function_creators=1`を一時設定してschemaを作り直し、V1〜V33 migrate/validate後に設定を0へ復元した。最初の回帰テストはchecked exception宣言漏れでtest compileに失敗し、`EvaluationProviderException`を宣言して修正。修正前の回帰test失敗は上記の製品不具合を再現したもの。使い捨てDB container/volume/networkは検証後に削除し、共有app DBのデータは変更していない。
+- 解消後のlocal browser受入（2026-10-13 JST）: 教師が再ログイン後、合成taskId=18/version=4で揺らぎ生成を実行し、3件すべての教師対応を`resolved`として保存した。Gemini評価例は合成fixtureだけを使い、実提出・編集ログを含まない2つの想定結果を生成した。予測テスト結果の表示、スコア根拠、揺らぎ候補、再評価前チェック項目を確認して保存・active化し、version 4を改訂課題へ適用後に即時再公開した。DBで旧task 17=`requires_update`/旧assignment=`archived`、task 18/新assignment=`published`、有効な在籍生徒5人への改訂通知5件を確認。生徒browserでは改訂版タイトル/本文、クリック後の新assignment editor遷移を確認し、該当通知の`read_at`が設定された。実生徒データ・提出・編集ログは送信していない。Gemini評価例は1 DB record内に2シナリオで、今回の受入では旧inactive例の一括active化は起きなかったが、そのDAOリスクの製品修正・回帰テストは別途未実施。
+- 関連する未修正リスク: version 3の評価例再生成時、古いinactive評価例が同じprompt versionに残り、保存処理がそれらまでactive化し得るDAO挙動を確認した。今回の合成データでは不適切な旧例だけを対象限定で削除し、最新例を保存した。製品修正と回帰テストは別途必要。
+
+### N168-01 local browser受入時のHTTP 503（2026-10-12 22:32 JST 記録）
+
+- 対象/手順: N168の変更を検証するため、認証済みlocal8080ブラウザーで生徒ホームを開いた。
+- 期待結果: V32適用後の通知/ホーム表示が成功する。
+- 実際の事象: ホーム要求がHTTP 503となり、Tomcatログに`Unknown column 'survey_id' in 'field list'`が記録された。
+- 影響/原因: local appの開発クラスパスにはV32を含む変更が反映されていた一方、local開発DBはV31のままで、通知DAOの新列参照とschemaが不一致だった。対象はローカル開発環境のみで、アプリから成功したように扱われたデータ操作はない。
+- 対応/再検証: V32を専用MySQLで先に適用・統合テストした後、確認対象をlocal開発DBと明示して`docker compose exec -T app gradle flywayMigrate --warning-mode all`を実行。続けて`flywayValidate`成功。認証済みブラウザーで生徒ホームと既存合成アンケートの正規リンクからアンケート画面が表示されることを確認した。通知一覧はV32適用前には表示されたが、適用後の再確認時はログイン画面へリダイレクトされたため未確認。通知生成自体を伴うブラウザー受入も未確認として残す。
+
+### N167-01 local browser fixture creation (2026-10-12 21:17 JST)
+
+- Target/steps: In authenticated local teacher browser, selected the synthetic progress-demo assignment and requested a new independent task-series copy to establish a clean revision-notification fixture.
+- Actual result: Tomcat returned HTTP 400: `複製元に現在適用中のプロンプトがありません。`
+- Impact/cause: The independent copy was rejected because the source has no currently applied prompt. No copy was created, and the source task, assignments, and learner records were not changed.
+- Follow-up: Do not retry copying this source. Use a separately created synthetic draft with an explicitly configured prompt, or stop if browser setup requires an unapproved external AI call. This is distinct from the N167 implementation/regression tests, which passed.
+
+### N167-01 実装中のテストコンパイル失敗（2026-10-12 JST 記録）
+
+- 対象/手順: 課題改訂再公開通知の即時・予約公開DB統合テストを追加し、専用MySQLで対象テストをコンパイル・実行。
+- 実際の事象: テスト用helperを既存テストメソッド内へ誤配置し、`compileTestJava`で構文エラー8件が発生した。
+- 影響/原因: 専用検証ビルドのみが停止。製品コード、共有DB、local8080への影響はない。
+- 対応/再検証: helperをクラス直下の独立メソッドへ移動。対象2テストは未実装状態で改訂通知文面の不一致を検出し、DAO実装後に両テスト成功。続けて全体`gradle test war`が成功し、513件中375件成功、138件skip、失敗/エラー0。skipは成功数へ含めない。
+
+### N166-01 local8080反映（2026-10-12 20:24 JST 記録）
+
+- 対象/手順: 専用MySQLでV1〜V31のmigration・validation、対象DB統合テストと全体回帰後、`docker restart programming-process-evaluator-app-live`でlocal8080アプリのみを再起動。期待結果はTomcat起動とstudent/teacher login routeの応答。
+- 実際の事象: Docker UTC logで20:24:44 JSTおよび20:26:59 JSTにGretty `ServiceProtocol$Writer.write`の`java.net.ConnectException: Connection timed out`を記録。その後20:30:43 JSTにTomcat 9.0.118がport 8080で起動。student/teacher account login routeはhost別のHTTP 302後、最終HTTP 200を返した。
+- 影響/原因: local開発アプリの起動過渡ログのみ。routeの最終応答は確認できた。Writer接続timeoutの根本原因は特定できていないため、app起動失敗や利用者影響が継続したとは断定しない。
+- 対応/再検証: app containerが稼働中であること、Tomcat startedログ、両login routeのredirect先でHTTP 200を確認。ソース変更や追加のDB変更は行っていない。認証済み通知表示・クリックのブラウザー受入は別途未確認。
+
+### N165-06 演習配布通知（2026-10-12 16:39 JST 記録）
+
+- 実装中の初回`compileJava`で`StudentExerciseDao`のメソッド括弧位置と`StudentNotificationControl`のimport不足によりコンパイル失敗。メソッド配置/importを修正し、対象テストとWARを再実行して成功。影響は未反映の作業ツリーのみ。
+- 共有Compose DB上の一時テストschemaでは、最初にアプリDBユーザーの作成権限不足、権限を整えた後は既存V11 migrationのMySQL binary logging要件によりFlywayが停止した。既存DBやmigrationを変更して回避せず、専用MySQLコンテナに切り替えた。専用DBで全migration適用・validation、配信DB統合テスト、WARが成功。専用schemaは存在と利用中接続0を確認後に削除。owner labelを確認した専用container/networkと、そのcontainerだけが参照する検証volumeも削除した。local8080 DB/volumeおよび他containerは変更していない。
+- local8080のV30適用後のapp再起動時、Gretty `ServiceProtocol$Writer`接続timeoutと起動初期の接続拒否/HTTP 404を観測。Tomcatがport 8080でstartedとなった後は生徒/教師login routeがともにHTTP 200。停止状態や恒常的なroute不通は確認せず、起動過渡の事象として記録する。認証済み学生browser sessionは再起動で失効し、通知一覧への移動はログイン画面へredirectされた。ユーザー認証後の8080通知一覧/実配布操作は未確認で、成功扱いにしない。
+- local8080適用時はV30/全migration validation成功、既存通知5件を維持し、旧配布履歴のbackfillは0件。専用DBの実配信transaction/通知遷移テスト、関連テスト、全体Gradle回帰509件（341成功、168 skip、失敗/エラー0）、WARは成功。Skipは条件付きテストであり成功数に含めない。
+
+## 2026-10-12 第165版: 通知基盤・評価完了
+
+### N165-02 評価失敗通知
+
+- 03:49頃 JST、専用V26/full検証の`compileTestJava`が失敗。新しい通知DBテストを既存メソッドの閉じ括弧前に配置してしまったため、メソッドを独立させて修正。DB変更は専用環境だけで、trap清掃済み。対象を再検証する。
+- 明示再試行の既存DB実装は`evaluation_kind=reevaluation`で、student要求の`request_payload.trigger=retry`として保存されることを確認した。第1バッチのinitial限定条件では再試行成功通知を作れないため、本バッチの失敗通知と完了通知の共通条件を修正し、教師のpreview/再評価job/任意reevaluationは引き続き除外する。既存の再試行方式は変更せず、失敗後再試行の実DB回帰で検証する。
+- 03:53頃 JST、専用評価DBで中断復旧後の再試行成功と複数明示再試行の成功通知件数が0となり失敗。`loadAndPersistInput`がrequest_payloadを正規の評価入力へ置換し、初期triggerが失われることを確認した。永続する当該評価のstudent成功`retry_requested`監査を明示再試行の判別に使用し、payload保存/API契約は変更しない。専用DBと最終WAR/HTTPを再検証する。
+- 最終再検証: 通知DB14件・全体494件（346成功/148skip）、対象26件（25成功/実HTTPskip1）/WAR、最終通知認証HTTP1件、専用評価DB13件（12成功/実Gemini1skip）、Chromium4検証成功。通知の失敗挿入を合成triggerで拒否し、失敗状態/中断復旧/監査のrollbackを確認した。IDEは既存の`JsonObject cannot be resolved to a type`等のGson解決診断を表示するが、Gradle compile/test/WARは成功し、IDE設定は本バッチで変更しない。最初の画像は既存sectionアニメーションの途中で見出しが透明だったため、opacity=1を待って撮り直し、通常/狭幅の実文言を目視受入した。
+- local8080のV25/処理中要求0を確認後、V26追加migration成功・appのみ再起動。V26正本、両portal200・通知未認証302・backfillなし通知0を確認。実AIは呼ばず、8080でのユーザー認証後確認と全ブラウザー/OS互換性は未確認として残す。
+
+- 作業開始後 JST、VS Code `runTests`が新規`StudentNotificationUiContractTest`を検出できず「No tests found」となった。テスト成功とは扱わず、既存Docker Gradleで対象テストを実行する。製品コード/DBの失敗とは区別する。
+- 02:18 JST、専用合成MySQLの全体実行486件で1件失敗/145skip。`TeacherReviewDatabaseTest`が「Fixture requires an empty synthetic-only database」で停止した。新通知DBテストのfixture後始末を調査・修正し、専用環境を清掃後に再実行する。V25は専用DBにのみ適用され、8080/本番には未反映。
+- 通知日時は既存評価画面と同じ日時変換に合わせるが、runtime timezoneが固定されていないため「日本時間」と断定するラベルを削除した。システム全体のUTC保存/日本時間表示統一は既存運用上の未確認事項とし、通知機能を理由に本番環境設定を変更しない。
+- 再開時 JST、通知DBテストが先に共通fixtureを作成した後、教師評価DBテストが空DB前提で同じfixtureを再作成していたことを確認。専用host/catalogを検証した上で既存の完全な合成fixtureを取得できる共通ヘルパーを追加し、双方を接続した。通常DBを対象にするガードは維持する。V25のFKはCASCADEを除去し、評価完了通知の参照3項目はCHECKで必須とした。修正済みV25を新しい専用DBで再検証する。
+- 03:01頃 JST、修正後の全体487件は失敗0で成功したが、通知認証HTTPは「GET never marks read」の期待件数2に対し実数3で失敗した。GETは期限切れ未読行も物理的に保持する契約のため、保持期間内2件と期限切れ1件の計3件が正しい。テストの期待値を修正し、期限切れの表示除外とGET無更新を別々に再検証する。専用環境はtrapで清掃し、通常DB未変更。
+- 同日 JST、統合ブラウザーのクライアント切断で操作できなかったため、既存Playwrightイメージによる専用ネットワーク上のChromium受入へ切り替えた。イメージにJSモジュールがなく`MODULE_NOT_FOUND`となり、使い捨てコンテナ内だけに対応版を導入した。1440/375幅の一覧・ベルは受入成功。エディターでは編集ログも含め4つのCodeMirrorがあり、検証selectorが一意でなく停止したため、実編集エディターへ限定して再実行する。停止済みbuilderへの`docker exec`も失敗したため、既存専用builderの再起動による再ビルドへ変更する。通知クリック中の保持期限切れを成功遷移させない再確認と、既読通知の再訪を区別する回帰2件も追加した。本実装の不具合・検証スクリプトの不具合・環境制約を区別し、ブラウザー受入は未完了として維持する。
+- 03:18〜03:29 JST、HTTP受入で変更済みのfixtureへ全体DBテストを再実行し、教師評価件数の空/初期fixture前提に反して1件失敗（489件/145skip）。初回の新規専用DB全体487件は成功済みであり、変更対象25件/WARと最終認証HTTP1件を独立再実行して成功した。別の空の専用評価DBで原子性の実DB検証も再実行する。閲覧専用の提出済みエディターをプログラムから書き換えて離脱confirmを期待した検証はtimeoutしたため、正規の「再提出用の編集を開始」操作後の編集可能状態を前提に変更した。DB確認SQLの列名`submission_deadline`は実schemaの`due_at`に訂正（1054、読取のみで変更なし）。
+- 合成通知の手動SQLでmysqlクライアントの文字コード指定を省略したため、seedした固定文言のみ文字化けした。`--default-character-set=utf8mb4`で専用合成行を再seedし、実DOMで「評価が完了しました」を一致確認、通常幅/狭幅画像で文言を確認した。狭幅ナビの開閉アニメーション完了も待機し、途中状態を受入証跡にしない。Javaの評価確定通知処理と手動seedを区別する。
+- 最終再検証: 487件全体（342成功/145skip）、通知対象25件（24成功/実HTTPskip1）/WAR、通知の最終認証HTTP1件、Chromiumの通常幅/狭幅と取消保持・確定遷移・既読再訪5検証は成功。通常評価の専用DB9件は8成功/実Gemini1件skip。V25を8080 DBへ適用成功、app再起動後に両ログイン200・通知認証302・通知JS配信一致。外部AIは呼び出さず、8080のユーザー認証後手動確認は未確認。IDE `problems`もクライアント切断で取得不能のため、成功したGradle compile/test/WAR・実Tomcat/Chromiumを根拠とする。
+
+### N165-03 課題公開通知
+
+- フルハーネス初回実行で、`servlet.student.StudentNotificationRuntimeTest`を含む3件が失敗した。原因は`StudentNotificationControl`の既定コンストラクタが`StudentEditorControl`経由で`PythonRunnerClient`を生成しており、そのコンストラクタが環境変数`PYTHON_RUNNER_URL`の設定を必須としていたため。課題公開通知の遷移先検証自体には不要な依存であり、`StudentNavigationFilter`を通る全生徒画面のテストにまで波及していた。`StudentEditorDao`を直接利用する設計へ書き換えて不要な依存を除去した。
+- `TeacherTaskDatabaseTest`で重複キー違反が一時的に発生したが、調査の結果、検証中に複数の専用fixtureフラグを同時設定した手順ミスによるものであり、実際のハーネス・製品コードの不具合ではないと判断した。該当フラグを単独実行に戻し再現しないことを確認した。
+- 最終再検証: `UI160_RUNTIME_TEST=true UI_VALIDATION_REPORTS=build/ui165-published-acceptance sh scripts/testing/evaluation-survey-ui-local.sh`でユニット499件（失敗・error0/skip150）、認証HTTP6件（失敗・error0/skip3）が成功。`StudentNotificationRuntimeTest`の`taskPublishedNoticeRedirectsToTheEditor()`含め全件成功を確認し、専用検証コンテナを`stop_bash`/`trap cleanup`で清掃した。
+- ローカル8080へのV27適用、appのみ再起動、ブラウザーでの通知クリック→対象課題エディター遷移の認証後確認はこの時点で未実施（後続作業で実施予定）。本番・プロトタイプ・デプロイ設定・外部AIは操作していない。
+
+## 2026-10-11 第164版: ホーム導線・離脱確認
+
+- 23:13 JST、専用合成アンケートを編集可能にする検証準備で`surveys.is_active`を誤指定し、MySQL1054（Unknown column）となった。変更は実行されていない。実schemaとDAOを確認し、`survey_status='active'`を専用survey2だけに適用した。通常DB/本番は不変。存在しないV5ファイルの検索も実DAO/SHOW COLUMNSへ訂正した。
+- 23:15〜23:18 JST、確認ダイアログの非表示アニメーション完了前に次の操作を行い、home待機timeoutした。新guardの重複確認抑止中は移動しないことを確認し、Bootstrap遷移完了後の操作で取消保持/確定home成功。授業演習作成のinput[type=text]は実DOMがtype省略のためtimeoutし、実ラベル「名前」で指定して作成/保存/再読込成功。
+- 23:19 JST、合成演習のログアウト取消で既存feedbackモーダルにaria-hidden/focus警告を観測した。取消後のコード保持と保存/再読込/homeは成功。共有feedbackの既存フォーカス復帰の警告は今回の離脱判定とは区別し、全ブラウザー互換性完了とは扱わない。
+- 23:20〜23:24 JST、既存共有タブのスクリーンショットがviewport/scrollと不一致・白画像、要素の安定待ちtimeoutとなった。寸法/正常動作はDOMで確認できたが画像を目視証跡に採用しない。新しい本実装タブで評価結果の通常幅、アンケートの狭幅末尾ボタンを正しく表示・目視確認した。プロトタイプは変更していない。
+- 23:25 JST、共有guardの独立ブラウザーテストがclick確認のPromise完了前に次の確認を開始し、重複抑止によってassertion失敗した。テストのイベントループ境界を待つよう修正して再検証する。製品側の確認抑止を無効化しない。
+- 最終再検証: 共有guard独立12検証・対象JUnit12件/WAR成功、実回答取消復元/再提出home/再読込・コード保存再読込・未保存/送信前入力とログアウト取消保持を確認。iframe内の標準beforeunload表示はブラウザーのuser gesture制約があるため、独立テストはイベントのpreventDefaultを検証し、全OSの実ダイアログ表示確認とは区別する。新本実装タブで4画面の末尾を目視確認し、8080のlogin200/JS5本一致を確認した。
+
+## 2026-10-11 第163版: 課題設定モーダル
+
+- 22:44 JST、専用18092の認証ブラウザーで新規JSP fragmentの固定日本語が文字化けした。動的課題名・フォーム保存は正常、対象37件/WARと認証HTTP4件/追加4件は成功していた。fragment自身のpageEncoding指定不足が原因。UTF-8指定と契約テストを追加し、再ビルド後に日本語表示・保存を再検証する。8080/本番へ未検証版を反映していない。
+- 調査時に存在しないTeacherAccess/TeacherReviewAccessファイルを検索指定して失敗。実DAOが使うTeacherPermissionDaoのtask-progress契約を確認した。製品不具合・依存エラーとは区別する。
+- WAR回収でコンテナ内作業パスを`/workspace`と誤指定してdocker cpが失敗。実WorkingDirの`/programming-process-evaluator`へ修正して最新版WARを回収・専用runtimeだけ再起動した。製品ビルドは成功していた。統合ブラウザーのactiveタブはviewport/screenshotが一致せず、要素screenshotも安定待ちtimeout。既存の非表示共有タブで通常/狭幅の表示・寸法を確認する方式へ切替した。モーダル日本語と保存再読込は正常に確認できた。
+- 22:47〜22:54 JST再検証: UTF-8指定後の対象37件/WAR、追加UI契約/認証HTTP4件がexit0で成功。モーダル日本語、期限延長/クラス追加保存と再読込、Escape/フォーカス復帰、1440/375px表示で文字化けを解消した。8080のみ反映後、両portal200/asset3本一致を確認。IDEの既存Gson解決診断は残るが、Docker Gradlecompile/WARと実TomcatHTTPは成功しており、IDE設定は変更しない。
+
+## 2026-10-11 第162版: アンケート修正
+
+- 初回対象テスト15件中2件失敗。確認モードの段階検証変更に対する旧文字列契約と、JSP ELメソッド参照をプロパティとして抽出するJavaBeans契約が原因。表示選択肢をJavaBean getterへ変更し、確認モードの検証契約を更新して再検証する。製品DB/本番には未反映。
+- 専用migration/全体テスト/WARは成功したが、認証HTTPの旧テストがsurvey画面に提出成功通知を期待して1件失敗（exit1）。第162版はhomeへ通知するため、homeでの通知を検証する契約へ更新して再実行する。専用資源はtrapで清掃済み。
+- IDEは既存Gson importを解決できない診断を表示した。Docker GradleのcompileJavaは成功しており、IDE classpath問題と製品コンパイル失敗を区別する。依存manifestやIDE設定は変更しない。
+- 再検証結果（2026-10-11 22:28〜22:33 JST）: 対象15件成功/skip0、全体444件（302成功/142条件付きskip/失敗・error 0）、認証HTTP4件成功/skip0、WAR成功（exit0）。初回の2契約失敗とHTTP通知期待の失敗は解消した。ローカルflywayMigrateもexit0でV24適用、既存回答3件維持を確認した。
+- 最新WARのブラウザーで初回提出/修正再提出→home、版2/理由再読込と取消復元を確認。無効設定の修正ボタン非表示も確認した。統合ブラウザーの要素スクリーンショット取得は失敗し、全体スクリーンショットで通常/狭幅を確認した。取消操作で実DOMにない`#cancelRevisionButton`を指定してtimeoutしたが、正しい`#cancelSurveyEditButton`へ修正して復元成功。製品不具合とは区別し、全物理クリック/全端末互換性は未確認。
+
+## 2026-10-11 第161版: デザイン検証
+
+- VS Code `runTests`は対象2ファイルを検出できず未実施。既存Docker Gradleへ切替し、初回全体442件（300成功/142条件付きskip/失敗0）とWAR、専用認証HTTP4件（skip0）が成功した。
+- ブラウザーの`scrollIntoViewIfNeeded`はhiddenページの安定待ちでtimeout。DOMのscrollIntoViewとスクリーンショットで確認する。製品の保存や画面遷移失敗とは扱わない。
+- 21:50頃 JST、余白/理由欄修正後の専用HTTP3件再実行でLocalUi160RuntimeTestが既存feature permissionの一意制約違反（SQLIntegrityConstraintViolationException、line45）で失敗。前回の専用fixtureを残した再実行が原因。テストの権限設定をupsert、学校コードをUUIDへ変更して衝突を解消。再実行3件成功/失敗0/skip0。製品DB/schema/資格情報は変更していない。
+- 21:51頃 JST、最終HTTPのreport bind元ディレクトリが存在せずDocker起動がexit125。対象ディレクトリを作成して再実行し、3件成功/exit0とXML保存を確認。製品のHTTP失敗とは区別する。
+- 21:54〜22:03 JST、統合ブラウザーの強制物理radioクリックが状態を変えず、非表示ページのviewport/スクロール待機が継続した。DOMクリック/native formを用いて下書き・提出・DB6回答/6理由を確認。CSS選択色が白のまま見えたのは非表示ページのtransition進行停止であり、animation終了後に規定の緑背景を確認した。スクリーンショットと寸法確認を併用し、全物理クリック/全端末検証済みとは扱わない。
+- 最終対象18件成功/skip0、WAR成功。8080appのみ再起動しlogin200と資源一致を確認。未解決の製品不具合はない。非表示統合ブラウザーの操作制約は残る。
+
+## 2026-10-11 第160版: 検証基盤
+
+- VS Code `runTests`へ新しいJUnit3ファイルを指定したが「No tests found」。この実行ではテスト未実施であり、合格とは扱わない。
+- 既存のローカル検証image `ppe-tools:local`内でGradleの正規`test`タスクへ同じ3クラスを指定し、6件成功/失敗0/skip0（exit0）。共有8080・DB・設定は操作していない。
+- 20:36 JST、専用DBでの全体`flywayMigrate test war`は新設StudentSurveyUiContractTestの2件で失敗（exit1）。1件は検証imageが本実装srcのみをコピーするためプロトタイプ参照ファイルが存在しないこと、もう1件は正規導線の文字列契約不一致。WAR/画面受入はこの段階で合格とせず、テスト契約を修正して再実行する。所有ラベル付き専用資源はscriptのtrapで清掃済み。
+- 20:40 JST、全体テスト/WARは成功したが追加HTTP3件中、課題カードからeditor、標準6設問surveyのGETが500で2件失敗（exit1）。生徒管理・配信のHTTPは成功。stdoutのみでは500の詳細が不足したため、Tomcat内部ログも回収するよう検証scriptを変更し、原因を再現調査する。通常8080や本番へ未検証WARを反映していない。
+- 20:42 JST再現で原因を確定。editorは専用TomcatにPYTHON_RUNNER_URLが未設定（検証環境の不足）、surveyはOption recordにJSP ELが要求するJavaBean getterがなくrating設問表示が500（実装不具合）。専用runner設定とOptionのgetterを修正する。いずれもschema/実アカウントの変更なし。
+- 20:44 JST、standard6のGET/下書き/提出/再読込と生徒管理/配信HTTPは成功。editorは500解消後404となり、既存教師閲覧専用fixtureのlanguageが`Python 3`で、エディター契約の保存値`Python`と異なることを確認した。fixtureのみ正規値へ修正して再検証する。実DBの課題言語や認可条件は変更しない。
+- 20:46以降 JST、修正後の専用全体440件（298成功/142条件付きskip/失敗0）とWAR、認証HTTP4件（skip0）が成功。Option getter不足・runner設定不足・fixture言語不一致はいずれも解消し、rating設問のブラウザー保存/提出とDB6回答/6理由の再読込まで確認した。
+- 20:50 JST、ブラウザー教師ログインで待機URLが現在URLにも一致して直後の遷移がPOSTを中断。古いフォームを再送してCSRF403となった。正規GETで新フォームを取得し、実navigation完了を待つ手順へ修正してログイン/生徒管理表示成功。製品のCSRFを緩めていない。
+- ブラウザー検証のstatus/flow selectorを実DOMにないclassで指定しtimeout。実DOMのdialog/`.distribution-status-badge`へ修正し配信済み表示を確認した。PW再設定は共有確認ではなく専用入力modalなので、専用dialogの表示/キャンセルを確認した。これらは検証操作の誤りであり製品不具合とは区別する。
+- 20:51以降 JST、アンケート提出後のCSS生成矢印が文字化け。CSSの非ASCII literalをUnicode escapeへ変更し、共通template CSSに版160を付けた。再読込で「›」を確認、対象17件/失敗0/skip0とWAR成功。20:57 JST、8080のみ再起動後login200と配信asset8本のSHA256一致・template版160を確認した。
+
+## 2026-10-11 18:02以降 JST: 第159版の確認
+
+- 19:37 JST、最終WARで根拠logIdリンク表示後、統合ブラウザーが旧キャッシュのlog.jsを使用し
+  選択が反映されなかった。評価関連3画面のCSS/JSに第159版のqueryを付け、
+  再ビルド後に配信スクリプトと実ログ選択を再検証する。
+- version付き配信で生徒logId2の選択と対応する保存コードを確認し、旧cacheの影響は解消。
+  教師では有効根拠も「認可済み一覧で照合できません」と表示されたため、詳細JSONとJSの
+  ID突合せを修正対象とした。保存済み根拠を別のログで補ってはいない。
+- 教師の評価理由初期描画でdetail.logsを渡していないのが原因だった。
+  理由描画へ認可済み一覧を渡し、対応する契約テストを追加した。IDの型変換や認可を緩めていない。
+- 修正後の最終全体420件は281成功/139条件付きskip/失敗0、WARとsurvey実HTTP1件成功。
+  19:44 JST、教師根拠ボタンからlogId2/print(0)/1/2の選択を1440/375pxで確認し解消。
+  ローカル対象11件とWARも成功。8080だけを再起動しlogin200と変更配信asset4本のソース一致を確認。
+- ローカル対象buildは`test war --tests ...`の順序で実行したため、
+  warにtestsオプションが渡りexit1（Unknown command-line option '--tests'）。
+  `test --tests ... war`へ修正した再試験は成功。DB操作なし。
+
+- ローカルsurvey設定確認の最初のcommandはappコンテナにmysql CLIがなくexit127。
+  DBコンテナの既存CLIへ切替し読取成功。次のSELECTは存在しないsurveys.survey_codeを指定し1054。
+  既存定義のsurvey_id/title/task_id/statusへ修正して再確認する。どちらも書込なし。
+- ローカルs008の最新同意はagreed。前回の未回答記録と異なり、現在は同意をブロッカーとしない。
+  合成課題にはsurveysがなく、既存教師結果デモのsurveyはclosed。製品の認可条件を緩めず設定/案内を修正する。
+- 18:18 JST以降の専用ブラウザー受入で教師評価URLを単数`/teacher/evaluation`と誤指定し404。
+  正規メニューの`/teacher/evaluations`へ修正して一覧・詳細表示を確認した。
+  待機selectorを`detailModal`、提出一覧の先頭をreview_studentと誤指定し待機timeout。
+  実DOMの`evaluationDetailModal`と対象提出行を指定して再確認した。
+  表/差分の計測は非表示判定をhidden属性だけでなくCSS表示、
+  差分classを実DOMの`code-line added/removed`で確認し直した。製品表示の不具合ではなく検証selectorの誤り。
+- 専用fixture用SQL投入は最初の`docker exec`に`-i`がなくstdinが渡らず未実行。
+  `-i`を追加して専用DBだけへ合成survey2/question2を登録し、ブラウザーで保存・再読込・提出を確認した。
+- 専用DBで既存V19が存在しないprocedureのDROPを警告1305として出したが、
+  flywayMigrate/WAR/全体418件はexit0（279成功/139条件付きskip/失敗0）。
+  developmentのdemo3件と専用survey実HTTP1件もexit0。
+  ホストNode CLIは未導入。既存計画どおり統合ブラウザーを用い、DOM操作とpointer全面互換性を区別する。
+- 18:25 JST、専用schemaで`dao.StudentSurveyDatabaseTest`4件がfixture挿入時に
+  `Field 'school_id' doesn't have a default value`で失敗（exit1）。旧fixtureのtasksがV19以降の
+  必須school_idを省略していた。製品schemaは変更せず、既存合成学校1をfixtureへ指定して再検証する。
+- fixture修正後の同一専用schemaで4件成功/失敗0/skip0、exit0。
+  下書き保存・提出後読取専用・重複提出の上書き拒否・同意/他生徒/非有効アンケート/未完了評価境界を再検証した。
+
+## 2026-10-11 JST: 第158版のデモ事前調査・試験
+
+- 16:37 JST、専用18090の認証ブラウザーで演習一覧が「読み込み中」のまま停止。
+  `exercise.js`の設定適用でif/else間へpreview設定呼出しを挿入したため
+  `Unexpected token 'else'`。呼出しをif/elseの後へ移動し、両エディターへの適用を維持する。
+  Java/HTTP試験だけではJavaScript構文を検証できなかったため、全変更JSの構文とブラウザーを再確認する。
+- 修正後、関連配信JS9本のparse成功、演習一覧/両詳細の対話実行成功、
+  最終対象8件中7成功/1条件付きskipとWAR成功。ローカル8080へ反映・配信JS一致を確認。
+- 専用fixture/期待値修正後、DB/runner25件・認証HTTP3件は全成功/skip0。
+- ブラウザー操作の子button selector誤り、折りたたまれたファイルのrole検索、
+  直前出力とbusy解除前の操作による待機timeoutを経験。DOMの実buttonと
+  現在入力可能状態を待つよう検証を修正し、ファイル切替/閉じるを再確認した。
+  `page.request`は統合ブラウザーの`Storage.getCookies`非対応で失敗し、
+  同一originのfetchへ切り替えてJS検証成功。製品コードの失敗と検証ツール制約を区別する。
+- 再開後の専用DB/runner/HTTP検証で、新規進捗fixtureが必須の
+  `active_duration_seconds`を省略しSQLException。後続試験も原本未作成のため404。
+  製品schemaは変更せずfixtureに0を指定して再検証する。
+  初回scriptは失敗時レポート回収前にcleanupしていたため、HTTP失敗時にもXMLを保持するよう修正。
+- IDEの新規Servlet helperにGson未解決表示があるが、専用GradleのcompileJava/compileTestJavaとWARは成功。
+  IDE依存解決の表示と製品コンパイルの結果を区別する。
+- 16:21 JST以降、HTTP試験は稼働中stdoutを最終`standardOutput`だけで待ち失敗。
+  対話中出力はeventsへ届くためeventsも検証するよう修正。
+  既存境界の期待値も修正（進捗他校403、演習他校404、コード上限413）。
+  権限や上限を緩めず、実契約に沿って試験を修正した。
+- ローカル8080再起動中のempty reply/一時404はretry後login200を確認。
+
+- 10:25以降の開発DB読取で教師権限列を`permission_status`、`feature_status`と誤記し
+  1054。`SELECT *`で実列`is_enabled`を確認して再調査成功。書込なし。
+- 対象demo試験初回でcompileJava後のcompileTestJavaが既存多数class未検出で失敗。
+  共有build出力の並行Gradle競合を疑い、担当へ出力先分離を連絡。原因と再検証は後記する。
+- demo専用build出力へ分離した次のcompileJavaは、並行編集中の
+  TeacherExerciseServlet/TeacherProgressControlの括弧配置で失敗。担当へ編集完了の通知を依頼し、
+  完了後にまとめて再検証する。demo書込はまだ実行されていない。
+- 10:44 JST、修正後の専用出力でdemo対象3件成功（失敗0/skip0）。
+  s008デモを同試験内で2回実行し、DB保存・DAO再読込・冪等性とusers/profile/consent不変を確認。
+  前述compile失敗は解消。共有build競合は原因未確定で、独立出力による回避を確認した。
+- s008資格情報の保存有無を調査したSELECTは存在しない
+  `student_profiles.initial_password_ciphertext`を参照して1054。既存DAOに従い
+  `student_teacher_credentials.encrypted_password IS NOT NULL`へ修正し成功。秘密の値は表示・変更していない。
+
+## 2026-10-11 JST: UI改善のローカルDB事前調査
+
+- 評価/アンケートの合成データ投入前に、開発DBへSELECTのみを実行した。
+- 初回の調査SQLは存在しない `tasks.task_status`、次回は
+  `task_class_assignments.assignment_id` を参照し、MySQL1054で失敗した。
+  正しい `publication_status` / `task_class_assignment_id` に修正して再実行成功。
+- 書込・schema変更・本番/バックアップ設定への操作は発生していない。
+- IDEは既存競合済みコンパイル資産に関連して `Client.closeDataSource()` 未定義を表示。
+  ソースを無関係に変更せず、Gradleコンパイルで実際の可否を確認する。
+- 並行編集途中の最初の対象Gradle試験は、教師提出Servletの括弧配置により
+  compileJavaで失敗。担当へ返し、編集完了後にまとめて再検証する。
+- 対象再実行はコンパイル/WAR/対象テスト成功。デモ投入初回と同内容の再実行は
+  `event_type='auto_save'` が既存ENUMに存在せずSQLExceptionで失敗し、
+  全書込をrollback。契約どおり `periodic_snapshot` へ修正し再検証する。
+- 修正後のデモ投入と再実行は成功（評価2、回答2/設問回答12、migration23のまま）。
+  DAO読戻しテスト追加時にDTOアクセサ名の誤りでcompileTestJava失敗。
+  実recordの `taskName()` / `logs()` へ修正して再実行する。
+- 次回のDAO読戻しは教師権限検証に必須の明示transactionをテストで開始しておらず
+  IllegalStateException。製品DAOの契約を変えず、テストでtransaction開始・rollbackを追加。
+- DAO一覧は評価未作成の提出もLEFT JOINで含むため、評価2件期待に対して5行になった。
+  テストを評価IDありの合成行に限定。最終2テスト成功/失敗0/skip0、
+  評価詳細のソースコード編集ログ、アンケート6回答/2観点のDB再読込を確認。
+
+## 2026-10-11 JST: 専用受入環境・ブラウザー検証のエラーと制約
+
+- 提出専用MySQL8.4のV11でstored function作成が1419（binary logging）により停止。
+  専用DBコンテナだけを`--disable-log-bin`で再作成し、migration/DB・実runner試験5件成功。
+  製品migration/本番DB/バックアップ設定は変更していない。
+- internal-only networkのruntime公開portへ接続できなかった。
+  runtimeだけをbridgeにも接続しloopback18091疎通成功。DBはinternal networkを維持。
+- 進捗合成fixture初回に`progress_status=editing`で1265。rollback後0行を確認し、
+  正しい`in_progress`へ修正して保存・認証詳細200・保存コード表示成功。
+  停止済みHTTP-testコンテナへのexec失敗はcurl認証302/詳細200で代替し、試験用cookie/probeを清掃。
+- ブラウザー初回loginは古いページのCSRFで403。loginページ再取得後に成功。
+  エディターのCodeMirror selector誤り、重複ラベルのstrict selector違反は対象を限定して再実行成功。
+  terminal終了ラベルを「終了」で待つ誤りも「実行完了」の実表示で確認した。
+- 統合ブラウザーの`document.visibilityState`はhiddenで、通常クリックの安定待ちと
+  requestAnimationFrame測定がtimeout。DOM dispatch/requestSubmitとtimer pollingで代替。
+  次へ操作自体は2/3へ成功していたがrAF待機だけtimeout、timer pollingで戻る/状態保持/close200を確認。
+  初回input待ちの30秒無通信終了は正しい時間切れ表示。再実行の複数入力で正常終了を確認。
+  APIRequestのStorage.getCookies未対応はページ遷移でログアウト後の認証失効を確認。
+  厳密first paint/物理クリック全操作/OSダイアログを合格扱いしない。
+- 最終375px受入で進捗ページ384px横溢れを検出。heroの3×min120px gridと
+  詳細表のID指定`overflow:hidden`が原因。縮小可能な列/狭幅1列、header折返し、
+  詳細表の局所`overflow-x:auto`へ修正。1440/375pxでページ幅一致・コード表示成功。
+- 最終Gradle初回は`test war --tests …`の順序でwarへtestsオプションが渡り、
+  `Unknown command-line option '--tests'`で構成失敗。`test --tests … war`へ修正、
+  8件成功/失敗・skip0、WAR成功。ソースの問題ではない。
+- 8080再起動直後のcurlがempty reply（52）、CSS照合が空応答で失敗。
+  起動待ちの`--retry-all-errors`再検証でlogin200と最新progress.css完全一致。
+  DB/runnerを再起動せず、共有appだけの起動待ちとして解消。
+
 ## 2026-10-10 21:08–21:18 JST: 一回限定のECR本番update失敗・別承認で旧releaseへ復旧
 
 ### 再発防止修正のローカル検証（本番変更なし）
@@ -1474,3 +1758,13 @@
   これは保守・障害区間の目安であり、全区間の連続HTTPS停止を実測した値ではない。
 - **旧releaseの復旧成功、Phase 2の新release受入は未完了**。
   nginx原因確定/修正、最終ECR image試験、基盤改善は保留し、復旧後は停止する。
+
+### 2026-10-12 21:54 JST: アンケート通知追加の初回Gradle compile失敗（修正済み）
+
+- 対象機能: 第168版 `survey_available` 通知の遷移可否確認を追加中。
+- 実行コマンド: `docker compose exec -T app gradle test --tests entity.StudentNotificationTest --tests control.student.StudentNotificationControlTest --warning-mode all`
+- 期待結果: 対象Entity/Controlテストがコンパイルされ実行される。
+- 実際の結果: `:compileJava FAILED`。`StudentSurveyDao.java:311` の `hasActiveQuestions` が直前メソッド内に誤ってネストされ、`illegal start of expression` 等のコンパイルエラー4件。テスト実行前に停止。
+- 影響範囲: コードのビルド確認のみ失敗。アプリ再起動、DB migration、業務データ更新、外部API呼び出しは行っていない。
+- 対応: `findPageTarget`の閉じ波括弧を修正し、`hasActiveQuestions`をDAOクラス直下のprivate methodへ移動。
+- 再検証: 同じコマンドを再実行し、`:compileJava`・`:compileTestJava`・`:test`成功、`BUILD SUCCESSFUL`（2秒）。Entity/Control対象テストは失敗なし。Gradle 8.10.2の既存WarPluginConvention deprecation warningのみ。

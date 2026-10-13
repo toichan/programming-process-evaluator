@@ -1,5 +1,25 @@
 /* Teacher task page styles */
 
+.assignment-settings-section {
+	border: 1px solid #e2e8f0;
+	border-radius: .75rem;
+	padding: 1rem;
+}
+
+.assignment-deadline-fields {
+	display: flex;
+	gap: .5rem;
+}
+
+.assignment-deadline-fields .form-control { min-width: 0; }
+.assignment-deadline-fields .btn { flex-shrink: 0; }
+.task-assignment-modal .modal-title { min-width: 0; overflow-wrap: anywhere; }
+.task-assignment-modal .modal-body { overflow-wrap: anywhere; }
+
+@media (max-width: 575px) {
+	.assignment-deadline-fields { flex-direction: column; }
+}
+
 .page-content {
   background-color: #f8fafc;
   flex-grow: 1;

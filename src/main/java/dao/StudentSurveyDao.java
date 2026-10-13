@@ -28,7 +28,7 @@ import lib.mysql.Client;
 public final class StudentSurveyDao {
 	private static final String FIND_PAGE_TARGET = """
 			SELECT ca.task_class_assignment_id, t.task_id, t.title AS task_title, t.difficulty,
-			       sv.survey_id, sv.title AS survey_title, e.evaluation_id,
+			       sv.survey_id, sv.title AS survey_title, sv.survey_status, e.evaluation_id,
 			       s.submission_id,
 			       e.feedback_summary, e.completed_at,
 			       sr.survey_response_id, sr.response_status
@@ -107,6 +107,8 @@ public final class StudentSurveyDao {
 			long evaluationId,
 			Long requestedSurveyId) throws SQLException {
 		try (Connection connection = Client.createConnection()) {
+			connection.setReadOnly(true);
+			connection.setAutoCommit(false);
 			if (findConsentStatus(connection, studentUserId) != ConsentStatus.AGREED) {
 				throw new SecurityException("Research consent is required to access surveys.");
 			}
@@ -122,7 +124,7 @@ public final class StudentSurveyDao {
 			List<StudentSurveyQuestion> populated = questions.stream()
 					.map(question -> question.withAnswer(answers.get(question.getQuestionId())))
 					.toList();
-			return Optional.of(new StudentSurveyPage(
+			StudentSurveyPage page = new StudentSurveyPage(
 					assignmentId,
 					target.surveyId,
 					evaluationId,
@@ -135,7 +137,29 @@ public final class StudentSurveyDao {
 					target.evaluationFeedback,
 					findEvaluationDimensions(connection, evaluationId),
 					populated,
-					findHistory(connection, studentUserId, assignmentId, target.surveyId, evaluationId)));
+					findHistory(connection, studentUserId, assignmentId, target.surveyId, evaluationId),
+					target.responseId == null ? 1 : findRevision(connection, target.responseId),
+					target.surveyActive);
+			connection.commit();
+			return Optional.of(page);
+		}
+	}
+
+	public boolean isAccessibleForNotification(
+			long studentUserId, long assignmentId, long evaluationId, long surveyId) throws SQLException {
+		try (Connection connection = Client.createConnection()) {
+			connection.setReadOnly(true);
+			connection.setAutoCommit(false);
+			if (findConsentStatus(connection, studentUserId) != ConsentStatus.AGREED) {
+				connection.commit();
+				return false;
+			}
+			SurveyTarget target = findPageTarget(connection, studentUserId, assignmentId, evaluationId, surveyId);
+			boolean accessible = target != null
+					&& (target.responseId != null
+							|| (target.surveyActive && hasActiveQuestions(connection, surveyId)));
+			connection.commit();
+			return accessible;
 		}
 	}
 
@@ -158,9 +182,23 @@ public final class StudentSurveyDao {
 
 				Response response = findResponseForUpdate(
 						connection, studentUserId, surveyId, evaluationId);
+				boolean revise = "revise".equals(firstValue(parameters.get("action")));
 				if (response != null && "submitted".equals(response.status)) {
-					connection.commit();
-					return SaveResult.ALREADY_SUBMITTED;
+					if (!revise) {
+						connection.commit();
+						return SaveResult.ALREADY_SUBMITTED;
+					}
+					int expected;
+					try {
+						expected = Integer.parseInt(firstValue(parameters.get("responseRevision")));
+					} catch (NumberFormatException e) {
+						throw new IllegalArgumentException("回答版が不正です。画面を再読み込みしてください。", e);
+					}
+					if (!submit || expected != findRevision(connection, response.responseId)) {
+						throw new IllegalStateException("Survey response revision changed.");
+					}
+				} else if (revise) {
+					throw new IllegalStateException("Only submitted survey responses can be revised.");
 				}
 
 				List<StudentSurveyQuestion> questions = findQuestions(connection, surveyId);
@@ -182,18 +220,20 @@ public final class StudentSurveyDao {
 				if (response == null) {
 					response = insertResponse(connection, studentUserId, target, surveyId, evaluationId);
 				}
+				if (revise) archiveResponse(connection, response.responseId);
 				saveAnswers(connection, response.responseId, questions, submittedAnswers);
 				try (PreparedStatement statement = connection.prepareStatement("""
 						UPDATE survey_responses
 						SET response_status = ?, consent_status_at_submission = 'agreed',
 						    submitted_at = CASE WHEN ? = 'submitted' THEN CURRENT_TIMESTAMP ELSE NULL END
 						WHERE survey_response_id = ?
-						  AND response_status = 'in_progress'
+						  AND response_status = ?
 						""")) {
 					String status = submit ? "submitted" : "in_progress";
 					statement.setString(1, status);
 					statement.setString(2, status);
 					statement.setLong(3, response.responseId);
+					statement.setString(4, response.status);
 					if (statement.executeUpdate() != 1) {
 						throw new SQLException("Survey response state changed during save.");
 					}
@@ -263,7 +303,25 @@ public final class StudentSurveyDao {
 						resultSet.getString("feedback_summary"),
 						hasResponse ? responseId : null,
 						resultSet.getString("response_status"),
-						resultSet.getLong("submission_id"));
+						resultSet.getLong("submission_id"),
+						"active".equals(resultSet.getString("survey_status")));
+			}
+		}
+	}
+
+	private static boolean hasActiveQuestions(Connection connection, long surveyId) throws SQLException {
+		try (PreparedStatement statement = connection.prepareStatement("""
+				SELECT EXISTS (
+				  SELECT 1 FROM survey_questions
+				  WHERE survey_id = ? AND question_status = 'active'
+				)
+				""")) {
+			statement.setLong(1, surveyId);
+			try (ResultSet resultSet = statement.executeQuery()) {
+				if (!resultSet.next()) {
+					throw new SQLException("Survey availability could not be checked.");
+				}
+				return resultSet.getBoolean(1);
 			}
 		}
 	}
@@ -295,7 +353,8 @@ public final class StudentSurveyDao {
 						null,
 						null,
 						null,
-						resultSet.getLong("submission_id"));
+						resultSet.getLong("submission_id"),
+						true);
 			}
 		}
 	}
@@ -527,6 +586,39 @@ public final class StudentSurveyDao {
 		return array.toString();
 	}
 
+	private static int findRevision(Connection connection, long responseId) throws SQLException {
+		try (PreparedStatement statement = connection.prepareStatement("""
+				SELECT COALESCE(MAX(revision_number), 0) + 1
+				FROM survey_response_revisions WHERE survey_response_id = ?
+				""")) {
+			statement.setLong(1, responseId);
+			try (ResultSet results = statement.executeQuery()) {
+				if (!results.next()) throw new SQLException("Survey revision could not be loaded.");
+				return results.getInt(1);
+			}
+		}
+	}
+
+	private static void archiveResponse(Connection connection, long responseId) throws SQLException {
+		try (PreparedStatement statement = connection.prepareStatement("""
+				INSERT INTO survey_response_revisions
+				  (survey_response_id, revision_number, submitted_at, consent_status_at_submission, answers_snapshot)
+				SELECT r.survey_response_id, ?, r.submitted_at, r.consent_status_at_submission,
+				  (SELECT JSON_ARRAYAGG(JSON_OBJECT(
+				    'questionId', a.question_id, 'code', q.question_code, 'prompt', q.prompt_text,
+				    'type', q.question_type, 'value', a.answer_value, 'reason', a.answer_reason,
+				    'options', (SELECT JSON_ARRAYAGG(JSON_OBJECT('value', o.value, 'label', o.label))
+				                FROM survey_question_options o WHERE o.question_id=q.question_id)))
+				   FROM survey_answers a JOIN survey_questions q ON q.question_id=a.question_id
+				   WHERE a.survey_response_id=r.survey_response_id)
+				FROM survey_responses r WHERE r.survey_response_id=? AND r.response_status='submitted'
+				""")) {
+			statement.setInt(1, findRevision(connection, responseId));
+			statement.setLong(2, responseId);
+			if (statement.executeUpdate() != 1) throw new SQLException("Survey revision could not be archived.");
+		}
+	}
+
 	private static List<DimensionResult> findEvaluationDimensions(Connection connection, long evaluationId)
 			throws SQLException {
 		List<DimensionResult> dimensions = new ArrayList<>();
@@ -598,7 +690,7 @@ public final class StudentSurveyDao {
 			String evaluationFeedback,
 			Long responseId,
 			String responseStatus,
-			long submissionId) {
+			long submissionId, boolean surveyActive) {
 	}
 
 	private record Response(long responseId, String status) {

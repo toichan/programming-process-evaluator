@@ -2,6 +2,7 @@ package control.evaluation;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -158,6 +159,10 @@ class EvaluationDatabaseTest {
 					"SELECT evaluation_status FROM task_participations WHERE participation_id = ?", participationId));
 			assertEquals(1, count(connection, "SELECT COUNT(*) FROM audit_logs WHERE error_code='worker_interrupted'"));
 			assertEquals(0, count(connection, "SELECT COUNT(*) FROM evaluation_responses"));
+			assertEquals(1, count(connection, """
+					SELECT COUNT(*) FROM student_notifications
+					WHERE student_user_id = ? AND evaluation_id = ? AND notification_type = 'evaluation_failed'
+					""", userId, job.evaluationId()));
 		}
 		assertTrue(EvaluationQueueDao.retryFailedEvaluation(userId, assignmentId, submissionId));
 		assertTrue(new EvaluationWorker(repository, validProvider()).processNext());
@@ -165,6 +170,10 @@ class EvaluationDatabaseTest {
 			assertEquals("failed", text(connection,
 					"SELECT evaluation_status FROM evaluations WHERE evaluation_id = ?", job.evaluationId()));
 			assertEquals(2, count(connection, "SELECT COUNT(*) FROM evaluations"));
+			assertEquals(1, count(connection,
+					"SELECT COUNT(*) FROM student_notifications WHERE notification_type='evaluation_failed'"));
+			assertEquals(1, count(connection,
+					"SELECT COUNT(*) FROM student_notifications WHERE notification_type='evaluation_completed'"));
 		}
 	}
 
@@ -192,7 +201,16 @@ class EvaluationDatabaseTest {
 					"""));
 			assertEquals("unconfirmed", text(connection,
 					"SELECT consent_status_at_request FROM evaluation_requests"));
+			assertEquals(1, count(connection, """
+					SELECT COUNT(*) FROM student_notifications n
+					JOIN evaluations e ON e.evaluation_id = n.evaluation_id
+					WHERE n.student_user_id = ? AND n.notification_type = 'evaluation_completed'
+					  AND n.submission_id = ? AND n.task_class_assignment_id = ? AND n.read_at IS NULL
+					  AND e.submission_id = ?
+					""", userId, submissionId, assignmentId, submissionId));
 			assertFalse(new EvaluationWorker(new EvaluationWorkerDao(), validProvider()).processNext());
+			assertEquals(1, count(connection, "SELECT COUNT(*) FROM student_notifications WHERE student_user_id = ?",
+					userId));
 		}
 	}
 
@@ -216,6 +234,8 @@ class EvaluationDatabaseTest {
 			assertEquals(0, count(connection, "SELECT COUNT(*) FROM evaluation_dimension_results"));
 			assertEquals("failed", text(connection,
 					"SELECT evaluation_status FROM task_participations WHERE participation_id = ?", participationId));
+			assertEquals(1, count(connection,
+					"SELECT COUNT(*) FROM student_notifications WHERE notification_type='evaluation_failed'"));
 		}
 		assertFalse(EvaluationQueueDao.retryFailedEvaluation(userId, assignmentId, submissionId + 1));
 		assertTrue(EvaluationQueueDao.retryFailedEvaluation(userId, assignmentId, submissionId));
@@ -225,6 +245,92 @@ class EvaluationDatabaseTest {
 			assertEquals(1, count(connection, "SELECT COUNT(*) FROM evaluations WHERE evaluation_status = 'failed'"));
 			assertEquals(1, count(connection, "SELECT COUNT(*) FROM evaluations WHERE evaluation_status = 'completed'"));
 			assertEquals(2, count(connection, "SELECT COUNT(*) FROM evaluation_input_snapshots"));
+			assertEquals(1, count(connection,
+					"SELECT COUNT(*) FROM student_notifications WHERE notification_type='evaluation_failed'"));
+			assertEquals(1, count(connection,
+					"SELECT COUNT(*) FROM student_notifications WHERE notification_type='evaluation_completed'"));
+		}
+	}
+
+	@Test
+	void failedNotificationWriteRollsBackWorkerFailure() throws SQLException {
+		assertFailureNotificationRollback(false);
+	}
+
+	@Test
+	void eachExplicitRetryFailureHasItsOwnNotificationAndCompletionDoesNotEraseThem() throws SQLException {
+		var repository = new EvaluationWorkerDao();
+		var initial = repository.claimNext().orElseThrow();
+		repository.fail(initial, "Synthetic first failure", 0);
+		assertTrue(EvaluationQueueDao.retryFailedEvaluation(userId, assignmentId, submissionId));
+		var retry = repository.claimNext().orElseThrow();
+		repository.fail(retry, "Synthetic retry failure", 0);
+		assertThrows(SQLException.class, () -> repository.fail(retry, "Late duplicate", 0));
+		try (Connection c = Client.createConnection()) {
+			assertEquals(2, count(c, "SELECT COUNT(*) FROM student_notifications WHERE notification_type='evaluation_failed'"));
+			assertEquals(2, count(c, "SELECT COUNT(DISTINCT evaluation_id) FROM student_notifications"));
+		}
+		assertTrue(EvaluationQueueDao.retryFailedEvaluation(userId, assignmentId, submissionId));
+		assertTrue(new EvaluationWorker(repository, validProvider()).processNext());
+		try (Connection c = Client.createConnection()) {
+			assertEquals(2, count(c, "SELECT COUNT(*) FROM student_notifications WHERE notification_type='evaluation_failed'"));
+			assertEquals(1, count(c, "SELECT COUNT(*) FROM student_notifications WHERE notification_type='evaluation_completed'"));
+		}
+	}
+
+	@Test
+	void failedNotificationWriteRollsBackInterruptedRecovery() throws SQLException {
+		assertFailureNotificationRollback(true);
+	}
+
+	private void assertFailureNotificationRollback(boolean interrupted) throws SQLException {
+		var repository = new EvaluationWorkerDao();
+		var job = repository.claimNext().orElseThrow();
+		try (Connection connection = Client.createConnection()) {
+			if (interrupted) {
+				update(connection, """
+						UPDATE evaluation_requests SET requested_at=DATE_SUB(CURRENT_TIMESTAMP(6), INTERVAL 16 MINUTE)
+						WHERE evaluation_request_id=?
+						""", job.requestId());
+			}
+			update(connection, """
+					CREATE TRIGGER synthetic_notification_failure BEFORE INSERT ON student_notifications
+					FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Synthetic notification write failure'
+					""");
+			try {
+				if (interrupted) {
+					assertThrows(SQLException.class, repository::claimNext);
+				} else {
+					assertThrows(SQLException.class, () -> repository.fail(job, "Synthetic failure", 0));
+				}
+				assertEquals("in_progress", text(connection, "SELECT evaluation_status FROM evaluations"));
+				assertEquals("in_progress", text(connection, "SELECT request_status FROM evaluation_requests"));
+				assertEquals("in_progress", text(connection, "SELECT evaluation_status FROM task_participations"));
+				assertEquals(0, count(connection, "SELECT COUNT(*) FROM student_notifications"));
+				assertEquals(0, count(connection, "SELECT COUNT(*) FROM audit_logs WHERE action_type='evaluation_failed'"));
+			} finally {
+				update(connection, "DROP TRIGGER synthetic_notification_failure");
+			}
+		}
+	}
+
+	@Test
+	void olderSubmissionFailureDoesNotReplaceCurrentParticipationState() throws SQLException {
+		var repository = new EvaluationWorkerDao();
+		var job = repository.claimNext().orElseThrow();
+		try (Connection connection = Client.createConnection()) {
+			update(connection, """
+					UPDATE task_participations SET draft_base_submission_id=NULL, evaluation_status='not_started'
+					WHERE participation_id=?
+					""", participationId);
+		}
+		repository.fail(job, "Synthetic failure", 0);
+		assertThrows(SQLException.class, () -> repository.fail(job, "Late duplicate", 0));
+		try (Connection connection = Client.createConnection()) {
+			assertEquals("not_started", text(connection, "SELECT evaluation_status FROM task_participations"));
+			assertEquals(submissionId, count(connection, "SELECT submission_id FROM student_notifications"));
+			assertEquals(1, count(connection,
+					"SELECT COUNT(*) FROM student_notifications WHERE notification_type='evaluation_failed'"));
 		}
 	}
 
@@ -278,9 +384,32 @@ class EvaluationDatabaseTest {
 		assertThrows(SQLException.class, () -> repository.complete(job, result));
 		try (Connection connection = Client.createConnection()) {
 			assertEquals("completed", text(connection, "SELECT evaluation_status FROM evaluations"));
+			assertEquals(1, count(connection, "SELECT COUNT(*) FROM student_notifications WHERE student_user_id = ?",
+					userId), "the same completion event must not be notified twice");
 			assertEquals(2, count(connection, "SELECT COUNT(*) FROM evaluation_dimension_results"));
 			assertEquals(2, count(connection, "SELECT COUNT(*) FROM evaluation_reasons"));
 			assertEquals(1, count(connection, "SELECT COUNT(*) FROM evaluation_evidence"));
+		}
+	}
+
+	@Test
+	void failedCompletionRollsBackResultAndNotificationTogether() throws SQLException, EvaluationProviderException {
+		EvaluationWorkerDao repository = new EvaluationWorkerDao();
+		var job = repository.claimNext().orElseThrow();
+		var input = repository.loadAndPersistInput(job);
+		JsonObject result = EvaluationResponseValidator.parseAndValidate(
+				validProvider().extractOutputText(new JsonObject()), input.knownLogIds(), input.knownExecutionIds());
+		try (Connection connection = Client.createConnection()) {
+			update(connection, "UPDATE evaluation_requests SET request_status = 'failed' WHERE evaluation_request_id = ?",
+					job.requestId());
+		}
+		assertThrows(SQLException.class, () -> repository.complete(job, result));
+		try (Connection connection = Client.createConnection()) {
+			assertNotEquals("completed", text(connection,
+					"SELECT evaluation_status FROM evaluations WHERE evaluation_id = ?", job.evaluationId()));
+			assertEquals(0, count(connection, "SELECT COUNT(*) FROM evaluation_dimension_results"));
+			assertEquals(0, count(connection, "SELECT COUNT(*) FROM student_notifications WHERE student_user_id = ?",
+					userId), "a rolled back completion must not leave a notification");
 		}
 	}
 
@@ -400,6 +529,8 @@ class EvaluationDatabaseTest {
 					SELECT evaluation_status FROM evaluations
 					WHERE reevaluation_job_id IS NULL AND submission_id = ?
 					""", submissionId));
+			assertEquals(0, count(connection, "SELECT COUNT(*) FROM student_notifications WHERE student_user_id = ?",
+					userId), "teacher reevaluation completion is not notified to students");
 		}
 	}
 
@@ -481,6 +612,7 @@ class EvaluationDatabaseTest {
 							+ " JOIN evaluations e ON e.evaluation_id = r.evaluation_id WHERE e.submission_id = ?",
 							submissionId);
 				}
+				update(connection, "DELETE FROM student_notifications WHERE submission_id = ?", submissionId);
 				update(connection, """
 						DELETE a FROM audit_logs a JOIN evaluations e
 						ON e.evaluation_id = a.target_id

@@ -55,6 +55,14 @@ public class TeacherExerciseDatabaseTest {
 		try (var c = Client.createConnection()) { before = snapshot(c); }
 		var single = detail.scopes().get(0).entries().stream().filter(e -> e.type() == StudentExerciseEntry.Type.FILE).findFirst().orElseThrow();
 		assertFalse(control.download(teacher,saved.studentId(),saved.classroomId(),single.entryId()).archive());
+		assertFalse(control.selectedDownload(teacher, saved.studentId(), saved.classroomId(),
+				List.of(single.entryId(), single.entryId())).archive());
+		assertThrows(ExerciseNotFoundException.class, () -> control.selectedDownload(teacher, saved.studentId(),
+				saved.classroomId(), List.of(999999L)));
+		assertThrows(ExerciseNotFoundException.class, () -> control.selectedDownload(teacher("ex_outsider"), saved.studentId(),
+				saved.classroomId(), List.of(single.entryId())));
+		assertThrows(SecurityException.class, () -> control.selectedDownload(teacher("ex_denied"), saved.studentId(),
+				saved.classroomId(), List.of(single.entryId())));
 		assertThrows(ExerciseNotFoundException.class, () -> control.download(teacher,saved.studentId(),saved.classroomId(),999999L));
 		var zip = control.download(teacher,saved.studentId(),saved.classroomId(),null);
 		assertEquals(5,zip.entries().size());
