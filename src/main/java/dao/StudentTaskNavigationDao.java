@@ -31,6 +31,12 @@ public final class StudentTaskNavigationDao {
 						var value = results.getBigDecimal("score_value");
 						score = value == null ? "未" : value.stripTrailingZeros().toPlainString();
 					}
+					if (score.matches("[0-9]+(?:\\.[0-9]+)?")) {
+						var numericScore = new java.math.BigDecimal(score);
+						if (numericScore.stripTrailingZeros().scale() <= 0) {
+							score = numericScore.toBigIntegerExact().toString();
+						}
+					}
 					if ("未".equals(score) || score.matches("[0-9]+(?:\\.[0-9]+)?")) {
 						score += "/" + results.getBigDecimal("scale_maximum").stripTrailingZeros().toPlainString();
 					}

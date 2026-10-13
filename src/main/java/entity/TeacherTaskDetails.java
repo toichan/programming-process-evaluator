@@ -19,6 +19,7 @@ public record TeacherTaskDetails(
 		String publicationStatus,
 		String rubricStatus,
 		String promptStatus,
+		boolean promptReadyForPublication,
 		boolean learningStarted,
 		TeacherTaskInput input) {
 
@@ -90,6 +91,10 @@ public record TeacherTaskDetails(
 
 	public String getPromptStatus() {
 		return promptStatus;
+	}
+
+	public boolean isPromptReadyForPublication() {
+		return promptReadyForPublication;
 	}
 
 	public boolean isLearningStarted() {

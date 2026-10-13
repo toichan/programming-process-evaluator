@@ -39,6 +39,10 @@
 		</c:if>
 		<c:if test="${not empty reevaluationJob}">
 			<section class="panel-card mb-4" id="reevaluationJobSection"
+				data-status-url="<c:url value='/teacher/prompt'/>"
+				data-task-id="<c:out value='${teacherPromptTaskId}'/>"
+				data-prompt-version-id="<c:out value='${teacherPromptVersionId}'/>"
+				data-job-id="<c:out value='${reevaluationJob.jobId}'/>"
 				data-job-status="<c:out value='${reevaluationJob.status}'/>">
 				<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
 					<div>
@@ -200,37 +204,6 @@
 				</div>
 			</div>
 
-			<c:if test="${not empty promptPage.selectedTask}">
-				<div class="row g-2 align-items-end mb-3">
-					<div class="col-lg-8">
-						<label for="promptSourceTaskId" class="form-label">同じ学校の適用済みプロンプトをコピー</label>
-						<form id="copyPromptForm" method="post" action="<c:url value='/teacher/prompt'/>">
-							<input type="hidden" name="csrfToken" value="<c:out value='${csrfToken}'/>">
-							<input type="hidden" name="taskId" value="<c:out value='${teacherPromptTaskId}'/>">
-							<input type="hidden" name="promptVersionId" value="<c:out value='${teacherPromptVersionId}'/>">
-							<input type="hidden" name="expectedRowVersion" value="<c:out value='${empty promptVersion ? 0 : promptVersion.rowVersion}'/>">
-							<div class="input-group">
-								<select class="form-select" id="promptSourceTaskId" name="sourceTaskId" required>
-									<option value="">コピー元を選択</option>
-									<c:forEach items="${promptPage.tasks}" var="sourceTask">
-										<c:if test="${sourceTask.taskId != promptPage.selectedTask.taskId
-												and sourceTask.input.schoolId == promptPage.selectedTask.input.schoolId
-												and (sourceTask.promptStatus == 'configured' or sourceTask.promptStatus == 'versioned')}">
-											<option value="<c:out value='${sourceTask.taskId}'/>">
-												<c:out value="${sourceTask.input.title}"/>（<c:out value="${sourceTask.createdByLoginId}"/>）
-											</option>
-										</c:if>
-									</c:forEach>
-								</select>
-								<button class="btn btn-outline-primary" type="submit" name="action" value="copyPromptFromTask"
-									>新しい下書きへコピー</button>
-							</div>
-						</form>
-						<div class="form-text">コピー後はこの課題専用の下書きとして保存されます。元の課題のプロンプトは変更されません。</div>
-					</div>
-				</div>
-			</c:if>
-
 			<c:if test="${empty promptPage.selectedTask}">
 				<div class="empty-state mb-3">担当学校の課題を選択してください。公開済み課題の内容は変更できませんが、評価プロンプトは新しい版として作成できます。</div>
 			</c:if>
@@ -250,10 +223,35 @@
 						value="<c:out value='${teacherPromptAdditionalInstruction}'/>">
 					<div class="mb-3">
 						<label for="evaluationPromptInput" class="form-label">共通プロンプト</label>
+						<div class="form-text mb-2">
+							学校共通の最新バージョン: <strong><c:out value="${teacherPromptLatestCommonPromptVersion}"/></strong>
+							<c:if test="${not empty teacherPromptCommonPromptVersion}">（この課題版の共通プロンプト: <c:out value="${teacherPromptCommonPromptVersion}"/>）</c:if>
+							— 内容を変更して保存すると学校共通の新しい版を作成します。
+						</div>
 						<textarea id="evaluationPromptInput" name="commonPrompt" class="form-control code-editor-input"
 							rows="16" maxlength="120000" placeholder="AI評価用の指示文を入力"
 							<c:if test="${not teacherPromptEditableDraft}">readonly</c:if>><c:out value="${teacherPromptText}"/></textarea>
 					</div>
+					<details class="common-prompt-history mb-3">
+						<summary>学校共通プロンプトの版履歴</summary>
+						<c:choose>
+							<c:when test="${empty promptPage.commonPromptVersions}">
+								<p class="text-secondary mt-2 mb-0">共通プロンプトの版はまだありません。課題プロンプトを初回保存すると作成されます。</p>
+							</c:when>
+							<c:otherwise>
+								<c:forEach items="${promptPage.commonPromptVersions}" var="commonVersion">
+									<details class="common-prompt-history-version">
+										<summary>
+											<c:out value="${commonVersion.version}"/> ・
+											<c:out value="${commonVersion.createdAt}"/> ・
+											<c:out value="${commonVersion.createdByLoginId}"/>
+										</summary>
+										<pre class="common-prompt-history-text"><c:out value="${commonVersion.commonPrompt}"/></pre>
+									</details>
+								</c:forEach>
+							</c:otherwise>
+						</c:choose>
+					</details>
 					<div class="d-flex gap-2 flex-wrap justify-content-center">
 						<button class="btn btn-primary" type="submit" name="action" value="generateFluctuations"
 							<c:if test="${not teacherPromptEditableDraft}">disabled</c:if>>
@@ -268,7 +266,12 @@
 			</c:if>
 		</section>
 
-		<section class="panel-card mb-4" id="fluctuationSection">
+		<section class="panel-card mb-4" id="fluctuationSection"
+			data-status-url="<c:url value='/teacher/prompt'/>"
+			data-task-id="<c:out value='${teacherPromptTaskId}'/>"
+			data-prompt-version-id="<c:out value='${teacherPromptVersionId}'/>"
+			data-generation-status="<c:out value='${promptVersion.fluctuationGenerationStatus}'/>"
+			data-generation-stale="<c:out value='${promptVersion.generationStale}'/>">
 			<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
 				<div>
 					<span class="hero-kicker mb-1 d-inline-block">Step 2</span>
@@ -278,6 +281,16 @@
 					<c:choose><c:when test="${promptVersion.fluctuationGenerationStatus == 'completed'}">生成済み</c:when><c:when test="${promptVersion.fluctuationGenerationStatus == 'in_progress'}">生成中</c:when><c:when test="${promptVersion.fluctuationGenerationStatus == 'failed'}">生成失敗</c:when><c:otherwise>未生成</c:otherwise></c:choose>
 				</span>
 			</div>
+			<c:if test="${promptVersion.fluctuationGenerationStatus == 'in_progress' and not promptVersion.generationStale}">
+				<p id="fluctuationProgress" class="alert alert-info" role="status" aria-live="polite">
+					AIが揺らぎ項目をバックグラウンドで生成しています。完了すると結果を表示します。処理中も他のページを利用できます。
+				</p>
+			</c:if>
+			<c:if test="${promptVersion.fluctuationGenerationStatus == 'in_progress' and promptVersion.generationStale}">
+				<p class="alert alert-warning" role="status">
+					揺らぎ項目の生成が長時間更新されていません。状態を確認し、必要なら再試行してください。
+				</p>
+			</c:if>
 
 			<c:choose>
 				<c:when test="${empty promptPage.selectedTask}">
@@ -345,7 +358,12 @@
 			</c:choose>
 		</section>
 
-		<section class="panel-card mb-4" id="evaluationExamplesSection">
+		<section class="panel-card mb-4" id="evaluationExamplesSection"
+			data-status-url="<c:url value='/teacher/prompt'/>"
+			data-task-id="<c:out value='${teacherPromptTaskId}'/>"
+			data-prompt-version-id="<c:out value='${teacherPromptVersionId}'/>"
+			data-generation-status="<c:out value='${promptVersion.evaluationExamplesStatus}'/>"
+			data-generation-stale="<c:out value='${promptVersion.generationStale}'/>">
 			<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
 				<div>
 					<span class="hero-kicker mb-1 d-inline-block">Step 3</span>
@@ -355,6 +373,16 @@
 					<c:choose><c:when test="${promptVersion.evaluationExamplesStatus == 'completed'}">生成済み</c:when><c:when test="${promptVersion.evaluationExamplesStatus == 'in_progress'}">生成中</c:when><c:when test="${promptVersion.evaluationExamplesStatus == 'failed'}">生成失敗</c:when><c:otherwise>未生成</c:otherwise></c:choose>
 				</span>
 			</div>
+			<c:if test="${promptVersion.evaluationExamplesStatus == 'in_progress' and not promptVersion.generationStale}">
+				<p id="evaluationExamplesProgress" class="alert alert-info" role="status" aria-live="polite">
+					AIが合成評価例をバックグラウンドで生成しています。完了すると結果を表示します。処理中も他のページを利用できます。
+				</p>
+			</c:if>
+			<c:if test="${promptVersion.evaluationExamplesStatus == 'in_progress' and promptVersion.generationStale}">
+				<p class="alert alert-warning" role="status">
+					評価例の生成が長時間更新されていません。状態を確認し、必要なら再試行してください。
+				</p>
+			</c:if>
 			<c:choose>
 				<c:when test="${empty promptVersion.evaluationExamples}">
 					<div class="empty-state">教師対応を完了してから評価例を生成すると、合成データによる結果がここに表示されます。</div>
@@ -395,6 +423,27 @@
 													<p class="reason-body"><c:out value="${result.proactiveAttitudeReason}"/></p>
 												</div>
 											</div>
+											<section class="mt-4" aria-label="合成コード編集ログ">
+												<h3 class="reason-title">本番形式の合成コード編集ログ</h3>
+												<p class="text-secondary">以下はAIが生成した合成記録です。実際にコードを実行した結果ではありません。</p>
+												<c:choose>
+													<c:when test="${empty result.syntheticLogJson}">
+														<p class="text-secondary">この保存済み評価例にはコード編集ログが含まれていません。</p>
+													</c:when>
+													<c:otherwise>
+														<c:forEach items="${result.syntheticLogJson}" var="logJson" varStatus="logStatus">
+															<details class="mb-2">
+																<summary>ログ <c:out value="${logStatus.count}"/></summary>
+																<pre class="mt-2 p-3 bg-light border rounded text-wrap"><code><c:out value="${logJson}"/></code></pre>
+															</details>
+														</c:forEach>
+													</c:otherwise>
+												</c:choose>
+											</section>
+											<details class="mt-3">
+												<summary>本番形式の評価結果JSONをすべて表示</summary>
+												<pre class="mt-2 p-3 bg-light border rounded text-wrap"><code><c:out value="${result.prettyEvaluation}"/></code></pre>
+											</details>
 										</div>
 									</details>
 								</article>
@@ -460,6 +509,10 @@
 
 		<c:if test="${not empty reevaluationPreview}">
 			<section class="panel-card mb-4" id="reevaluationPreviewSection"
+				data-status-url="<c:url value='/teacher/prompt'/>"
+				data-task-id="<c:out value='${teacherPromptTaskId}'/>"
+				data-prompt-version-id="<c:out value='${teacherPromptVersionId}'/>"
+				data-preview-code="<c:out value='${reevaluationPreview.previewCode}'/>"
 				data-preview-status="<c:out value='${reevaluationPreview.status}'/>">
 				<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
 					<div>
@@ -478,6 +531,11 @@
 						</c:choose>
 					</span>
 				</div>
+				<c:if test="${reevaluationJob.status == 'queued' or reevaluationJob.status == 'in_progress'}">
+					<p class="alert alert-info" role="status" aria-live="polite">
+						再評価をバックグラウンドで処理しています。完了後に結果を表示します。
+					</p>
+				</c:if>
 				<p class="text-secondary">
 					参加者 <c:out value="${reevaluationPreview.participantCount}"/> 人、
 					再評価対象 <c:out value="${reevaluationPreview.targetCount}"/> 人。
@@ -550,6 +608,11 @@
 						</tbody>
 					</table>
 				</div>
+				<c:if test="${reevaluationPreview.status == 'generating'}">
+					<p class="alert alert-info" role="status" aria-live="polite">
+						AIが対象者ごとの評価予測をバックグラウンドで生成しています。完了後に結果を表示します。
+					</p>
+				</c:if>
 				<div class="d-flex gap-2 flex-wrap justify-content-center">
 					<c:if test="${reevaluationPreview.status == 'retryable'}">
 						<form method="post" action="<c:url value='/teacher/prompt'/>">
@@ -628,7 +691,7 @@
 												<input type="hidden" name="taskId" value="<c:out value='${teacherPromptTaskId}'/>">
 												<input type="hidden" name="promptVersionId" value="<c:out value='${version.promptVersionId}'/>">
 												<input type="hidden" name="expectedRowVersion" value="<c:out value='${version.rowVersion}'/>">
-												<button class="btn btn-sm btn-outline-secondary" type="submit" name="action" value="duplicateDraft">複製</button>
+												<button class="btn btn-sm btn-outline-secondary" type="submit" name="action" value="duplicateDraft">最新版で新しい下書き</button>
 											</form>
 										</td>
 									</tr>

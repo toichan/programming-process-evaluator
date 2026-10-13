@@ -2,6 +2,83 @@
 
 秘密情報・実際の生徒データ・研究データは記載しない。解消後も履歴を保持する。
 
+### プロンプト版管理仕様と古い画面契約テストの不一致（2026-10-14）
+
+- 対象/手順: エディター、通知、課題編集、共通プロンプト版管理の関連テストを実行。初回 `docker compose run --rm --no-deps -e GRADLE_USER_HOME=/tmp/ppe-gradle-related-ui app gradle test --tests control.student.StudentEditorControlTest --tests entity.StudentEditorPageTest --tests servlet.student.StudentHomeNavigationContractTest --tests servlet.student.StudentNotificationUiContractTest --tests control.teacher.TeacherTaskControlTest --tests control.teacher.TeacherTaskInputValidatorTest --tests servlet.teacher.TeacherTaskServletTest --tests servlet.teacher.TeacherTaskFormTest --tests servlet.teacher.TeacherTaskPromptRevision162ViewTest --no-daemon` は48件中1件失敗した。
+- 期待結果: 課題間の共通プロンプトはコピー用ボタンではなく学校単位の版履歴として管理し、最新版を新しい課題プロンプトの既定値とする。編集、課題固有の適用版、評価履歴は分離する。
+- 実際の事象/検証時エラー: `TeacherTaskPromptRevision162ViewTest` が、現行仕様で廃止された「他課題から下書きへコピー」画面の文字列を期待して失敗（`TeacherTaskPromptRevision162ViewTest.java:46`）。実装画面は学校共通プロンプト版履歴を表示し、コピー操作は提供していなかった。その他47件は成功。
+- 対応/再検証: テストを現行の第172/177版仕様へ更新し、学校共通版履歴/latest既定値とpreview再発見を検証。上記の同じコマンドを再実行しBUILD SUCCESSFUL、全48件成功、失敗/エラー/skip 0。仕様に反してコピーUIを再導入していない。
+- 影響/残件: 製品コードの実行障害ではなく、検証コードに残った旧仕様の期待値。DB・外部API・本番サイト・実利用者データへの操作なし。
+
+### コード配信フォルダ展開アイコンの統一（2026-10-14）
+
+- 対象/手順: コード配信ツリーのトグルは展開用の二重山形SVGを使っていた一方、画面CSSは下向き三角用の専用クラスを定義していたため、演習ツリーの表示と異なっていた。distribution JavaScript/JSPとUI契約テストを更新し、`servlet.teacher.AccountDistributionUiContractTest`を実行した。
+- 期待結果: フォルダの開閉状態に応じて共通の三角アイコンが回転し、ボタンのアクセシブル名と開閉動作を維持する。
+- 実際の事象/検証時エラー: 変更前はJSが`lesson-tree-folder-toggle`と`controlIcon('expand')`を設定しており、当画面のCSSが定義する`distribution-tree-folder-toggle`/三角表示と一致していなかった。対象テスト実行では失敗なし。`git diff --check`は実行済み。
+- 対応/再検証: CSSの既存仕様に合わせて専用クラスと`▾`アイコンを設定し、画面アセット版を171へ更新。展開状態に応じた`is-collapsed`、aria-label、既存イベント処理は維持した。`docker compose run --rm --no-deps -e GRADLE_USER_HOME=/tmp/ppe-gradle-ui-acceptance app gradle test --tests servlet.teacher.AccountDistributionUiContractTest --tests servlet.student.EvaluationPrototypeUiContractTest --tests servlet.teacher.TeacherReviewServletTest --no-daemon` はBUILD SUCCESSFUL。対象15件（各クラス5件）、15 passed、失敗/エラー/skip 0。`git diff --check`も成功。
+- 影響/残件: 配信履歴を含む認証済み画面のブラウザー確認は未実施。外部API・DB更新・プロトタイプ変更はない。
+
+### 教師評価詳細のプロトタイプ外表示を除去（2026-10-14 05:25 JST）
+
+- 対象/手順: 教師評価詳細のプロトタイプと現行JSP/JavaScriptを照合し、総合フィードバック文・process analysis文を表示しないようにし、理由フィルターを全件/2観点に固定した。`servlet.student.EvaluationPrototypeUiContractTest`と`servlet.teacher.TeacherReviewServletTest`を実行した。
+- 期待結果: 実データの2観点・観点別スコア・理由・根拠を保持し、プロトタイプにない文章と「その他」理由フィルターを表示しない。
+- 実際の事象/検証時エラー: 初回コンパイル/テスト失敗なし。GradleはBUILD SUCCESSFUL、対象10件（5+5）全て成功、失敗/エラー/skip 0。`git diff --check`も成功。
+- 対応/再検証: JSPから`feedbackSummary`/`processAnalysis`表示先を除き、JavaScriptの表示更新を削除。理由フィルターは「すべて」「思考・判断・表現」「態度」の3項目に限定。プロトタイプ側は変更していない。DB/API/外部AIは使用していない。
+- 影響/残件: 認証済み教師browserでの画面受入は未実施。既存8080アプリのstudent browserをhomeへ移動した際、sessionが失効してログイン画面へredirectされたため、UI表示を成功扱いしない。
+
+### 生徒アンケート評価提示の範囲調整（2026-10-14 05:09 JST）
+
+- 対象/手順: アンケート画面の「システムが出した評価」をプロトタイプと照合し、評価表示から余分な評価全体フィードバック文を除外。設問3・4の表示ラベルとDB保存値の分離を確認するため、StudentSurveyOptionLabelTest、StudentSurveyUiContractTest、関連するprompt/distribution UI・制御テストをGradleで実行した。
+- 期待結果: 評価カードには当該評価の2観点の実スコア・観点別説明だけを表示し、設問3・4はDBの選択値を維持してプロトタイプ文言を表示する。テストが全てコンパイル・成功する。
+- 実際の事象/検証時エラー: 初回`compileTestJava`で、UI契約テストに追加した`assertFalse`のstatic importがなくコンパイルに失敗した。製品コードの失敗やDB/APIエラーではない。
+- 対応/再検証: `StudentSurveyUiContractTest`へstatic importを追加。`docker compose run --rm --no-deps -e GRADLE_USER_HOME=/tmp/ppe-gradle-prompt-queue app gradle test --tests entity.StudentSurveyOptionLabelTest --tests servlet.student.StudentSurveyUiContractTest --tests servlet.student.SurveyFourStepRuntimeTest --tests control.teacher.TeacherPromptAiClientTest --tests control.teacher.TeacherPromptGenerationQueueTest --tests entity.TeacherPromptVersionTest --tests servlet.teacher.TeacherPromptServletTest --tests servlet.teacher.AccountDistributionUiContractTest --tests control.teacher.TeacherDistributionDatabaseTest --no-daemon`はBUILD SUCCESSFUL。対象31件のうち28 passed、0 failed、0 errors、3 skipped。skipはSurveyFourStepRuntimeTest 1件と、専用DB設定がないためTeacherDistributionDatabaseTest 2件。`git diff --check`も成功した。
+- 影響/残件: 実DBのアンケート選択肢・回答履歴は変更していない。認証ブラウザーでの画面受入とDB付きdistributionテストは未実施。初回コンパイル失敗は修正済みで、ブラウザー確認を成功扱いしない。
+
+### プロンプト設計の本番形式合成評価例（2026-10-14 02:01 JST）
+
+- 対象/手順: 合成評価例のログ・評価スキーマ変更に対し、`docker compose run --rm --no-deps -e GRADLE_USER_HOME=/tmp/ppe-gradle-prompt-examples app gradle test --tests control.teacher.TeacherPromptAiClientTest --tests entity.TeacherPromptVersionTest --no-daemon`を実行。外部AI・実利用者データ・本番サイトは使用していない。
+- 期待結果: 本番評価入力と同じコード編集ログと評価応答を含む合成例がコンパイルされ、対象テストを通過する。
+- 実際の事象/検証時エラー: 1回目は `TeacherPromptControl.java` でメソッド宣言が別メソッド内に入った既存作業ツリーの構文不整合によりcompileJavaが失敗。配置を修正した2回目は `TeacherPromptServlet.java` がJavaBeans getterをrecord accessorとして呼び出しており、2つのメソッドを解決できずcompileJavaが失敗した。
+- 対応/再検証: `copyPromptFromTask` と `duplicatePromptToLatestDraft` を同じクラス階層の独立メソッドに戻し、Servletを既存JavaBeans getter呼び出しに修正。上記の同じGradleコマンドを再実行し、compileJava/compileTestJavaを含めBUILD SUCCESSFUL、対象2テストクラス成功、失敗0で完了した。関連コードは検証可能なローカルソースのみ変更した。
+- 影響/残件: 最初の2回はいずれもビルド前のコンパイル失敗であり、DB変更・外部API呼び出しはない。今回変更した合成ログ・評価スキーマのDB永続化とブラウザー表示は未検証。IDE診断上のGson解決表示はGradle成功と区別し、IDE設定は変更していない。
+- 非同期キュー追加後の再検証: `docker compose run --rm --no-deps -e GRADLE_USER_HOME=/tmp/ppe-gradle-prompt-queue app gradle test --tests control.teacher.TeacherPromptAiClientTest --tests control.teacher.TeacherPromptGenerationQueueTest --tests entity.TeacherPromptVersionTest --tests servlet.teacher.TeacherPromptServletTest --no-daemon` はBUILD SUCCESSFUL。15 passed、0 failed、0 skipped。キューが呼出し元とは別スレッドで処理すること、状態APIの必須パラメーター拒否、本番形式評価JSON/ログの生成と表示を確認。DB・外部API・ブラウザー受入は未実施。
+
+### 工程20 授業演習フォルダ行操作のbrowser受入（2026-10-13 23:25 JST）
+
+- 対象/手順: ローカル8080の認証済み生徒画面で、合成演習`exerciseId=17`、フォルダ`entryId=47`を使用。最初に`http://localhost:8080/student/exercise?exerciseId=17`を開いたところログイン画面へredirectされたため、認証済みタブと同じ`student.localhost` hostで再確認した。
+- 期待結果: フォルダ名ボタンとフォルダ行の空き領域から展開・折りたたみでき、既存の選択/path表示を保つ。対話部品の操作では行開閉を発生させない。
+- 実際の事象/検証時エラー: `node --check src/main/webapp/js/student/exercise/exercise.js`はexit 127（`node: command not found`）。通常の`clickElement`は10秒でlocatorのstable待ちがtimeoutし、`scrollIntoViewIfNeeded`も約10秒でstable待ちがtimeoutした。要素をスクロールした後の`page.mouse.click`とforce locator clickでも状態変化を確認できず、原因は特定できていない。
+- 対応/再検証: JavaScript/JSPのProblems診断はエラー0件、`git diff --check`はexit 0。認証済みbrowser上でfolder-name buttonのclick event dispatch後に`aria-expanded=true`、当該folder path選択、`main.py`表示を確認。folder headerへのdispatchでは`aria-expanded=false`。三角toggleへのdispatchでも`true`/`false`を確認した。checkbox/menu領域へのdispatchではフォルダは開閉せず、試験中の選択件数は0件へ戻した。これらはイベントハンドラと再描画の動作確認であり、通常ポインター操作の受入とは区別する。コードは行開閉を共通化し、ボタン/入力/リンク/メニュー内のクリックは行ハンドラで除外した。確認中のDB/演習データ変更はない。
+- 影響/残件: 実ブラウザーの通常ポインター操作は未確認。`node --check`は実行環境にNode.jsが見つからず未実施だが、ブラウザー実行とエディター診断で構文・動作を確認した。工程20の受入完了とは扱わない。
+
+### 工程20 生徒エディター提出前チェックの再確認（2026-10-13 22:54 JST）
+
+- 対象/手順: ローカル8080の合成課題 `assignmentId=17` を再読込し、提出前チェックを再実行した。通常のブラウザークリックとPlaywright locator clickは各10秒でタイムアウトしたため、locatorのclickイベントをdispatchしてから25秒待機した。最終提出ボタンは押していない。
+- 期待結果: `input(prompt)`のpromptだけを比較出力から除外し、登録済み2ケースの実出力を正しく比較する。ページ再読込後の空の実行ターミナルが本画面の不具合に該当するかも、仕様・計画と照合する。
+- 実際の事象/検証時エラー: 通常clickと強制clickはブラウザーツール上で完了せず、結果モーダルも表示されなかった。locator clickイベントをdispatchした確認では、モーダルに `2/2 件一致`、実出力 `6` / `8` が表示された。再読込直後の実行ターミナルは「まだ実行していません。」だった。
+- 影響/原因: clickツールのタイムアウト原因は未特定であり、この追試だけでは通常のポインター操作を受け入れた証拠にしない。提出前チェックは成功し、最終提出・下書き更新は行っていない。提出前チェックはControl上でrunner実行のみを行い、この操作からDBへ提出・実行履歴を記録しない。確認した範囲でDB状態変更はない。
+- 対応/再確認: 機能仕様は課題エディターの実行結果を「次の実行まで保持」と定め、再読込時の下書き復元は明記する一方、最新実行結果の再読込復元は求めていない。実装計画のDB再読込条件も保存内容・ログ・提出版・テスト結果であり、実行結果は対象に含めていない。授業演習のファイル切替時に結果を維持する別要件を課題エディターへ適用せず、再読込後の空表示はこの受入範囲では不具合と判定しない。コード変更なし。
+- 残件: browser locatorの通常clickを使った再確認、および工程20の他の未確認ブラウザー項目は未完了。最終提出は未実施。
+
+### Rev.171 提出前Python入力プロンプト比較の修正・検証（2026-10-13 22:20 JST）
+
+- 対象/手順: ローカルソースのPython runnerと生徒エディター提出前チェック。合成入力/コードだけでrunner単体・HTTP契約・Java Control・認証済みローカルbrowserを検証した。生徒の提出確定、外部AI、本番サイトは使用していない。
+- 期待結果: 提出前チェックだけ`input(prompt)`のprompt文字列を比較用stdoutから除外し、stdinと明示的なプログラム出力は維持する。通常実行と対話実行は従来どおりpromptを表示する。
+- 実際の事象/検証時エラー:
+  - 初回`/Users/t.toida/programming-process-evaluator/.venv/bin/python -m unittest -v test_runner.py`はexit 1。リポジトリrootからのmodule指定で`test_runner`をimportできなかった。
+  - ホストの`gradle test --tests control.student.StudentEditorControlTest --no-daemon`はexit 1。共有`~/.gradle/caches/journal-1`のlock timeoutでbuild開始前に終了（所有PID不明）。
+  - 分離Gradle user homeでのホスト再試行はexit 1。プロジェクト要求のJDK 21がホストに存在せず、toolchain downloadも未設定。
+  - `docker compose run --rm --no-deps app gradle test --tests control.student.StudentEditorControlTest --no-daemon`はexit 1。共有`gradle-cache` journal lock（owner PID 350、operation unknown）により開始できず、owner processは特定していない。
+  - 対象コンテナ確認用の最初の`docker inspect --format`はexit 64。Docker Go templateに`hasPrefix`関数がなく、再実行では選択項目だけを`jq`で抽出した。
+- 影響/原因: 最初の失敗はテストコマンドのmodule指定または共有Gradle cache/JDK環境の制約で、実装不具合を示すものではない。誤ったmodule指定はファイル直接実行に直し、Gradleは既存cacheを変更せず一時user homeを使って再実行した。
+- 対応/再検証:
+  - `/Users/t.toida/programming-process-evaluator/.venv/bin/python containers/python-runner/test_runner.py` — exit 0、24 passed。通常実行でpromptが表示されること、提出前モードではpromptのみ抑制され明示print出力を保つこと、HTTP endpointがboolean optionを既定falseで転送し不正型をHTTP 400で拒否することを確認。
+  - `docker compose run --rm --no-deps -e GRADLE_USER_HOME=/tmp/ppe-gradle-editor-check app gradle test --tests control.student.StudentEditorControlTest --no-daemon` — exit 0、1 passed、0 failed、0 skipped。main/test sourceのcompileも成功。
+  - 対象はCompose project `programming-process-evaluator`の`app-live`、bind port `127.0.0.1:8080`、DB target `db/programming_process_evaluator`、source mount `/Users/t.toida/programming-process-evaluator`、runner URL `http://python-runner:8090`と確認した。対象runnerだけ再build/recreateしhealthyを確認、source bind mount付き`app-live`だけrestartして生徒login URLがHTTP 200になることを確認した。本番やDB service/volumeは変更していない。
+  - 再起動後のブラウザーは一度ログインへredirectされた。ユーザーが合成生徒として再ログインした後、assignment 17の提出前チェックでHTTP応答結果のモーダルに`2/2件一致`（`6`/`8`）を確認し、モーダル内の最終「提出する」は押していない。
+  - 通常対話実行でもprompt「入力してください」と入力echo `>>> 1 2 3`、出力`6`を確認した。最初の試行は30秒入力待ちの間に送信操作が間に合わず`input_timeout`となり、再試行ではEnter送信で完了。両実行のexecution logは合成デモDBへ記録されたが、下書き保存・提出状態は変更していない。
+- 残件: 以前の409の更新者・厳密な発生時系列は引き続き未特定。今回の現行版での提出前チェックは成功し、最終提出をしていない。
+
 ### Rev.170 配信履歴レイアウト・教師画面受入（2026-10-13）
 
 - 対象/手順: ローカル8080の認証済み教師画面で配信履歴詳細を開き、操作履歴表の通常幅/狭幅を確認。プロンプト画面のボタン導線も確認し、UI契約テストとWARを実行した。
@@ -25,7 +102,19 @@
   - `GRADLE_USER_HOME='/Users/t.toida/programming-process-evaluator/.gradle-rev170-final' JAVA_HOME='/Users/t.toida/.jdk/jdk-21.0.10(1)/jdk-21.0.10+7/Contents/Home' gradle --no-daemon test --tests control.student.StudentEditorControlTest --tests control.student.StudentNotificationControlTest --tests servlet.student.StudentNotificationServletTest --tests servlet.student.StudentNotificationUiContractTest --tests servlet.student.StudentSurveyUiContractTest --tests servlet.student.EvaluationPrototypeUiContractTest`はexit 0、48 passed、0 failed、0 skipped。
   - 未解決: この合成課題に対する提出前チェックのブラウザー受入。関連ロジックの自動テストは成功しているが、HTTP 409の原因特定と修復後の再検証は未実施。
 
-### Rev.170 editor I/O・通知受入のGradle検証（2026-10-13 18:50 JST）
+  ### Rev.170 提出前チェック再調査と入力プロンプトの出力混入（2026-10-13 21:24 JST）
+
+  - 対象/手順: ローカル8080の生徒向け合成課題`assignmentId=17`を認証ブラウザーで確認。元ページの提出前チェック409の調査として、再読込後に更新時刻・コードのdirty状態を読み取り、提出確定はせず「提出する」ボタンからチェックだけを実行した。
+  - 期待結果: 読み込んだ現行コードと下書き更新時刻が一致する場合はチェックが実行され、登録済み2ケース（入力`1 2 3`/`10 -2`、出力`6`/`8`）が一致する。
+  - 実際の事象:
+    - 元のブラウザーページでは`draftUpdatedAt`が空で、コード長61の`input().split()`版が読み込まれていた。再読込後の保存済み状態は`draftUpdatedAt=2026-10-13T12:20:24.362889`（JST 21:20:24）で、コード長71の`input("入力してください")`版だった。この差は古いエディター状態と新しい保存済み状態の競合と整合するが、更新したタブ/利用者および元の409発生時との正確な時系列は特定できていない。
+    - 再読込後のチェックPOSTはHTTP 200、JSON応答、2ケース実行だったが、2ケースとも不一致。実際の標準出力は`入力してください6\n`/`入力してください8\n`で、期待出力`6`/`8`と一致しなかった。入力値自体が標準出力へ追記されたのではなく、Python `input(prompt)`のprompt文字列が標準出力へ出力されていた。
+    - 最終提出確認ボタンは押していない。下書き保存・提出確定・外部API呼び出しは行っていない。課題とコードは合成デモデータ。
+    - セッション失効中の確認ではcheck POSTがHTTP 302となった。ブラウザーの`URLSearchParams`を使った補助採取スクリプトは実行環境で`ReferenceError`になったが、後続の採取でstatus 302を確認。再ログイン後のGETはHTTP 200で、改めて行ったチェックは上記HTTP 200だった。これは認証セッション/採取スクリプトの事象で、現行チェックのJSON応答とは区別する。
+  - 影響/原因: 楽観ロックは画面上のコードまたは更新時刻とDBの現行値が一致しない場合に409を返す実装であり、古い画面と後続更新が競合すれば想定された拒否になる。元の409の個別更新者は未特定。別途、現在の自動入出力チェックは`input(prompt)`のpromptを標準出力に含めるため、仕様でpromptを除外すべきかの合意が必要。
+  - 対応/再検証: 409の再現目的で同じ古い画面の操作を繰り返さず、再読込後の更新時刻/コードとチェックPOSTのstatus・結果を採取した。出力期待値との不一致を確認したが、実装変更・再検証は未実施。方針確認後、テスト時のみ`input()` promptを除外し、通常実行時のprompt表示は維持する案を検討する。
+
+  ### Rev.170 editor I/O・通知受入のGradle検証（2026-10-13 18:50 JST）
 
 - 対象/手順: editor input/output separation と、削除・閲覧不可課題の生徒通知クリックに関する限定テストを実行した。
 - 期待結果: focused Java tests compileし、標準入力が標準出力へ混入しないこと、利用不可の課題通知が同一の安全な結果を返して既読になることを確認する。

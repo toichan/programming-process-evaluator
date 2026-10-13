@@ -73,6 +73,14 @@ class EvaluationPrototypeUiContractTest {
 		}
 		assertTrue(script.contains("dimension.scoreText?.trim()"));
 		assertTrue(script.contains("dimension.score"));
+		assertFalse(jsp.contains("id=\"feedbackSummary\""));
+		assertFalse(jsp.contains("id=\"processAnalysis\""));
+		assertFalse(script.contains("set('feedbackSummary'"));
+		assertFalse(script.contains("set('processAnalysis'"));
+		assertTrue(script.contains("['', 'すべて']"));
+		assertTrue(script.contains("['思考力・判断力・表現力', '思考・判断・表現']"));
+		assertTrue(script.contains("['主体的に学習に取り組む態度', '態度']"));
+		assertFalse(script.contains("categories.set(reason.dimensionLabel"));
 		assertTrue(script.contains("function diffLines(previous, current)"));
 		assertTrue(script.contains("line.append(node('span', number == null ? '' : number, 'line-number')"));
 		assertTrue(script.contains("aria-pressed"));

@@ -33,9 +33,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
   function initializeCodeEditor(textarea, mode) {
     if (!textarea || typeof window.CodeMirror === 'undefined') return null;
+    const isHintCode = textarea.classList.contains('hint-code');
+    const isTestCode = textarea.classList.contains('test-case-io');
     const editor = window.CodeMirror.fromTextArea(textarea, {
       mode: mode,
-      lineNumbers: mode === 'python',
+      lineNumbers: mode === 'python' && !isHintCode && !isTestCode,
       lineWrapping: true,
       theme: 'material-darker',
       indentUnit: 4,
@@ -43,6 +45,8 @@ document.addEventListener('DOMContentLoaded', function() {
       viewportMargin: Infinity
     });
     editor.getWrapperElement().classList.add('task-form-code-mirror', mode === 'python' ? 'is-python' : 'is-shell');
+    if (isHintCode) editor.getWrapperElement().classList.add('is-hint-example');
+    if (isTestCode) editor.getWrapperElement().classList.add('is-test-case');
     editor.on('change', function() {
       textarea.value = editor.getValue();
       updatePreview();
@@ -388,16 +392,19 @@ document.addEventListener('DOMContentLoaded', function() {
       const card = document.createElement('div');
       card.className = 'hint-card';
       const title = document.createElement('div');
-      title.className = 'info-label';
+      title.className = 'hint-title-label';
       title.textContent = row.querySelector('[name="hintTitles"]').value || '未設定';
       const description = document.createElement('p');
       description.textContent = row.querySelector('[name="hintContents"]').value || 'ヒント内容未設定';
       card.append(title, description);
       const codeValue = row.querySelector('[name="hintCodes"]').value;
       if (codeValue) {
-        const code = document.createElement('pre');
-        code.textContent = codeValue;
+        const code = document.createElement('textarea');
+        code.className = 'hint-code hint-code-preview';
+        code.value = codeValue;
         card.append(code);
+        const editor = initializeCodeEditor(code, 'python');
+        if (editor) editor.setOption('readOnly', true);
       }
       container.append(card);
     });
@@ -506,6 +513,9 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   document.querySelectorAll('#testCaseList .test-case-io').forEach(function(textarea) {
     initializeCodeEditor(textarea, 'shell');
+  });
+  document.querySelectorAll('#hintList .hint-code').forEach(function(textarea) {
+    initializeCodeEditor(textarea, 'python');
   });
   if (formTaskId === 0 && !document.querySelector('#testCaseList .test-case-row')) {
     addTestCaseRow();

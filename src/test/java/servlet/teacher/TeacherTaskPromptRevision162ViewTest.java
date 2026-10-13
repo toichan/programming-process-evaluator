@@ -38,15 +38,16 @@ class TeacherTaskPromptRevision162ViewTest {
 	}
 
 	@Test
-	void promptSourcesAreCopiedToNewTaskSpecificDraftsAndPreviewsCanBeRediscovered() throws Exception {
+	void schoolCommonPromptVersionsAreSharedWhilePreviewsCanBeRediscovered() throws Exception {
 		String promptView = read("WEB-INF/teacher/prompt/prompt.jsp");
 		String promptScript = read("js/teacher/prompt/prompt.js");
 		String servlet = Files.readString(Path.of("src/main/java/servlet/teacher/TeacherPromptServlet.java"));
 
-		assertTrue(promptView.contains("value=\"copyPromptFromTask\""));
-		assertTrue(promptView.contains("sourceTask.input.schoolId == promptPage.selectedTask.input.schoolId"));
-		assertTrue(promptView.contains("新しい下書きへコピー"));
+		assertTrue(promptView.contains("学校共通プロンプトの版履歴"));
+		assertTrue(promptView.contains("promptPage.commonPromptVersions"));
+		assertFalse(promptView.contains("value=\"copyPromptFromTask\""));
 		assertTrue(promptScript.contains("syncDraftFieldsTo(form)"));
+		assertTrue(servlet.contains("page.commonPromptVersions().get(0).commonPrompt()"));
 		assertTrue(servlet.contains("findOpenPreviewCode(user, taskId)"));
 	}
 

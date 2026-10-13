@@ -265,7 +265,7 @@ public final class StudentEditorControl {
 
 		List<EditorSubmissionCheckCase> results = new ArrayList<>();
 		for (EditorTestCase testCase : page.getTestCases()) {
-			var timed = runnerClient.executeTimed(sourceCode, testCase.getInput());
+			var timed = runnerClient.executeTimedForSubmissionCheck(sourceCode, testCase.getInput());
 			PythonExecutionResult execution = timed.result();
 			int duration = timed.durationMilliseconds();
 			String resultStatus = "error";

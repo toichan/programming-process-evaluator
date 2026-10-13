@@ -1,5 +1,6 @@
 package servlet.student;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Files;
@@ -49,6 +50,7 @@ class StudentSurveyUiContractTest {
 		assertTrue(survey.contains("items=\"${surveyPage.evaluationDimensions}\""));
 		assertTrue(survey.contains("${dimension.summaryDescription}"));
 		assertTrue(survey.contains("${dimension.scoreText}"));
+		assertFalse(survey.contains("${surveyPage.evaluationFeedback}"));
 		assertTrue(survey.contains(">評価を確認する</a>"));
 		assertTrue(survey.contains(">ログを確認する</a>"));
 		assertTrue(home.contains("<c:url value='/student/survey'>"));

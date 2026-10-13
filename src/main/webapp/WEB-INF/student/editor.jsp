@@ -274,7 +274,7 @@
 							<c:otherwise>
 								<c:forEach var="hint" items="${editorPage.hints}">
 									<div class="hint-card">
-										<div class="info-label"><c:out value="${hint.title}"/></div>
+										<div class="info-label hint-title-label"><c:out value="${hint.title}"/></div>
 										<p><c:out value="${hint.content}"/></p>
 										<c:if test="${not empty hint.code}">
 											<textarea class="hint-code-source" spellcheck="false"><c:out value="${hint.code}"/></textarea>

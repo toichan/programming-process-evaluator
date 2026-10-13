@@ -26,14 +26,15 @@ import entity.UserCredential.UserType;
 class StudentEditorControlTest {
 	private static final AuthenticatedUser STUDENT =
 			new AuthenticatedUser(5, "synthetic-student", "synthetic", UserType.STUDENT, false, "test");
-	private static final String SOURCE = "print(input('入力してください>'))";
+	private static final String SOURCE =
+			"value = input('入力してください>'); print(value) if value else None";
 	private static final String INPUT = "パー\n";
 
 	@Test
 	void submissionCheckKeepsInteractiveInputSeparateFromProgramOutput() throws Exception {
 		var testCases = List.of(
-				new EditorTestCase(1, "prompt only", INPUT, "入力してください>", 1),
-				new EditorTestCase(2, "program prints input", INPUT, "入力してください>パー", 2));
+				new EditorTestCase(1, "prompt only", "\n", "", 1),
+				new EditorTestCase(2, "program prints input", INPUT, "パー", 2));
 		LocalDateTime updatedAt = LocalDateTime.of(2026, 10, 13, 10, 15);
 		var page = new StudentEditorPage(
 				31, 41, 51, "課題", null, "beginner", "説明", null, null, null, SOURCE,
@@ -48,7 +49,7 @@ class StudentEditorControlTest {
 			try {
 				requestBodies.add(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
 				int call = calls.getAndIncrement();
-				String output = call == 0 ? "入力してください>" : "入力してください>パー";
+				String output = call == 0 ? "" : "パー";
 				byte[] body = ("{\"status\":\"succeeded\",\"exitCode\":0,\"standardOutput\":\""
 						+ output + "\",\"standardError\":\"\"}").getBytes(StandardCharsets.UTF_8);
 				exchange.sendResponseHeaders(200, body.length);
@@ -70,21 +71,22 @@ class StudentEditorControlTest {
 
 			assertNull(handlerFailure.get());
 			assertEquals(2, requestBodies.size());
-			for (String body : requestBodies) {
-				var request = JsonParser.parseString(body).getAsJsonObject();
-				assertEquals(INPUT, request.get("standardInput").getAsString());
+			for (int index = 0; index < requestBodies.size(); index++) {
+				var request = JsonParser.parseString(requestBodies.get(index)).getAsJsonObject();
+				assertEquals(index == 0 ? "\n" : INPUT, request.get("standardInput").getAsString());
 				assertEquals(SOURCE, request.get("source").getAsString());
+				assertTrue(request.get("suppressInputPrompt").getAsBoolean());
 			}
 
 			assertEquals(2, check.getResults().size());
-			assertEquals(INPUT, check.getResults().get(0).getInput());
-			assertEquals("入力してください>", check.getResults().get(0).getActualOutput());
+			assertEquals("\n", check.getResults().get(0).getInput());
+			assertEquals("", check.getResults().get(0).getActualOutput());
 			assertTrue(check.getResults().get(0).isPassed(),
-					"stdin must not be appended to stdout when the program only emits a prompt");
+					"the input prompt must not be compared as program output");
 			assertEquals(INPUT, check.getResults().get(1).getInput());
-			assertEquals("入力してください>パー", check.getResults().get(1).getActualOutput());
+			assertEquals("パー", check.getResults().get(1).getActualOutput());
 			assertTrue(check.getResults().get(1).isPassed(),
-					"stdout that explicitly includes the typed value remains program output");
+					"explicit output that includes the typed value remains program output");
 		} finally {
 			server.stop(0);
 		}

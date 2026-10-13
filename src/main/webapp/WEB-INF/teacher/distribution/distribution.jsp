@@ -6,7 +6,7 @@
 <c:set var="screenBodyClass" value="teacher-distribution-screen"/>
 <c:set var="screenStylesheet" value="/css/teacher/distribution/distribution.css"/>
 <c:set var="screenScript" value="/js/teacher/distribution/distribution.js"/>
-<c:set var="screenAssetVersion" value="170"/>
+<c:set var="screenAssetVersion" value="171"/>
 <c:set var="screenUsesCodeMirror" value="true"/>
 <c:set var="screenUsesCodeEditor" value="true"/>
 <c:set var="initialDistributionItems" value="[]"/>

@@ -98,9 +98,14 @@
 
 		<c:choose>
 			<c:when test="${evaluationPage.evaluationStatus == 'in_progress'}">
-				<div class="alert alert-info" role="status">
-					現在この提出版を評価しています。評価が完了すると、この画面に結果が表示されます。
-				</div>
+				<section class="sample-section evaluation-waiting-card mb-4" aria-labelledby="evaluationWaitingHeading">
+					<div class="waiting-indicator" aria-hidden="true"><span></span><span></span><span></span></div>
+					<div>
+						<h2 class="h5 mb-2" id="evaluationWaitingHeading">AIがコードを評価しています</h2>
+						<p class="mb-2">評価に時間がかかる場合があります。評価中に別のページへ移動できます。完了後はお知らせでご案内します。</p>
+						<a class="btn btn-outline-primary btn-sm" href="<c:url value='/student/home'/>">ホームへ戻る</a>
+					</div>
+				</section>
 				<c:if test="${evaluationPage.showingPreviousCompletedEvaluation}">
 					<section class="sample-section overview-section mb-4">
 						<h2 class="card-title mb-2">前回提出分の評価</h2>
@@ -316,13 +321,14 @@
 					<p class="text-muted mb-0">提出履歴はありません。</p>
 				</c:when>
 				<c:otherwise>
-					<div class="list-group">
+					<div class="submission-history-list">
 						<c:forEach var="submission" items="${evaluationPage.submissions}">
-							<a class="list-group-item list-group-item-action d-flex flex-wrap justify-content-between gap-2 ${submission.selected ? 'active' : ''}"
+							<a class="submission-history-item ${submission.selected ? 'is-active' : ''}"
 								href="<c:url value='/student/evaluation'><c:param name='assignmentId' value='${evaluationPage.assignmentId}'/><c:param name='submissionId' value='${submission.submissionId}'/></c:url>"
 								<c:if test="${submission.selected}">aria-current="page"</c:if>>
-								<span>提出版 v<c:out value="${submission.revisionNumber}"/> / <c:out value="${submission.submittedAtDisplay}"/></span>
-								<span><c:out value="${submission.evaluationStatusLabel}"/></span>
+								<span class="submission-history-main">提出版 v<c:out value="${submission.revisionNumber}"/>
+									<time><c:out value="${submission.submittedAtDisplay}"/></time></span>
+								<span class="submission-history-status"><c:out value="${submission.evaluationStatusLabel}"/></span>
 							</a>
 						</c:forEach>
 					</div>

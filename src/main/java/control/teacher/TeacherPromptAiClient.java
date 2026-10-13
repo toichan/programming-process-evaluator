@@ -78,8 +78,14 @@ public final class TeacherPromptAiClient {
 				modelId,
 				"あなたは評価ルールの確認用シミュレーターです。入力された架空シナリオごとに課題に沿う"
 						+ "合成コード例を作成して採点してください。実在の生徒データを使わず、コードを実行したと"
-						+ "主張せず、テスト結果は課題仕様から推定した内容と明記してください。入力のsample_idを"
-						+ "そのまま使い、指定JSONだけを返してください。",
+						+ "主張せず、テスト結果は課題仕様から推定した内容と明記してください。"
+						+ "各例に本番の評価入力と同じ形式のsynthetic_logsを複数作成し、各ログにlog_id、"
+						+ "event_type、observed_at、snapshotを含めてください。少なくとも1件は実行記録として"
+						+ "execution_id、execution_status、error_type、standard_input、standard_output、"
+						+ "standard_errorを含めてください。これらは合成された記録であり実際の実行結果ではありません。"
+						+ "evaluationには本番AI評価と同じscores、reasons、process_analysis、confidence、"
+						+ "evidence_refs、warningsをすべて含め、評価根拠のlog_idはsynthetic_logs内のIDを参照してください。"
+						+ "入力のsample_idをそのまま使い、指定JSONだけを返してください。",
 				input,
 				exampleSchema(),
 				output -> {
@@ -186,27 +192,16 @@ public final class TeacherPromptAiClient {
 			}
 			JsonObject result = element.getAsJsonObject();
 			String sampleId = requiredText(result, "sample_id", 40);
-			if (!actualIds.add(sampleId) || !result.has("scores") || !result.has("reasons")
-					|| !result.get("scores").isJsonObject() || !result.get("reasons").isJsonObject()) {
+			if (!actualIds.add(sampleId) || !result.has("synthetic_logs")
+					|| !result.get("synthetic_logs").isJsonArray() || !result.has("evaluation")
+					|| !result.get("evaluation").isJsonObject()) {
 				throw new IllegalArgumentException("AI returned an invalid simulated result.");
 			}
 			requiredText(result, "synthetic_code", 12_000);
 			requiredText(result, "scenario", 1_000);
 			requiredText(result, "predicted_testcase_result", 2_000);
-			JsonObject scores = result.getAsJsonObject("scores");
-			for (String key : List.of("thinking_expression_level", "proactive_attitude_level")) {
-				if (!scores.has(key) || !scores.get(key).isJsonPrimitive()
-						|| !scores.getAsJsonPrimitive(key).isNumber()) {
-					throw new IllegalArgumentException("AI returned a missing score.");
-				}
-				int score = scores.get(key).getAsInt();
-				if (score < 1 || score > 5 || scores.get(key).getAsDouble() != score) {
-					throw new IllegalArgumentException("AI returned a score outside the rubric scale.");
-				}
-			}
-			JsonObject reasons = result.getAsJsonObject("reasons");
-			requiredText(reasons, "thinking_expression_reason", 1000);
-			requiredText(reasons, "proactive_attitude_reason", 1000);
+			SyntheticEvidenceIds evidenceIds = validateSyntheticLogs(result.getAsJsonArray("synthetic_logs"));
+			validateProductionEvaluation(result.getAsJsonObject("evaluation"), evidenceIds);
 		}
 		if (!actualIds.equals(expectedIds)) {
 			throw new IllegalArgumentException("AI returned results for unexpected synthetic samples.");
@@ -215,17 +210,166 @@ public final class TeacherPromptAiClient {
 		validateTextArray(output.getAsJsonArray("pre_reeval_checklist"), 20);
 	}
 
+	private static SyntheticEvidenceIds validateSyntheticLogs(JsonArray logs) {
+		if (logs.size() < 2 || logs.size() > 100) {
+			throw new IllegalArgumentException("AI returned an invalid synthetic log count.");
+		}
+		java.util.Set<Integer> logIds = new java.util.HashSet<>();
+		java.util.Set<Integer> executionIds = new java.util.HashSet<>();
+		String[] executionFields = {
+				"execution_id", "execution_status", "error_type",
+				"standard_input", "standard_output", "standard_error"
+		};
+		boolean hasExecution = false;
+		for (JsonElement element : logs) {
+			if (!element.isJsonObject()) {
+				throw new IllegalArgumentException("AI returned an invalid synthetic log.");
+			}
+			JsonObject log = element.getAsJsonObject();
+			int logId = requiredInteger(log, "log_id", 1, Integer.MAX_VALUE);
+			if (!logIds.add(logId)) {
+				throw new IllegalArgumentException("AI returned duplicate synthetic log IDs.");
+			}
+			requiredText(log, "event_type", 40);
+			if (!List.of("periodic_snapshot", "manual_save", "submission", "edit")
+					.contains(log.get("event_type").getAsString())) {
+				throw new IllegalArgumentException("AI returned an unsupported synthetic log event type.");
+			}
+			requiredText(log, "observed_at", 80);
+			requiredText(log, "snapshot", 12_000);
+			boolean hasAnyExecutionField = java.util.Arrays.stream(executionFields).anyMatch(log::has);
+			if (hasAnyExecutionField) {
+				int executionId = requiredInteger(log, "execution_id", 1, Integer.MAX_VALUE);
+				if (!executionIds.add(executionId)) {
+					throw new IllegalArgumentException("AI returned duplicate synthetic execution IDs.");
+				}
+				String executionStatus = requiredText(log, "execution_status", 40);
+				if (!List.of("not_run", "succeeded", "failed", "timed_out").contains(executionStatus)) {
+					throw new IllegalArgumentException("AI returned an unsupported synthetic execution status.");
+				}
+				requiredTextAllowEmpty(log, "error_type", 200);
+				requiredTextAllowEmpty(log, "standard_input", 12_000);
+				requiredTextAllowEmpty(log, "standard_output", 12_000);
+				requiredTextAllowEmpty(log, "standard_error", 12_000);
+				hasExecution = true;
+			}
+		}
+		if (!hasExecution) {
+			throw new IllegalArgumentException("AI omitted execution input/output from synthetic logs.");
+		}
+		return new SyntheticEvidenceIds(logIds, executionIds);
+	}
+
+	private static void validateProductionEvaluation(JsonObject evaluation, SyntheticEvidenceIds evidenceIds) {
+		JsonObject scores = requiredObject(evaluation, "scores");
+		for (String key : List.of("thinking_expression_level", "proactive_attitude_level")) {
+			requiredInteger(scores, key, 1, 5);
+		}
+		JsonObject reasons = requiredObject(evaluation, "reasons");
+		requiredText(reasons, "thinking_expression_reason", 5_000);
+		requiredText(reasons, "proactive_attitude_reason", 5_000);
+		JsonObject analysis = requiredObject(evaluation, "process_analysis");
+		requiredText(analysis, "pattern_label", 120);
+		validateProcessPoints(requiredArray(analysis, "turning_points"), evidenceIds.logIds());
+		validateProcessPoints(requiredArray(analysis, "stagnation_points"), evidenceIds.logIds());
+		validateTextArray(requiredArray(analysis, "teacher_support_suggestions"), 3, 2_000);
+		if (!evaluation.has("confidence") || !evaluation.get("confidence").isJsonPrimitive()
+				|| !evaluation.getAsJsonPrimitive("confidence").isNumber()) {
+			throw new IllegalArgumentException("AI returned an invalid evaluation confidence.");
+		}
+		double confidence = evaluation.get("confidence").getAsDouble();
+		if (!Double.isFinite(confidence) || confidence < 0 || confidence > 1) {
+			throw new IllegalArgumentException("AI returned an invalid evaluation confidence.");
+		}
+		validateEvidenceReferences(requiredArray(evaluation, "evidence_refs"), evidenceIds);
+		validateTextArray(requiredArray(evaluation, "warnings"), 50, 2_000);
+	}
+
+	private static void validateEvidenceReferences(JsonArray references, SyntheticEvidenceIds evidenceIds) {
+		if (references.size() > 100) {
+			throw new IllegalArgumentException("AI returned too many evaluation evidence references.");
+		}
+		java.util.Set<String> seen = new java.util.HashSet<>();
+		for (JsonElement element : references) {
+			if (!element.isJsonPrimitive() || !element.getAsJsonPrimitive().isString()) {
+				throw new IllegalArgumentException("AI returned an invalid evaluation evidence reference.");
+			}
+			String reference = element.getAsString();
+			boolean execution = reference.startsWith("run_");
+			String idText = execution ? reference.substring(4)
+					: reference.startsWith("log_") ? reference.substring(4) : reference;
+			if (!idText.matches("[0-9]{1,10}")) {
+				throw new IllegalArgumentException("AI returned an invalid evaluation evidence reference.");
+			}
+			int id = Integer.parseInt(idText);
+			java.util.Set<Integer> knownIds = execution ? evidenceIds.executionIds() : evidenceIds.logIds();
+			String uniqueId = (execution ? "run_" : "log_") + id;
+			if (!knownIds.contains(id) || !seen.add(uniqueId)) {
+				throw new IllegalArgumentException("AI referenced unknown or duplicate synthetic evidence.");
+			}
+		}
+	}
+
+	private static void validateProcessPoints(JsonArray points, java.util.Set<Integer> logIds) {
+		if (points == null || points.size() > 100) {
+			throw new IllegalArgumentException("AI returned invalid process-analysis points.");
+		}
+		for (JsonElement element : points) {
+			if (!element.isJsonObject()) {
+				throw new IllegalArgumentException("AI returned invalid process-analysis points.");
+			}
+			JsonObject point = element.getAsJsonObject();
+			int logId = requiredInteger(point, "log_id", 1, Integer.MAX_VALUE);
+			if (!logIds.contains(logId)) {
+				throw new IllegalArgumentException("AI referenced an unknown synthetic log.");
+			}
+			requiredText(point, "summary", 2_000);
+		}
+	}
+
+	private static int requiredInteger(JsonObject object, String name, int minimum, int maximum) {
+		if (!object.has(name) || !object.get(name).isJsonPrimitive()
+				|| !object.getAsJsonPrimitive(name).isNumber()) {
+			throw new IllegalArgumentException("AI output is missing an integer field.");
+		}
+		double value = object.get(name).getAsDouble();
+		if (!Double.isFinite(value) || value != Math.rint(value) || value < minimum || value > maximum) {
+			throw new IllegalArgumentException("AI output contains an integer outside the supported range.");
+		}
+		return (int) value;
+	}
+
+	private static JsonObject requiredObject(JsonObject object, String name) {
+		if (!object.has(name) || !object.get(name).isJsonObject()) {
+			throw new IllegalArgumentException("AI output is missing an object field.");
+		}
+		return object.getAsJsonObject(name);
+	}
+
+	private static JsonArray requiredArray(JsonObject object, String name) {
+		if (!object.has(name) || !object.get(name).isJsonArray()) {
+			throw new IllegalArgumentException("AI output is missing an array field.");
+		}
+		return object.getAsJsonArray(name);
+	}
+
 	private static void validateTextArray(JsonArray values, int maximum) {
-		if (values.size() > maximum) {
+		validateTextArray(values, maximum, 1_000);
+	}
+
+	private static void validateTextArray(JsonArray values, int maximum, int maximumTextLength) {
+		if (values == null || values.size() > maximum) {
 			throw new IllegalArgumentException("AI returned too many evaluation notes.");
 		}
 		for (JsonElement value : values) {
 			if (!value.isJsonPrimitive() || !value.getAsJsonPrimitive().isString()
-					|| value.getAsString().isBlank() || value.getAsString().length() > 1000) {
+					|| value.getAsString().isBlank() || value.getAsString().length() > maximumTextLength) {
 				throw new IllegalArgumentException("AI returned an invalid evaluation note.");
 			}
 		}
 	}
+
+	private record SyntheticEvidenceIds(java.util.Set<Integer> logIds, java.util.Set<Integer> executionIds) { }
 
 	private static String requiredText(JsonObject object, String name, int maximumLength) {
 		if (!object.has(name) || !object.get(name).isJsonPrimitive()
@@ -237,6 +381,15 @@ public final class TeacherPromptAiClient {
 			throw new IllegalArgumentException("AI output contains invalid text.");
 		}
 		return value;
+	}
+
+	private static String requiredTextAllowEmpty(JsonObject object, String name, int maximumLength) {
+		if (!object.has(name) || !object.get(name).isJsonPrimitive()
+				|| !object.getAsJsonPrimitive(name).isString()
+				|| object.get(name).getAsString().length() > maximumLength) {
+			throw new IllegalArgumentException("AI output contains invalid text.");
+		}
+		return object.get(name).getAsString();
 	}
 
 	private static JsonObject rubricJson(StandardRubric rubric) {
@@ -308,15 +461,49 @@ public final class TeacherPromptAiClient {
 						"thinking_expression_reason", textSchema(),
 						"proactive_attitude_reason", textSchema())),
 				"thinking_expression_reason", "proactive_attitude_reason");
+		JsonObject processPoint = objectSchema(
+				properties(Map.of("log_id", integerSchema(), "summary", textSchema())),
+				"log_id", "summary");
+		JsonObject processAnalysis = objectSchema(
+				properties(Map.of(
+						"pattern_label", textSchema(),
+						"turning_points", arraySchema(processPoint),
+						"stagnation_points", arraySchema(processPoint),
+						"teacher_support_suggestions", arraySchema(textSchema()))),
+				"pattern_label", "turning_points", "stagnation_points", "teacher_support_suggestions");
+		JsonObject confidence = new JsonObject();
+		confidence.addProperty("type", "number");
+		JsonObject evaluation = objectSchema(
+				properties(Map.of(
+						"scores", scores,
+						"reasons", reasons,
+						"process_analysis", processAnalysis,
+						"confidence", confidence,
+						"evidence_refs", arraySchema(textSchema()),
+						"warnings", arraySchema(textSchema()))),
+				"scores", "reasons", "process_analysis", "confidence", "evidence_refs", "warnings");
+		JsonObject logProperties = properties(Map.of(
+				"log_id", integerSchema(),
+				"event_type", enumSchema("periodic_snapshot", "manual_save", "submission", "edit"),
+				"observed_at", textSchema(),
+				"snapshot", textSchema(),
+				"execution_id", integerSchema(),
+				"execution_status", enumSchema("not_run", "succeeded", "failed", "timed_out"),
+				"error_type", textSchema(),
+				"standard_input", textSchema(),
+				"standard_output", textSchema(),
+				"standard_error", textSchema()));
+		JsonObject syntheticLog = objectSchema(
+				logProperties, "log_id", "event_type", "observed_at", "snapshot");
 		JsonObject result = objectSchema(
 				properties(Map.of(
 						"sample_id", textSchema(),
 						"synthetic_code", textSchema(),
 						"scenario", textSchema(),
 						"predicted_testcase_result", textSchema(),
-						"scores", scores,
-						"reasons", reasons)),
-				"sample_id", "synthetic_code", "scenario", "predicted_testcase_result", "scores", "reasons");
+						"synthetic_logs", arraySchema(syntheticLog),
+						"evaluation", evaluation)),
+				"sample_id", "synthetic_code", "scenario", "predicted_testcase_result", "synthetic_logs", "evaluation");
 		return objectSchema(properties(Map.of(
 				"simulated_results", arraySchema(result),
 				"variance_alerts", arraySchema(textSchema()),

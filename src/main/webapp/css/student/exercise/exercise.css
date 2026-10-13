@@ -292,6 +292,7 @@ body {
   color: var(--lesson-accent-dark);
   font-weight: 700;
   min-width: 0;
+  cursor: pointer;
 }
 
 .lesson-tree-folder-header.is-selected-folder {

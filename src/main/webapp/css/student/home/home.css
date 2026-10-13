@@ -316,6 +316,10 @@ body {
     grid-template-columns: 1fr;
   }
 
+  .task-content-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .task-meta-grid {
     grid-template-columns: 1fr;
   }

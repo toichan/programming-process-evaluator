@@ -311,7 +311,10 @@ public final class TeacherTaskDao {
 				       t.title, t.theme, t.difficulty, t.description, t.input_constraints,
 				       t.creation_rules, t.initial_code,
 				       r.rubric_status,
-				       p.prompt_status
+				       p.prompt_status,
+				       (r.rubric_status = 'active'
+				        AND p.prompt_status IN ('configured','versioned')
+				        AND p.evaluation_examples_status = 'completed') AS prompt_ready_for_publication
 				FROM tasks t
 				JOIN users creator ON creator.user_id = t.created_by_user_id
 				LEFT JOIN users updater ON updater.user_id = t.updated_by_user_id
@@ -352,6 +355,7 @@ public final class TeacherTaskDao {
 						rows.getString("publication_status"),
 						rows.getString("rubric_status"),
 						rows.getString("prompt_status"),
+						rows.getBoolean("prompt_ready_for_publication"),
 						learningStarted,
 						loadInput(connection, taskId,
 								rows.getString("title"),

@@ -78,9 +78,6 @@
 				</div>
 				<span class="summary-pill">評価提示</span>
 			</div>
-			<c:if test="${not empty surveyPage.evaluationFeedback}">
-				<p class="mt-3"><c:out value="${surveyPage.evaluationFeedback}"/></p>
-			</c:if>
 			<div class="evaluation-summary-grid">
 				<c:forEach var="dimension" items="${surveyPage.evaluationDimensions}">
 					<article class="summary-card ${dimension.label == '主体的に学習に取り組む態度' ? 'attitude-card' : dimension.label == '思考力・判断力・表現力' ? 'thinking-card' : ''}">

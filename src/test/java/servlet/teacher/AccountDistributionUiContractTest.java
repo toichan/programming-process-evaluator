@@ -57,4 +57,13 @@ class AccountDistributionUiContractTest {
 		assertTrue(css.contains("overflow-wrap: anywhere"));
 		assertTrue(css.contains("td.distribution-actions"));
 	}
+	@Test void distributionFolderToggleUsesTheSharedChevronStyle() throws Exception {
+		String js = read("js/teacher/distribution/distribution.js");
+		String css = read("css/teacher/distribution/distribution.css");
+		assertTrue(js.contains("distribution-tree-folder-toggle"));
+		assertTrue(js.contains("distribution-tree-folder-toggle-icon"));
+		assertTrue(js.contains("chevron.textContent = '▾'"));
+		assertFalse(js.contains("toggle.appendChild(controlIcon('expand'))"));
+		assertTrue(css.contains(".distribution-tree-folder-toggle.is-collapsed .distribution-tree-folder-toggle-icon"));
+	}
 }

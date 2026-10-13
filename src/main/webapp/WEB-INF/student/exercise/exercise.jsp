@@ -3,7 +3,7 @@
 <c:set var="screenDesign" value="student"/>
 <c:set var="screenPageTitle" value="授業演習"/>
 <c:set var="screenStylesheet" value="/css/student/exercise/exercise.css?v=104-menu-fix"/>
-<c:set var="screenScript" value="/js/student/exercise/exercise.js?v=164"/>
+<c:set var="screenScript" value="/js/student/exercise/exercise.js?v=170-folder-row-toggle"/>
 <c:set var="screenUsesCodeMirror" value="true"/>
 <c:forEach var="scope" items="${exercisePage.scopes}">
 	<c:if test="${scope.exerciseId == exercisePage.selectedExerciseId}"><c:set var="selectedScope" value="${scope}"/></c:if>

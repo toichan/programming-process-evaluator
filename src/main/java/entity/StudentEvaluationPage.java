@@ -193,7 +193,12 @@ public final class StudentEvaluationPage {
 
 		public String getLabel() { return label; }
 		public double getScore() { return score; }
-		public String getScoreText() { return scoreText; }
+		public String getScoreText() {
+			if (Double.isFinite(score) && score == Math.rint(score)) {
+				return Long.toString((long) score);
+			}
+			return scoreText;
+		}
 		public String getSummaryTitle() { return summaryTitle; }
 		public String getSummaryDescription() { return summaryDescription; }
 	}
