@@ -180,10 +180,22 @@
 }
 
 .hint-title-label {
-  color: var(--bs-gray-800);
+  color: #1e293b;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.4;
+  padding: 0.45rem 0.65rem;
+  border-left: 3px solid #6366f1;
+  border-radius: 0.35rem;
+  background: #f1f5f9;
+  margin-bottom: 0.65rem;
   letter-spacing: normal;
   text-transform: none;
   overflow-wrap: anywhere;
+}
+
+#taskTable .prompt-status-cell {
+  min-width: 105px;
 }
 
 .task-form-code-mirror.is-shell {

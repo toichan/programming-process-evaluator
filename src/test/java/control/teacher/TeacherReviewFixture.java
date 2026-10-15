@@ -82,6 +82,9 @@ public final class TeacherReviewFixture {
 					insert(c, "INSERT INTO teacher_feature_permissions (teacher_user_id,feature_code,is_enabled,updated_by_user_id,updated_at) VALUES (?,?,?,?,NOW())", id, feature, id != denied, teacher);
 				}
 			}
+			for (long id : new long[] { teacher, outsider }) {
+				insert(c, "INSERT INTO teacher_feature_permissions (teacher_user_id,feature_code,is_enabled,updated_by_user_id,updated_at) VALUES (?,'task-progress',TRUE,?,NOW())", id, teacher);
+			}
 			for (long id : new long[] { student, withdrawnStudent }) {
 				insert(c, "INSERT INTO student_profiles (user_id,school_id,student_code,security_level,first_login_status,must_change_password) VALUES (?,?,?,1,'completed',FALSE)", id, school, "dummy-" + id);
 				insert(c, "INSERT INTO student_class_memberships (student_user_id,classroom_id,membership_status,joined_at) VALUES (?,?,'active',NOW())", id, classroom);

@@ -35,6 +35,33 @@ class TeacherTaskPromptRevision162ViewTest {
 		assertFalse(studentView.contains("hint.usageSyntax"));
 		assertTrue(studentView.contains("fn:split(editorPage.inputConstraints, ';')"));
 		assertTrue(studentView.contains("fn:split(editorPage.creationRules, ';')"));
+
+		String hintRenderer = taskScript.substring(
+			taskScript.indexOf("function renderPreviewHints()"),
+			taskScript.indexOf("document.getElementById('addTestCaseButton'")
+		);
+		assertTrue(hintRenderer.indexOf("container.append(card)")
+			< hintRenderer.indexOf("initializeCodeEditor(code, 'python')"));
+		assertTrue(hintRenderer.contains("editor.toTextArea()"));
+		assertTrue(hintRenderer.contains("editor.setOption('readOnly', true)"));
+		assertTrue(taskScript.contains("title.className = 'hint-title-label'"));
+		assertTrue(read("css/teacher/task/task.css").contains("text-transform: none;"));
+	}
+
+	@Test
+	void taskListSeparatesConcisePromptStatusFromPromptConfigurationAction() throws Exception {
+		String taskView = read("WEB-INF/teacher/task/task.jsp");
+		int statusColumn = taskView.indexOf("<td class=\"prompt-status-cell\">");
+		int operationColumn = taskView.indexOf("<td>", statusColumn + 1);
+		int promptAction = taskView.indexOf("プロンプト設定", operationColumn);
+
+		assertTrue(statusColumn >= 0);
+		assertTrue(operationColumn > statusColumn);
+		assertTrue(promptAction > operationColumn);
+		assertTrue(taskView.contains("<th>プロンプト状態</th>"));
+		assertTrue(taskView.contains(">設定済み</c:when>"));
+		assertTrue(taskView.contains(">未設定</c:otherwise>"));
+		assertFalse(taskView.contains("未設定または評価例未生成"));
 	}
 
 	@Test

@@ -272,6 +272,96 @@ class TeacherTaskDatabaseTest {
 	}
 
 	@Test
+	void createsRetainedRevisedPublicationFixtureForPhase20BrowserAcceptance() throws Exception {
+		Assumptions.assumeTrue(
+				"true".equals(System.getenv("TEACHER_TASK_REVISION_BROWSER_FIXTURE")));
+		assertTrue(System.getenv("DB_NAME").matches("ppe_teacher_task_test_[a-z0-9_]+"));
+		String teacherPassword = System.getenv("TEACHER_TASK_BROWSER_PASSWORD");
+		String studentPassword = System.getenv("TEACHER_TASK_STUDENT_BROWSER_PASSWORD");
+		assertTrue(teacherPassword != null && teacherPassword.length() >= 12,
+				"A throwaway teacher password must be supplied for the isolated browser fixture.");
+		assertTrue(studentPassword != null && studentPassword.length() >= 12,
+				"A throwaway student password must be supplied for the isolated browser fixture.");
+
+		try (Connection connection = Client.createConnection();
+				PreparedStatement statement = connection.prepareStatement(
+						"UPDATE users SET password_hash = ? WHERE user_id = ? AND login_id = 'teacher-demo'")) {
+			assertEquals(System.getenv("DB_NAME"), connection.getCatalog());
+			statement.setString(1, new PasswordHasher().hash(teacherPassword.toCharArray()));
+			statement.setLong(2, teacherId);
+			assertEquals(1, statement.executeUpdate());
+		}
+
+		long studentId = insertStudentFixture();
+		String studentLoginId = findLoginId(studentId);
+		try (Connection connection = Client.createConnection();
+				PreparedStatement statement = connection.prepareStatement(
+						"UPDATE users SET password_hash = ? WHERE user_id = ? AND login_id = ?")) {
+			assertEquals(System.getenv("DB_NAME"), connection.getCatalog());
+			statement.setString(1, new PasswordHasher().hash(studentPassword.toCharArray()));
+			statement.setLong(2, studentId);
+			statement.setString(3, studentLoginId);
+			assertEquals(1, statement.executeUpdate());
+		}
+
+		AuthenticatedUser owner = teacher();
+		String sourceTitle = "Phase 20 revision notification source";
+		String revisionTitle = "Phase 20 revision notification acceptance";
+		long sourceTaskId = TASKS.createDraft(
+				owner,
+				inputWithAssignments(
+						sourceTitle,
+						List.of(new ClassAssignmentInput(
+								0, classroomId, null, LocalDateTime.now().plusDays(1),
+								LateSubmissionPolicy.ALLOW))),
+				UUID.randomUUID().toString());
+		activateConfiguredPrompt(owner, sourceTaskId);
+		publishDraft(owner, sourceTaskId);
+		long oldAssignmentId = findAssignmentId(sourceTaskId, classroomId);
+
+		var source = TASKS.loadPage(owner, sourceTaskId, schoolId).selectedTask();
+		long revisionTaskId = TASKS.createRevision(
+				owner,
+				sourceTaskId,
+				source.version(),
+				inputWithAssignments(
+						revisionTitle,
+						List.of(new ClassAssignmentInput(
+								0, classroomId, null, LocalDateTime.now().plusDays(1),
+								LateSubmissionPolicy.ALLOW))),
+				UUID.randomUUID().toString());
+		activateConfiguredPrompt(owner, revisionTaskId);
+		var revision = TASKS.loadPage(owner, revisionTaskId, schoolId).selectedTask();
+		String publishRequestId = UUID.randomUUID().toString();
+		TASKS.publishTask(
+				owner, revisionTaskId, revision.version(), revision.input(), publishRequestId);
+		TASKS.publishTask(
+				owner, revisionTaskId, revision.version(), revision.input(), publishRequestId);
+
+		long assignmentId = findAssignmentId(revisionTaskId, classroomId);
+		assertEquals("requires_update", TASKS.loadPage(owner, sourceTaskId, schoolId)
+				.selectedTask().publicationStatus());
+		assertEquals("published", TASKS.loadPage(owner, revisionTaskId, schoolId)
+				.selectedTask().publicationStatus());
+		assertEquals("archived", findAssignmentStatus(oldAssignmentId));
+		assertEquals("published", findAssignmentStatus(assignmentId));
+		assertEquals(1, countTaskPublishedNotifications(studentId, assignmentId));
+		assertTrue(taskPublishedNotificationText(studentId, assignmentId, "message")
+				.contains("新しい改訂版"));
+
+		retainFixtureAfterTest = true;
+		Path fixtureFile = Path.of("build", "phase20-revision-notification-browser-fixture.properties");
+		Files.createDirectories(fixtureFile.getParent());
+		Files.writeString(fixtureFile, String.join(System.lineSeparator(),
+				"sourceTaskId=" + sourceTaskId,
+				"oldAssignmentId=" + oldAssignmentId,
+				"revisionTaskId=" + revisionTaskId,
+				"assignmentId=" + assignmentId,
+				"revisionTitle=" + revisionTitle,
+				"studentLoginId=" + studentLoginId) + System.lineSeparator());
+	}
+
+	@Test
 	void createsRetainedScheduledPublicationFixtureForPhase20BrowserAcceptance() throws Exception {
 		Assumptions.assumeTrue(
 				"true".equals(System.getenv("TEACHER_TASK_SCHEDULED_PUBLICATION_BROWSER_FIXTURE")));
@@ -326,6 +416,76 @@ class TeacherTaskDatabaseTest {
 				"taskId=" + taskId,
 				"assignmentId=" + assignmentId,
 				"studentLoginId=" + studentLoginId) + System.lineSeparator());
+	}
+
+	@Test
+	void createsRetainedPeerDraftFixtureForPhase20BrowserAcceptance() throws Exception {
+		Assumptions.assumeTrue("true".equals(System.getenv("TEACHER_TASK_PEER_DRAFT_BROWSER_FIXTURE")));
+		assertTrue(System.getenv("DB_NAME").matches("ppe_teacher_task_test_[a-z0-9_]+"));
+		String password = System.getenv("TEACHER_TASK_BROWSER_PASSWORD");
+		assertTrue(password != null && password.length() >= 12,
+				"A throwaway password must be supplied for the isolated browser fixture.");
+		String ownerLoginId = teacherLoginId;
+		String peerLoginId = "task-peer-" + UUID.randomUUID().toString().replace("-", "");
+		String foreignLoginId = "task-foreign-" + UUID.randomUUID().toString().replace("-", "");
+		String noTaskManagementLoginId = "task-no-management-" + UUID.randomUUID().toString().replace("-", "");
+		long peerId;
+		long foreignId;
+		long noTaskManagementId;
+
+		try (Connection connection = Client.createConnection()) {
+			assertEquals(System.getenv("DB_NAME"), connection.getCatalog());
+			connection.setAutoCommit(false);
+			try {
+				peerId = insertUser(connection, peerLoginId, "Same-school peer teacher");
+				foreignId = insertUser(connection, foreignLoginId, "Foreign-school teacher");
+				noTaskManagementId = insertUser(connection, noTaskManagementLoginId,
+						"Same-school teacher without task management");
+				fixtureUserIds.add(peerId);
+				fixtureUserIds.add(foreignId);
+				fixtureUserIds.add(noTaskManagementId);
+				insertPermissionFixtures(connection, peerId, schoolId);
+				insertPermissionFixtures(connection, foreignId, foreignSchoolId);
+				insertPermissionFixtures(connection, noTaskManagementId, schoolId);
+				try (PreparedStatement statement = connection.prepareStatement("""
+						UPDATE teacher_feature_permissions
+						SET is_enabled = 0
+						WHERE teacher_user_id = ? AND feature_code = 'task-management'
+						""")) {
+					statement.setLong(1, noTaskManagementId);
+					assertEquals(1, statement.executeUpdate());
+				}
+				connection.commit();
+			} catch (SQLException | RuntimeException | Error failure) {
+				rollback(connection, failure);
+				throw failure;
+			}
+		}
+
+		String passwordHash = new PasswordHasher().hash(password.toCharArray());
+		try (Connection connection = Client.createConnection();
+				PreparedStatement statement = connection.prepareStatement(
+						"UPDATE users SET password_hash = ? WHERE login_id IN (?, ?, ?, ?)")) {
+			assertEquals(System.getenv("DB_NAME"), connection.getCatalog());
+			statement.setString(1, passwordHash);
+			statement.setString(2, ownerLoginId);
+			statement.setString(3, peerLoginId);
+			statement.setString(4, foreignLoginId);
+			statement.setString(5, noTaskManagementLoginId);
+			assertEquals(4, statement.executeUpdate());
+		}
+
+		long taskId = TASKS.createDraft(
+				teacher(), input("Phase 20 peer draft owner title"), UUID.randomUUID().toString());
+		retainFixtureAfterTest = true;
+		Path fixtureFile = Path.of("build", "phase20-peer-draft-browser-fixture.properties");
+		Files.createDirectories(fixtureFile.getParent());
+		Files.writeString(fixtureFile, String.join(System.lineSeparator(),
+				"taskId=" + taskId,
+				"ownerLoginId=" + ownerLoginId,
+				"peerLoginId=" + peerLoginId,
+				"foreignLoginId=" + foreignLoginId,
+				"noTaskManagementLoginId=" + noTaskManagementLoginId) + System.lineSeparator());
 	}
 
 	@Test
@@ -1212,6 +1372,8 @@ class TeacherTaskDatabaseTest {
 						|| "true".equals(System.getenv("TEACHER_TASK_ASSIGNMENT_BROWSER_FIXTURE"))
 						|| "true".equals(System.getenv("TEACHER_TASK_EDITOR_BROWSER_FIXTURE"))
 						|| "true".equals(System.getenv("TEACHER_TASK_PUBLICATION_BROWSER_FIXTURE"))
+						|| "true".equals(System.getenv("TEACHER_TASK_PEER_DRAFT_BROWSER_FIXTURE"))
+						|| "true".equals(System.getenv("TEACHER_TASK_REVISION_BROWSER_FIXTURE"))
 						|| "true".equals(System.getenv("TEACHER_TASK_SCHEDULED_PUBLICATION_BROWSER_FIXTURE"))
 						? "teacher-demo"
 						: "task-test-" + UUID.randomUUID().toString().replace("-", "");
@@ -1262,7 +1424,7 @@ class TeacherTaskDatabaseTest {
 	}
 
 	@Test
-	void reevaluationJobStatusIsScopedToTeacherAndTaskAndReportsProgress() throws SQLException {
+	void reevaluationJobStatusIsScopedToTaskAndAuthorizedTeacherAndReportsProgress() throws SQLException {
 		AuthenticatedUser owner = teacher();
 		long taskId = TASKS.createDraft(owner, input("Reevaluation status task"), UUID.randomUUID().toString());
 		long promptVersionId = new TeacherPromptControl().saveDraft(
@@ -1410,8 +1572,11 @@ class TeacherTaskDatabaseTest {
 				() -> reevaluations.loadJobStatus(owner, taskId + 1, jobIds.getFirst()));
 		assertThrows(dao.TeacherPromptDao.TeacherTaskNotFoundException.class,
 				() -> reevaluations.loadJobStatus(owner, taskId, Long.MAX_VALUE));
-		assertThrows(dao.TeacherPromptDao.TeacherTaskNotFoundException.class,
-				() -> reevaluations.loadJobStatus(otherTeacher, taskId, jobIds.getFirst()));
+		ReevaluationJobStatus peerStatus =
+				reevaluations.loadJobStatus(otherTeacher, taskId, jobIds.getFirst());
+		assertEquals(jobIds.getFirst(), peerStatus.jobId());
+		assertEquals(taskId, peerStatus.taskId());
+		assertEquals(expectedStatuses.getFirst(), peerStatus.status());
 		assertThrows(SecurityException.class,
 				() -> reevaluations.loadJobStatus(student, taskId, jobIds.getFirst()));
 		if ("true".equals(System.getenv("T014_RETAIN_HISTORY_FIXTURE"))) {
@@ -1786,7 +1951,7 @@ class TeacherTaskDatabaseTest {
 		long promptVersionId = prompts.saveDraft(
 				teacher, taskId, null, 0, "gemini-3.7-flash", "Initial evaluation instructions", null);
 		var created = prompts.loadPage(teacher, taskId, promptVersionId).selectedVersion();
-		assertEquals("v3", created.version());
+		assertEquals("ver.3", created.version());
 		assertEquals("draft", created.promptStatus());
 		assertEquals(1, created.rowVersion());
 
@@ -2159,6 +2324,9 @@ class TeacherTaskDatabaseTest {
 
 		var sourceBeforeCopy = TASKS.loadPage(owner, sourceTaskId, schoolId).selectedTask();
 		assertTrue(sourceBeforeCopy.learningStarted());
+		var sourcePromptPageBeforeCopy = new TeacherPromptControl()
+				.loadPage(owner, sourceTaskId, sourcePromptVersionId);
+		var sourcePromptBeforeCopy = sourcePromptPageBeforeCopy.selectedVersion();
 		String requestId = UUID.randomUUID().toString();
 		long copiedTaskId = TASKS.createIndependentCopy(
 				owner, sourceTaskId, sourceBeforeCopy.version(), requestId);
@@ -2193,8 +2361,9 @@ class TeacherTaskDatabaseTest {
 		assertTrue(copiedPrompt.promptVersionId() != sourcePromptVersionId);
 		assertEquals("draft", copiedPrompt.promptStatus());
 		assertEquals(control.evaluation.GeminiModelCatalog.DEFAULT_MODEL, copiedPrompt.aiModel());
-		assertEquals("Copied common prompt", copiedPrompt.commonPrompt());
-		assertEquals("Copied task-specific instruction", copiedPrompt.additionalInstruction());
+		assertEquals(sourcePromptPageBeforeCopy.commonPromptVersions().getFirst().commonPrompt(),
+				copiedPrompt.commonPrompt());
+		assertEquals(sourcePromptBeforeCopy.additionalInstruction(), copiedPrompt.additionalInstruction());
 		assertEquals("not_generated", copiedPrompt.fluctuationGenerationStatus());
 		assertEquals("not_generated", copiedPrompt.evaluationExamplesStatus());
 		assertTrue(copiedPrompt.fluctuationItems().isEmpty());
@@ -2697,6 +2866,12 @@ class TeacherTaskDatabaseTest {
 					statement.executeUpdate();
 				}
 				try (PreparedStatement statement = connection.prepareStatement(
+						"DELETE FROM school_common_prompt_versions WHERE school_id IN (?, ?)")) {
+					statement.setLong(1, schoolId);
+					statement.setLong(2, foreignSchoolId);
+					statement.executeUpdate();
+				}
+				try (PreparedStatement statement = connection.prepareStatement(
 						"DELETE FROM schools WHERE school_id IN (?, ?)")) {
 					statement.setLong(1, schoolId);
 					statement.setLong(2, foreignSchoolId);
@@ -3018,9 +3193,13 @@ class TeacherTaskDatabaseTest {
 			try (PreparedStatement statement = connection.prepareStatement("""
 					INSERT INTO prompt_fluctuation_items (
 					  prompt_version_id, item_text, teacher_resolution, resolution_status, sort_order
-					) VALUES (?, 'source-only fluctuation', 'source resolution', 'resolved', 1)
+					) VALUES (?, ?, 'source resolution', 'resolved', 1)
 					""")) {
 				statement.setLong(1, promptVersionId);
+				statement.setString(2, """
+						{"title":"Source-only fluctuation","level":"test",
+						 "description":"Synthetic description","example":"Synthetic example"}
+						""");
 				assertEquals(1, statement.executeUpdate());
 			}
 			try (PreparedStatement statement = connection.prepareStatement("""

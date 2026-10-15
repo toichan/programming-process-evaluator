@@ -48,7 +48,16 @@ class TeacherSurveyRuntimeTest {
 		assertEquals(404,teacher.get("/teacher/surveys?view=detail&responseId=999999").statusCode());
 		assertEquals(405,teacher.post("/teacher/surveys",Map.of()).statusCode());
 		var outsider=new Browser("teacher");outsider.login("review_outsider");
+		assertTrue(JsonParser.parseString(outsider.get("/teacher/surveys?view=list").body()).getAsJsonArray().isEmpty());
 		assertEquals(404,outsider.get("/teacher/surveys?view=detail&responseId="+id).statusCode());
+		for(String view:List.of("csv","text")){
+			var export=outsider.get("/teacher/surveys?view="+view);
+			assertEquals(200,export.statusCode(),view);
+			assertFalse(export.body().contains("REC-standard"),view);
+			assertFalse(export.body().contains("SR-standard"),view);
+			assertFalse(export.body().contains("review_student"),view);
+			assertFalse(export.body().contains("長い回答"),view);
+		}
 		var denied=new Browser("teacher");denied.login("review_denied");assertEquals(403,denied.get("/teacher/surveys?view=list").statusCode());
 		var student=new Browser("student");student.login("review_student");student.host="teacher";assertEquals(403,student.get("/teacher/surveys?view=list").statusCode());
 		assertEquals(302,new Browser("teacher").get("/teacher/surveys").statusCode());
@@ -66,6 +75,27 @@ class TeacherSurveyRuntimeTest {
 				assertFalse(teacher.get("/teacher/surveys?view=text").body().contains("SR-standard"));
 			}finally{s.executeUpdate("INSERT INTO consent_records(user_id,consent_status,consent_document_version_id,consented_at,updated_at) SELECT "+studentId+",'agreed',MAX(consent_document_version_id),NOW(),NOW() FROM consent_document_versions");}
 			assertEquals(2,JsonParser.parseString(teacher.get("/teacher/surveys?view=list").body()).getAsJsonArray().size());
+			assertEquals(1,s.executeUpdate("""
+					UPDATE teacher_feature_permissions SET is_enabled=FALSE
+					WHERE teacher_user_id=(SELECT user_id FROM users WHERE login_id='review_teacher')
+					  AND feature_code='survey-results'
+					"""));
+			for(String path:List.of("/teacher/surveys","/teacher/surveys?view=list",
+					"/teacher/surveys?view=detail&responseId="+id,
+					"/teacher/surveys?view=csv","/teacher/surveys?view=text")){
+				var deniedResponse=teacher.get(path);
+				assertEquals(403,deniedResponse.statusCode(),path);
+				assertFalse(deniedResponse.body().contains("REC-standard"),path);
+				assertFalse(deniedResponse.body().contains("review_student"),path);
+				assertFalse(deniedResponse.body().contains("SR-standard"),path);
+			}
+			assertEquals(200,teacher.get("/teacher/submissions").statusCode(),
+					"Revoking survey-results must not revoke separately granted review access.");
+			assertEquals(1,s.executeUpdate("""
+					UPDATE teacher_feature_permissions SET is_enabled=TRUE
+					WHERE teacher_user_id=(SELECT user_id FROM users WHERE login_id='review_teacher')
+					  AND feature_code='survey-results'
+					"""),"Restore the owner fixture for browser acceptance.");
 		}
 	}
 	private static final class Browser{

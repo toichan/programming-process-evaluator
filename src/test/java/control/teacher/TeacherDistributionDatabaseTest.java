@@ -5,6 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
@@ -40,6 +42,7 @@ class TeacherDistributionDatabaseTest {
 	private long studentUserId;
 	private AuthenticatedUser student;
 	private boolean initialized;
+	private boolean retainBrowserFixture;
 
 	@BeforeEach
 	void setUp() throws SQLException {
@@ -180,7 +183,9 @@ class TeacherDistributionDatabaseTest {
 				List.of(new Target(classroomId, null)), UUID.randomUUID().toString()));
 		var sharedPage = control.loadPage(peerTeacher);
 		assertTrue(sharedPage.templates().stream().anyMatch(item -> item.templateId() == unscoped.templateId()));
-		assertEquals(items, control.loadTemplate(peerTeacher, unscoped.templateId()).items());
+		assertEquals(List.of(
+				new TemplateItem("week1", StudentExerciseEntry.Type.FOLDER, null),
+				items.getFirst()), control.loadTemplate(peerTeacher, unscoped.templateId()).items());
 		assertTrue(control.loadPage(foreignTeacher).templates().isEmpty());
 		assertThrows(SecurityException.class,
 				() -> control.loadTemplate(foreignTeacher, unscoped.templateId()));
@@ -215,12 +220,15 @@ class TeacherDistributionDatabaseTest {
 
 		var latest = control.loadPage(teacher).templates().stream()
 				.filter(item -> item.templateId() == unscoped.templateId()).findFirst().orElseThrow();
-		control.schedule(teacher, input(latest.templateId(), latest.version(), items,
+		var crossSchoolRun = control.schedule(teacher, input(latest.templateId(), latest.version(), items,
 				List.of(new Target(crossSchoolClassroomId, null)), UUID.randomUUID().toString()));
 		assertTrue(control.loadPage(peerTeacher).templates().stream()
 				.noneMatch(item -> item.templateId() == unscoped.templateId()));
-		assertTrue(control.loadPage(peerTeacher).distributions().stream()
-				.noneMatch(distribution -> distribution.templateId() == unscoped.templateId()));
+		var peerDistributions = control.loadPage(peerTeacher).distributions();
+		assertTrue(peerDistributions.stream()
+				.noneMatch(distribution -> distribution.distributionId() == crossSchoolRun.distributionId()));
+		assertTrue(peerDistributions.stream()
+				.anyMatch(distribution -> distribution.distributionId() == peerRun.distributionId()));
 		assertTrue(control.loadPage(foreignTeacher).templates().stream()
 				.noneMatch(item -> item.templateId() == unscoped.templateId()));
 		assertTrue(control.loadPage(foreignTeacher).distributions().stream()
@@ -228,6 +236,34 @@ class TeacherDistributionDatabaseTest {
 		assertThrows(IllegalArgumentException.class,
 				() -> control.loadTemplate(peerTeacher, unscoped.templateId()));
 		assertThrows(IllegalArgumentException.class, () -> control.stop(peerTeacher, firstRun.distributionId()));
+	}
+
+	@Test
+	void createsRetainedPeerTemplateForPhase20BrowserAcceptance() throws Exception {
+		Assumptions.assumeTrue(Boolean.parseBoolean(System.getenv("TEACHER_DISTRIBUTION_BROWSER_FIXTURE")));
+		var items = List.of(new TemplateItem(
+				"week1/main.py", StudentExerciseEntry.Type.FILE, "print('original peer template')"));
+		var draft = new TeacherDistributionInput(0, 0, "P20 Peer Shared Template", "Shared Lesson",
+				items, List.of(), UUID.randomUUID().toString());
+		control.saveDraft(teacher, draft);
+		var template = control.loadPage(teacher).templates().stream()
+				.filter(item -> item.name().equals(draft.name())).findFirst().orElseThrow();
+
+		var distribution = control.schedule(teacher, new TeacherDistributionInput(template.templateId(),
+				template.version(), draft.name(), draft.rootName(), items,
+				List.of(new Target(classroomId, null)), UUID.randomUUID().toString()));
+		assertEquals(1, distribution.expectedImmediateTargets());
+		assertEquals(1, distribution.completedImmediateTargets());
+		assertTrue(control.loadPage(peerTeacher).templates().stream()
+				.anyMatch(item -> item.templateId() == template.templateId()));
+		assertTrue(control.loadPage(foreignTeacher).templates().stream()
+				.noneMatch(item -> item.templateId() == template.templateId()));
+
+		retainBrowserFixture = true;
+		Path fixture = Path.of("build", "phase20-distribution-fixture.properties");
+		Files.createDirectories(fixture.getParent());
+		Files.writeString(fixture, "templateId=" + template.templateId() + System.lineSeparator());
+		System.out.printf("P20_DISTRIBUTION_SHARED_FIXTURE templateId=%d%n", template.templateId());
 	}
 
 	@Test
@@ -357,7 +393,7 @@ class TeacherDistributionDatabaseTest {
 
 	@AfterEach
 	void cleanUp() throws SQLException {
-		if (!initialized) return;
+		if (!initialized || retainBrowserFixture) return;
 		try (Connection connection = Client.createConnection(); var statement = connection.createStatement()) {
 			for (String sql : List.of(
 					"DELETE FROM student_notifications",

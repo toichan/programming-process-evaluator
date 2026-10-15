@@ -69,6 +69,8 @@ class TeacherExerciseRuntimeTest {
 		var outsider=new Browser("teacher");outsider.login("ex_outsider","teacher");
 		assertEquals(0,outsider.json("/teacher/exercises?view=list").getAsJsonArray().size());
 		assertEquals(404,outsider.get("/teacher/exercises?view=detail"+target).statusCode());
+		assertEquals(404,outsider.get("/teacher/exercises?view=download"+target+"&entryId="+file.get("entryId").getAsLong()).statusCode());
+		assertEquals(404,outsider.bytes("/teacher/exercises?view=zip"+target).statusCode());
 		var denied=new Browser("teacher");denied.login("ex_denied","teacher");
 		assertEquals(403,denied.get("/teacher/exercises?view=list").statusCode());
 		var student=new Browser("student"); student.login("ex_saved","student");student.host="teacher";
@@ -83,6 +85,46 @@ class TeacherExerciseRuntimeTest {
 					assertEquals(503,failure.statusCode());assertFalse(failure.body().contains("ex_saved"));
 				}finally{s.execute("DROP TRIGGER ex_audit_reject");}
 			}
+			try(var s=c.createStatement()){
+				assertEquals(1,s.executeUpdate("""
+						INSERT INTO teacher_feature_permissions
+							(teacher_user_id,feature_code,is_enabled,updated_by_user_id,updated_at)
+						SELECT user_id,'submission-review',TRUE,user_id,NOW()
+						FROM users WHERE login_id='ex_teacher'
+						"""));
+				assertEquals(1,s.executeUpdate("""
+						UPDATE teacher_feature_permissions SET is_enabled=FALSE
+						WHERE teacher_user_id=(SELECT user_id FROM users WHERE login_id='ex_teacher')
+						  AND feature_code='exercise-code-review'
+						"""));
+			}
+			for(String path:new String[]{
+					"/teacher/exercises",
+					"/teacher/exercises?view=list",
+					"/teacher/exercises?view=detail"+target,
+					"/teacher/exercises?view=download"+target+"&entryId="+file.get("entryId").getAsLong(),
+					"/teacher/exercises?view=zip"+target,
+					"/teacher/exercises?view=bulk",
+					"/teacher/exercises?view=csv"}){
+				var revoked=teacher.get(path);
+				assertEquals(403,revoked.statusCode(),path);
+				assertFalse(revoked.body().contains("ex_saved"),path);
+				assertFalse(revoked.body().contains(file.get("content").getAsString()),path);
+			}
+			assertEquals(200,teacher.get("/teacher/submissions").statusCode(),
+					"Revoking exercise-code review must not revoke independent submission review.");
+			assertEquals(audits+1,TeacherExerciseDatabaseTest.number(c,
+					"SELECT COUNT(*) FROM audit_logs WHERE feature_code='exercise-code-review'"),
+					"Revoked access must not write export audit records.");
+			try(var s=c.createStatement()){
+				assertEquals(1,s.executeUpdate("""
+						UPDATE teacher_feature_permissions SET is_enabled=TRUE
+						WHERE teacher_user_id=(SELECT user_id FROM users WHERE login_id='ex_teacher')
+						  AND feature_code='exercise-code-review'
+						"""),"Restore the owner fixture for browser acceptance.");
+			}
+			assertEquals(4,new control.teacher.TeacherExerciseControl().list(
+					TeacherExerciseDatabaseTest.teacher("ex_teacher"),entity.TeacherExerciseFilter.empty()).size());
 		}
 	}
 	private static final class Browser {

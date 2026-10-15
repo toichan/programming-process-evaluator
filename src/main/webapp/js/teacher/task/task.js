@@ -13,6 +13,7 @@ document.addEventListener('DOMContentLoaded', function() {
   const feedback = window.PPEFeedback.createPageFeedback({ title: '課題編集' });
   const formTaskId = Number(form.querySelector('[name="taskId"]').value);
   const scheduleValues = new Map();
+  const previewCodeEditors = [];
 
   document.querySelectorAll('.task-state-form').forEach(function(operationForm) {
     operationForm.addEventListener('submit', async function(event) {
@@ -387,6 +388,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
   function renderPreviewHints() {
     const container = document.getElementById('previewHintCards');
+    previewCodeEditors.forEach(function(editor) { editor.toTextArea(); });
+    previewCodeEditors.length = 0;
     container.replaceChildren();
     document.querySelectorAll('#hintList .hint-row').forEach(function(row) {
       const card = document.createElement('div');
@@ -403,8 +406,14 @@ document.addEventListener('DOMContentLoaded', function() {
         code.className = 'hint-code hint-code-preview';
         code.value = codeValue;
         card.append(code);
+        container.append(card);
         const editor = initializeCodeEditor(code, 'python');
-        if (editor) editor.setOption('readOnly', true);
+        if (editor) {
+          editor.setOption('readOnly', true);
+          editor.refresh();
+          previewCodeEditors.push(editor);
+        }
+        return;
       }
       container.append(card);
     });

@@ -322,7 +322,7 @@
 			<c:if test="${empty teacherTaskPage.tasks}"><p class="text-muted" role="status">表示できる課題はありません。</p></c:if>
 			<div class="table-responsive">
 				<table class="table table-hover align-middle mb-0" id="taskTable">
-					<thead class="table-light"><tr><th>課題名</th><th>所属学校</th><th>難易度</th><th>対象クラス</th><th>状態</th><th>プロンプト設定</th><th>作成者</th><th>最終更新者</th><th>最終更新日時</th><th>操作</th></tr></thead>
+					<thead class="table-light"><tr><th>課題名</th><th>所属学校</th><th>難易度</th><th>対象クラス</th><th>状態</th><th>プロンプト状態</th><th>作成者</th><th>最終更新者</th><th>最終更新日時</th><th>操作</th></tr></thead>
 					<tbody>
 						<c:forEach items="${teacherTaskPage.tasks}" var="task">
 							<tr>
@@ -370,26 +370,22 @@
 										<c:otherwise><span class="badge text-bg-secondary">下書き</span></c:otherwise>
 									</c:choose>
 								</td>
-								<td>
-									<c:choose>
-										<c:when test="${task.publicationStatus == 'requires_update' || task.publicationStatus == 'published' || task.publicationStatus == 'draft'}">
-											<span class="badge ${task.promptReadyForPublication ? 'text-bg-success' : 'text-bg-secondary'} mb-1">
-												<c:choose>
-													<c:when test="${task.promptReadyForPublication}">公開可能な設定済み版あり</c:when>
-													<c:otherwise>未設定または評価例未生成</c:otherwise>
-												</c:choose>
-											</span>
-											<br>
-											<a class="btn btn-sm btn-outline-primary" href="<c:url value='/teacher/prompt'><c:param name='taskId' value='${task.taskId}'/></c:url>">プロンプト設定</a>
-										</c:when>
-										<c:otherwise><button class="btn btn-sm btn-outline-secondary" type="button" disabled title="公開前に設定します。">未設定</button></c:otherwise>
-									</c:choose>
+								<td class="prompt-status-cell">
+									<span class="badge ${task.promptReadyForPublication ? 'text-bg-success' : 'text-bg-secondary'}">
+										<c:choose>
+											<c:when test="${task.promptReadyForPublication}">設定済み</c:when>
+											<c:otherwise>未設定</c:otherwise>
+										</c:choose>
+									</span>
 								</td>
 								<td><code class="history-creator-id"><c:out value="${task.createdByLoginId}"/></code></td>
 								<td><code class="history-creator-id"><c:out value="${task.updatedByLoginId}" default="-"/></code></td>
 								<td><c:out value="${task.updatedAt}"/></td>
 								<td>
 									<div class="d-flex gap-2">
+										<c:if test="${task.publicationStatus == 'requires_update' || task.publicationStatus == 'published' || task.publicationStatus == 'draft'}">
+											<a class="btn btn-sm btn-outline-primary" href="<c:url value='/teacher/prompt'><c:param name='taskId' value='${task.taskId}'/></c:url>">プロンプト設定</a>
+										</c:if>
 										<c:if test="${not (task.publicationStatus == 'published' && task.learningStarted)}">
 											<a class="btn btn-sm btn-outline-primary" href="<c:url value='/teacher/task'><c:param name='taskId' value='${task.taskId}'/></c:url>">
 												編集
