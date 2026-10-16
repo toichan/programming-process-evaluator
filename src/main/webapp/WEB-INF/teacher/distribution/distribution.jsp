@@ -6,7 +6,7 @@
 <c:set var="screenBodyClass" value="teacher-distribution-screen"/>
 <c:set var="screenStylesheet" value="/css/teacher/distribution/distribution.css"/>
 <c:set var="screenScript" value="/js/teacher/distribution/distribution.js"/>
-<c:set var="screenAssetVersion" value="160"/>
+<c:set var="screenAssetVersion" value="171"/>
 <c:set var="screenUsesCodeMirror" value="true"/>
 <c:set var="screenUsesCodeEditor" value="true"/>
 <c:set var="initialDistributionItems" value="[]"/>
@@ -212,7 +212,7 @@
 				<div><label class="form-label" for="distributionHistoryFilterStatus">状態</label><select class="form-select form-select-sm" id="distributionHistoryFilterStatus">
 					<option value="">すべて</option><option value="draft">下書き</option><option value="scheduled">配信設定済み</option><option value="in_progress">配信中</option><option value="completed">配信完了</option><option value="stopped">停止中</option>
 				</select></div>
-				<div><label class="form-label" for="distributionHistoryFilterOperator">作成者</label><select class="form-select form-select-sm" id="distributionHistoryFilterOperator"><option value="">すべて</option><option value="<c:out value='${teacherId}'/>"><c:out value="${teacherId}"/></option></select></div>
+				<div><label class="form-label" for="distributionHistoryFilterOperator">実行者</label><select class="form-select form-select-sm" id="distributionHistoryFilterOperator"><option value="">すべて</option></select></div>
 			</div>
 		</section>
 
@@ -222,21 +222,21 @@
 					<thead class="table-light"><tr>
 						<th class="sortable" data-sort-key="datetime">作成日時</th><th class="sortable" data-sort-key="template">テンプレート</th>
 						<th class="sortable" data-sort-key="school">学校</th><th class="sortable" data-sort-key="class">クラス</th>
-						<th class="sortable" data-sort-key="status">状態</th><th class="sortable" data-sort-key="operator">作成者</th><th>操作</th><th>詳細</th>
+						<th class="sortable" data-sort-key="status">状態</th><th class="sortable" data-sort-key="operator">実行者</th><th>操作</th><th>詳細</th>
 					</tr></thead>
 					<tbody id="distributionHistoryBody">
 						<c:forEach var="distribution" items="${teacherDistributionPage.distributions}">
 							<tr data-history-row data-distribution-id="<c:out value='${distribution.distributionId}'/>"
 								data-date="<c:out value='${distribution.createdAt}'/>" data-template="<c:out value='${distribution.templateName}'/>"
 								data-school="<c:out value='${distribution.schoolName}'/>" data-class="<c:out value='${distribution.classroomNames}'/>"
-								data-status="<c:out value='${distribution.status}'/>" data-operator="<c:out value='${teacherId}'/>">
+								data-status="<c:out value='${distribution.status}'/>" data-operator="<c:out value='${distribution.executedBy}'/>">
 								<td><c:out value="${distribution.createdAt}"/></td><td><c:out value="${distribution.templateName}"/></td>
 								<td><c:out value="${empty distribution.schoolName ? '—' : distribution.schoolName}"/></td>
 								<td><c:out value="${empty distribution.classroomNames ? '—' : distribution.classroomNames}"/></td>
 								<td><span class="badge distribution-status-badge" data-status="<c:out value='${distribution.status}'/>">
 									<c:choose><c:when test="${distribution.status == 'draft'}">下書き</c:when><c:when test="${distribution.status == 'scheduled'}">配信設定済み</c:when><c:when test="${distribution.status == 'in_progress'}">配信中</c:when><c:when test="${distribution.status == 'completed'}">配信完了</c:when><c:when test="${distribution.status == 'stopped'}">停止中</c:when><c:otherwise><c:out value="${distribution.status}"/></c:otherwise></c:choose>
 								</span></td>
-								<td><code class="history-creator-id"><c:out value="${teacherId}"/></code></td>
+								<td><code class="history-creator-id"><c:out value="${distribution.executedBy}"/></code></td>
 								<td class="distribution-actions">
 									<button class="btn btn-sm btn-outline-primary" type="button" data-edit-template="<c:out value='${distribution.templateId}'/>">編集</button>
 									<button class="btn btn-sm btn-outline-secondary" type="button" data-duplicate-template="<c:out value='${distribution.templateId}'/>">複製</button>
@@ -288,9 +288,20 @@
 										<c:if test="${empty distribution.targets}"><tr><td colspan="5" class="text-secondary">配信対象のクラスはありません。</td></tr></c:if>
 									</tbody></table></div>
 								<h3 class="h6 mt-3">操作履歴</h3>
-								<ul class="distribution-history-list">
-									<c:forEach var="entry" items="${distribution.history}"><li><strong><c:out value="${entry.action}"/></strong><span><c:out value="${entry.occurredAt}"/> / <c:out value="${entry.actor}"/> (ID: <c:out value="${entry.actorId}"/>) / <c:out value="${entry.result}"/></span><pre class="distribution-json"><c:out value="${entry.detail}"/></pre></li></c:forEach>
-								</ul>
+								<div class="table-responsive distribution-operation-history-wrap">
+									<table class="table table-sm align-middle distribution-operation-history-table">
+										<thead class="table-light"><tr><th>操作</th><th>日時</th><th>実行者</th><th>状態</th><th>内容</th></tr></thead>
+										<tbody><c:forEach var="entry" items="${distribution.history}">
+											<tr>
+												<td><c:out value="${entry.action}"/></td>
+												<td><c:out value="${entry.occurredAt}"/></td>
+												<td><c:out value="${entry.actor}"/> (ID: <c:out value="${entry.actorId}"/>)</td>
+												<td><c:choose><c:when test="${entry.result == 'success'}">成功</c:when><c:when test="${entry.result == 'failure'}">失敗</c:when><c:otherwise><c:out value="${entry.result}"/></c:otherwise></c:choose></td>
+												<td class="distribution-operation-detail"><pre class="distribution-json"><c:out value="${entry.detail}"/></pre></td>
+											</tr>
+										</c:forEach></tbody>
+									</table>
+								</div>
 							</template>
 						</c:forEach>
 						<c:if test="${empty teacherDistributionPage.distributions}"><tr id="distributionHistoryEmpty"><td colspan="8" class="text-center text-secondary py-4">配信履歴はありません。</td></tr></c:if>

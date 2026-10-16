@@ -347,9 +347,12 @@
         header.className = 'lesson-tree-folder-header' + (selectedFolder === child.path ? ' is-selected-folder' : '');
         const toggle = document.createElement('button');
         toggle.type = 'button';
-        toggle.className = 'lesson-tree-folder-toggle' + (expandedFolders.has(child.path) ? '' : ' is-collapsed');
+        toggle.className = 'distribution-tree-folder-toggle' + (expandedFolders.has(child.path) ? '' : ' is-collapsed');
         toggle.setAttribute('aria-label', (expandedFolders.has(child.path) ? '折りたたむ' : '展開') + ' ' + child.name);
-        toggle.appendChild(controlIcon('expand'));
+        const chevron = document.createElement('span');
+        chevron.className = 'distribution-tree-folder-toggle-icon';
+        chevron.textContent = '▾';
+        toggle.appendChild(chevron);
         toggle.addEventListener('click', () => {
           if (expandedFolders.has(child.path)) expandedFolders.delete(child.path);
           else expandedFolders.add(child.path);

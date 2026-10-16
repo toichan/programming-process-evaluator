@@ -62,15 +62,14 @@ public final class TeacherPromptControl {
 			connection.setAutoCommit(false);
 			try {
 				permissionDao.requirePromptDesignAccess(connection, user.userId());
-				var schools = permissionDao.findPromptAuthorizedSchools(connection, user.userId()).stream()
-						.map(entity.TeacherSchoolOption::schoolId).collect(java.util.stream.Collectors.toSet());
-				List<TeacherTaskDetails> tasks = taskDao.findPromptTasks(connection, user.userId()).stream()
-						.filter(task -> schools.contains(task.input().schoolId())).toList();
+				List<Long> schools = permissionDao.findPromptAuthorizedSchools(connection, user.userId()).stream()
+						.map(entity.TeacherSchoolOption::schoolId).toList();
+				List<TeacherTaskDetails> tasks = taskDao.findPromptTasks(connection, schools);
 				requireAuthorizedClasses(connection, user.userId(), tasks);
 				if (selectedTaskId == null) {
 					connection.commit();
 					return new TeacherPromptPage(
-							tasks, null, null, List.of(), null, null, "", List.of(), List.of());
+							tasks, null, null, List.of(), null, List.of(), null, "", List.of(), List.of());
 				}
 				TeacherTaskDetails selected = taskDao.findPromptTask(connection, user.userId(), selectedTaskId, true)
 						.orElseThrow(TeacherPromptDao.TeacherTaskNotFoundException::new);
@@ -85,13 +84,15 @@ public final class TeacherPromptControl {
 				Long activeVersionId = promptDao.findActivePromptVersionId(connection, selectedTaskId);
 				List<TeacherPromptVersion> versions = promptDao.findVersions(connection, selectedTaskId);
 				TeacherPromptVersion selectedVersion = chooseVersion(versions, selectedVersionId, activeVersionId);
+				List<entity.SchoolCommonPromptVersion> commonPromptVersions =
+						promptDao.findCommonPromptVersions(connection, selected.input().schoolId());
 				String targets = promptDao.findTargetSummary(connection, selectedTaskId);
 				var auditEntries = promptDao.findAuditEntries(connection, user.userId(), selectedTaskId);
 				var reevaluationJobs = promptDao.findReevaluationJobHistory(
 						connection, user.userId(), selectedTaskId);
 				connection.commit();
 				return new TeacherPromptPage(
-						tasks, selected, activeVersionId, versions, selectedVersion, rubric, targets,
+						tasks, selected, activeVersionId, versions, selectedVersion, commonPromptVersions, rubric, targets,
 						auditEntries, reevaluationJobs);
 			} catch (SQLException | RuntimeException failure) {
 				rollback(connection, failure);
@@ -125,6 +126,59 @@ public final class TeacherPromptControl {
 						expectedRowVersion, modelId, commonPrompt, additionalInstruction);
 				connection.commit();
 				return savedId;
+			} catch (SQLException | RuntimeException failure) {
+				rollback(connection, failure);
+				throw failure;
+			}
+		}
+	}
+
+	public long copyPromptFromTask(AuthenticatedUser user, long targetTaskId, long sourceTaskId)
+			throws SQLException {
+		requireTeacher(user);
+		validatePositiveId(targetTaskId, "課題");
+		validatePositiveId(sourceTaskId, "コピー元課題");
+		try (Connection connection = connectionFactory.open()) {
+			connection.setAutoCommit(false);
+			try {
+				TeacherTaskDetails target = requireTaskAccess(connection, user, targetTaskId);
+				TeacherTaskDetails source = requireTaskAccess(connection, user, sourceTaskId);
+				if (target.input().schoolId() != source.input().schoolId()) {
+					throw new SecurityException("Prompt sources must belong to the same school.");
+				}
+				long newVersionId = promptDao.copyPromptToDraftFromTask(
+						connection, user.userId(), sourceTaskId, targetTaskId);
+				connection.commit();
+				return newVersionId;
+			} catch (SQLException | RuntimeException failure) {
+				rollback(connection, failure);
+				throw failure;
+			}
+		}
+	}
+
+	public long duplicatePromptToLatestDraft(
+			AuthenticatedUser user, long taskId, long sourcePromptVersionId) throws SQLException {
+		requireTeacher(user);
+		validatePositiveId(taskId, "課題");
+		validatePositiveId(sourcePromptVersionId, "プロンプト版");
+		try (Connection connection = connectionFactory.open()) {
+			connection.setAutoCommit(false);
+			try {
+				TeacherTaskDetails task = requireTaskAccess(connection, user, taskId);
+				TeacherPromptVersion source = promptDao.findVersion(connection, taskId, sourcePromptVersionId);
+				List<entity.SchoolCommonPromptVersion> commonVersions =
+						promptDao.findCommonPromptVersions(connection, task.input().schoolId());
+				if (commonVersions.isEmpty()) {
+					throw new IllegalStateException("学校共通プロンプトの版がありません。先に共通プロンプトを保存してください。");
+				}
+				long newVersionId = promptDao.saveDraft(
+						connection, user.userId(), taskId, null, 0,
+						GeminiModelCatalog.DEFAULT_MODEL,
+						commonVersions.get(0).commonPrompt(),
+						source.additionalInstruction());
+				connection.commit();
+				return newVersionId;
 			} catch (SQLException | RuntimeException failure) {
 				rollback(connection, failure);
 				throw failure;
@@ -176,6 +230,32 @@ public final class TeacherPromptControl {
 		validatePositiveId(taskId, "課題");
 		validatePositiveId(promptVersionId, "プロンプト版");
 		GenerationContext context = beginGeneration(user, taskId, promptVersionId, expectedRowVersion, "fluctuation");
+		return completeFluctuations(user, taskId, promptVersionId, context);
+	}
+
+	public Runnable prepareFluctuationGeneration(
+			AuthenticatedUser user,
+			long taskId,
+			long promptVersionId,
+			long expectedRowVersion) throws SQLException {
+		requireTeacher(user);
+		validatePositiveId(taskId, "課題");
+		validatePositiveId(promptVersionId, "プロンプト版");
+		GenerationContext context = beginGeneration(user, taskId, promptVersionId, expectedRowVersion, "fluctuation");
+		return () -> {
+			try {
+				completeFluctuations(user, taskId, promptVersionId, context);
+			} catch (SQLException | EvaluationProviderException failure) {
+				throw new IllegalStateException("Queued prompt fluctuation generation failed.", failure);
+			}
+		};
+	}
+
+	private TeacherPromptVersion completeFluctuations(
+			AuthenticatedUser user,
+			long taskId,
+			long promptVersionId,
+			GenerationContext context) throws SQLException, EvaluationProviderException {
 		try {
 			List<FluctuationItem> items = aiClient.generateFluctuations(
 					context.version().aiModel(),
@@ -213,6 +293,60 @@ public final class TeacherPromptControl {
 		validatePositiveId(taskId, "課題");
 		validatePositiveId(promptVersionId, "プロンプト版");
 		GenerationContext context = beginGeneration(user, taskId, promptVersionId, expectedRowVersion, "examples");
+		return completeEvaluationExamples(user, taskId, promptVersionId, context);
+	}
+
+	public Runnable prepareEvaluationExampleGeneration(
+			AuthenticatedUser user,
+			long taskId,
+			long promptVersionId,
+			long expectedRowVersion) throws SQLException {
+		requireTeacher(user);
+		validatePositiveId(taskId, "課題");
+		validatePositiveId(promptVersionId, "プロンプト版");
+		GenerationContext context = beginGeneration(user, taskId, promptVersionId, expectedRowVersion, "examples");
+		return () -> {
+			try {
+				completeEvaluationExamples(user, taskId, promptVersionId, context);
+			} catch (SQLException | EvaluationProviderException failure) {
+				throw new IllegalStateException("Queued prompt evaluation-example generation failed.", failure);
+			}
+		};
+	}
+
+	public void failQueuedGeneration(
+			AuthenticatedUser user,
+			long taskId,
+			long promptVersionId,
+			String stage) throws SQLException {
+		requireTeacher(user);
+		if (!List.of("fluctuation", "examples").contains(stage)) {
+			throw new IllegalArgumentException("Unsupported prompt generation stage.");
+		}
+		try (Connection connection = connectionFactory.open()) {
+			connection.setAutoCommit(false);
+			try {
+				requireTaskAccess(connection, user, taskId);
+				TeacherPromptVersion version = promptDao.findVersion(connection, taskId, promptVersionId);
+				String status = "examples".equals(stage)
+						? version.evaluationExamplesStatus() : version.fluctuationGenerationStatus();
+				if ("in_progress".equals(status)) {
+					promptDao.failGeneration(connection, user.userId(), taskId, promptVersionId,
+							version.rowVersion(), stage);
+				}
+				connection.commit();
+			} catch (SQLException | RuntimeException failure) {
+				rollback(connection, failure);
+				throw failure;
+			}
+		}
+	}
+
+	private TeacherPromptVersion completeEvaluationExamples(
+			AuthenticatedUser user,
+			long taskId,
+			long promptVersionId,
+			GenerationContext context) throws SQLException, EvaluationProviderException {
 		JsonObject contextJson = taskContext(context.task());
 		JsonArray syntheticSamples = TeacherPromptExampleFactory.createSyntheticSamples(contextJson);
 		JsonObject syntheticInput = new JsonObject();

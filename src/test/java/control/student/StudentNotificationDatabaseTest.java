@@ -634,6 +634,15 @@ class StudentNotificationDatabaseTest {
 		assertEquals("/student/evaluation?assignmentId=" + assignment + "&submissionId=" + submission,
 				opened.redirectPath());
 		assertTrue(dao.findRetained(student, notification).orElseThrow().isRead());
+		var repeatedOpen = control.open(studentUser, notification);
+		assertEquals(OpenStatus.OPENED, repeatedOpen.status());
+		assertTrue(dao.findPage(student, 1).getNotifications().stream()
+				.filter(item -> item.getNotificationId() == notification).findFirst().orElseThrow().isRead());
+		try (Connection c = Client.createConnection()) {
+			assertEquals(1, number(c, "SELECT COUNT(*) FROM student_notifications WHERE notification_id=" + notification));
+			assertEquals(1, number(c, "SELECT COUNT(*) FROM student_notifications WHERE notification_id="
+					+ notification + " AND read_at IS NOT NULL"));
+		}
 	}
 
 	@Test void deletingBusinessDataIsNotRequiredForReadState() throws SQLException {

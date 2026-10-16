@@ -80,21 +80,24 @@
 		}
 
 		const statusLine = document.createElement("p");
-		statusLine.className = "mb-2";
+		statusLine.className = "execution-output-status";
 		statusLine.textContent = `実行状態: ${status}`;
 		outputPanel.append(statusLine);
 		[
-			["標準入力", ".log-standard-input"],
-			["標準出力", ".log-standard-output"],
-			["標準エラー", ".log-standard-error"],
-		].forEach(([label, selector]) => {
+			["stdin", "標準入力", ".log-standard-input"],
+			["stdout", "標準出力", ".log-standard-output"],
+			["stderr", "標準エラー", ".log-standard-error"],
+		].forEach(([stream, label, selector]) => {
+			const section = document.createElement("section");
+			section.className = `execution-stream execution-stream-${stream}`;
 			const heading = document.createElement("h4");
-			heading.className = "h6 mt-3";
+			heading.className = "execution-stream-heading";
 			heading.textContent = label;
 			const pre = document.createElement("pre");
-			pre.className = "mb-0";
+			pre.className = "execution-stream-content";
 			pre.textContent = value(entry, selector) || "（データなし）";
-			outputPanel.append(heading, pre);
+			section.append(heading, pre);
+			outputPanel.append(section);
 		});
 	}
 

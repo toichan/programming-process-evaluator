@@ -1,5 +1,6 @@
 <%@ page contentType="text/html; charset=UTF-8" pageEncoding="UTF-8" session="false" %>
 <%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
+<%@ taglib prefix="fn" uri="http://java.sun.com/jsp/jstl/functions" %>
 <c:set var="screenDesign" value="student"/>
 <c:set var="screenPageTitle" value="${editorPage.title}"/>
 <c:set var="screenStylesheet" value="/css/student/editor/editor.css"/>
@@ -224,7 +225,13 @@
 							<div class="info-label">入力制限</div>
 							<p class="mb-0">
 								<c:choose>
-									<c:when test="${not empty editorPage.inputConstraints}"><c:out value="${editorPage.inputConstraints}"/></c:when>
+									<c:when test="${not empty editorPage.inputConstraints}">
+										<ul class="mb-0">
+											<c:forEach items="${fn:split(editorPage.inputConstraints, ';')}" var="constraint">
+												<c:if test="${not empty fn:trim(constraint)}"><li><c:out value="${fn:trim(constraint)}"/></li></c:if>
+											</c:forEach>
+										</ul>
+									</c:when>
 									<c:otherwise>設定されていません。</c:otherwise>
 								</c:choose>
 							</p>
@@ -232,7 +239,11 @@
 						<c:if test="${not empty editorPage.creationRules}">
 							<div class="info-block">
 								<div class="info-label">作成時のルール</div>
-								<pre class="creation-rules mb-0"><c:out value="${editorPage.creationRules}"/></pre>
+								<ul class="mb-0">
+									<c:forEach items="${fn:split(editorPage.creationRules, ';')}" var="rule">
+										<c:if test="${not empty fn:trim(rule)}"><li><c:out value="${fn:trim(rule)}"/></li></c:if>
+									</c:forEach>
+								</ul>
 							</div>
 						</c:if>
 						<div class="info-block io-block">
@@ -263,11 +274,8 @@
 							<c:otherwise>
 								<c:forEach var="hint" items="${editorPage.hints}">
 									<div class="hint-card">
-										<div class="info-label"><c:out value="${hint.title}"/></div>
+										<div class="info-label hint-title-label"><c:out value="${hint.title}"/></div>
 										<p><c:out value="${hint.content}"/></p>
-										<c:if test="${not empty hint.usageSyntax}">
-											<p class="mb-2"><c:out value="${hint.usageSyntax}"/></p>
-										</c:if>
 										<c:if test="${not empty hint.code}">
 											<textarea class="hint-code-source" spellcheck="false"><c:out value="${hint.code}"/></textarea>
 										</c:if>

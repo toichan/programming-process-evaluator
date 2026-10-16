@@ -9,6 +9,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import com.google.gson.JsonObject;
+
 import javax.servlet.ServletException;
 import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.HttpServlet;
@@ -22,6 +24,7 @@ import control.evaluation.EvaluationProviderException;
 import control.evaluation.GeminiModelCatalog;
 import control.teacher.TeacherNavigationControl;
 import control.teacher.TeacherPromptControl;
+import control.teacher.TeacherPromptGenerationQueue;
 import control.teacher.ReevaluationPreviewControl;
 import dao.TeacherPromptDao;
 import entity.ReevaluationPreview;
@@ -42,7 +45,7 @@ public final class TeacherPromptServlet extends HttpServlet {
 			"action", "csrfToken", "taskId", "promptVersionId", "expectedRowVersion",
 			"aiModel", "commonPrompt", "additionalInstruction",
 			"fluctuationIds", "teacherResolutions", "resolutionStatuses", "previewCode",
-			"expectedTaskVersion", "applyConfirmed");
+			"expectedTaskVersion", "applyConfirmed", "sourceTaskId");
 	private static final TeacherPromptControl PROMPTS = new TeacherPromptControl();
 	private static final ReevaluationPreviewControl REEVALUATIONS = new ReevaluationPreviewControl();
 	private static final TeacherNavigationControl NAVIGATION = new TeacherNavigationControl();
@@ -55,6 +58,10 @@ public final class TeacherPromptServlet extends HttpServlet {
 		response.setHeader("Pragma", "no-cache");
 		try {
 			AuthenticatedUser user = authenticatedUser(request);
+			if ("generationStatus".equals(request.getParameter("action"))) {
+				writeGenerationStatus(request, response, user);
+				return;
+			}
 			render(request, response, user, optionalId(request, "taskId"),
 					optionalId(request, "promptVersionId"), optionalPreviewCode(request),
 					optionalId(request, "jobId"), null, null, null);
@@ -126,8 +133,18 @@ public final class TeacherPromptServlet extends HttpServlet {
 					}
 				}
 				switch (action) {
-					case "startReevaluationPreview" -> previewCode = REEVALUATIONS.startPreview(
-							user, taskId, requireVersionValue(promptVersionId), expectedRowVersion);
+					case "startReevaluationPreview" -> {
+						TeacherPromptVersion selected = reloadSelectedVersion(
+								user, taskId, requireVersionValue(promptVersionId));
+						if ("draft".equals(selected.promptStatus())) {
+							promptVersionId = saveDraft(
+									user, taskId, promptVersionId, expectedRowVersion, values);
+							selected = reloadSelectedVersion(user, taskId, promptVersionId);
+							expectedRowVersion = selected.rowVersion();
+						}
+						previewCode = REEVALUATIONS.startPreview(
+								user, taskId, requireVersionValue(promptVersionId), expectedRowVersion);
+					}
 					case "retryReevaluationPreview" -> REEVALUATIONS.retryFailed(user, previewCode);
 					case "cancelReevaluationPreview" -> REEVALUATIONS.cancelPreview(user, previewCode);
 					case "confirmReevaluationPreview" -> {
@@ -181,8 +198,13 @@ public final class TeacherPromptServlet extends HttpServlet {
 		return switch (action) {
 			case "applyUnpublishedPrompt" -> {
 				requireVersion(promptVersionId);
+				TeacherPromptVersion selected = reloadSelectedVersion(user, taskId, promptVersionId);
+				if ("draft".equals(selected.promptStatus()) && values.containsKey("commonPrompt")) {
+					promptVersionId = saveDraft(user, taskId, promptVersionId, expectedRowVersion, values);
+					selected = reloadSelectedVersion(user, taskId, promptVersionId);
+				}
 				PROMPTS.applyUnpublishedPrompt(user, taskId, promptVersionId,
-						nonNegativeLong(requiredScalar(values, "expectedTaskVersion")), expectedRowVersion,
+						nonNegativeLong(requiredScalar(values, "expectedTaskVersion")), selected.rowVersion(),
 						"yes".equals(scalar(values, "applyConfirmed")));
 				yield promptVersionId;
 			}
@@ -193,29 +215,37 @@ public final class TeacherPromptServlet extends HttpServlet {
 					scalar(values, "additionalInstruction"));
 			case "duplicateDraft" -> {
 				requireVersion(promptVersionId);
-				TeacherPromptVersion source = reloadSelectedVersion(user, taskId, promptVersionId);
-				yield PROMPTS.saveDraft(user, taskId, null, 0,
-						GeminiModelCatalog.DEFAULT_MODEL, source.commonPrompt(), source.additionalInstruction());
+				yield PROMPTS.duplicatePromptToLatestDraft(user, taskId, promptVersionId);
 			}
+			case "copyPromptFromTask" -> PROMPTS.copyPromptFromTask(
+					user, taskId, positiveId(requiredScalar(values, "sourceTaskId"), "コピー元課題"));
 			case "generateFluctuations" -> {
 				long savedId = saveDraft(user, taskId, promptVersionId, expectedRowVersion, values);
 				TeacherPromptVersion saved = reloadSelectedVersion(user, taskId, savedId);
-				yield PROMPTS.generateFluctuations(user, taskId, savedId, saved.rowVersion())
-						.promptVersionId();
+				Runnable generation = PROMPTS.prepareFluctuationGeneration(
+						user, taskId, savedId, saved.rowVersion());
+				enqueueGeneration(user, taskId, savedId, "fluctuation", generation);
+				yield savedId;
 			}
 			case "saveResolutions" -> {
 				requireVersion(promptVersionId);
-				PROMPTS.saveResolutions(user, taskId, promptVersionId, expectedRowVersion,
+				promptVersionId = saveDraft(user, taskId, promptVersionId, expectedRowVersion, values);
+				TeacherPromptVersion saved = reloadSelectedVersion(user, taskId, promptVersionId);
+				PROMPTS.saveResolutions(user, taskId, promptVersionId, saved.rowVersion(),
 						resolutions(values), scalar(values, "additionalInstruction"));
 				yield promptVersionId;
 			}
 			case "generateEvaluationExamples" -> {
 				requireVersion(promptVersionId);
-				PROMPTS.saveResolutions(user, taskId, promptVersionId, expectedRowVersion,
+				promptVersionId = saveDraft(user, taskId, promptVersionId, expectedRowVersion, values);
+				TeacherPromptVersion saved = reloadSelectedVersion(user, taskId, promptVersionId);
+				PROMPTS.saveResolutions(user, taskId, promptVersionId, saved.rowVersion(),
 						resolutions(values), scalar(values, "additionalInstruction"));
 				TeacherPromptVersion resolved = reloadSelectedVersion(user, taskId, promptVersionId);
-				yield PROMPTS.generateEvaluationExamples(
-						user, taskId, promptVersionId, resolved.rowVersion()).promptVersionId();
+				Runnable generation = PROMPTS.prepareEvaluationExampleGeneration(
+						user, taskId, promptVersionId, resolved.rowVersion());
+				enqueueGeneration(user, taskId, promptVersionId, "examples", generation);
+				yield promptVersionId;
 			}
 			case "saveEvaluationExamples" -> {
 				requireVersion(promptVersionId);
@@ -224,6 +254,63 @@ public final class TeacherPromptServlet extends HttpServlet {
 			}
 			default -> throw new IllegalArgumentException("この操作は現在利用できません。");
 		};
+	}
+
+	private void enqueueGeneration(
+			AuthenticatedUser user,
+			long taskId,
+			long promptVersionId,
+			String stage,
+			Runnable generation) throws SQLException {
+		Object queueValue = getServletContext().getAttribute(
+				TeacherPromptGenerationQueue.SERVLET_CONTEXT_ATTRIBUTE);
+		if (!(queueValue instanceof TeacherPromptGenerationQueue queue)) {
+			PROMPTS.failQueuedGeneration(user, taskId, promptVersionId, stage);
+			throw new SQLException("Teacher prompt generation queue is unavailable.");
+		}
+		if (!queue.enqueue(generation)) {
+			PROMPTS.failQueuedGeneration(user, taskId, promptVersionId, stage);
+			throw new SQLException("Teacher prompt generation queue is full.");
+		}
+	}
+
+	private void writeGenerationStatus(
+			HttpServletRequest request,
+			HttpServletResponse response,
+			AuthenticatedUser user) throws SQLException, IOException {
+		Long taskId = optionalId(request, "taskId");
+		Long promptVersionId = optionalId(request, "promptVersionId");
+		if (taskId == null || promptVersionId == null) {
+			throw new IllegalArgumentException("課題とプロンプト版を指定してください。");
+		}
+		TeacherPromptPage page = PROMPTS.loadPage(user, taskId, promptVersionId);
+		TeacherPromptVersion selected = page.selectedVersion();
+		if (selected == null) {
+			throw new TeacherPromptDao.PromptVersionNotFoundException();
+		}
+		JsonObject status = new JsonObject();
+		status.addProperty("fluctuationStatus", selected.fluctuationGenerationStatus());
+		status.addProperty("evaluationExamplesStatus", selected.evaluationExamplesStatus());
+		status.addProperty("stale", selected.isGenerationStale());
+		String previewCode = optionalPreviewCode(request);
+		if (previewCode != null) {
+			ReevaluationPreview preview = REEVALUATIONS.loadPreview(user, previewCode);
+			if (preview.taskId() != taskId || preview.promptVersionId() != promptVersionId) {
+				throw new TeacherPromptDao.TeacherTaskNotFoundException();
+			}
+			status.addProperty("previewStatus", preview.status());
+		}
+		Long jobId = optionalId(request, "jobId");
+		if (jobId != null) {
+			var job = page.reevaluationJobs().stream()
+					.filter(candidate -> candidate.jobId() == jobId)
+					.findFirst()
+					.orElseThrow(TeacherPromptDao.TeacherTaskNotFoundException::new);
+			status.addProperty("jobStatus", job.status());
+		}
+		response.setContentType("application/json");
+		response.setCharacterEncoding("UTF-8");
+		response.getWriter().write(status.toString());
 	}
 
 	private long saveDraft(
@@ -288,6 +375,9 @@ public final class TeacherPromptServlet extends HttpServlet {
 		if (previewCode != null && jobId != null) {
 			throw new IllegalArgumentException("プレビューと再評価jobは同時に表示できません。");
 		}
+		if (previewCode == null && jobId == null && taskId != null) {
+			previewCode = REEVALUATIONS.findOpenPreviewCode(user, taskId);
+		}
 		ReevaluationPreview preview = previewCode == null ? null : REEVALUATIONS.loadPreview(user, previewCode);
 		if (preview != null) {
 			if (taskId != null && taskId != preview.taskId()
@@ -334,8 +424,15 @@ public final class TeacherPromptServlet extends HttpServlet {
 		request.setAttribute("teacherPromptModel", model);
 		request.setAttribute("teacherPromptModels", GeminiModelCatalog.selectableModels());
 		request.setAttribute("teacherPromptLegacyModel", !GeminiModelCatalog.isSelectable(model));
+		String defaultCommonPrompt = selected == null
+				? page.commonPromptVersions().isEmpty() ? "" : page.commonPromptVersions().get(0).commonPrompt()
+				: selected.commonPrompt();
 		request.setAttribute("teacherPromptText",
-				submittedValue(submittedValues, "commonPrompt", selected == null ? "" : selected.commonPrompt()));
+				submittedValue(submittedValues, "commonPrompt", defaultCommonPrompt));
+		request.setAttribute("teacherPromptCommonPromptVersion",
+				selected == null ? null : selected.getCommonPromptVersionLabel());
+		request.setAttribute("teacherPromptLatestCommonPromptVersion",
+				page.commonPromptVersions().isEmpty() ? null : page.commonPromptVersions().get(0).getVersion());
 		request.setAttribute("teacherPromptAdditionalInstruction",
 				submittedValue(submittedValues, "additionalInstruction",
 						selected == null ? "" : emptyIfNull(selected.additionalInstruction())));
@@ -409,11 +506,12 @@ public final class TeacherPromptServlet extends HttpServlet {
 		return switch (action) {
 			case "applyUnpublishedPrompt" -> "未公開課題にプロンプトを適用しました。課題編集画面から公開できます。";
 			case "saveDraft" -> "共通プロンプトを保存しました。";
-			case "generateFluctuations" -> "揺らぎ項目を生成しました。";
-			case "saveResolutions" -> "教師対応を保存しました。";
-			case "generateEvaluationExamples" -> "合成評価例を生成しました。";
+			case "copyPromptFromTask" -> "同じ学校のプロンプトを新しい下書きへコピーしました。";
+			case "generateFluctuations" -> "揺らぎ項目の生成をキューに登録しました。完了後に結果を確認できます。";
+			case "saveResolutions" -> "揺らぎ項目指示を保存しました。";
+			case "generateEvaluationExamples" -> "合成評価例の生成をキューに登録しました。完了後に結果を確認できます。";
 			case "saveEvaluationExamples" -> "評価例を保存しました。";
-			case "duplicateDraft" -> "プロンプトを新しい下書きとして複製しました。";
+			case "duplicateDraft" -> "最新の学校共通プロンプトを使った新しい下書きを作成しました。";
 			case "startReevaluationPreview" -> "再評価プレビューを作成しました。対象ごとの予測が完了するまでお待ちください。";
 			case "retryReevaluationPreview" -> "失敗した対象の予測を再試行しています。";
 			case "cancelReevaluationPreview" -> "再評価プレビューを取り消しました。";

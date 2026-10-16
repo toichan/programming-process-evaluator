@@ -84,6 +84,11 @@ public final class TeacherPermissionDao {
 		return selectAuthorizedSchools(connection, teacherUserId);
 	}
 
+	public void requireDistributionAuthorizedSchool(Connection connection, long teacherUserId, long schoolId)
+			throws SQLException {
+		requireAuthorizedSchool(connection, teacherUserId, schoolId, "code-distribution");
+	}
+
 	public void requireDistributionAuthorizedClass(
 			Connection connection, long teacherUserId, long classroomId, long schoolId) throws SQLException {
 		requireAuthorizedClass(connection, teacherUserId, classroomId, schoolId, "code-distribution");

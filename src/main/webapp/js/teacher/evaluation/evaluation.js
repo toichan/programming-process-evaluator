@@ -224,10 +224,11 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       if (!target.childElementCount) target.append(node('p', '保存された評価理由はありません。'));
     }
-    const categories = new Map([['', 'すべて']]);
-    reasons.forEach(reason => { if (reason.dimensionLabel) categories.set(reason.dimensionLabel,
-      reason.dimensionLabel === '主体的に学習に取り組む態度' ? '態度' :
-        reason.dimensionLabel === '思考力・判断力・表現力' ? '思考・判断・表現' : reason.dimensionLabel); });
+    const categories = new Map([
+      ['', 'すべて'],
+      ['思考力・判断力・表現力', '思考・判断・表現'],
+      ['主体的に学習に取り組む態度', '態度']
+    ]);
     categories.forEach((label, category) => {
       const button = node('button', label, `reason-filter${category === '' ? ' is-active' : ''}`); button.type = 'button';
       button.setAttribute('aria-pressed', String(category === ''));
@@ -243,12 +244,13 @@ document.addEventListener('DOMContentLoaded', () => {
   function result(detail) {
     const evaluation = detail.evaluation;
     get('evaluationResults').replaceChildren(); get('evaluationMetrics').replaceChildren(); get('evaluationReasons').replaceChildren(); get('reasonFilters').replaceChildren();
-    set('feedbackSummary', evaluation?.feedbackSummary || '評価結果はまだありません。');
-    set('processAnalysis', evaluation?.processAnalysis || '');
     get('detailScorePills').replaceChildren();
     (evaluation?.dimensions || []).forEach(dimension => {
       const attitude = dimension.label === '主体的に学習に取り組む態度';
-      const displayScore = dimension.scoreText?.trim() || (dimension.score == null ? '—' : String(dimension.score));
+      const scoreText = dimension.scoreText?.trim() || (dimension.score == null ? '—' : String(dimension.score));
+      const numericScoreText = Number(scoreText);
+      const displayScore = Number.isFinite(numericScoreText) && Number.isInteger(numericScoreText)
+        ? String(numericScoreText) : scoreText;
       const numericScore = Number(dimension.score);
       const filledLevels = Number.isFinite(numericScore) ? Math.max(0, Math.min(5, Math.round(numericScore))) : 0;
       const card = node('article', null, `score-panel ${attitude ? 'attitude-panel' : 'thinking-panel'}`);

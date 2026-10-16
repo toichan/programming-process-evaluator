@@ -44,7 +44,7 @@ class TeacherPromptServletTest {
 	}
 
 	private static TeacherPromptVersion generation(LocalDateTime updatedAt, String status) {
-		return new TeacherPromptVersion(1, 1, "1", "gemini-3.7-flash", "synthetic", null,
+		return new TeacherPromptVersion(1, 1, "1", "gemini-3.7-flash", "synthetic", null, null, null,
 				status, "in_progress", "not_started", 1, "synthetic", LocalDateTime.now(),
 				null, updatedAt, List.of(), List.of());
 	}
@@ -90,6 +90,15 @@ class TeacherPromptServletTest {
 		status.set(0);
 		new TeacherPromptServlet().doGet(
 				request(new AtomicBoolean(), Map.of("jobId", "12"), teacher), response(status));
+		assertEquals(HttpServletResponse.SC_BAD_REQUEST, status.get());
+	}
+
+	@Test
+	void rejectsGenerationStatusRequestsWithoutTaskAndVersion() throws Exception {
+		AtomicInteger status = new AtomicInteger();
+		new TeacherPromptServlet().doGet(
+				request(new AtomicBoolean(), Map.of("action", "generationStatus", "taskId", "12"), teacher()),
+				response(status));
 		assertEquals(HttpServletResponse.SC_BAD_REQUEST, status.get());
 	}
 

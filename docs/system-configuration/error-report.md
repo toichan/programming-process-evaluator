@@ -2,6 +2,677 @@
 
 秘密情報・実際の生徒データ・研究データは記載しない。解消後も履歴を保持する。
 
+## 2026-10-16 07:36 JST 未解決課題の受入テスト初回実行
+
+- 対象: V-01〜V-04、F-02、T-01/T-02。共有8080と既存DB・他projectのcontainerは変更せず、専用MySQL/Tomcat/Playwrightを使用。
+- 修正前の隔離Gradle `clean build --warning-mode all` はexit 0、145 suites / 556 tests（369 passed、187 skipped、failures/errors 0）。前回記録の552件とは異なる現行ソースの基準線であり、skipは成功扱いしない。
+- `sh scripts/testing/teacher-submission-review-local.sh acceptance` はexit 0、Playwright 3/3成功。進捗の学校境界とコード再読込、提出/評価の既存学校境界、評価詳細の理由3フィルターと削除対象セクションの非表示を確認した。
+- `bash scripts/production/tests/nginx-startup-test.sh` はexit 0、7 PASS。既に存在する`chmod 0644`修正を、mode 0600の元configから構築したローカル固定image ID `sha256:7a4a0aa409bfae47337d71a6db22e4bc6093e9c0eafb01006b923076bad33cac`で検証。UID/GID 101:101の読取、TLS proxy、reload、ローカルdeploy/rollback再作成を確認。本番ECRの固定digest受入・再deployとは区別する。
+- 失敗1: `sh scripts/testing/student-exercise-layout-local.sh` はexit 1、Playwright 2 passed / 1 failed。追加したログアウト試験が閉じたユーザーメニュー内のbuttonを直接clickし、50秒timeoutとなった。これはテスト操作の欠落であり、現時点ではfocus不具合の再現証拠ではない。通常のメニュー展開操作を追加して再実行する。
+- 失敗2: `sh scripts/testing/teacher-prompt-generation-local.sh` はexit 1、専用Tomcatのreadiness判定に失敗しbrowserは未実行。WAR起動は成功しているが、`PPE_ENV=simulation`ではHTTPS必須のため直接HTTPのprobeが拒否された。simulationの制約は緩和せず、専用TLS proxyと正確なtrusted proxy IPを構成して再実行する。
+- 失敗時のJUnit XML、browser trace、runtime logは停止containerから`docker cp`で回収できた。実行ログは`build/error-resolution-validation/`、各runnerの個別報告directoryに保存。上記2件の再検証結果は後続へ追記する。
+- ユーザーは今回の課題解決に伴うGemini呼出しも許可した。再診断は実生徒データを含まない合成候補要求だけとし、既定モデル・採用・fallbackは変更しない。
+
+### 2026-10-16 07:40〜07:48 JST 再診断・取消フォーカスの再現
+
+- Gemini: ユーザーの許可を受け、モデル一覧のGETと`gemini-2.5-pro`への合成Interactions structured要求1件（自動retryなし、`store=false`）を実行。`GeminiApiDiagnosticSupportTest`2件と一覧GETは成功、候補要求はHTTP 404、全4件中3 passed / 1 failed、exit 1。`provider_code=not_found`、応答は「This model models/gemini-2.5-pro is no longer available to new users. Please update your code to use models/gemini-3.1-pro-preview for the latest features and improvements.」。モデル一覧には名前が残っているが、この認証情報でのInteractions利用可否を意味しない。request ID / Retry-Afterは応答に無いため補完しない。停止containerからJUnitと診断JSONを`build/error-resolution-validation/gemini/`へ回収できた。
+- F-01の原因は候補モデルの利用制約と判明。既存のUI候補・既定に2.5 Proは含まれていないため本実装のモデル・fallbackは変更しない。診断の失敗を成功/skipへ変更せず、2.5 Proを採用可能な候補として扱わない。再採用を依頼する場合はアクセス資格・提供状況から再判断する。
+- 演習の2回目: `sh scripts/testing/student-exercise-layout-local.sh` はexit 1、1 passed / 2 failed。メニューを通常展開した結果、取消後にユーザーメニューの起動元へfocusが戻らないことを再現した。submit直後のbutton無効化で共通確認が起動元を取得できず、メニュー閉鎖後のfallbackも主領域へ移る構成だった。重複submitの排他を維持しつつ無効化を確定後へ移し、shared feedbackで同じdropdownの可視トグルへ復帰させる。
+- 同じ演習runで既存の行配置試験も失敗（中心位置の差1.2548828125px、期待1px以下）。viewport変更直後に別々のbrowser呼出しで各座標を測っていたため、同一DOM評価内の測定と条件到達待ちへ変更する。閾値1pxは緩めず、再検証する。
+- プロンプトの2回目: `sh scripts/testing/teacher-prompt-generation-local.sh` はexit 1、browser未実行。非root/read-onlyの専用nginxで`/var/cache/nginx/fastcgi_temp`の作成が拒否された。通常proxyだけでなくfastcgi/uwsgi/scgiの一時directoryも専用`/tmp`へ指定し、proxyの生存確認とHTTP status証跡を追加する。アプリのHTTPS必須条件は維持する。
+
+### 2026-10-16 07:52 JST テスト手順の追補とsurvey受入
+
+- 演習3回目はexit 1、1 passed / 2 failed。取消のfocus復帰は先へ進んだが、Escapeをモーダルの表示アニメーション中に送ったため閉鎖判定に失敗した。Bootstrapのfocus trapがモーダルへfocusを移すまで待ってからキーボード操作を行う。座標の同時測定では非表示dropdown内の5ボタンも取得していたため、可視の3操作へ限定する。閾値1pxと3操作の検査は維持する。
+- プロンプト3回目はHTTPS経由のlogin表示まで成功し、browserを実行。fixture教師は許可された機能に応じ`/teacher/task`へ遷移するが、新試験が`/teacher/home`を期待して失敗した（1 failed、exit 1）。実装のログイン先契約に合わせて期待と一時離脱先を課題一覧へ修正する。
+- `sh scripts/testing/teacher-survey-review-local.sh integration` はexit 0。既存review fixtureへのsurvey追加、再seed時の非重複、不完全fixtureの拒否、既存の同意・学校境界・export・実HTTPの試験が成功した。surveyとreviewの全suiteを無条件に同居させる契約へは拡張せず、schema分離を維持する。
+- 07:54〜07:56 JST: 演習4回目はexit 0、fixture JUnit 1/1、Playwright 3/3成功。取消・Escape・二段階確認の取消でコード/セッション保持と可視メニュートグルへのfocus復帰を確認し、キーボードによる再操作、重複submit抑止、確定ログアウト/失効後の保護画面拒否も成功。狭幅の行配置は1px以下の元条件で成功した。今回の代表フローでは`aria-hidden`/focus警告なし。
+- 同時実行したプロンプト4回目はexit 1、browser 1 failed。揺らぎ生成・polling・離脱/再訪・表示までは成功したが、教師対応の入力後に必要な「揺らぎ項目指示を保存」を押さず、無効な評価例生成buttonを待って90秒timeoutとなった。既存の保存→生成契約にテストを合わせ、保存後の再読込とbutton有効化を検査して再実行する。合成providerの呼出しは揺らぎ1件のみで、実APIへの接続はない。
+
+## 2026-10-16 08:09 JST ローカル修正の最終受入
+
+- `sh scripts/testing/teacher-prompt-generation-local.sh`: exit 0、fixture JUnit 1/1、Playwright 1/1。専用HTTPS proxy、simulation制約下の合成provider、揺らぎ/評価例の各非同期生成、状態polling、課題一覧への離脱/再訪、完全な合成ログ/評価JSON表示、明示保存後の再読込を確認した。providerは合成2要求のみ。DB read-backは`configured / completed / completed / active / 2`で一致した。証跡は`build/teacher-prompt-generation-validation/run-77003/`。
+- `sh scripts/testing/teacher-distribution-ui-local.sh`: exit 0、fixture JUnit 1/1、Playwright 1/1。配信履歴からテンプレートを開き、1280px/390pxで三角記号`▾`、折畳時の-90度回転、展開/折畳とキーボード操作を確認。同一校peerによる更新とownerの再読込、履歴snapshot保持、別校の直接URL拒否も成功。証跡は`build/teacher-distribution-ui-validation/run-76997/`。
+- 共通feedback変更後の`sh scripts/testing/teacher-submission-review-local.sh acceptance`: exit 0、JUnit 9 suites / 28 tests（26 passed、2 skipped）、認証HTTP 1/1、Playwright 3/3成功。証跡は`build/teacher-submission-review-validation/acceptance/run-77628/`。
+- surveyの正確な件数はJUnit 5 suites / 8 tests（7 passed、1 gated runtime skip）、別の認証HTTP 1/1、exit 0。演習はfixture 1/1、Playwright 3/3、exit 0。今回の最終browser受入は合計8論理ケースであり、中間の失敗runや再実行を成功件数に加算していない。
+- 修正後の隔離`gradle --offline --no-daemon clean build --warning-mode all --console plain`: exit 0、146 suites / 559 tests（371 passed、188 skipped、failures/errors 0）、WAR成功。`build/error-resolution-validation/final/`にJUnitとbuild logを保全。標準buildのskipは外部環境の未実行であり、今回/過去に個別受入したケース以外を合格に含めない。
+- 変更したJS/Javaのeditor診断はエラーなし。`sh -n`（変更した4 runner）、`bash -n`（nginx起動試験）、`git diff --check`はexit 0。共有8080、共有DB、共有Python runner、他project DBは停止・再作成せず維持した。プロトタイプ、DB migration、アプリ既定モデル、本番は変更していない。
+- 本番固定digest、バックアップ/復旧、正式品質E2E、OS-native、UTC/JST契約、全route/action対応表と依存互換性の残件は未完了のまま。候補2.5 Pro診断のexit 1も保持し、工程20全体をPASSとはしない。
+- 08:19 JST文書・集計補正: 最終skip一覧のsuite名抽出が`hostname`属性まで一致していたため、XMLファイル名由来へ変更し、46 suites / 188 skippedと再確認した。JUnit件数・成功判定自体は変化なし。追記文書1行の末尾空白で`git diff --check`がexit 2となったため除去し、再検査exit 0。いずれもアプリの試験失敗ではない。証跡回収済みの停止container 3個と、既知の合成TLS鍵/証明書8ファイルのみを限定清掃した。共有4 containerの稼働を維持し、対象Java/JS 6ファイルのeditor診断エラー0、shell構文検査もexit 0。
+
+## 2026-10-16 08:25 JST 本番の読み取り専用調査を承認
+
+ユーザーが、AWS・本番環境の稼働release/image digest、バックアップ実行記録・S3固定Version・監視値を照合する読み取り専用調査を明示承認した。deploy、バックアップ再実行、IAM変更、DB復元、業務データの内容取得は含めない。結果は後続へ記録し、調査許可を変更/復元の許可へ拡張しない。
+
+- 同日08:25 JST、`AWS_PAGER='' aws sts get-caller-identity --profile ppe-deployer --region ap-northeast-1 --query '{Account:Account,Arn:Arn}' --output json`はexit 255、`Error when retrieving token from sso: Token has expired and refresh failed`。期待したAWS identityを取得できず、本番のinstance/release/receipt/S3/metric読取には進めていない。ローカルのAWS CLIとSSM pluginは存在するが、有効なSSOセッションの再認証が必要。
+- IAM拡張、別管理profileへの切替、SSH経路への迂回、秘密値の取得、backup/deploy/復元の実行は行っていない。F-02/H-01は読み取り調査の承認待ちから**SSO再認証待ち**へ移る。再認証後はまず同じidentity確認を再実行し、対象account/instanceを確認してから読取を続ける。
+- その後、ユーザーはSSOログイン開始も承認。`aws sso login --profile ppe-deployer`を開始したが、120秒待機後もブラウザーでの本人認証を待っている。ログイン完了・本番調査完了とは扱わず、認証待ちとして引き継ぐ。認証URL/一時コードや資格情報は本書へ保存しない。
+
+## 2026-10-16 本番読取の再開・権限制約と受入結果
+
+- 08:38 JST、ユーザーの認証完了後に同profile/東京のSTS identityを再確認しexit 0。account `024378233912`、EC2 `i-0ffd69e8f390bd396`のrunning/SSM Onlineも確認した。以前開始した認証待ちCLIだけを停止し、SSO資格情報は変更・表示していない。
+- `cloudwatch describe-alarms`と`cloudwatch get-metric-statistics`（PPE/Backup / FreshBackup / Project=ppe-production / 直近24時間）は既存roleで各1回AccessDenied、各exit 254。期待した保存監視値を読めず、未確認を維持する。IAM変更・別管理profileへの切替はしていない。
+- `ssm send-command`もAccessDeniedでcommand IDなし。複合wrapperの末尾`cat`がexit 0となったが、これはAPI成功ではない。API単独のexit codeは回収できておらず、拒否・未送信として記録する。同roleの既存interactive StartSession経路で読み取りpayloadだけを実行した。
+- 08:41〜08:44 JSTの最初のPTY wrapperは、metadataの観測完了後に外側のexit markerを取得できずtimeout/exit 1。payload完了表示だけでwrapperを成功扱いしない。以後はpayload内のEXIT trapで実codeを返し、pagerも明示無効化した。
+- 08:46 JSTの最終readonly probeはexit 0。現行currentは`a6e90edf31c5369ea71c2e10efc78d37461423d6`、state published、5サービスhealthy/restarts 0。nginx image `sha256:c0826b1d4675a8815eaa4c42e82b48d9a6416ab3c3d50de70c7ca7836269f046`の設定は0644でUID/GID 101:101の読取成功。両domain `/health`は200。10月11日の旧release記録は過去時点であり、現行本番の読取拒否継続とは扱わない。
+- 定期backupはretained journalで10月10〜16日の7開始/7完了・失敗entry 0。最新は16日02:03:01〜02:03:15 JST、success/exit 0とtimer LastTriggerが一致。latest receipt作成02:03:04 JST、current release一致、age 24,208秒で93,600秒以内。3固定Versionのサイズ・SHA-256・checksum・SSE-KMS/keyとローカル暗号化artifact/sidecarが全項目一致し、検証前後のreceipt hash/currentも不変だった。
+- 今回はread-onlyのみで、backup再実行・deploy/restart・IAM変更・SQL/復元・S3 body取得・秘密値/業務データ取得は行っていない。独立した監視API読取、業務データ入り復旧、鍵custody、将来のECR固定release受入は未完了。詳細なVersion ID・時刻・境界は[本番調査記録](./production-deployment.md#2026-10-16-本番読み取り調査)を正本とする。
+
+## 2026-10-16 管理プロファイルの監視読取を承認
+
+09:32 JST、ユーザーは、既存`ppe-infra-admin`を使い、同一本番accountの対象アラームと保存メトリクスを読み取ることを明示承認した。09:35 JSTのSTS identityはaccount `024378233912`の`PPE-Infrastructure-Admin` roleで一致、exit 0。IAM・アラーム設定・サービス状態の変更、通知試験は含めない。以下に承認後の読取結果を記録する。
+
+- 09:36 JST、`cloudwatch describe-alarms --alarm-names ppe-production-backup-freshness-alarm`、FreshBackup直近24hとBackupSuccess直近7dの`get-metric-statistics`を同profile/東京で各1回実行し、全てexit 0。アラームはOK/ActionsEnabled=true、承認済み評価条件とSNS action ARNに一致。
+- 保存FreshBackupは24連続hourly区間、各SampleCount=1、Minimum=Maximum=1。BackupSuccessは7集計区間すべてSum>0、合計13サンプル。APIは実行種別を区別しないため13回の定期実行とは扱わず、scheduledの根拠は先のsystemd 7回とする。bucket時刻や最終alarm状態遷移時刻も、service実行/今回の読取時刻と混同しない。
+- JSON条件/連続性のローカル検査もexit 0。これによりH-01の独立監視readbackは解消。以前の権限エラーはroleを改変せず履歴として残す。alarm起点の実SNS配送、業務DB復旧/アプリ読戻し、鍵custody、将来release受入は未検証。詳細は[本番調査記録](./production-deployment.md#0936-jst-管理プロファイルによる独立監視readback)を参照。
+- 記録更新後の`git diff --check`とsession YAMLの構文/集計整合検査はexit 0。VS Code Problemsには文書lint指摘が残る（190件中先頭50件のみ表示、履歴節のMD038/MD060等）。本番調査記録・ロードマップ・ECR負債・2つのYAMLは診断なしだが、全対象のlint cleanとは扱わない。今回の読取/JSON検査の失敗ではなく、履歴文書の無関係な整形は行っていない。アプリコード変更のない本追補で全build/browserの重複実行はしていない。
+
+## 2026-10-16 11:44 JST 工程20終結作業・復旧と通知試験を承認
+
+ユーザーが「次の作業」「復旧、通知試験」を明示承認した。工程20のP20-01〜10と既存証跡を対応付け、対象外だった運用/OS/実採点品質を未検証のまま別ゲートとして分離する。復旧は既存Mac鍵と固定S3 Versionを用いるローカル隔離DBで実施し、稼働DBは上書きしない。通知は既存SNS宛の明示された合成試験と一時的な専用metric/alarmを使い、実FreshBackup/既存alarmのstateや閾値を偽装しない。IAM・recipient変更、実データの外部AI送信は承認に含めない。対象accountはSTSで`024378233912`と再確認、exit 0。
+
+- 初期診断のDocker image表示は`.RepoTags`に`join`を使い、Docker 29の`[]interface{}`と合わずtemplate error。利用可能性の確認方法を`json .RepoTags`へ修正する。同じ診断の`du`も存在しない最終WAR候補パスを含みexit 1。既存review WARの存在を確認し、復旧には最新sourceからのWARを別途生成する。サービスやDBの変更・消失ではない。Mac空きは11GiBで、追加image pull/全体再buildを重複させず既存cacheと小さい専用資源を使う。
+- 同日11時台JSTの固定backup復旧準備: `download-backup.sh`で10月16日02:03 JSTの3固定S3 Versionを取得・検証しexit 0。続くhost `age --decrypt ... > /dev/null`は`no identity matched any of the recipients`、exit 1。候補のプロジェクト内既存鍵は0600/本人所有だが、この本番recipientに対応しない。鍵の再生成/書換え/転送、平文dump保存、復元先/稼働DBへの書込みはしていない。正しい本番用age identityの所在確認が必要。暗号化artifactはsessionのprivate directoryに保持し、正しい鍵で認証できるまで実復元は開始しない。
+- ユーザーが本番用identityの既存パスを指定。12:15:28 JST、0600/本人所有を確認し、指定鍵による固定ciphertext全体のhost age認証はexit 0。候補鍵の不一致は正しい鍵の指定で解消した。鍵はMacだけに置き、本文の取得/表示・Dockerへのmount・EC2への転送や再生成は行っていない。復元はこの認証済み固定artifactから専用DBへstreamする。
+- 通知試験は11:49:46〜11:52:18 JST、専用`PPE/BackupAcceptance` metricと一時alarmでOK→ALARMを実評価。11:51:50 JSTのCloudWatch action Succeeded、既存SNSのDelivered=1/Failed=0を確認、最終exit 0。一時alarm削除後も本番alarmはOK。IAM/topic/recipient・実FreshBackup/本番alarmの設定は変更していない。人間の受信箱での開封確認とは区別する。AWSは個別metric削除APIを持たないため合成datapointは通常retentionで失効し、以降の送信や継続alarmはない。
+- 12時台JST、全登録routeの共通認証filter契約を追加した初回buildは561件中1失敗/189 skip、exit 1。テストが「管理者→teacher領域をfilterだけで403」と誤期待していた。実契約はstaff領域をadmin/teacher共通で通し、教師専用handler/Controlでadminを拒否する二段階（既存の実HTTP試験で教師課題403受入済み）。新しい共通filter契約はその責務に合わせ、teacher領域のadminをfilter拒否の対象にしない。製品認可を緩めずテスト側のみ修正した。初回XMLとlogをsessionへ保持し、下記の最終全体buildで再成功を確認した。
+
+## 2026-10-16 12時台 JST 復旧検証の差分解消と最終回帰
+
+以下の失敗は同日12時台JSTの実行。個別ログに分秒の時刻がないものは補完しない。
+対象は専用project `ppe-restore-phase20-20261016`のみで、本番DBへの書込みはない。
+期待結果は固定backupの復元、現行migrationとの整合、実Control/DAO読戻し、最後の全体回帰成功。
+
+| 手順・失敗 | 原因・影響 | 対応と再検証 |
+| --- | --- | --- |
+| 最初の全体build後の`flywayValidate`、1045/Access denied、exit 1 | private wrapperが`ppe_migration`という存在しないmigration user名を指定。先行build成功とwrapper全体の失敗を区別する | 実ユーザーmetadataを確認し、既存の正しい`ppe_migrate`を使用。credentialの変更/表示はせず、後述のmigrate/validateはexit 0 |
+| app権限での`flywayValidate`、`Detected resolved migration not applied to database: 34.`、exit 1 | 固定dumpはV33で、現行sourceにはV34がある。checksum破損ではなくpending差分。成功を期待したvalidateはこの時点では失敗 | ignore/repairで隠さず、専用復元DBだけへ`flywayMigrate flywayValidate`を正しいmigration権限で実行しexit 0。66→67表、成功履歴33→34、失敗0。users23/tasks2/submissions4/evaluations4/code_logs108を保持 |
+| 専用runnerの`.State.Health.Status` inspect probe、exit 1 | image自体にHealth属性がなく、共有構成のhealthはCompose側定義だった。未起動の証拠ではなく、誤ったreadiness確認方法 | private helperを実`GET /health`へ変更。HTTP 200、`{"status":"ok"}`、curl exit 0を確認してから対象テストを実行 |
+| 新規filter testのadmin拒否誤期待、全体build exit 1 | staff共通filterと教師専用handler/Controlの責務差。製品の認可不具合ではない | 契約どおりの期待へ修正し、最終147 suites / 561 testsのbuildで失敗/エラー0。保護66 routeと共有logoutをinventoryへ記録 |
+
+- V33復元直後とV34互換更新後に`BackupRestoreDatabaseTest`を各1件実行し、各1 passed / 0 failed/errors/skipped、exit 0。実`TeacherProgressControl`→DAOで復元進捗の一覧/詳細を読み、未認証拒否と全表全行fingerprintの読取前後不変を確認。V33/V34間のschema差自体は不変とはしていない。元のage鍵・稼働DBは変更していない。
+- 過去opt-in XMLの照合で成功証跡が見つからなかったsnapshot/stale保存と冪等提出/再提出の2件、演習schema1件を、新規空schemaへV1〜V34を適用/validateしたうえで再実行。2/2と1/1、skip/failure/error 0、exit 0。global function-creator trustは0へ復元し、最終件数も確認した。
+- definitiveな最終コマンド`gradle --offline --no-daemon clean build --warning-mode all --console plain`は独立exit file 0、147 suites / 561 tests、373 passed / 188 skipped、failure/error 0、WAR成功。復元DBのopt-in 1件を有効化した全体実行であり、全DB flagを有効にした実行ではない。
+- 188 skipをXML timestampで個別照合し、171件は別実行の非skip成功XML、1件は不採用2.5 Pro診断FAIL、16件は非skip成功XML未発見（任意API7、保持browser fixture補助9）。中間失敗を消したり、未確認16件を成功へ換算したりしない。業務受入と補助fixture/候補診断の責務は[最終対応表](./feature-plans/phase-20-cross-feature-validation.md)で区別した。
+- 12:38:37 JST、今回所有の8 test containersと復元ComposeのDB/container/volume/networkを清掃し残存0。合成secret3ファイルと一時WARを削除。共有4サービスのID/image/StartedAtは前後同一かつrunning、共有教師/生徒loginは各HTTP 200。元の本番age鍵、暗号化backup、証跡は維持した。
+- 通知のAction Succeeded/Delivered1/Failed0と隔離復旧の詳細は[運用受入記録](./production-deployment.md#2026-10-16-追加承認による復元通知試験)に集約。独立offline鍵custody、人間のメール開封、復元Tomcat/browser、本番完全DR/切替は未確認のままとする。
+- 13時台JSTの文書リンク検査は初回Ruby既定US-ASCIIで`invalid byte sequence in US-ASCII`となりexit 1。`-EUTF-8:UTF-8`を明示して解消した後、工程20計画の既存相対リンク3件の参照先欠落を検出。親階層への参照へ修正した。続くad-hoc検査はhost Rubyにない`filter_map`でexit 1となり、互換性のある走査を使うsession専用検査へ置き換えた。製品/DB/外部APIへの影響はない。
+- 13:21:10 JST、`/usr/bin/ruby -EUTF-8:UTF-8 <session>/oct16-phase20-closeout/verify-closeout.rb`はexit 0。641条件で最終/個別JUnitの実値とtimestamp、188 skipのケース別根拠、P20全10件のcheckpoint、配送/清掃JSON、参照ファイル、`git diff --check`を照合し、失敗0・リンク欠落0。結果を`closeout-integrity.json`へ保存した。
+- 最後のeditor診断はJava2 testファイルに「project classpath外でsyntaxのみ解析」の環境通知がある。editorでtype/compileまで確認できたとはせず、実Gradleのcompile/test成功を根拠とする。文書のProblemsは191件中先頭50件のみ表示され、履歴節のMD038/MD060等を確認。全repo lint cleanとはしない。今回追加した受入条件を満たすために無関係な履歴表の全量整形は行わない。
+
+## 現在の未解決・未確認事項（2026-10-16 更新）
+
+ローカル再受入・合成Gemini診断と本番読取に加え、追加承認の実SNS配送、固定backupの隔離復元/V34互換更新/実Control読戻し、12:38 JSTまでの最終回帰・清掃とP20対応付けを反映した。**工程20のP20-01〜10はPASS / 完了**。[実装ロードマップ](./implementation-roadmap.md#20-機能横断のローカル検証を行う)、[最終受入表](./feature-plans/phase-20-cross-feature-validation.md)、[Runtime Validation Report](./feature-plans/runtime-validation-report.md)を併せて参照する。本番DB/deploy/既存alarm設定は変更せず、実生徒データを外部送信していない。
+
+本文には時系列順でない追補や、後続で解消した「未解決」の記載がある。履歴は書き換えず、現在の着手判断にはこの一覧と各計画の最新記録を使う。「未確認」は不具合確定を意味せず、「別ゲート・保留」は工程20で無条件に実行する指示ではない。以下のIDは課題群の整理用で、失敗テスト件数やskip件数ではない。
+
+### 失敗が残る項目
+
+| ID | 現状・影響 | 次の対応・停止条件 | 根拠 |
+| --- | --- | --- | --- |
+| F-01 | **原因確定・現行アプリへの変更不要。** 承認済みの合成再診断もHTTP 404、`provider_code=not_found`。APIは2.5 Proが新規利用者に提供されない旨を返した。再診断4件中3成功/1失敗、exit 1を保持 | 既定/選択肢に2.5 Proは元々含まれていないため、現行設定・fallbackを変更しない。モデル一覧の掲載だけで採用可能とせず、再採用する場合はアクセス資格から別判断する。新たな再試行は不要 | [安全な再診断](#2026-10-16-07400748-jst-再診断取消フォーカスの再現)、[元の404](#合成運用候補-gemini-25-pro-structured-generation-のhttp-4042026-10-15-1122-jst) |
+| F-02 | **現行本番の解消を確認。** current `a6e90edf...`のnginx設定は0644、UID/GID 101:101の読取成功。5サービスhealthy/restarts 0、両HTTPS health200。これは今回のdeployではなく、10月13日起動の現行releaseの観測結果 | 失敗したef55を再受入したわけではない。将来のECR固定registry digest/CI/source照合と新旧releaseの復旧適合性は別のrelease gateとして維持し、現行停止継続とは扱わない | [本番実測](./production-deployment.md#2026-10-16-本番読み取り調査)、[元の障害](#2026-10-11-0324-jst-ef55本番updateのnginx起動失敗) |
+
+### 工程20で閉じる検証・確認
+
+| ID | 区分・現状 | 次の対応・完了条件 | 根拠 |
+| --- | --- | --- | --- |
+| V-01 | **解消。** P20-01〜10と全29 Servlet/71 routeを共通filter・業務DB/HTTP/browser証跡へ対応付けた。最終561 tests中373 passed/188 skipped、failure/error 0、exit 0。必要なeditor2件/schema1件も再成功 | 188 skipは171件に個別成功証跡、1件候補診断FAIL、16件任意API/保持fixture補助として説明。全action×入力×roleの実HTTP総当たりではなく、元のP20合格条件に対する完了 | [最終回帰](#2026-10-16-12時台-jst-復旧検証の差分解消と最終回帰)、[P20最終対応表](./feature-plans/phase-20-cross-feature-validation.md) |
+| V-02 | **解消。** 現行の非同期生成を合成provider/専用MySQL/HTTPS/認証browserで受入。polling、離脱/再訪、完全な合成ログ/評価JSON、明示保存後のDB再読込を確認 | runnerはexit 0、fixture 1/1、browser 1/1。実API疎通・実データ採点品質とは別。再受入は関連変更時だけ行う | [最終受入](#2026-10-16-0809-jst-ローカル修正の最終受入)、[runner](../../scripts/testing/teacher-prompt-generation-local.sh) |
+| V-03 | **解消。** 履歴から開く配信ツリーを1280px/390pxで展開/折畳・回転・キーボード受入。評価詳細の非表示項目・理由3フィルターと操作も受入 | 配信browser 1/1、教師確認browser 3/3、各exit 0。prototypeは変更しない | [最終受入](#2026-10-16-0809-jst-ローカル修正の最終受入)、[配信runner](../../scripts/testing/teacher-distribution-ui-local.sh) |
+| V-04 | **修正・代表フロー受入完了。** ログアウト確認前のbutton無効化を確定後へ移し、shared feedbackで可視dropdownトグルへfocus復帰。取消/Escape/二段階取消のコード保持と再操作、重複submit抑止、確定logout/失効を確認 | 演習browser 3/3、exit 0、対象操作の`aria-hidden`/focus警告なし。全OS/全画面の保証とはしない | [再現・修正](#2026-10-16-07400748-jst-再診断取消フォーカスの再現)、[最終受入](#2026-10-16-0809-jst-ローカル修正の最終受入) |
+
+### 別ゲート・承認または運用/手動確認が必要な事項
+
+| ID | 現状 | 次の対応・境界 | 根拠 |
+| --- | --- | --- | --- |
+| H-01 | **実SNS配送・隔離業務復旧まで受入。** 定期7回/固定Version/独立監視に加え、合成alarm実評価→SNS Delivered1/Failed0、固定backup復元とV34互換更新、実Control/DAO読戻し/全表読取不変を確認、各最終exit 0。専用資源清掃済み | 残るのは独立offline鍵custody、人間の受信箱開封、復元先Tomcat/browser・本番完全DR/切替/RTO。今回のMac鍵による復号成功を別媒体保管とせず、本番DB上書きや再試験を自動実行しない | [追加承認の運用受入](./production-deployment.md#2026-10-16-追加承認による復元通知試験)、[鍵保管等の負債](./ecr-deployment-debt.md) |
+| H-02 | **正式な評価・アンケート全体の手動E2E/採点品質校正。** 現行アンケート6設問の合成回答保存・再読込は受入済みだが、実運用設定での全体受入、品質・大人数queue・予算/quota・本番SLAの確認は別 | 工程8/19の残ゲートとして扱う。合成API smoke成功を採点品質保証とせず、実提出/編集ログの送信・同意/契約・費用は別途承認条件を満たしてから進める | [現行アンケート受入](./feature-plans/phase-20-cross-feature-validation.md#現行アンケート設定を前提とする部分検証2026-10-14)、[AI計画](./feature-plans/teacher-prompt-ai.md)、[ロードマップの保留](./implementation-roadmap.md#次の着手と意図的な保留2026-10-16-jst更新) |
+| H-03 | **他ブラウザー/OS・OS標準ダイアログ。** Chromiumの対象フロー、単体/ZIPの取得内容等に成功証跡はあるが、全組合せやOS-nativeの選択/保存操作は未確認 | 対象環境を定めた受入として別管理する。自動download/Blob確認とOSダイアログ操作を区別し、工程20の対象外を無条件に追加して完了条件を拡張しない | [工程20の対象外・別ゲート](./feature-plans/phase-20-cross-feature-validation.md#対象外別ゲート)、[Chrome取得確認](#2026-10-03-2253-jst-授業演習のchrome実ダウンロード表示追加確認) |
+| H-04 | **システム全体のUTC保存/日本時間表示の統一が未確認。** runtime timezoneが固定されていないため通知の「日本時間」断定ラベルを外したが、全体の運用条件までは検証していない | DB/JVM/表示の時刻契約と対象環境を確認する。通知の個別成功を全体統一と扱わず、本番timezone設定を自動変更しない | [第165版の時刻記録](#2026-10-12-第165版-通知基盤評価完了) |
+
+### 検証基盤・非阻害の残件
+
+| ID | 現状 | 扱い・次の対応 | 根拠 |
+| --- | --- | --- | --- |
+| T-01 | **部分改善・運用上の分離を維持。** 既存review fixtureがあってもsurveyを追加でき、再seedの非重複と不完全fixture拒否を新テストで確認。survey DB 7 passed/1 skipped、認証HTTP 1/1、exit 0 | review/notification/surveyの全suite無条件同居までは保証しない。機能別runnerの空schemaと独立したGradle workspaceを使う。全suite混在の一般化は別の基盤作業として残す | [survey受入](#2026-10-16-0752-jst-テスト手順の追補とsurvey受入)、[以前の混在失敗](#2026-10-13-1010-jst-工程20の統合試験環境実行順の失敗と再検証) |
+| T-02 | **今回の欠落は解消・以後の回収を改善。** 承認済み再診断のprovider code/messageとJUnitを、失敗終了済みcontainerから`docker cp`で取得。新しいUI runnerも失敗時のtrace/runtime logを保全 | 秘密情報を除去し、取得できないrequest ID等は捏造しない。以前のDB smoke retry attempt数は遡及確定できないため不明のまま保持し、回収だけのために追加の実APIを呼ばない | [安全な再診断](#2026-10-16-07400748-jst-再診断取消フォーカスの再現)、[診断helper](../../src/test/java/control/evaluation/GeminiApiDiagnosticSupport.java) |
+| T-03 | **非阻害の警告整備は残る。** 現行clean buildでもGradle `WarPluginConvention`、runtimeでSLF4J binding、fresh MySQLでroutine dropの1305警告を確認。変更したJava/JSのeditor診断はエラーなし | 依存更新やno-op loggerによる警告隠蔽は行っていない。Gretty/Gradle互換性、logging方針、任意Docker pluginとPython pipe警告の現行再現確認を基盤作業として残す。過去警告すべての再発とは断定しない | [最終受入](#2026-10-16-0809-jst-ローカル修正の最終受入)、[過去のrunner警告](#2026-10-03-23252344-jst-t012のrunner修正最終再検証) |
+
+### 未解決として再計上しない履歴
+
+| 過去の記載 | 現在の扱い・後続証跡 |
+| --- | --- |
+| runner cleanup競合・UTF-8出力32KiB超過 | [T012最終再検証](#2026-10-03-23252344-jst-t012のrunner修正最終再検証)で修正・実制限/DB再読込を確認済み |
+| 古いinactive評価例の一括active化 | [工程20 DAO回帰](./feature-plans/phase-20-cross-feature-validation.md#既知dao不具合の再現修正回帰2026-10-13完了)で修正・専用DB再検証済み |
+| 改訂課題の生成開始がアプリ内404、揺らぎ生成429 | [N167-03の修正・認証browser受入](#n167-03-改訂課題のgemini揺らぎ生成がhttp-4042026-10-13-01580204-jst)と[N167-02の承認後再検証](#n167-02-gemini揺らぎ生成のhttp-4292026-10-13-0110-jst)を参照。F-01の候補モデルAPI 404とは別事象 |
+| Node.js未導入でPlaywright不可、通常pointer未受入 | ホストNode.jsは未導入だが公式Playwright imageで実行済み。フォルダ行pointerも受入済み。[工程20の現状](./feature-plans/phase-20-cross-feature-validation.md#現在のテスト状況)を参照。ホスト導入は継続の必須条件ではない |
+| 30秒保存・同時保存競合・重複提出・再提出が未確認 | [P20-06](./feature-plans/phase-20-cross-feature-validation.md#p20-06-生徒エディター未確認ケース完了)で指定4ケースは完了。旧assignment 17の409を起こした更新者/厳密な時系列は未特定だが、現行コードでのチェック成功と意図した競合拒否の検証は別に記録済み。再発根拠なしに機能障害として再オープンしない |
+| 教師課題S1/T014・S2 preview/job履歴の未受入 | [ロードマップの完了記録](./implementation-roadmap.md#次の着手と意図的な保留2026-10-16-jst更新)を参照。V-02の後日の非同期生成/スキーマ変更は今回の別受入記録を参照 |
+| V11権限不足、Host header拒否、runner URL不足、最近の所有範囲testのfixture/assertion失敗 | 対象を限定した環境・test修正後の成功を各履歴に記録済み。最新の所有範囲browser受入は成功しており、同じ初回失敗を残件へ再計上しない |
+| 本番update失敗後の「サービス停止継続」、段階B/Dの「再実行・timer承認待ち」 | 後続の[旧release復旧成功](#2026-10-11-0711-jst-ef55失敗から旧releaseへの緊急復旧成功)と[backup最終checkpoint](./production-deployment.md#final-acceptance-checkpoint-2026-10-09-2234-jst)で当時の状態は更新されている。F-02/H-01の未解決部分だけを保持する |
+
+### 次の着手
+
+工程20の元のP20-01〜10は完了し、V-01〜04は対象範囲で解消・受入済み。次は研究/運用開始前に必要なH系別ゲートの対象と優先順を利用者と決める。特に鍵の独立保管、正式品質/手動E2E、対象OS、時刻契約を区別し、本番切替/実データ送信/ECR改善へ自動着手しない。F-01の不採用候補診断FAILは残すが、現行アプリのモデル変更や同じAPI再試行は不要。
+
+## 工程20 授業演習コード所有範囲browser試験の期待値・fixture修正（2026-10-16 00:17–00:26 JST）
+
+- 対象/期待: 合成MySQL/Tomcat fixtureでowner教師が授業演習コードを表示でき、他校のみ担当する教師には一覧・detail・download・ZIP・CSV/bulkから対象コードが漏れないことをbrowserで確認する。
+- 初回compile結果: `sh scripts/testing/teacher-exercise-review-local.sh browser`は`TeacherExerciseRuntimeTest.java`のfixture権限復元で`cannot find symbol: variable s`となり、Gradle exit 1。SQL `Statement s`は前のtryブロック内の局所変数で、復元assertから参照できなかった。復元SQLに専用try-with-resources `Statement`を作成して修正。
+- 初回Playwright結果: `phase20/teacher-exercise-ownership.spec.js`は1 failed、exit 1。owner詳細モーダルで`hello.py`の`print('保存済み')`を期待したが、実UIは一覧最初の`main.py`を既定選択し、`#exerciseCodeViewer`に`print(2)`を表示していた。事前にdetail APIで`hello.py`が存在することは確認済みで、製品不具合ではなくUIの初期選択をテスト期待値に反映。
+- Browser command: `docker run --rm --network ppe-exercise-review-test -e PPE_P20_BASE_URL=http://teacher.localhost:8080 -e 'PPE_P20_HOST_RESOLVER_RULES=MAP teacher.localhost ppe-exercise-review-runtime, MAP student.localhost ppe-exercise-review-runtime' -e PPE_P20_EXERCISE_TEACHER_PASSWORD='ExerciseDummy42!' --mount type=bind,src=/Users/t.toida/programming-process-evaluator,dst=/source,readonly --entrypoint sh mcr.microsoft.com/playwright:v1.64.0-noble -c 'cd /source/e2e && node node_modules/@playwright/test/cli.js test phase20/teacher-exercise-ownership.spec.js --workers=1 --output=/tmp/ppe-exercise-ownership-results'`。
+- 再検証: `sh scripts/testing/teacher-exercise-review-local.sh browser` — migration、WAR、`TeacherExerciseRuntimeTest` 1 passed、0 failed/errors/skipped、exit 0。Playwright 1.64.0/Chromiumの同spec再実行は1 passed、0 failed、exit 0。ownerの4行/コード表示、他校教師の空一覧・HTTP 404 detail/download/ZIP・空CSV 200・bulk 400を確認。
+- 影響/後処理: production source・共有DB・実利用データは変更なし。合成fixture専用MySQL/Tomcatのみ利用し、終了後に専用container/networkが残っていないことを確認。権限復元はbrowser fixtureを再利用可能にするテストコード内処理。Node.jsはhostに未導入のため公式Playwright image内のNode/Chromiumを使用。
+
+## 工程20 提出確認の学校スコープbrowser fixture復帰漏れ（2026-10-15 13:47 JST）
+
+- 対象/期待: Playwrightでowner教師が合成提出を確認でき、別校のみ担当する教師は同じ提出を一覧・詳細・file・CSV・ZIPから取得できないことを確認する。
+- 初回結果: Playwright 1件を実行し、ownerログインは成功したが、ownerの提出一覧fetchがHTTP 403となりexit 1。失敗箇所はテスト側のowner positive-controlであり、他校教師境界のassertionには未到達。
+- 原因/対応: 同runで先行する認証HTTP runtime testが権限取消・学校アクセス取消を行い、合成DBにowner教師の拒否状態を残していた。browser test専用DBではあるが、次のbrowser fixtureとして再利用する際にbaselineへ戻す処理がなかった。runtime testの検証終了時に専用fixtureのowner学校アクセスと3機能権限を復帰し、再読込listが3件となることも同test内で確認する。
+- 2回目: fixture復帰後のPlaywrightが50秒でtimeout、exit 1。失敗原因は他校教師画面遷移後に一覧XHRを待ち始め、既に完了したresponseを取り逃がしていたこと。画面遷移を開始する前にresponse waitを登録するよう修正した。
+- 再検証: `sh scripts/testing/teacher-submission-review-local.sh browser`を実行し、runtime integration `TeacherReviewRuntimeTest` 1 passed、0 failed/errors/skipped（report timestamp `2026-10-15T04:55:41`）。Playwright command `docker run --rm --network ppe-submission-review-test -e PPE_P20_BASE_URL=http://teacher.localhost:8080 -e 'PPE_P20_HOST_RESOLVER_RULES=MAP teacher.localhost ppe-teacher-review-runtime, MAP student.localhost ppe-teacher-review-runtime' -e PPE_P20_REVIEW_TEACHER_PASSWORD='ReviewDummy42!' --mount type=bind,src=/Users/t.toida/programming-process-evaluator,dst=/source,readonly --entrypoint sh mcr.microsoft.com/playwright:v1.64.0-noble -c 'cd /source/e2e && node node_modules/@playwright/test/cli.js test phase20/teacher-submission-ownership.spec.js --workers=1 --output=/tmp/ppe-submission-ownership-results'` — exit 0、1 passed、0 failed。ownerでfixture提出の存在を確認し、他校教師は画面/listが空、detail/file direct URL/fetchは404、CSVは200で対象情報なし、ZIPは400で対象情報なし。
+- 影響/後処理: 合成レビューfixtureとtmpfs MySQL/Tomcatのみ。実利用DB/アカウント、外部API、production sourceは変更なし。runtime test、Playwright spec、検証記録を変更。専用container/networkは停止後に清掃され、残存なしを確認。
+
+## 工程20 評価確認の他校所有範囲テスト期待値修正（2026-10-15 13:37–13:42 JST）
+
+- 対象/期待: `sh scripts/testing/teacher-submission-review-local.sh integration`で、評価確認権限はあるが他校のみ担当する合成教師について、対象評価の一覧・直接取得・CSV/ZIP exportに対象校のデータが混入しないことを認証HTTPで検証する。
+- 初回実行: test compileで`TeacherReviewRuntimeTest.java`の局所変数`archive`が同一method内に重複しGradle exit 1。runnerは失敗後の`docker cp`も試み、停止containerからtest resultsをコピーできない旨を出力した。重複名を`outsiderArchive`へ変更した。
+- 2回目: migration/WAR build成功後、認証HTTP testが1 failure、Gradle exit 1。other-school教師のZIP取得対象がない場合にHTTP 200を期待したが、既存契約どおり`TeacherReviewControl.evaluationZip`は空結果をHTTP 400にするため失敗。実装不具合ではなくtest expectationの誤り。ZIP/logs-ZIPをHTTP 400とし、応答に生徒ID/コードがないことを検証するよう変更した。
+- 3回目: 認証HTTP testは1 failure、Gradle exit 1。CSVの空結果export監査`rows=0`の総数を固定で1と期待したが、先行する教師のfilter付きCSV exportにも0行監査があり、実際は2件だった。testは監査件数の基準を確認前に取るように変更し、他校教師の空CSVがその件数を1増加させること、およびゼロ行の監査detailを記録することを検証した。アプリ不具合ではない。
+- 最終再検証: 同じコマンドを再実行し、migration/WAR build成功、`TeacherReviewRuntimeTest` 1 passed、0 failed/errors/skipped、Gradle exit 0。担当教師が同対象を読める既存確認に加え、他校教師の一覧は空、評価detail/file/logsは404、CSVは対象情報なし、ZIP/logs-ZIPは400かつ対象情報なし、CSV監査はrows=0となることを確認した。
+- 影響/後処理: production sourceは変更していない。合成データと専用tmpfs MySQL/Tomcatのみ使用し、共有DB/app、実利用データ、外部AIは不使用。最終実行後に専用container/networkはcleanup済み。JDK/Gradleの既存警告とfresh migration時のMySQL 1305 missing-routine warningは残るが、最終build/testは成功。
+
+## 工程20 進捗コードdownload受入のfixture期待値不一致（2026-10-15 11:52–11:59 JST）
+
+- 対象/期待: `sh scripts/testing/teacher-submission-review-local.sh integration`で、許可教師は進捗詳細と最新コードを読み取れ、他校にのみ担当範囲を持つ教師は一覧に対象を表示せず、詳細/コードdownloadの直接GETがHTTP 404となることを合成データで検証する。
+- 初回結果: migration、fixture/JUnit/WAR buildは成功。認証HTTP `TeacherReviewRuntimeTest`は1件失敗、Gradle exit 1。`progressDownload.body()`が固定値`print(input())`を含むというassertionが失敗し、テストは他校教師の拒否確認まで到達していなかった。アプリ応答はHTTP 200だった。
+- 原因: 課題進捗の仕様では保存済み下書きが最新提出版より優先される。synthetic fixtureの最新コードは`print(input())`ではなく別の保存済みスナップショットであり、テスト側の固定期待値がfixtureのデータ契約と不一致だった。アプリ不具合ではない。
+- 対応/再検証: downloadの内容を同一対象に対して許可教師が取得したdetail JSONの`latestCode.code`と照合するよう変更。再度同じコマンドを実行し、migration/build成功、`TeacherReviewRuntimeTest` 1 passed / 0 skipped / 0 failed / 0 errors、Gradle exit 0。許可教師の一覧/詳細/download 200と他校教師の一覧からの除外・詳細/download 404を全て確認した。
+- 影響/後処理: 実アプリ/DBのコード変更なし。合成データのみ使用し、外部AI/APIや共有8080/開発DBは使用していない。テストrunnerが専用MySQL/container/networkを清掃。残る工程20範囲は本計画とruntime reportに記載。
+
+## 工程20 opt-in検証 runner/環境の修正（2026-10-15）
+
+### ApplicationUrlRuntimeTest のHost header制約
+
+- 対象/期待: 専用Tomcat/MySQL上で`ApplicationUrlRuntimeTest`のhost別root、認証/role境界、旧URL/POST誘導を5件すべて実HTTPで確認する。
+- 初回実行: `sh scripts/testing/application-url-routing-local.sh` — exit 1、5 tests completed / 5 failed。各テストは`IllegalArgumentException`となり、失敗位置はstatic `Browser` clientを使う各HTTP要求だった。
+- 原因/影響: Java `HttpClient`は制限された`Host` request headerを既定で拒否する。テスト側はstatic field初期化時にclientを作るため、テストmethod内でpropertyを設定するのでは遅い。実アプリのHTTP応答やDB処理の失敗ではない。
+- 対応/再検証: `ApplicationUrlRuntimeTest`のstatic client宣言より前に`jdk.httpclient.allowRestrictedHeaders=host`を設定するstatic initializerを追加。再実行で隔離migration/WAR build成功、5 tests passed、0 failed/skipped、Gradle exit 0。
+- 未解決事項: 本試験は隔離HTTP suiteの範囲に限る。全browser/OS組合せの確認ではない。
+
+### TeacherTaskDatabaseTest のrunner設定不足とreadiness probe quoting
+
+- 初回の専用DB起動確認: ad-hoc readiness queryのshell quotingが過剰でschema名を判定できず、runnerは`Isolated MySQL startup failed`でexit 1。Gradleは開始していない。MySQL自体は起動し、schemaを作成していた。
+- 対応: shell内SQLの文字列を単純な`information_schema` queryと結果完全一致で検証するようコマンドを変更。次の実行ではmigration/testが実際に開始された。
+- 初回suite結果: `TeacherTaskDatabaseTest` 45 tests completed、2 failed、10 skipped、Gradle exit 1。失敗は`periodicSnapshotPersistsAndAStaleEditorVersionCannotOverwriteIt`と`duplicateSubmissionIsIdempotentAndResubmissionPersistsTheNextRevision`。JUnit XMLで両方の原因が`IllegalStateException: PYTHON_RUNNER_URL must be configured`と確認された。
+- 原因/影響: 対象DB testは保存/提出フローのみだが、`StudentEditorControl`のdefault constructorがrunner client設定を要求する。test runnerにURL環境変数がなかったためで、実際のrunner呼出し/アプリ不具合を示さない。
+- 対応/再検証: 隔離Gradle containerへ未使用のtest-only `PYTHON_RUNNER_URL`と合成tokenを設定。再実行は45 tests、35 passed、10 skipped、0 failed/errors、exit 0。Geminiは無効で、外部API呼出しなし。10 skipをpassに含めていない。
+
+### Gemini opt-in test起動・report回収時のrunner構成問題
+
+- 初回起動コマンド: shell nested quotingの誤りで、意図したDocker `-c` scriptが渡らず、実際のopt-in testは起動しなかった。誤ってhost Gradleが起動し、hostにJava 21 toolchainがないためdependency resolutionで失敗した。Gradle exit 1に続き、outer shellはclosing quoteを解釈できずexit 127。Gemini API requestは0件で、`.env`の値は出力していない。
+- 対応/最終診断: shell scriptを直接実行する形に直し、`.env`から`GEMINI_API_KEY`のみを権限600の一時env fileへ抽出して、隔離Docker test containerへ渡した。合成入力、`gemini-3.1-pro-preview`、通常diagnostic上限4 generation、別smoke 1 generationの範囲で選択test群はGradle exit 0。model comparison/候補モデル/primary recheck gateは無効。
+- report回収: Gradle完了後にDocker containerは停止状態となるが、回収条件判定で`docker exec`を使用したため「container is not running」が2回出力され、test XML/diagnostic observationをローカルへコピーできなかった。終了コードを誤って0から変更することはなく、API test自体はexit 0。reportを取得するための追加billable requestは避け、test outputとtest sourceの選択件数だけを記録した。
+- Gemini DB-backed smoke: 別の新規専用MySQLで`EvaluationDatabaseTest.savesLiveGeminiResultOnlyWhenExplicitlyEnabled`は1 passed、0 skipped/failures/errors、exit 0。評価worker完了と評価結果のDB read-backに成功。実データ送信なし。内部retry attemptの正確な回数は保存結果に含めていない。
+- 影響/残件: runner quoting/Java toolchain失敗はdiagnostic testを実行しておらず、APIへ要求していない。実行したAPI testは合成内容のみ。API keyは出力・error reportへ記録していない。
+
+### 合成運用候補 `gemini-2.5-pro` structured generation のHTTP 404（2026-10-15 11:22 JST）
+
+- 対象/手順: `GeminiOperationalCandidateTest`を専用Docker Gradle containerで実行。`GEMINI_API_OPERATION_CANDIDATE_TEST=true`。合成payloadのみを使用し、候補モデルごとに1回のstructured generationを送信した。
+- 期待結果: `gemini-3.5-flash-lite`、`gemini-2.5-pro`、`gemini-3.1-pro-preview`のstructured responseがJSON schemaに合致し、保存後のread-backも一致する。
+- 実際の結果: 4 tests completed、3 passed、1 failed、Gradle exit 1。`gemini-3.5-flash-lite`と`gemini-3.1-pro-preview`はstructured output/read-back成功。利用可能モデル一覧GETもHTTP 200で、応答に`models/gemini-2.5-pro`を含んだ。一方、`gemini-2.5-pro`のstructured generationはHTTP 404、`retryable=false`。同モデルへの生成試行は1回で停止。
+- API情報/記録限界: endpoint `https://generativelanguage.googleapis.com/v1beta/interactions`、model `gemini-2.5-pro`、HTTP 404。保存された安全な例外は`Gemini request failed with HTTP status 404.`。provider error code、response body/message、request ID、Retry-Afterは保存済みtest artifactに含まれず、証跡からは不明。response bodyやAPI credentialは表示/保存していない。
+- 影響/対応: 診断のみで、既定モデル、`GeminiModelCatalog`、prompt設定、利用者/DB状態は変更していない。既存の[AI連携設計](../ai-api-integration-design.md)には同じAPI keyでは`gemini-2.5-pro`が新規利用者に利用不可との過去記録があり、今回の404はproject/keyの利用不可と整合する。ただし今回のprovider response bodyは保存されておらず、厳密な原因は確定できない。モデル一覧への掲載だけでは当該endpointでの生成利用可能性を保証しない。candidate採用/fallback判断は保留し、追加の有料API再試行は行わない。
+- 後処理: test containerはrunner cleanupで削除。追加API呼出し・再試行はしていない。test結果は[Runtime Validation Report](./feature-plans/runtime-validation-report.md)に記録。
+
+## 工程20 P20-06 同時保存競合browser受入runner構成ミスと修正（2026-10-15）
+
+- 対象/期待: 同じ生徒・割当・`draftUpdatedAt`を持つ二つのeditor contextから同時に下書き保存し、一方だけを成功させ、他方をHTTP 409にして、DB再読込後も成功側コードを維持する。
+- 初回失敗: `sh scripts/testing/student-editor-concurrency-local.sh` — Playwright exit 1。editor GETがHTTP 500となり、最初の並行GET実行では続くcontextが404となった。Playwrightを順次GETへ変えても最初のeditor GETは500。Tomcat logで`java.lang.IllegalStateException: PYTHON_RUNNER_URL must be configured`を特定。runnerがStudentEditorControl必須の設定と通常の隔離Python runnerを起動しておらず、アプリservletの初期化に失敗していたテスト環境構成ミス。
+- 修正と再検証: 専用network内の制限付き`programming-process-evaluator-python-runner` containerを起動し、隔離Tomcatへdummy URL/tokenを設定。runnerはコード実行には使用せずeditor save経路のみを試験した。その後同じコマンドを2回実行し、各runでV1–V34 migrate/validate・WAR build成功、fixture JUnit 1 passed/0 failed/errors/skipped、Playwright 1 passed/0 failed、exit 0。各contextは同一初期timestampを持ち、Playwright route barrierで両POSTを揃えて同時解放。要求処理intervalのoverlap、HTTP 200一件とHTTP 409一件、保存成功側だけが両contextの再読込後に表示されることを確認。
+- 非致命出力/後処理: fresh schema migrationで不存在routine dropのMySQL SQL State `42000` / Error Code `1305`と既存Gradle deprecation warningが出たが、migration/validation/build/testは成功。runner終了後、専用MySQL/Tomcat/Python runner/builder/browser containers、network、WAR/fixture logを除去し、port 18099解放を確認。共有DB/app、実データ、外部AIは使用していない。
+
+## 工程20 P20-03 教師セッションから生徒専用routeへの直接アクセス拒否（2026-10-15）
+
+- 対象/期待: 課題管理権限を持つ合成教師が、student portal上の生徒専用routeを同じ認証sessionで直接要求した場合にHTTP 403で拒否されること。
+- 検証: `sh scripts/testing/teacher-account-revocation-local.sh` — exit 0。V1–V34 migration/validation、管理者fixture生成JUnit 1 test passed、WAR生成、Playwright 1 test passed / 0 failed。教師はパスワード変更後に`/teacher/task`へHTTP 200で到達し、その`JSESSIONID`を`student.localhost`に適用した`GET /student/home`はHTTP 403。runner終了後、専用container/network/WAR/fixtureは削除され、port 18098は解放された。
+- 非致命出力: fresh schema migration時に存在しないroutine dropのMySQL SQL State `42000` / Error Code `1305`が再度表示された。migration/validationと全テストは成功し、製品不具合は確認されていない。Gradle 9互換性に関する既存deprecation warningも出力された。
+
+## 工程20 P20-04 学習開始後の改訂拒否DB受入と一時環境清掃（2026-10-15 06:46 JST）
+
+- 対象/期待: 学習状態が`in_progress`の生徒がいる公開課題について、同一系列の改訂作成が拒否され、元課題と割当の公開状態が維持されること。
+- 検証: 新規の専用tmpfs MySQL schema `ppe_teacher_task_test_started_revision`で、Gradle 8.10.2/JDK 21から`flywayMigrate flywayValidate`および`TEACHER_TASK_DB_TEST=true`下の`TeacherTaskDatabaseTest.refusesRevisionWhenAnyStudentHasStartedThePublishedTask`を実行。exit 0、JUnit 1 test passed、0 failed、0 errors、0 skipped。テストは合成教師・課題・クラス・生徒を作成し、学習開始状態で改訂を試し、拒否例外と課題/割当の`published`維持を確認する。
+- 検証中の非致命出力: fresh schema migration時に存在しないroutine dropのMySQL SQL State `42000` / Error Code `1305`が表示されたが、migrationとvalidateは成功。既存のGradle `WarPluginConvention` deprecation warningも出力された。
+- 一時環境清掃の不備と対応: 一回限りrunnerのEXIT trapでcontainer/networkのownership label lookupが引用符誤りとなり、専用DBとnetworkが一時的に残った。`docker inspect`でrunner/DB/networkすべてのowner labelが同一の`87136`であることを確認後、当該runの2 containersとnetworkだけを削除し、再確認で全て不在となった。共有環境は操作していない。
+
+## 工程20 P20-03 生徒セッションから教師/管理者専用routeへの直接アクセス拒否（2026-10-15 06:42 JST）
+
+- 対象/期待: 合成生徒が認証後に教師workspaceおよび管理者専用画面へ直接アクセスしても、ロールに基づき拒否されること。
+- 検証: `sh scripts/testing/student-exercise-layout-local.sh` — exit 0。専用tmpfs MySQLへのmigration、Gradle WAR build、隔離Tomcat readinessが成功。Playwright 1.64.0/Chromiumは2 tests passed、0 failed: 既存の狭幅フォルダ行操作と、生徒からの直接アクセス境界を確認。誤資格情報は拒否され、有効な合成student loginで`/student/home`へ到達後、同じsession IDを`teacher.localhost`へ設定して`GET` `/teacher/task`と`GET` `/admin/teachers`を要求し、どちらもHTTP 403を確認した。異なるportal hostへのredirectではなく、認証filterのrole判定を実際に通す構成。
+- 出力/影響: 空schema migration中、存在しないroutine dropのMySQL SQL State `42000` / Error Code `1305`が出力されたが、migration/build/testsは失敗せず完了。Gradle 9互換性に関する既存deprecation warningも出力された。アプリの不具合・修正はなし。
+- 後処理: runner所有のbuilder/database/runtime/browser containerとnetworkを削除し、port 18091解放を確認。共有DB/アプリ、実利用者データ、外部AIは使用していない。
+
+## 工程20 P20-09 管理者更新のstale version拒否browser受入（2026-10-15 06:26 JST）
+
+- 対象/期待: 管理者の教師管理画面で古い更新versionを使った停止要求を拒否し、教師状態とversionを変えず、失敗操作を監査記録へ残す。最新versionでの停止操作は成功すること。
+- 初回browser実行の問題と対応: `sh scripts/testing/teacher-account-revocation-local.sh`はPlaywright assertionでexit 1（0 passed、1 failed）。検証対象のHTTP 400拒否と状態不変は通過したが、失敗監査locatorが操作名「停止」の部分一致で「停止解除」の失敗行も数え、2行を検出した。locatorを操作列の「停止」完全一致に修正した。
+- 最終検証: 同コマンド再実行はexit 0。V1–V34 migration/validation、`createsRetainedAdminManagementBrowserFixture` 1 test passed、WAR生成、隔離Tomcat readinessが成功。Playwright 1.64.0/Chromiumは1 test passed、0 failed。古いversionの停止POSTはHTTP 400とversion競合メッセージを返し、再読込後も状態「利用中」・version据置を確認。続く最新versionの停止は成功し、監査に正確な「停止」失敗行が1件存在した。
+- 後処理/影響: 専用tmpfs MySQL/Tomcat/builder/browser container、network、WAR、fixtureをrunnerが削除。port 18098は解放済み。共有DB/アプリへの変更、実利用データ、外部AI呼び出しはなし。初回はテストlocatorの誤りであり、製品不具合は確認されていない。
+
+## 工程20 P20-03 教師から管理者専用routeへの直接アクセス拒否（2026-10-15 01:56 JST）
+
+- 対象/期待: 課題編集権限を持つ教師として認証した状態でも、管理者専用教師管理画面GETと教師作成POSTは拒否され、アカウント作成などのDB変更が発生しないこと。
+- 初回browser実行の問題と対応: 教師sessionのCSRF tokenを添えて教師作成POSTを送信したところ、管理者専用routeでHTTP 403となったが、Tomcatの403応答はHTMLだった。テストがJSONとしてparseしようとして`SyntaxError: Unexpected token '<'`でexit 1になった（1 failed）。GET 403とPOST 403をstatusで検証し、POSTの応答本文はtextとして確認する形へテストを修正した。
+- 最終検証: `sh scripts/testing/teacher-account-revocation-local.sh` — exit 0。Playwright 1.64.0/Chromium 1 test passed、0 failed。認証教師の`GET /admin/teachers`はHTTP 403、同じ有効な教師session/CSRFを使った`POST /admin/teachers`もHTTP 403。管理者側一覧を再読込し、試行した合成教師アカウントが作成されていないことを確認した。同教師の課題画面はHTTP 200、許可されていない教師提出画面はHTTP 403のまま。
+- 後処理/影響: 専用tmpfs MySQL/Tomcat/container/network、WAR、fixtureを削除し、port 18098解放、共有教師login HTTP 200を確認。共有DB/アプリへの書込み、外部AI呼び出し、実利用データはなし。空schema migration時に存在しないroutine削除のMySQL SQL State `42000` / Error Code `1305`は出力されたが、migrate/validateは成功した。
+
+## 工程20 P20-03 教師アカウント停止解除・論理削除のbrowser受入（2026-10-15 01:49 JST）
+
+- 対象/期待: 合成教師を管理者が停止し、停止中はログインを拒否する。管理者が停止解除した後は再ログインと許可routeへのアクセスが成功し、論理削除後はアカウントが削除済みとして残り、操作ボタンが消え、ログインが拒否され、削除操作の監査履歴が成功として保持されること。
+- 検証中の出力: 空の専用schemaへのmigration中、存在しないroutineを削除する旨のMySQLメッセージ（SQL State `42000`, Error Code `1305`）が出力された。`flywayMigrate`と`flywayValidate`は後続成功し、テスト全体も失敗なしで完了した。migration障害ではなく初期schemaに対象routineがないことを示す出力として記録する。
+- 初回browser実行の失敗と対応: 削除済み教師に対する有効なCSRF/確認情報付き`activate` POSTは期待どおりHTTP 400で拒否され、エラー本文も削除済みを示した。しかし履歴には先に成功した停止解除も存在するため、テストの「停止解除」だけのlocatorが2行に一致してstrict mode violationとなり、Playwrightはexit 1（0 passed/1 failed）。拒否の検証結果自体は通過しており、locatorを「停止解除」かつ「失敗」の行へ限定して修正した。
+- 最終検証: `sh scripts/testing/teacher-account-revocation-local.sh` — exit 0。Gradle 8.10.2/JDK 21でV1–V34 migrate/validate、fixture生成JUnit 1 test passed、WAR生成が成功。Playwright 1.64.0/Chromiumは1 test passed、0 failed。停止POST・停止解除POST・論理削除POSTは全てHTTP 200。停止後と削除後の教師routeはログイン画面へ遷移し、停止解除後は再ログイン後の課題画面がHTTP 200。削除後の一覧表示は「削除済み」、状態操作ボタンは0件、削除後の再有効化POSTはHTTP 400、操作履歴は削除「成功」と再有効化「失敗」をそれぞれ表示した。
+- 後処理/影響: 専用MySQL/Tomcat/builder/browser containerとnetwork、WAR、fixtureを削除し、port 18098解放を確認。共有教師ログインはHTTP 200で、共有DB/アプリは変更なし。合成データのみで外部AI呼び出しなし。他の全route・他ブラウザー/OS・本番環境は未確認。
+
+### 授業演習フォルダ行の狭幅表示修正（2026-10-15 01:11 JST）
+
+- 対象/期待: 生徒の授業演習画面で、狭幅時にもフォルダの開閉、名称、操作メニューが折り返されず一行に並ぶこと。
+- 実際の事象: 共有ブラウザーページ`student.localhost:18090/student/exercise`の再読込は`net::ERR_CONNECTION_REFUSED`。`lsof`でも18090のlistenerは確認できず、当該隔離アプリは停止済みだった。共有8080はlogin HTTP 200だが、未認証のexercise GETはloginへ302となるため、既存認証・DBデータには触れず実画面の再受入は行わなかった。
+- 対応/代替検証: 767px以下で`.lesson-tree-folder-header`をcolumnにしていた規則をrow/centerへ修正し、stylesheetのcache-busterを更新。既存のフォルダ行Playwrightテストに390px/320pxのflex方向、行高、toggle/name/menuの垂直位置一致を追加。Playwright 1.64.0 Chromiumで実stylesheetを使ったDOMレイアウト検証は390px/320pxとも`row`、高さ43.2px、操作要素の同一行配置で成功。続けて専用tmpfs MySQL/Tomcatと使い捨て生徒fixtureを用意し、認証後の実画面を1280pxから390px/320pxへ変更して確認。390px/320pxの一行表示・高さ上限・操作部の整列、行余白クリックとボタンの開閉、reload後の初期状態、非GETリクエストなしをPlaywrightで確認し、1件成功。コマンド`sh scripts/testing/student-exercise-layout-local.sh`はGradle migration/対象JUnit/WARビルドとPlaywrightを含めexit 0。テストspecの`node --check`、CSS/JSP/specのProblems、`git diff --check`も成功。
+- 再検証/制約: 停止していた18090ではなく、専用port 18091・一時DB・合成アカウントを使用して実アプリ受入を完了。検証後、専用コンテナ/networkを清掃し、共有8080/DBは変更していない。画面HTML/JSP・Java本体の動作変更はなく、実利用者アカウント・本番環境・他ブラウザーは未確認。
+
+### 工程20 P20-03 管理者による教師停止後のセッション失効（2026-10-15 01:33 JST）
+
+- 対象/期待: 合成教師が課題編集へ認証済みで到達した状態で、管理者が当該アカウントを停止する。停止状態が保存され、既存教師セッションから保護URLへアクセスできずログイン画面へ戻ること。
+- 初回実行の問題と対応:
+  - Playwright runnerからfixture propertiesが見つからずexit 1。fixtureはGradle builder container内に生成されるため、実行scriptでworkspace mount先へ明示的にcopyするよう修正。
+  - 続くブラウザー接続は`net::ERR_CONNECTION_REFUSED`でexit 1。browser containerからTomcatへ接続するhost-resolver ruleが不足していたため追加し、さらに公開host portではなくcontainer内port 8080をbase URLに設定した。
+  - 停止操作後、一覧行が「利用中」のままで受入assertionが失敗。教師の初回パスワード変更後に管理者一覧を再読込して最新versionを取得し、停止POSTのHTTP 200を明示assertionにしたところ、停止状態の再読込と既存教師sessionの失効を確認できた。製品コードの不具合は再現していない。
+  - ホストの`node --check e2e/phase20/admin-teacher-management.spec.js`はNode.js未導入のためexit 127。Playwright container内で同じspecを実行し、最終成功した。
+- 最終再検証: `sh scripts/testing/teacher-account-revocation-local.sh` — exit 0。専用MySQLへmigration/validation、対象JUnit fixture、WAR生成が成功。Playwright 1.64.0/Chromiumは1 test passed、0 failed。停止前の`/teacher/task`はHTTP 200、管理者の停止POSTはHTTP 200、再読込後のアカウント状態は「停止中」、既存教師sessionで同じ保護URLへ戻るとlogin URLへ遷移した。外部AI・実利用データなし。
+- 後処理/影響: 専用tmpfs DB/container/network、fixture propertiesとWARはすべて削除済み。共有8080/DBおよび既存serviceは変更していない。対象は停止後の既存教師session境界であり、他routeの全ロール/所有範囲網羅、本番・他ブラウザー/OSは未確認。
+
+### 工程20 P20-03 課題管理権限のない同一校教師による直接アクセス拒否（2026-10-14 18:33 JST）
+
+- 対象/期待: 専用DB上の同一校・有効アカウントの教師に`task-management`を付与しないfixtureを作成し、認証後に課題編集の直接URLがHTTP 403となることを確認する。同一校で許可されたpeerの編集・保存・owner read-backと、他校教師の拒否も同時に回帰確認する。
+- 検証中エラーと対応:
+  - 最初のGradle offline実行は新規cacheにFlyway pluginがなく失敗。online retryはGradle Plugin Portal artifactのTLS handshake失敗。既存依存cacheを専用Gradle cache volumeへ複製し、以後のoffline実行を成功させた。共有app/DBは変更していない。
+  - 空DBへの初回migrationはV11のroutine作成でMySQL Error 1419（binary logging有効・runtime userにSUPERなし）となった。専用DBだけ`log_bin_trust_function_creators=1`として再試行したが、失敗migration履歴によりFlyway validationが失敗したため、当該synthetic schemaを破棄・再作成し、同設定でV1–V34を再適用・validateした。migration完了直後に値を`0`へ戻した。
+- 再検証: fixture生成を含むGradle testとWAR生成はexit 0。Playwright `teacher-task-peer-draft-ownership.spec.js`はexit 0、1 passed、0 failed。課題管理権限を持つ同一校peerは下書きを編集・保存できownerから再読込できた。他校教師と課題管理権限のない同一校教師は直接GETでHTTP 403。DB read-backでも後者の同一校アクセスはenabled、`task-management`は0。共有アプリログインHTTP 200、MySQL binary-log trust値0を確認。
+- 後処理/影響: 専用Compose projectのcontainer/volume/networkは削除され残存各0、fixture propertiesも削除した。外部AI、実データ、本番、共有DBへの書込みなし。失敗はテスト環境の初期cache/TLSと専用MySQLのmigration設定に起因し、製品コードの失敗ではない。
+
+### 工程20 P20-03 教師の課題下書き所有境界browser受入（2026-10-14 18:10 JST）
+
+- 対象/手順: 専用tmpfs MySQLと合成教師のみを用意し、同一校peer教師による他教師の下書き編集、および他校教師による直接URL拒否をPlaywrightで確認する。
+- 検証中エラー: 初回Gradleコマンドではfixture保持用環境変数をGradle全体へ渡したままfixture生成テストと通常DBテストを同一実行に含めた。fixtureテストは`teacher-demo`を残し、通常テストも同じ固定login IDを使おうとしてSQL integrity constraint violationとなりexit 1（3 tests completed、1 failed）。
+- 原因/対応: これはテスト起動環境の誤設定で、製品コードの失敗ではない。fixture保持フラグをfixture生成test invocationのみに限定し、同一校DBテストは保持フラグなしの別Gradle invocationへ分離した。
+- 再検証: Flyway migrate/validate、retained fixture 1 test、WAR生成はexit 0。Playwright `teacher-task-peer-draft-ownership.spec.js`は1 passed、0 failed、exit 0。同一校peerが下書き名を編集・保存してownerから再読込でき、他校teacherの一覧には現れず直接GETは403となった。別Gradle invocationで既存DB認可テスト2件もpassed、0 failed、exit 0。
+- 後処理: 専用tmpfs DB/app/builder/browser containerとnetworkを削除し、残存container/networkなし。Gemini/実データ/共有DBなし。専用環境でのみ書込み。
+
+### 工程20 P20-03 同一校教師による他教師の配信テンプレート編集受入（2026-10-14 16:37 JST）
+
+- 対象/手順: 合成教師・生徒のみをseedした専用tmpfs MySQLと隔離Tomcatを起動し、`TeacherDistributionDatabaseTest.createsRetainedPeerTemplateForPhase20BrowserAcceptance`で同一校共有テンプレートを用意した後、Playwrightで同一校教師による編集と他校教師の直接URL拒否を確認する。
+- 期待結果: 認証後の教師ホームからコード配信画面へ移動し、同一校教師は他教師の配信済みテンプレートを表示・編集できる。保存内容は再読込後も残り、別校教師は一覧およびテンプレートIDを指定したGETから拒否される。
+- 実際の事象/検証中エラー:
+  - 初回`./node_modules/.bin/playwright test --config=playwright.config.js phase20/teacher-distribution-peer-edit.spec.js --workers=1`はexit 1。ログイン後を`/teacher/distribution`と期待したが、実際の教師ログイン先は`/teacher/home`だった。
+  - 次の実行では同一校教師の一覧・編集・保存・再読込が通った後、所有教師の配信履歴にも更新後テンプレート名が表示されるとするassertがexit 1。配信履歴には配信時点のスナップショット名が正しく残り、最新テンプレート名と混同していた。
+  - 3回目は一覧・編集・保存・再読込・別校教師の一覧非表示まで成功したが、Chromium外のPlaywright `APIRequestContext`はChromeのhost-resolver ruleを使わず、`teacher.localhost`の名前解決で失敗した。
+- 対応/再検証:
+  - ログイン成功後に実際の既定遷移`/teacher/home`をassertし、その後`/teacher/distribution`を開くよう修正。
+  - 履歴は不変の配信時スナップショット名をassertし、編集操作からロードしたテンプレートでは更新名・編集内容をassertするよう修正した。
+  - Chromium自身のhost-resolver ruleを使う`page.goto`で直接URLを開き、HTTP statusを検証する形へ変更した。
+  - 最終Gradleコマンド`gradle --offline --no-daemon --console=plain flywayMigrate flywayValidate test --tests control.teacher.TeacherDistributionDatabaseTest.createsRetainedPeerTemplateForPhase20BrowserAcceptance war --rerun-tasks`はexit 0。専用MySQL migration/validation、fixture test 1件、WAR生成が成功した。
+  - 最終Playwrightコマンド`./node_modules/.bin/playwright test --config=playwright.config.js phase20/teacher-distribution-peer-edit.spec.js --workers=1`はexit 0、1 passed、0 failed。誤資格情報拒否、同一校教師の共有テンプレート表示・編集・保存・再読込、所有教師による変更後内容の再読込、別校教師の一覧非表示と直接GET HTTP 403を確認した。
+- 影響/原因: E2E期待値の誤り、およびPlaywright APIRequestContextとChromiumのDNS設定が独立している点をテスト実行時に考慮していなかった。V19 migrationで対象procedureが存在しないMySQL noteは出たがFlyway migration/validationは成功し、失敗原因ではない。製品コードや共有サービス/DBは変更していない。
+- 後処理/残件: 専用tmpfs MySQL、builder/runtime container、network、一時WARおよびPlaywright依存を削除し、専用container/networkが残っていないことを確認。共有app/DBは稼働維持。配信履歴の既存レコード名は配信時snapshotとして維持される。工程20全体は引き続き`PARTIAL / NEEDS_SIGNOFF`。
+
+### 工程20 P20-03/P20-09 教師演習コード所有境界とフォルダ行pointer受入（2026-10-14 JST）
+
+- 対象/手順: [隔離検証スクリプト](../../scripts/testing/teacher-exercise-review-local.sh)のbrowserモードで専用tmpfs MySQL、合成fixture、専用HTTP appを起動し、教師演習コードのDB/HTTP権限テストと生徒向けフォルダ行pointer試験を実施。Playwright依存は公式1.64.0 image内で一時ディレクトリへ導入した。共有app/DBは読み取り・書き込み先にしていない。
+- 期待結果: 担当範囲と権限の許可/拒否、同意/状態境界、読取操作のデータ不変を確認する。生徒がボタンや三角以外のフォルダ行余白を通常pointerで押して展開/折りたたみでき、子ファイルを閲覧できる。検証後、専用container/networkだけを清掃する。
+- 実際の事象/検証時エラー:
+  - 最初のPlaywright container起動で作業ディレクトリを指定しなかったため、entrypoint `./node_modules/.bin/playwright`を既定ディレクトリから解決できずexit 127。
+  - Integrated browserのlogin button clickは、buttonが639px viewportの下端より約55px下にあったため、visible/stable待ちでtimeout。`getByRole('button', {name:'ログイン'})`はヘルプボタンにも一致しstrict-mode violationとなった。exact locatorに直した後もscroll/stability waitがtimeoutした。
+  - isolation DBでV19 migration実行時に`DROP PROCEDURE IF EXISTS`対象の既存procedureがない旨のMySQL noteが表示されたが、Flyway migration/validationとGradle taskは成功し、DB/HTTPテストも失敗なし。
+- 対応/再検証:
+  - 1回目のPlaywright失敗は`--workdir /work`を加えて再実行。`exercise-folder-row-toggle.spec.js`はexit 0、1 passed。ログイン失敗→合成ログイン、folder rowの非interactiveな余白を実pointer clickし展開/折りたたみ、フォルダ名buttonによる展開、reload後のDB由来folder/file表示を確認。folder toggleでは非GET requestが発生せず、データ更新なし。
+  - ブラウザー手動受入では新しいcontextを開き、tab navigationでlogin submitを行って認証に成功。フォルダ名とrow paddingを実clickして開閉動作を確認。timeoutはbrowser harness上のviewport/安定待ちで、製品機能の失敗ではない。
+  - `sh scripts/testing/teacher-exercise-review-local.sh browser`はexit 0。`TeacherExerciseDatabaseTest.currentSavedTreesScopeDownloadsCsvAndRevocation` 1 passed、`TeacherExerciseRuntimeTest.authenticatedHttpReadExportsErrorsAndAuditFailure` 1 passed、WAR生成成功。
+- 影響/原因: Playwright runnerの作業ディレクトリ指定漏れと、統合browserのviewport/操作安定待ち。修正・代替操作後は全自動試験成功し、製品不具合は検出されなかった。権限受入は教師演習コード確認機能の範囲に限定し、全機能横断の認可完了とはしない。
+- 後処理/残件: 専用container/network 4件/1件が全て消えたことを確認。Playwright runnerおよび一時npm依存も終了/削除。共有app/DBは稼働維持。P20-03の全機能/所有境界、他browser/OS等は未確認で、工程20は`PARTIAL / NEEDS_SIGNOFF`のまま。
+
+### 工程20 P20-05現行アンケート設定と課題プレビューの隔離受入（2026-10-14 14:26 JST記録）
+
+- 対象/手順: 専用Compose project `ppe-p20-survey-acceptance-20261014`、DB `ppe_teacher_review_test_surveyacc`、app port 18097で現行アンケート設定と教師課題一覧/ヒントプレビューを受入。共有DBからはsurvey ID 4の設定を読み取り、専用DBへ設問/選択肢定義のみ複製。合成教師/生徒でブラウザー受入とDB保存後の再読込を実行した。Gemini API・実利用データは使用していない。
+- 期待結果: 現行設定を変更せず、生徒が設問を表示・下書き保存・提出・再読込できる。撤回済み同意の別生徒は拒否される。教師画面ではプロンプト状態/操作が適切に分離され、ヒント名の大小文字とCodeMirror表示が保たれる。
+- 実際の事象/検証中エラー:
+  - 初期のread-only MySQL probeは接続passwordを指定せずaccess denied。`log_bin_trust_function_creators`をSESSION scopeで読むprobeも失敗し、当該値がGLOBAL-onlyと判明した。またsurvey表の`created_by_user_id`と回答表の`task_class_assignment_id`を選んだ照会は実在しない列名で失敗した。いずれもSELECT/調査中の失敗で、DB書込み前に停止した。
+  - 既存の`TeacherReviewDatabaseTest`はfixture作成時にfailure-injection triggerをCREATEし、アプリDBユーザーに必要なtrigger権限がなく失敗した。続く初期fixture試行ではComposeのDB名が既定値のままで、接続先の専用DB schemaが存在せずconnection timeoutとなった。
+  - 最初のブラウザー期待値は未認証ページをHTTP 403としたが、実際はHTTP 200の生徒login画面だった。Playwrightではdisabled fieldsetの`toBeDisabled()` matcherも実際の要素状態と一致しなかった。
+- 対応/再検証:
+  - MySQL照会にはコンテナ内設定済み接続を使用し、変数を`@@GLOBAL`から取得、SELECT列を実スキーマに合わせて修正。以後のread-backではsurvey定義6設問/30選択肢、提出response 1件/回答6件、撤回済み生徒のresponse 0件を確認した。
+  - trigger作成権限を追加せず、専用DBに限るguarded `StudentSurveyAcceptanceFixtureTest`へ切替。target schemaを明示作成/migrateし、アプリユーザーにはそのschemaだけを許可。fixture installerは1 passed、0 skipped/failures/errors、exit 0。
+  - 未認証時はlogin画面とHTTP 200をassertし、fieldset属性と子radioのdisabled状態をassertするようブラウザーテストを修正。最終コマンド`npm run test:phase20 -- phase20/current-survey-settings.spec.js`は公式Playwright 1.64.0 Docker image内でexit 0、2 passed、0 failed。
+  - 認証生徒の現行survey表示、Q3/Q4表示文言、下書き保存/再読込、提出後readonly表示、同意撤回済み別生徒のHTTP 403を確認。合成教師は課題一覧の状態セル/プロンプト操作、混在大小文字ヒント名、Python CodeMirrorプレビュー、375px/1280pxで横溢れなしを確認。詳細な範囲/件数は[Runtime Validation Report](./feature-plans/runtime-validation-report.md)に記録。
+- 影響/原因: DB認証/初期schema指定、旧fixture testの権限前提、HTTP login contractとPlaywright matcherの期待違い。アプリ不具合ではなく、試験手順とテスト期待値を修正した。共有DB/共有appを変更せず、本番反映・外部API呼出しもなし。
+- 後処理/残件: 専用DB、Playwright/runner/app container、volume/networkを削除。共有appのlogin routingはHTTP 302で応答することを確認。受入対象は成功したが、工程20の残りのopt-in試験/主要導線、他ブラウザー/OS等は未確認のままで、全体判定は`PARTIAL / NEEDS_SIGNOFF`。
+
+### 課題ヒントプレビュー/課題一覧・現行アンケート設定のローカル検証（2026-10-14 12:15–12:32 JST）
+
+- 対象/手順: 課題編集のヒントPythonプレビュー、課題一覧のプロンプト状態/操作列、現行アンケート設定を確認。JUnitはGradle 8.10.2/JDK 21のDocker環境で実行し、ブラウザーは専用Compose project `ppe-p20-task-preview`、合成DB `ppe_teacher_task_test_taskpreview`、app port 18096を使用。共有8080/DBおよび外部AIは試験対象にせず、アンケートDB設定は読み取りのみ。
+- 期待結果: 課題ヒントのタイトル大小文字を維持し、Pythonコードを表示領域内のCodeMirrorとして描画する。ヒント/テストコードに行番号を表示しない。課題一覧の状態は「設定済み/未設定」のみで示し、プロンプト設定操作を操作列へ分離する。現行アンケート設定を変更せず、設問/選択肢表示契約を検証する。
+- 実際の事象/検証時エラー:
+  - ホストの`gradle test --tests servlet.teacher.TeacherTaskPromptRevision162ViewTest --tests servlet.student.StudentSurveyUiContractTest --no-daemon --console=plain`はexit 1。Gradle toolchainがJava 21を要求したがホストに一致するJDKがなく、テスト実行前に停止した。
+  - Docker内の初回対象テストは8 tests中1 failed。テストが動的にJavaScriptで設定する`hint-title-label` classをJSP内で検索していたため、実装ではなく契約テストの期待先が誤っていた。
+  - 隔離MySQLの初回migrationはV11でexit 1、MySQL error 1419。binary logging有効時に`log_bin_trust_function_creators`が無効のままtrigger作成へ進んだ。V11が部分適用されたため、その専用Compose project/volumeのみ破棄して空DBからやり直した。
+  - ブラウザースクリーンショット取得は対象ヒント領域とその要素参照の2回ともツール側で失敗した。ブラウザー自動操作によるDOM/描画寸法検証は実行できたが、画像証跡は取得できていない。
+- 対応/再検証:
+  - テストを実際にclassを付与する`task.js`側で検証するよう修正。`docker compose run --rm -T app gradle test --tests servlet.teacher.TeacherTaskPromptRevision162ViewTest --tests servlet.student.StudentSurveyUiContractTest --tests entity.StudentSurveyOptionLabelTest --no-daemon --console=plain`はexit 0。13 tests（4+4+5）、passed 13、failed 0、skipped 0。
+  - 隔離DBのbinary logging用設定をmigration中だけ有効化してV1以降を`flywayMigrate flywayValidate`し、成功後に値を0へ戻した。migration/validate exit 0。合成教師fixture作成テストは1 passed、0 skipped/failures/errors、exit 0。
+  - 専用appのlogin HTTP 200、合成教師ログイン後の課題編集をブラウザーで確認。混在大小文字のタイトル`mY HintCase`がそのまま表示され、入力/プレビュー双方の行番号要素は0件、プレビューCodeMirrorの高さは36px。狭幅375pxでプレビューカード225×150px、ページ幅も375pxで横溢れなし。
+  - 課題一覧では状態が独立セルに「設定済み」と表示され、「プロンプト設定」は操作セルに存在し、準備済み合成課題の公開操作が有効。現行ローカルDBの有効surveyは1件（ID 4）、6設問/30選択肢であることをread-only queryで確認。設定/回答データは変更していない。
+  - `ppe-p20-task-preview`のapp/DB/runner、専用volume/networkを`docker compose -p ppe-p20-task-preview down -v --remove-orphans`で清掃し、共有Compose serviceは維持した。
+- 影響/原因: ホストJDK不在、テストアサーション誤り、隔離DB初回migration設定、およびブラウザーツールの画像取得制約。JDK依存はプロジェクト標準Docker環境へ切替、テストとmigration設定は修正後に再実行成功。実装不具合は確認されていない。
+- 残件: 課題編集UIの通常幅/狭幅ブラウザーDOM受入は成功。画像証跡と生徒向けアンケートの認証browserでの回答/保存再読込は未確認で、工程20全体は`PARTIAL / NEEDS_SIGNOFF`のまま維持する。
+
+### 工程20 P20-04 改訂再公開通知ブラウザー受入（2026-10-14 10:52 JST）
+
+- 対象/手順: 専用Compose project `ppe-p20-revision-20261015`、空の合成MySQL `ppe_teacher_task_test_rev20261015`、app port 18095を使用。V1–V34をmigration/validateし、合成教師・生徒・公開済み旧課題・設定済み合成promptの改訂版を作成。Gemini実API・実利用データ・共有8080/DBは使用していない。
+- 期待結果: 改訂の再公開で旧課題/割当を正しく置換し、生徒へ新revisionを対象とする改訂通知を1件だけ作成。認証後の通知クリックで新revision editorへ遷移し、通知を既読化する。DB再読込でも状態が保持される。
+- 実際の事象/検証時エラー:
+  - 初回fixture実行はGradle exit 0だったが、opt-in環境変数をCompose `run`へ渡さずJUnitで1 test skippedとなり、fixtureは生成されなかった。再実行もGradleのup-to-date判定でtestを実行しなかった。
+  - 1回目のPlaywright実行はhost-gateway経由でloopback bindされたHTTP portへ接続し、`ERR_CONNECTION_REFUSED`でexit 1。専用internal networkで`npm ci`を実行した試行も、networkがexternal outboundを持たないため`registry.npmjs.org`の名前解決エラー `EAI_AGAIN` でexit 1。`*.localhost`がChromium内でloopbackとして解決されるため、内部network接続時にresolver ruleを設定しない再試行も接続拒否となった。
+  - 追加のGradle revision test実行は、稼働中Gretty appとGradle user/project cacheを共有してjournal/fileHashes lock timeoutとなり、2回exit 1。最初の再試行では`GRADLE_USER_HOME`だけを分けたが、project cache lockが残った。
+- 対応/再検証:
+  - opt-in変数はCompose `run -e`で明示し、`--rerun-tasks`を指定。fixture作成testは1 test、1 passed、0 skipped/failures/errors、exit 0。
+  - `npm ci`をoutbound可能なPlaywright image containerで実行（3 packages追加、0 vulnerabilities）。browser containerは専用Compose internal networkへ接続し、Chromium `PPE_P20_HOST_RESOLVER_RULES`でstudent/teacher portalをapp IPへ向けた。Playwrightは1 test、1 passed、0 failed、exit 0。誤資格情報拒否、教師ログイン後の旧課題`要更新`/新版`公開中`、生徒ログイン、改訂通知の未読表示、通知から新版editorへ遷移、改訂タイトル表示、既読表示を確認。
+  - 別のGradle user homeに加えて`--project-cache-dir=/tmp/p20-revision-project-cache`を指定し、改訂/即時再公開、合成providerによる改訂prompt生成、予約改訂workerの3 DB testsを再実行。3 passed、0 skipped/failures/errors、exit 0。
+  - DB再読込で旧task revision 1=`requires_update`、旧assignment=`archived`、新task revision 2=`published`、`supersedes_task_id`が旧taskを参照、新assignment=`published`を確認。新assignment向け`task_published`通知は1件で、ブラウザー操作後`read_at`が設定済み。MySQL `log_bin_trust_function_creators=0`を確認。
+- 影響/原因: すべて試験環境のenv転送、network routing、共有Gradle cache競合に限定。アプリの不具合ではなく、修正後の専用DB/Playwright受入は成功。
+- 後処理/残件: 専用Compose container/volume/networkと一時fixtureを削除し、共有サービスを維持した。P20-04の改訂版通知縦断範囲は合格。P20-03/05/09の残る横断範囲、別browser/OS、本番受入は別途未確認。
+
+### 工程20 P20-03 教師の生徒アカウント管理DB受入（2026-10-14 09:27 JST）
+
+- 対象/手順: 専用Compose project `ppe-p20-student-accounts-20261014` と空の合成MySQL `ppe_student_accounts_test_p20_20261014` でV1–V34を適用し、`StudentAccountManagementDatabaseTest`を実行。
+- 期待結果: 両セキュリティレベルの作成、個別資格情報、本人ログイン/パスワード変更、権限・状態・版境界、並行採番とrollbackを検証し、専用環境だけを使う。
+- 実際の事象/検証時エラー: 初回suiteはexit 1、2 tests failed。`TeacherCredentialCipher.configured`が`Student credential key is invalid`を返し、causeは`Illegal base64 character 2d`。テスト環境へ合成鍵をBase64ではなくハイフンを含む通常文字列で渡していた。失敗時点でテストfixtureは作成前またはteardown済みで、DBは変更されていない。
+- 対応/再検証: 32-byte合成鍵をBase64形式でruntime-onlyに設定し直した。再実行はexit 0、2 tests、2 passed、0 skipped/failures/errors。DBでV34、`log_bin_trust_function_creators=0`、`users`/`schools`/`classrooms`/`student_profiles`/`student_teacher_credentials`/`audit_logs`各0件を確認。専用container/volume/networkはdown後に残存各0。共有8080サービスは稼働維持。
+- 影響/原因: 実装ではなく試験用環境変数の形式誤り。修正後、両レベルの発行資格情報と本人変更、再設定・再利用拒否、学校/クラス所有範囲、状態変更によるsession失効、競合採番、失敗時rollbackを実MySQLで確認した。
+- 残件: 当該P20-03 DB範囲は合格。認証HTTP/browserの全ロール横断と工程20の残りのopt-in/業務導線は未確認。
+
+### 工程20 P20-03 教師セルフアカウントDB受入の初回設定（2026-10-14 08:42–09:02 JST）
+
+- 対象/手順: 専用Compose project `ppe-p20-self-account-20261014` と空の合成MySQL `ppe_teacher_self_test_p20_20261014` でV1–V34を適用し、`TeacherSelfAccountDatabaseTest`を実行。
+- 期待結果: 専用DBへ接続してmigration/validateを完了し、教師自身の初回・任意パスワード変更、入力拒否、失効/権限境界、並行更新を4件すべて検証する。試験終了後に合成データと専用環境を除去する。
+- 実際の事象/検証時エラー:
+  - 初回`flywayMigrate flywayValidate`はexit 1、SQLState `28000` / MySQL error 1045: `Access denied for user 'app'@'172.25.0.3' (using password: YES)`。`docker compose up -d db`の呼出しにだけ環境変数を渡し、後続の独立shell呼出しではComposeが既定値を補間していた。migrationはDB接続前に失敗し、テスト本体・業務データ変更には到達していない。
+  - 設定確認の初回SQLは`flyway_schema_history`を照会した際に`ERROR 1046 (3D000): No database selected`。先行する読み取りでtrust設定値`0`を確認した後の失敗であり、DBへの更新はない。
+- 対応/再検証:
+  - 各Compose呼出しへ専用のsynthetic DB名・ユーザー・資格情報を明示してmigrationを再実行。`flywayMigrate flywayValidate`はexit 0、`BUILD SUCCESSFUL`、V34まで適用・validate成功。MySQL `log_bin_trust_function_creators`はmigration中だけ1とし、完了後0へ復元。
+  - 確認SQLでtrust値0、migration V34、`users`件数0を確認。`TeacherSelfAccountDatabaseTest`はexit 0、4 tests、4 passed、0 skipped/failures/errors。初回必須パスワード変更、任意変更、管理者リセット/再設定、無効入力とwrite failureのrollback、古いversion/停止済み/偽装roleの拒否、同時更新で一方のみ成功を確認。
+  - 試験後のDB確認はtrust値0、`users`/`credential_history`/`password_reset_records`/`audit_logs`各0件。`docker compose down -v`後は専用container/volume/network各0。共有8080サービスは稼働維持。実データ・Gemini実APIは不使用。
+- 影響/原因: Compose環境変数のプロセススコープとMySQL確認queryのDB選択漏れに限定され、アプリ/DB schemaの不具合ではない。接続設定の修正とDB名指定後にすべて再検証成功。
+- 残件: 当該教師セルフアカウントDB範囲は合格。P20-03の全ロールHTTP/browser横断と工程20の残るopt-in範囲は未確認。
+
+### 工程20 P20-09 管理者教師管理ブラウザー受入（2026-10-14）
+
+- 対象/手順: 専用Compose/空MySQLで管理者fixtureを作り、Playwrightから管理画面へログインし、合成教師アカウント作成・学校/機能権限の保存・再読込を確認。
+- 期待結果: 無効資格情報は拒否され、固定ID `admin` の認証後のみ管理操作が可能。作成した教師は指定校と選択した機能権限でDBへ保存される。発行資格情報は一度だけ画面表示され、閉じた後に消去される。375px幅で横はみ出しなし。
+- 実際の事象/検証時エラー:
+  - 起動直後のホストreadiness probeはGradle依存解決中にcurl exit 52 / HTTP 000（empty reply）。Tomcat起動後のコンテナ内リクエストはHTTP 200。
+  - Playwright runnerへテスト一式をリポジトリルート扱いで配置した初回実行はfixture相対パス`/build/...properties`がなくexit 1。コンテナ間`docker cp`を試したが未対応でexit 1となった。
+  - runner階層修正後の1回目はfeature checkbox全件に対するlocatorが9要素に一致しstrict-mode errorでexit 1。2回目は作成・再読込まで成功したが、画面表示名のassertを`課題管理`と誤記しexit 1（実表示は`課題編集`）。
+- 対応/再検証:
+  - runner内に`e2e/`と`build/`の階層を再現し、workspaceの生成fixture fileをrunnerへコピー。選択feature checkboxを1件ずつ操作し、画面上の仕様ラベルに合うassertへ修正。
+  - `TeacherAccountDatabaseTest.createsRetainedAdminManagementBrowserFixture`はexit 0、1 passed。最終Playwright `admin-teacher-management.spec.js`はexit 0、1 passed。誤admin password拒否、admin login、教師作成、学校・`task-management`権限、資格情報の一度限り表示・消去、再読込後の表示、375px document/body幅を確認。DB read-backでactive/学校/機能権限/password hashを確認した。
+  - 最初の失敗後に作成された合成教師レコードも含め、専用DB/volumeを破棄。共有8080アプリ、共有DB、本番サイト、外部AIには接続していない。秘密値は記録していない。
+- 影響/原因: 失敗はPlaywright runner配置、locator設計、期待ラベルの誤りに限定される。認証/管理処理の最終受入に失敗はなく、再実行で期待状態とDB永続化を確認。
+- 残件: 管理者の教師作成導線はこの合成データ・Chromium・375px範囲で受入済み。全管理操作、他ブラウザー/OS、工程20の全横断導線は未確認。
+
+### 工程20 P20-09 管理者作成教師の認証・権限境界browser追試（2026-10-14 11:58 JST）
+
+- 対象/手順: 専用Compose project `ppe-p20-authz-20261014`、合成DB `ppe_teacher_test_p20authz_20261014`、app port 18096を使用。V1〜V34適用済みDBで、管理者が作成した教師の認証後アクセスをPlaywrightで確認した。
+- 期待結果: 発行資格情報で初回ログイン・必須パスワード変更後、付与済み`task-management`の課題編集はHTTP 200、未付与`submission-review`の提出確認はHTTP 403となり、DB再読込でも学校・権限が一致する。
+- 実際の事象/検証時エラー:
+  - 1回目はspecをrunnerのrootへ置いたためPlaywrightがテストを検出できずexit 1。phase20へ移動後は`./helpers`未配置でmodule解決に失敗しexit 1。次の実行ではfixtureの相対パス`/runner/build/...properties`がなくexit 1。spec/共通helper/生成build fixtureの階層をrunner内で再現して解消した。
+  - 初回ブラウザー試験は120秒timeout。管理者ページと同じBrowserContextを使ったため管理者cookieが残り、教師login URLがログインフォームではなく管理者セッションへ遷移していた。独立BrowserContextに分離した後、初回ログインは必須パスワード変更画面へ正しく遷移したため、home直行を期待した試験が失敗した。変更後の教師は有効な`task-management`権限に基づき`/teacher/task`へ遷移したため、homeを期待するassertも不一致となった。
+  - readiness確認で`localhost`を使った際はhost別portal routingによるHTTP 302だった。教師host `teacher.localhost`へ修正後HTTP 200。DB確認でroot資格情報を誤指定した初回照会はMySQL 1045で失敗したが、DB変更はなく、コンテナー内のruntime-only設定を使う照会で再確認した。
+- 対応/再検証: specで教師用の独立BrowserContextを作成し、必須パスワード変更と再ログインを実施する流れに変更。テストは`node --check`成功、Playwright最終実行exit 0・1 passed。課題編集ページはHTTP 200、未付与の提出確認ページはHTTP 403。DB read-backで最新の合成教師はactive、`teacher_must_change_password=0`、fixture学校のaccess enabled、`task-management` enabled、`submission-review` disabled、enabled feature数1を確認。DBの`log_bin_trust_function_creators=0`、教師login readiness HTTP 200も再確認した。
+- 影響/原因: 初期失敗はrunner階層・fixture mount、管理者/教師のcookie分離、初回パスワード更新と権限別landing routeのテスト前提に起因し、製品コードの不具合ではない。専用DB・合成資格情報のみで試験し、Gemini実API、実利用データ、共有port 8080、本番サイトは使用していない。
+- 後処理/残件: DB read-back後、`docker compose -p ppe-p20-authz-20261014 -f /tmp/ppe-p20-authz-20261014/docker-compose.yml down -v --remove-orphans`はexit 0で専用container/volume/networkを削除し、残存数各0を確認。一時作業コピー`/tmp/ppe-p20-authz-20261014`も削除した。Composeは一時コピーの`.env`未指定に関する空値警告を出したが、固定project名の対象資源はすべて削除され、共有資源への影響はない。確認した1つの教師権限組合せをもって全feature route・学校/所有範囲の網羅とはせず、工程20は`PARTIAL / NEEDS_SIGNOFF`を維持する。
+
+### 工程20 P20-06 合成生徒の提出・再提出E2E（2026-10-14）
+
+- 対象/手順: 新しい専用Compose project/schemaにV34を適用し、重複提出・revision 2再提出のMySQL regressionと、Playwrightでの認証→提出前チェック→revision 1提出→再提出開始→revision 2提出を検証。
+- 期待結果: 同一冪等キーの再送は同じ提出を返し、再提出は別のsubmission idでrevision 2として保存される。画面は各確定後に対応する評価確認へ進む。実AI・実利用者データは使わない。
+- 実際の事象/検証時エラー:
+  - 初回`duplicateSubmissionIsIdempotentAndResubmissionPersistsTheNextRevision`はexit 1。test teardownが`schools`を削除するとき、V34の`school_common_prompt_versions`参照FKにより`SQLIntegrityConstraintViolationException`となった。提出処理のassertは通過し、後片付けで失敗。
+  - 初回Playwrightは`app` hostnameがChromium HSTS対象のためHTTP起動が`ERR_SSL_PROTOCOL_ERROR`。次の実行は分離したDNS名からCDNへ到達できずCodeMirrorが初期化されなかった。CDNを読めるrunnerでも、insecure originではブラウザーの`crypto.randomUUID`が提供されず提出確認エラーとなった。
+  - 読取専用DB確認の初回SQLはdatabase未選択、続くqueryでは存在しない`evaluation_requests.created_at`をORDER BYに指定して失敗。どちらもデータ変更前の確認queryで、DB状態は変更されなかった。
+- 対応/再検証:
+  - `TeacherTaskDatabaseTest.removeOnlySyntheticRows`のcleanupに、fixture学校に属する`school_common_prompt_versions`だけを削除する処理を追加。専用DBを作り直してV34 migration/validate後に同じregressionを再実行し、exit 0・1 passed。ブラウザーfixture testもexit 0・1 passed。
+  - ブラウザーは専用appで`GEMINI_API_KEY`を空にしてから実行。`.localhost` secure originへ切替え、Playwright runnerだけにappのcontainer-IP resolver mappingを設定、CodeMirror用CDN取得を可能にした。`editor-submit-resubmission.spec.js`はexit 0・1 passed。DB read-backでrevision 1と2がともに`accepted`、各コードが保存済み。
+  - 最終DB確認は専用schemaを指定し、`log_bin_trust_function_creators=0`とFlyway V34を確認。評価requestはAPIキー未設定のためfailedとなったが、外部Gemini呼び出しなし。専用環境終了後、専用container/volume/networkを削除し共有8080/DBを維持。
+- 影響/原因: FK違反はテストfixture teardownの新migration追従漏れであり、製品提出/再提出処理の失敗ではない。Playwrightの初回失敗はHSTS、テストrunnerの外向きネットワーク制限、secure-context要件による環境設定不整合。SQL確認エラーもquery作成ミスであり、データは変更していない。
+- 残件: P20-06のMySQL冪等性・revision 2・実UI提出再提出は合格。AI評価の完了、別browser/OS、工程20の残るP20-09主要導線と横断範囲は別途未確認。
+
+### 工程20 P20-06 生徒エディター再追試（2026-10-14 05:49 JST）
+
+- 対象/手順: local8080上の合成assignment 17を表示していた認証済みstudent editorを390px幅で確認。提出前I/Oチェック結果とdocument/bodyの横幅を確認後、生徒ホームをGETした。
+- 期待結果: 390pxでも横はみ出しなく提出前チェックが表示される。認証が維持されていれば、生徒ホームと提出後の再提出導線も継続確認する。
+- 実際の事象/検証時エラー: editor画面ではI/Oチェック2/2一致、document/bodyとも390pxで横はみ出しなし。その後`/student/home`への遷移は`/student/account/login`へredirectされ、認証済みホーム表示を確認できなかった。HTTP statusの個別計測はしていない。
+- 対応/再検証: 認証情報がない状態でログインを試行せず、最終提出・再提出も行わなかった。提出前確認までのbrowser証跡としてのみ記録し、実UI提出/再提出受入を未確認のままとした。
+- 影響/残件: 合成データを含めDB書込み・提出状態変更なし。実API/外部AI呼び出し、本番サイト接続、プロトタイプ変更なし。P20-06の自動DBテストでは同一冪等キーとrevision 2を検証済みだが、認証済みUIによる実提出・再提出は未確認。
+
+### プロンプト版管理仕様と古い画面契約テストの不一致（2026-10-14）
+
+- 対象/手順: エディター、通知、課題編集、共通プロンプト版管理の関連テストを実行。初回 `docker compose run --rm --no-deps -e GRADLE_USER_HOME=/tmp/ppe-gradle-related-ui app gradle test --tests control.student.StudentEditorControlTest --tests entity.StudentEditorPageTest --tests servlet.student.StudentHomeNavigationContractTest --tests servlet.student.StudentNotificationUiContractTest --tests control.teacher.TeacherTaskControlTest --tests control.teacher.TeacherTaskInputValidatorTest --tests servlet.teacher.TeacherTaskServletTest --tests servlet.teacher.TeacherTaskFormTest --tests servlet.teacher.TeacherTaskPromptRevision162ViewTest --no-daemon` は48件中1件失敗した。
+- 期待結果: 課題間の共通プロンプトはコピー用ボタンではなく学校単位の版履歴として管理し、最新版を新しい課題プロンプトの既定値とする。編集、課題固有の適用版、評価履歴は分離する。
+- 実際の事象/検証時エラー: `TeacherTaskPromptRevision162ViewTest` が、現行仕様で廃止された「他課題から下書きへコピー」画面の文字列を期待して失敗（`TeacherTaskPromptRevision162ViewTest.java:46`）。実装画面は学校共通プロンプト版履歴を表示し、コピー操作は提供していなかった。その他47件は成功。
+- 対応/再検証: テストを現行の第172/177版仕様へ更新し、学校共通版履歴/latest既定値とpreview再発見を検証。上記の同じコマンドを再実行しBUILD SUCCESSFUL、全48件成功、失敗/エラー/skip 0。仕様に反してコピーUIを再導入していない。
+- 影響/残件: 製品コードの実行障害ではなく、検証コードに残った旧仕様の期待値。DB・外部API・本番サイト・実利用者データへの操作なし。
+
+### コード配信フォルダ展開アイコンの統一（2026-10-14）
+
+- 対象/手順: コード配信ツリーのトグルは展開用の二重山形SVGを使っていた一方、画面CSSは下向き三角用の専用クラスを定義していたため、演習ツリーの表示と異なっていた。distribution JavaScript/JSPとUI契約テストを更新し、`servlet.teacher.AccountDistributionUiContractTest`を実行した。
+- 期待結果: フォルダの開閉状態に応じて共通の三角アイコンが回転し、ボタンのアクセシブル名と開閉動作を維持する。
+- 実際の事象/検証時エラー: 変更前はJSが`lesson-tree-folder-toggle`と`controlIcon('expand')`を設定しており、当画面のCSSが定義する`distribution-tree-folder-toggle`/三角表示と一致していなかった。対象テスト実行では失敗なし。`git diff --check`は実行済み。
+- 対応/再検証: CSSの既存仕様に合わせて専用クラスと`▾`アイコンを設定し、画面アセット版を171へ更新。展開状態に応じた`is-collapsed`、aria-label、既存イベント処理は維持した。`docker compose run --rm --no-deps -e GRADLE_USER_HOME=/tmp/ppe-gradle-ui-acceptance app gradle test --tests servlet.teacher.AccountDistributionUiContractTest --tests servlet.student.EvaluationPrototypeUiContractTest --tests servlet.teacher.TeacherReviewServletTest --no-daemon` はBUILD SUCCESSFUL。対象15件（各クラス5件）、15 passed、失敗/エラー/skip 0。`git diff --check`も成功。
+- 影響/残件: 配信履歴を含む認証済み画面のブラウザー確認は未実施。外部API・DB更新・プロトタイプ変更はない。
+
+### 教師評価詳細のプロトタイプ外表示を除去（2026-10-14 05:25 JST）
+
+- 対象/手順: 教師評価詳細のプロトタイプと現行JSP/JavaScriptを照合し、総合フィードバック文・process analysis文を表示しないようにし、理由フィルターを全件/2観点に固定した。`servlet.student.EvaluationPrototypeUiContractTest`と`servlet.teacher.TeacherReviewServletTest`を実行した。
+- 期待結果: 実データの2観点・観点別スコア・理由・根拠を保持し、プロトタイプにない文章と「その他」理由フィルターを表示しない。
+- 実際の事象/検証時エラー: 初回コンパイル/テスト失敗なし。GradleはBUILD SUCCESSFUL、対象10件（5+5）全て成功、失敗/エラー/skip 0。`git diff --check`も成功。
+- 対応/再検証: JSPから`feedbackSummary`/`processAnalysis`表示先を除き、JavaScriptの表示更新を削除。理由フィルターは「すべて」「思考・判断・表現」「態度」の3項目に限定。プロトタイプ側は変更していない。DB/API/外部AIは使用していない。
+- 影響/残件: 認証済み教師browserでの画面受入は未実施。既存8080アプリのstudent browserをhomeへ移動した際、sessionが失効してログイン画面へredirectされたため、UI表示を成功扱いしない。
+
+### 生徒アンケート評価提示の範囲調整（2026-10-14 05:09 JST）
+
+- 対象/手順: アンケート画面の「システムが出した評価」をプロトタイプと照合し、評価表示から余分な評価全体フィードバック文を除外。設問3・4の表示ラベルとDB保存値の分離を確認するため、StudentSurveyOptionLabelTest、StudentSurveyUiContractTest、関連するprompt/distribution UI・制御テストをGradleで実行した。
+- 期待結果: 評価カードには当該評価の2観点の実スコア・観点別説明だけを表示し、設問3・4はDBの選択値を維持してプロトタイプ文言を表示する。テストが全てコンパイル・成功する。
+- 実際の事象/検証時エラー: 初回`compileTestJava`で、UI契約テストに追加した`assertFalse`のstatic importがなくコンパイルに失敗した。製品コードの失敗やDB/APIエラーではない。
+- 対応/再検証: `StudentSurveyUiContractTest`へstatic importを追加。`docker compose run --rm --no-deps -e GRADLE_USER_HOME=/tmp/ppe-gradle-prompt-queue app gradle test --tests entity.StudentSurveyOptionLabelTest --tests servlet.student.StudentSurveyUiContractTest --tests servlet.student.SurveyFourStepRuntimeTest --tests control.teacher.TeacherPromptAiClientTest --tests control.teacher.TeacherPromptGenerationQueueTest --tests entity.TeacherPromptVersionTest --tests servlet.teacher.TeacherPromptServletTest --tests servlet.teacher.AccountDistributionUiContractTest --tests control.teacher.TeacherDistributionDatabaseTest --no-daemon`はBUILD SUCCESSFUL。対象31件のうち28 passed、0 failed、0 errors、3 skipped。skipはSurveyFourStepRuntimeTest 1件と、専用DB設定がないためTeacherDistributionDatabaseTest 2件。`git diff --check`も成功した。
+- 影響/残件: 実DBのアンケート選択肢・回答履歴は変更していない。認証ブラウザーでの画面受入とDB付きdistributionテストは未実施。初回コンパイル失敗は修正済みで、ブラウザー確認を成功扱いしない。
+
+### プロンプト設計の本番形式合成評価例（2026-10-14 02:01 JST）
+
+- 対象/手順: 合成評価例のログ・評価スキーマ変更に対し、`docker compose run --rm --no-deps -e GRADLE_USER_HOME=/tmp/ppe-gradle-prompt-examples app gradle test --tests control.teacher.TeacherPromptAiClientTest --tests entity.TeacherPromptVersionTest --no-daemon`を実行。外部AI・実利用者データ・本番サイトは使用していない。
+- 期待結果: 本番評価入力と同じコード編集ログと評価応答を含む合成例がコンパイルされ、対象テストを通過する。
+- 実際の事象/検証時エラー: 1回目は `TeacherPromptControl.java` でメソッド宣言が別メソッド内に入った既存作業ツリーの構文不整合によりcompileJavaが失敗。配置を修正した2回目は `TeacherPromptServlet.java` がJavaBeans getterをrecord accessorとして呼び出しており、2つのメソッドを解決できずcompileJavaが失敗した。
+- 対応/再検証: `copyPromptFromTask` と `duplicatePromptToLatestDraft` を同じクラス階層の独立メソッドに戻し、Servletを既存JavaBeans getter呼び出しに修正。上記の同じGradleコマンドを再実行し、compileJava/compileTestJavaを含めBUILD SUCCESSFUL、対象2テストクラス成功、失敗0で完了した。関連コードは検証可能なローカルソースのみ変更した。
+- 影響/残件: 最初の2回はいずれもビルド前のコンパイル失敗であり、DB変更・外部API呼び出しはない。今回変更した合成ログ・評価スキーマのDB永続化とブラウザー表示は未検証。IDE診断上のGson解決表示はGradle成功と区別し、IDE設定は変更していない。
+- 非同期キュー追加後の再検証: `docker compose run --rm --no-deps -e GRADLE_USER_HOME=/tmp/ppe-gradle-prompt-queue app gradle test --tests control.teacher.TeacherPromptAiClientTest --tests control.teacher.TeacherPromptGenerationQueueTest --tests entity.TeacherPromptVersionTest --tests servlet.teacher.TeacherPromptServletTest --no-daemon` はBUILD SUCCESSFUL。15 passed、0 failed、0 skipped。キューが呼出し元とは別スレッドで処理すること、状態APIの必須パラメーター拒否、本番形式評価JSON/ログの生成と表示を確認。DB・外部API・ブラウザー受入は未実施。
+
+### 工程20 授業演習フォルダ行操作のbrowser受入（2026-10-13 23:25 JST）
+
+- 対象/手順: ローカル8080の認証済み生徒画面で、合成演習`exerciseId=17`、フォルダ`entryId=47`を使用。最初に`http://localhost:8080/student/exercise?exerciseId=17`を開いたところログイン画面へredirectされたため、認証済みタブと同じ`student.localhost` hostで再確認した。
+- 期待結果: フォルダ名ボタンとフォルダ行の空き領域から展開・折りたたみでき、既存の選択/path表示を保つ。対話部品の操作では行開閉を発生させない。
+- 実際の事象/検証時エラー: `node --check src/main/webapp/js/student/exercise/exercise.js`はexit 127（`node: command not found`）。通常の`clickElement`は10秒でlocatorのstable待ちがtimeoutし、`scrollIntoViewIfNeeded`も約10秒でstable待ちがtimeoutした。要素をスクロールした後の`page.mouse.click`とforce locator clickでも状態変化を確認できず、原因は特定できていない。
+- 対応/再検証: JavaScript/JSPのProblems診断はエラー0件、`git diff --check`はexit 0。認証済みbrowser上でfolder-name buttonのclick event dispatch後に`aria-expanded=true`、当該folder path選択、`main.py`表示を確認。folder headerへのdispatchでは`aria-expanded=false`。三角toggleへのdispatchでも`true`/`false`を確認した。checkbox/menu領域へのdispatchではフォルダは開閉せず、試験中の選択件数は0件へ戻した。これらはイベントハンドラと再描画の動作確認であり、通常ポインター操作の受入とは区別する。コードは行開閉を共通化し、ボタン/入力/リンク/メニュー内のクリックは行ハンドラで除外した。確認中のDB/演習データ変更はない。
+- 影響/残件: 実ブラウザーの通常ポインター操作は未確認。`node --check`は実行環境にNode.jsが見つからず未実施だが、ブラウザー実行とエディター診断で構文・動作を確認した。工程20の受入完了とは扱わない。
+
+### 工程20 生徒エディター提出前チェックの再確認（2026-10-13 22:54 JST）
+
+- 対象/手順: ローカル8080の合成課題 `assignmentId=17` を再読込し、提出前チェックを再実行した。通常のブラウザークリックとPlaywright locator clickは各10秒でタイムアウトしたため、locatorのclickイベントをdispatchしてから25秒待機した。最終提出ボタンは押していない。
+- 期待結果: `input(prompt)`のpromptだけを比較出力から除外し、登録済み2ケースの実出力を正しく比較する。ページ再読込後の空の実行ターミナルが本画面の不具合に該当するかも、仕様・計画と照合する。
+- 実際の事象/検証時エラー: 通常clickと強制clickはブラウザーツール上で完了せず、結果モーダルも表示されなかった。locator clickイベントをdispatchした確認では、モーダルに `2/2 件一致`、実出力 `6` / `8` が表示された。再読込直後の実行ターミナルは「まだ実行していません。」だった。
+- 影響/原因: clickツールのタイムアウト原因は未特定であり、この追試だけでは通常のポインター操作を受け入れた証拠にしない。提出前チェックは成功し、最終提出・下書き更新は行っていない。提出前チェックはControl上でrunner実行のみを行い、この操作からDBへ提出・実行履歴を記録しない。確認した範囲でDB状態変更はない。
+- 対応/再確認: 機能仕様は課題エディターの実行結果を「次の実行まで保持」と定め、再読込時の下書き復元は明記する一方、最新実行結果の再読込復元は求めていない。実装計画のDB再読込条件も保存内容・ログ・提出版・テスト結果であり、実行結果は対象に含めていない。授業演習のファイル切替時に結果を維持する別要件を課題エディターへ適用せず、再読込後の空表示はこの受入範囲では不具合と判定しない。コード変更なし。
+- 残件: browser locatorの通常clickを使った再確認、および工程20の他の未確認ブラウザー項目は未完了。最終提出は未実施。
+
+### Rev.171 提出前Python入力プロンプト比較の修正・検証（2026-10-13 22:20 JST）
+
+- 対象/手順: ローカルソースのPython runnerと生徒エディター提出前チェック。合成入力/コードだけでrunner単体・HTTP契約・Java Control・認証済みローカルbrowserを検証した。生徒の提出確定、外部AI、本番サイトは使用していない。
+- 期待結果: 提出前チェックだけ`input(prompt)`のprompt文字列を比較用stdoutから除外し、stdinと明示的なプログラム出力は維持する。通常実行と対話実行は従来どおりpromptを表示する。
+- 実際の事象/検証時エラー:
+  - 初回`/Users/t.toida/programming-process-evaluator/.venv/bin/python -m unittest -v test_runner.py`はexit 1。リポジトリrootからのmodule指定で`test_runner`をimportできなかった。
+  - ホストの`gradle test --tests control.student.StudentEditorControlTest --no-daemon`はexit 1。共有`~/.gradle/caches/journal-1`のlock timeoutでbuild開始前に終了（所有PID不明）。
+  - 分離Gradle user homeでのホスト再試行はexit 1。プロジェクト要求のJDK 21がホストに存在せず、toolchain downloadも未設定。
+  - `docker compose run --rm --no-deps app gradle test --tests control.student.StudentEditorControlTest --no-daemon`はexit 1。共有`gradle-cache` journal lock（owner PID 350、operation unknown）により開始できず、owner processは特定していない。
+  - 対象コンテナ確認用の最初の`docker inspect --format`はexit 64。Docker Go templateに`hasPrefix`関数がなく、再実行では選択項目だけを`jq`で抽出した。
+- 影響/原因: 最初の失敗はテストコマンドのmodule指定または共有Gradle cache/JDK環境の制約で、実装不具合を示すものではない。誤ったmodule指定はファイル直接実行に直し、Gradleは既存cacheを変更せず一時user homeを使って再実行した。
+- 対応/再検証:
+  - `/Users/t.toida/programming-process-evaluator/.venv/bin/python containers/python-runner/test_runner.py` — exit 0、24 passed。通常実行でpromptが表示されること、提出前モードではpromptのみ抑制され明示print出力を保つこと、HTTP endpointがboolean optionを既定falseで転送し不正型をHTTP 400で拒否することを確認。
+  - `docker compose run --rm --no-deps -e GRADLE_USER_HOME=/tmp/ppe-gradle-editor-check app gradle test --tests control.student.StudentEditorControlTest --no-daemon` — exit 0、1 passed、0 failed、0 skipped。main/test sourceのcompileも成功。
+  - 対象はCompose project `programming-process-evaluator`の`app-live`、bind port `127.0.0.1:8080`、DB target `db/programming_process_evaluator`、source mount `/Users/t.toida/programming-process-evaluator`、runner URL `http://python-runner:8090`と確認した。対象runnerだけ再build/recreateしhealthyを確認、source bind mount付き`app-live`だけrestartして生徒login URLがHTTP 200になることを確認した。本番やDB service/volumeは変更していない。
+  - 再起動後のブラウザーは一度ログインへredirectされた。ユーザーが合成生徒として再ログインした後、assignment 17の提出前チェックでHTTP応答結果のモーダルに`2/2件一致`（`6`/`8`）を確認し、モーダル内の最終「提出する」は押していない。
+  - 通常対話実行でもprompt「入力してください」と入力echo `>>> 1 2 3`、出力`6`を確認した。最初の試行は30秒入力待ちの間に送信操作が間に合わず`input_timeout`となり、再試行ではEnter送信で完了。両実行のexecution logは合成デモDBへ記録されたが、下書き保存・提出状態は変更していない。
+- 残件: 以前の409の更新者・厳密な発生時系列は引き続き未特定。今回の現行版での提出前チェックは成功し、最終提出をしていない。
+
+### Rev.170 配信履歴レイアウト・教師画面受入（2026-10-13）
+
+- 対象/手順: ローカル8080の認証済み教師画面で配信履歴詳細を開き、操作履歴表の通常幅/狭幅を確認。プロンプト画面のボタン導線も確認し、UI契約テストとWARを実行した。
+- 期待結果: 操作履歴の列が内容幅に応じて折り返され、通常幅では表全体が表示される。プロンプト保存ボタンは指定ラベル・順序になり、関連テストとWAR作成が成功する。
+- 実際の事象: 初回の`JAVA_HOME='/Users/t.toida/.jdk/jdk-21.0.10(1)/jdk-21.0.10+7/Contents/Home' gradle --no-daemon test --tests servlet.teacher.AccountDistributionUiContractTest`はexit 1。共有`~/.gradle/caches/journal-1`のロック待ちでGradleを開始できなかった（所有PIDは特定されず）。この失敗ではテストは実行されていない。
+- 影響/原因: 共有Gradle user homeを使用した際のキャッシュ競合。アプリ/DBデータ変更、外部API呼び出し、本番アクセスはない。
+- 対応/再検証:
+  - 操作履歴表に教師共有テーブルCSSの強制`nowrap`/`auto`設定が優先され、pre内JSONの長さでテーブルが2564pxまで拡大することを確認。配信履歴表に限定して固定レイアウト・セル折り返し・740pxのスクロール可能最小幅を適用し、画面アセット版を170へ更新した。通常幅1280pxでは表とスクロール領域がともに1074pxで一致し、全列表示を確認。狭幅606pxでは表740pxを内側スクロール領域434pxで扱い、無制限な横拡大を解消した。
+  - プロンプト画面の「教師対応を保存」を「揺らぎ項目指示を保存」に変更し、評価例生成ボタンの右側へ移動。成功通知文言も対応させ、表示名/順序を検査するテストを追加した。
+  - `GRADLE_USER_HOME='/Users/t.toida/programming-process-evaluator/.gradle-rev170-final' JAVA_HOME='/Users/t.toida/.jdk/jdk-21.0.10(1)/jdk-21.0.10+7/Contents/Home' gradle --no-daemon test --tests servlet.teacher.TeacherPromptApplicationViewTest --tests servlet.teacher.AccountDistributionUiContractTest --tests servlet.teacher.TeacherExerciseServletTest war`はexit 0、11 passed、0 failed、0 skipped。WAR作成も成功。
+  - `git diff --check`は成功。
+
+### Rev.170 生徒画面受入中の提出前チェック競合（2026-10-13）
+
+- 対象/手順: ローカル8080の確認用生徒で`/student/editor?assignmentId=17`を開き、既存の初期コードに対して「提出する」（提出前チェック）を実行した。
+- 期待結果: 登録済みテストケースを実行し、標準入力がプログラム出力へ混入せず、想定出力と比較できる。
+- 実際の事象: ブラウザーのConsoleにHTTP 409。画面には「他の画面で下書きが更新されています。最新の内容を読み込み直してください。」と表示された。提出前チェックの結果モーダルは開かず、提出は行われていない。エディターの再読込後、コードは変わっていないことを確認し、同じ提出操作は繰り返していない。
+- 影響/原因: 下書きの楽観ロック競合。既知の別編集セッションはなく、競合原因は特定できていない。提出・保存による状態変更、本番アクセス、外部API呼び出しはない。
+- 対応/再検証:
+  - 合成入力`1 2 3`によるエディターの通常実行は成功し、DOM上で入力`>>> 1 2 3`が`terminal-input-echo`要素、プログラム出力`6`が別要素として表示されることを確認した。実行履歴はデモ用DBへ記録されたが、コード保存・提出は行っていない。
+  - `GRADLE_USER_HOME='/Users/t.toida/programming-process-evaluator/.gradle-rev170-final' JAVA_HOME='/Users/t.toida/.jdk/jdk-21.0.10(1)/jdk-21.0.10+7/Contents/Home' gradle --no-daemon test --tests control.student.StudentEditorControlTest --tests control.student.StudentNotificationControlTest --tests servlet.student.StudentNotificationServletTest --tests servlet.student.StudentNotificationUiContractTest --tests servlet.student.StudentSurveyUiContractTest --tests servlet.student.EvaluationPrototypeUiContractTest`はexit 0、48 passed、0 failed、0 skipped。
+  - 未解決: この合成課題に対する提出前チェックのブラウザー受入。関連ロジックの自動テストは成功しているが、HTTP 409の原因特定と修復後の再検証は未実施。
+
+  ### Rev.170 提出前チェック再調査と入力プロンプトの出力混入（2026-10-13 21:24 JST）
+
+  - 対象/手順: ローカル8080の生徒向け合成課題`assignmentId=17`を認証ブラウザーで確認。元ページの提出前チェック409の調査として、再読込後に更新時刻・コードのdirty状態を読み取り、提出確定はせず「提出する」ボタンからチェックだけを実行した。
+  - 期待結果: 読み込んだ現行コードと下書き更新時刻が一致する場合はチェックが実行され、登録済み2ケース（入力`1 2 3`/`10 -2`、出力`6`/`8`）が一致する。
+  - 実際の事象:
+    - 元のブラウザーページでは`draftUpdatedAt`が空で、コード長61の`input().split()`版が読み込まれていた。再読込後の保存済み状態は`draftUpdatedAt=2026-10-13T12:20:24.362889`（JST 21:20:24）で、コード長71の`input("入力してください")`版だった。この差は古いエディター状態と新しい保存済み状態の競合と整合するが、更新したタブ/利用者および元の409発生時との正確な時系列は特定できていない。
+    - 再読込後のチェックPOSTはHTTP 200、JSON応答、2ケース実行だったが、2ケースとも不一致。実際の標準出力は`入力してください6\n`/`入力してください8\n`で、期待出力`6`/`8`と一致しなかった。入力値自体が標準出力へ追記されたのではなく、Python `input(prompt)`のprompt文字列が標準出力へ出力されていた。
+    - 最終提出確認ボタンは押していない。下書き保存・提出確定・外部API呼び出しは行っていない。課題とコードは合成デモデータ。
+    - セッション失効中の確認ではcheck POSTがHTTP 302となった。ブラウザーの`URLSearchParams`を使った補助採取スクリプトは実行環境で`ReferenceError`になったが、後続の採取でstatus 302を確認。再ログイン後のGETはHTTP 200で、改めて行ったチェックは上記HTTP 200だった。これは認証セッション/採取スクリプトの事象で、現行チェックのJSON応答とは区別する。
+  - 影響/原因: 楽観ロックは画面上のコードまたは更新時刻とDBの現行値が一致しない場合に409を返す実装であり、古い画面と後続更新が競合すれば想定された拒否になる。元の409の個別更新者は未特定。別途、現在の自動入出力チェックは`input(prompt)`のpromptを標準出力に含めるため、仕様でpromptを除外すべきかの合意が必要。
+  - 対応/再検証: 409の再現目的で同じ古い画面の操作を繰り返さず、再読込後の更新時刻/コードとチェックPOSTのstatus・結果を採取した。出力期待値との不一致を確認したが、実装変更・再検証は未実施。方針確認後、テスト時のみ`input()` promptを除外し、通常実行時のprompt表示は維持する案を検討する。
+
+  ### Rev.170 editor I/O・通知受入のGradle検証（2026-10-13 18:50 JST）
+
+- 対象/手順: editor input/output separation と、削除・閲覧不可課題の生徒通知クリックに関する限定テストを実行した。
+- 期待結果: focused Java tests compileし、標準入力が標準出力へ混入しないこと、利用不可の課題通知が同一の安全な結果を返して既読になることを確認する。
+- 実際の事象:
+  - `./gradlew test --tests 'control.student.StudentEditorControlTest' --tests 'control.student.StudentNotificationControlTest' --tests 'servlet.student.StudentNotificationServletTest' --tests 'servlet.student.StudentNotificationUiContractTest'`はexit 127。repositoryにGradle wrapperがなかった。
+  - 同じ`--tests`指定で実行した`gradle test`はexit 1。Gradle toolchainがJava 21を要求したが、環境にはJDK 24のみでtoolchain downloadも未設定だった。
+  - JDK 24を使い`--release 21`を指定する一時Gradle init scriptで実行した初回compileはexit 1。focused test用Fake DAOが`final StudentEditorDao`を継承していた。
+  - DAOを継承しないloader seamへ修正した後の実行では39件中1件が失敗。既存の期限切れ課題通知テストが、承認要件に反して「既読化しない」従来動作を期待していた。
+- JDK 24/`--release 21`での後続compileTestJavaは一度exit 1となり、変更していない`RootServlet`/`TeacherAccountServlet`のsymbolを見つけられないと報告した。両source fileは存在し、main class fileを確認後の再実行は成功した。共有build出力との競合の可能性はあるが、原因は確定していない。
+- 影響/原因: いずれも限定テストの実行環境/テストコードまたは新しい既読要件との期待値差であり、データ変更・deploy・外部API呼び出しはない。symbol解決失敗は再現せず、原因未確定。
+- 対応/再検証:
+  - Fake DAOを`EditorPageLoader`による合成ページ注入へ変更し、期限切れ課題通知テストも安全な共通結果・既読化を期待するよう修正した。
+  - `gradle --init-script .gradle-test-init.gradle test --tests 'control.student.StudentEditorControlTest' --tests 'control.student.StudentNotificationControlTest' --tests 'servlet.student.StudentNotificationServletTest' --tests 'servlet.student.StudentNotificationUiContractTest'`をJDK 24/`--release 21`で再実行し、39 passed、0 failed、0 skipped。symbol解決失敗後の再実行も成功した。init scriptは終了時に削除した。
+
+### 工程20 P20-03認証・権限境界受入（2026-10-13 18:16 JST）
+
+- 対象/手順: Compose project `ppe-p20-authz-a1`、専用MySQL schema `ppe_teacher_task_test_authz`、DB port 33393、app port 18093を使用。V1–V33を適用・validateし、教師権限境界のMySQL統合試験、合成教師fixture、教師認証/管理者URL境界のPlaywrightを実施した。
+- 期待結果: 空の専用DBへmigration/validationが成功し、アプリが起動する。認証失敗は拒否され、認証済み教師は保護された教師画面へ到達し、管理者機能はHTTP 403で拒否される。試験後に専用資源だけを削除する。
+- 実際の事象:
+  - 初回の専用app起動はexit 1。Grettyが`tomcat-embed-core-9.0.118.jar`と`ecj-3.26.0.jar`を取得しようとした際、`repo.maven.apache.org: Name or service not known`で依存解決に失敗した。
+  - 補助のread-only DB確認コマンドは、誤ったMySQL username指定でexit 1（Access denied）。DB更新処理は実行していない。
+- 影響/原因: 起動失敗は専用container内のMaven Central DNS名前解決による依存取得失敗であり、製品コードの不具合を示すものではない。ホストから対象Maven Central artifact endpointへのHEAD要求はHTTP 200となり、container内の一時的な名前解決失敗と判断できた。DB probeの失敗は検証コマンドのusername誤記で、データ変更はない。
+- 対応/再検証:
+  - 専用MySQLの状態を再確認し、成功migration 33件、`log_bin_trust_function_creators=0`を確認した。
+  - `docker compose -p ppe-p20-authz-a1 up -d app`を再実行しexit 0。Tomcat 9.0.118が起動し、教師login URLはHTTP 200を返した。
+  - `npm --prefix e2e run test:phase20 -- phase20/authentication.spec.js`はexit 0、1 passed、0 failed。誤資格情報拒否、未認証の保護画面アクセスからloginへの遷移、有効な合成教師login後の保護画面表示、`/admin/teachers`へのHTTP 403を確認した。関連する教師課題権限/停止/所有範囲の専用MySQL試験はexit 0、5 passed、0 skipped/failures/errors。browser fixture testもexit 0、1 passed。
+  - `docker compose -p ppe-p20-authz-a1 down -v`で本projectのapp/DB/Python runner、2専用volume、3専用networkを削除し、残存container/volume/networkなしを確認した。共有8080/DB/volume、Gemini実API、実生徒データには触れていない。
+
+### 工程20 予約公開workerから生徒通知までの受入（2026-10-13 13:59 JST）
+
+- 対象/手順: Compose project `ppe-p20-schedpub-a1`、専用MySQL schema `ppe_teacher_task_test_scheduledpub`、port 18092でV1–V33を適用し、合成教師/生徒/予約公開課題を作成。アプリ内workerで公開状態へ遷移させ、生徒の通知一覧から対象editorへ進むPlaywright受入を実施した。
+- 期待結果: 空の専用DB migration/validation、合成fixture作成、アプリ起動が成功する。due assignmentのみがworkerにより一度公開され、system auditと対象生徒通知を保存し、認証済み本人の通知操作で対象assignment editorへ遷移・既読化される。
+- 実際の事象:
+  - 最初の`docker compose -p ppe-p20-schedpub-a1 run --rm app gradle flywayMigrate --no-daemon`はexit 1。V11適用中にMySQL error 1419「You do not have the SUPER privilege and binary logging is enabled」で最初のtrigger作成が拒否された。V1–V10とV11の一部DDL/データ更新は完了し、FlywayにはV11失敗が記録された。
+  - 専用DBを作り直した直後の設定probe `docker exec -e MYSQL_PWD=... ppe-p20-schedpub-a1-db-1 mysql -uroot ...`はexit 1、MySQL error 1045 (Access denied)。Composeのテスト値が`export`されず次コマンドへ渡らない状態で起動直後に実行しており、DB containerが既定の`.env`値（`MYSQL_DATABASE=programming_process_evaluator`、`MYSQL_USER=app`）で初期化中だった。専用container/volume内だけの事象で、このschemaへmigrationやfixture/app接続は行っていない。
+  - 初回のDB read-back queryはexit 1、`task_class_assignments.published_at`が存在しないためMySQL 1054。実schemaの日時列`publish_at`へ直して再確認した。
+  - Node/npm version probeの初回はexit 127 (`node: command not found`)。`npm`実行ファイルの絶対pathだけでは`#!/usr/bin/env node`のNode解決に足りず、同じNode install directoryをPATHに設定して再実行する必要があった。
+- 影響/原因: migration error 1419は専用MySQLのbinary logging routine/trigger creator設定であり、製品コードの不具合ではない。V11が部分適用された初回のMySQL volume、および誤ったCompose envの別の専用volumeは、名前を確認した後に破棄・再作成した。いずれも工程20専用project内であり、既存共有volume/8080/DB、本番データ、実生徒データ、Gemini APIには触れていない。`published_at`とNode PATHは検証コマンドの誤りである。
+- 対応/再検証:
+  - 対象専用volumeだけを削除し、`DB_NAME=ppe_teacher_task_test_scheduledpub` / `DB_USER=ppe_scheduled_test`等をCompose実行環境へexportしてDBを新規作成。container環境を照合してtest-only DBを確認した。
+  - 空schemaに対し、専用MySQLで`log_bin_trust_function_creators=1`を一時設定して`docker compose -p ppe-p20-schedpub-a1 run --rm app gradle flywayMigrate flywayValidate --no-daemon`を実行。exit 0、33 migrations成功/validate成功。その後global値を0へ戻してからfixture/appを起動した。
+  - fixture testはexit 0、1 passed。アプリ起動後、student login routeはHTTP 200。対象のsynthetic assignmentのみをdueにし、workerによる`scheduled -> published`、`system / publish_scheduled / success`のaudit、`task_published`通知1件をDB再読込で確認。
+  - `npm --prefix e2e run test:phase20 -- phase20/scheduled-publication-notification.spec.js`はexit 0、1 passed。認証失敗/成功、通知の一意表示、対象editorへの遷移、既読表示とDB `read_at`を確認した。訂正後のDB read-backもexit 0。
+  - 最終状態: テスト後にglobal trust値0、専用schemaとfixtureのみを操作。Gemini APIや実データは使用していない。後処理で専用Compose資源、専用DB volume、生成fixture fileを削除し、共有サービス/volumeは保持した。
+
+### 工程20 課題公開から生徒editorまでのPlaywright受入（2026-10-13 12:59 JST）
+
+- 対象/手順: 専用Compose project `ppe-p20-publish-20261013` と合成専用DB `ppe_teacher_task_test_p20_publication` を作成し、V1–V33を適用。合成教師・生徒・下書き課題をfixtureで作成し、教師の即時公開から生徒が課題を開くまでをPlaywrightで実行した。
+- 期待結果: 空の隔離DB migration/validationとアプリ起動が成功し、誤資格情報の拒否、教師の課題公開、DB保存状態、生徒ホームからeditable editorへの遷移を確認する。
+- 実際の事象:
+  - GradleがGretty/Tomcat依存を初回解決中のreadiness probeはHTTP 000/404となった。初期化後、`student.localhost:18091`と`teacher.localhost:18091`のログイン画面はHTTP 200になった。
+  - 最初のPlaywright実行はexit 1。課題行内で`taskId=1`を部分一致するlocatorが、プロンプト設定・編集・履歴の3リンクに一致しstrict-mode violationとなった。
+  - locator修正後の実行は50秒のtest timeoutでexit 1。traceでは生徒editorのGETがHTTP 200で応答していたが、テスト全体の期限までに最終確認/cleanupが完了しなかった。アプリ例外は確認されず、どの個別待機が期限の大半を消費したかは未確定。
+  - app稼働中の`flywayValidate`はexit 1。GrettyのGradle processがjournal cache lockを保持していたため、別Gradle processがlock timeoutとなった。
+  - `flywayValidate`の初回実行もexit 1。アプリのGretty Gradleプロセスが共有Gradle journal lockを保持していたため、別Gradleプロセスがlock timeoutとなった。
+- 影響/原因: Playwright locatorとテスト全体timeout、および同一Compose Gradle cacheへの同時アクセスによる環境上の失敗。製品コードの不具合を示す証拠はない。操作は専用DB/Compose project内に限定し、実生徒データ・共有8080/DB・Gemini実APIは使用していない。
+- 対応/再検証:
+  - 編集リンクを完全一致の`/teacher/task?taskId=<id>`に限定。
+  - 当該の複数認証・画面遷移を含むspecだけtimeoutを120秒へ延長し、終了時のbrowser contextを並列closeするよう変更。再実行はexit 0、1 passed、0 failed（3.8秒）。教師の誤資格情報拒否/成功、下書き状態からの即時公開、shared feedback確認、生徒の誤資格情報拒否/成功、課題一覧表示、editorの`data-editable=true`を確認した。
+  - timeout後の再試験前に、専用DB内の当該合成課題/割当だけを`draft`/`not_published`へ戻して前提状態を復元した。
+  - DB再読込で課題と割当の`published`、`published_at`の記録、および割当の`late_submission_policy=deny`を確認。
+  - appを停止してGradle cache lockを解放後に`flywayValidate`を再実行しexit 0。DBの`log_bin_trust_function_creators`は`0`に復元。
+  - app停止後の最終clean buildはexit 0、JUnit 141 suites / 527 tests、349 passed、0 failures/errors、178 skipped。skipはopt-in環境なしのケースで、合格件数には含めない。
+
+### 工程20 期限後DENY・教師レビュー画面のブラウザー受入再試行（2026-10-13 JST）
+
+- 対象/手順: Compose project `ppe-p20-20261014`の専用MySQL/アプリでV1–V33を適用し、合成の教師・生徒・期限切れ`DENY`課題/通知をfixtureで作成。アプリ起動後、通知遷移、教師レビュー画面/出力、390px表示のPlaywright試験を実行した。
+- 期待結果: 起動完了後に設定済みhostがHTTP 200となり、期限切れ`DENY`通知の遷移/直接URL拒否と教師画面・export・狭幅試験が成功する。
+- 実際の事象:
+  - Gradleが新規依存を解決中の初回readiness probeは`Empty reply from server`/HTTP 000となった。初期化後、`student.localhost:18090`と`teacher.localhost:18090`のログイン経路はいずれもHTTP 200となった。
+  - Playwrightの初回 locator は通知リスト外の同名コントロールも含み複数要素に一致した。教師URLも学生用baseURL基準で生成され、教師hostからの遷移にならなかった。
+  - export確認では広いresponse matcherがCSVでなくlist JSONを捕捉した。絞り込み後にCSV取得responseの`Response.text()`が空文字となり、Playwright response bodyだけではdownload内容を検査できなかった。
+- 影響/原因: 対象は起動待ちとPlaywrightのlocator/URL/response処理であり、共有8080・共有DB・他Compose projectへの操作なし。実生徒データ/研究データ/Gemini APIも使用していない。事象はいずれも製品コード不具合を示すものではなく、download本文が空となった直接原因は未確定。
+- 対応/再検証:
+  - 初期化完了後に設定済みhostのHTTP 200を確認してからテストを再開。
+  - 通知操作を`.notification-list [data-notification-open]`にscopeし、教師URLは現在ページのorigin基準で構成。CSV responseは厳密な`view` query値で選別し、response本文でなくPlaywrightのdownload eventから取得したファイル内容を検証するよう修正。
+  - `npm --prefix e2e run test:phase20 -- phase20/expired-deny-notification.spec.js phase20/teacher-review-mobile.spec.js`はexit 0、3 passed、0 failed。期限後`DENY`通知から生徒homeへ遷移、editor直接URLは404、教師4画面とCSV/text download、survey exportの匿名化、390pxでのdocument横overflowなしを確認。
+  - `Phase20BrowserFixtureTest`はexit 0、1 passed。V1–V33適用、`log_bin_trust_function_creators`の`0`復元、専用DB/Compose資源の削除と残存なしを確認。Playwright/E2Eは二つの別fixture環境で各3件実行しており、同一DBでまとめた6件実行ではない。
+
+### 工程20 Playwright準備・初回browser受入の失敗（2026-10-13 11:10–11:25 JST）
+
+- 対象/手順: 新規の隔離Compose環境を作成し、空のMySQL schemaへV1–V33を適用後、browser fixtureとPlaywright受入を実行。
+- 期待結果: 専用DBへmigration/validateが成功し、認証・30秒自動保存・複数browser競合の3フローが成功する。
+- 実際の事象:
+  - 初回`flywayMigrate`はV11の保護trigger作成時にMySQL error 1419（binary logging有効、SUPER privilegeなし）でexit 1。V1–V10は成功し、V11の一部DDLだけが専用空schemaへ適用された。
+  - 初期readiness probeを汎用Hostの`127.0.0.1`へ送ると、portal host routingにより302/404となった。これはアプリ故障ではなく、要求Hostが設定値と一致しなかった。
+  - Playwright初回実行はexit 1、3 tests failed。教師login後の遷移先を`/teacher/students`と誤想定していた（実際は有効な課題管理権限により`/teacher/task`）。生徒editor helperは複数のCodeMirrorを一意に絞れていなかった。
+  - 修正後の中間実行はexit 1、2 passed/1 failed。教師Hostでログイン後、相対admin URLを学生HostのbaseURLから構成してしまい、Host redirect後のHTTP 200を管理者境界の応答と誤認するassertionになっていた。
+- 影響/原因: いずれも専用DB/browser fixtureとPlaywrightテスト設定の問題。共有DB/8080、本番データ、実生徒データ、Gemini APIには触れていない。テスト失敗は製品コード不具合の証拠ではない。
+- 対応/再検証:
+  - 対象専用MySQLだけ`log_bin_trust_function_creators=1`に設定し、V11の部分適用列/制約を空schemaから戻した後、`flywayRepair`とV1–V33の`flywayMigrate flywayValidate`を実施。exit 0、33 migrations成功。global値を`OFF`へ復元。
+  - browser fixture専用schema`ppe_teacher_task_test_p20_20261013`で`createsRetainedEditorFixtureForPhase20BrowserAcceptance`を実行。exit 0、1 passed、0 failure/error/skip。
+  - Playwrightのbase URLを`student.localhost`へ設定し、教師landing pathを実装済みの`/teacher/task`に合わせ、main editorの`.editor-shell .CodeMirror`へscope。admin URLはログイン後の現在Hostから構成し、教師から管理者画面への応答403を確認。
+  - 最終`npm --prefix e2e run test:phase20`はexit 0、3 passed、0 failed。30秒周期snapshot POST成功・再読込後の保存コード、別contextのstale保存HTTP 409と勝者データの再読込を確認。fixture schema、専用Compose services/volumes/networksを削除し、残存なし。MySQL global値`OFF`を再確認。
+
 ### 通知画面のブラウザー受入で操作・画像取得が失敗（2026-10-13 JST）
 
 - 対象/手順: 通知一覧とナビゲーション内の通知dropdownを確認するため、狭幅viewportでPlaywrightのlocator clickおよび画面captureを実行。
@@ -1768,3 +2439,90 @@
 - 影響範囲: コードのビルド確認のみ失敗。アプリ再起動、DB migration、業務データ更新、外部API呼び出しは行っていない。
 - 対応: `findPageTarget`の閉じ波括弧を修正し、`hasActiveQuestions`をDAOクラス直下のprivate methodへ移動。
 - 再検証: 同じコマンドを再実行し、`:compileJava`・`:compileTestJava`・`:test`成功、`BUILD SUCCESSFUL`（2秒）。Entity/Control対象テストは失敗なし。Gradle 8.10.2の既存WarPluginConvention deprecation warningのみ。
+
+## 2026-10-13 09:26:57 JST: 工程20専用MySQLのV11 migration failure
+
+- 対象/手順: 工程20 P20-02の空DB migration。新規Compose project `ppe-p20-20261013`と専用DB `ppe_phase20_20261013`を作成し、Flyway全migration適用とvalidateを実行。
+- 期待結果: 空の隔離MySQLへ現在の全migrationを適用し、Flyway validateが成功する。
+- 実際の結果: `docker compose --env-file /dev/null -p ppe-p20-20261013 run --build --rm --no-deps app gradle --no-daemon flywayMigrate flywayValidate --warning-mode all`がexit 1。Flyway V11 `src/main/resources/db/migration/V11__add_school_security_policy.sql` line 46の`protect_school_security_policy` trigger作成時、MySQL error 1419: `You do not have the SUPER privilege and binary logging is enabled (you *might* want to use the less safe log_bin_trust_function_creators variable)`。V11より後のmigrationとvalidateは実行されていない。
+- 原因: この使い捨てMySQLでbinary loggingが有効で、アプリmigration userにtrigger/function作成を許す管理権限がないため。既知のMySQL隔離fixture要件と同じ類の制約。コード変更による失敗ではない。
+- 影響範囲: 失敗は当該工程20専用DBのみ。共有8080 app-live、既存開発DB、他Compose project、ソースコードのmigrationは変更していない。P20-02は未合格。
+- 対応/再検証: 失敗を含む専用DB/volumeだけを作り直し、対象の隔離MySQLでmigration中だけ`log_bin_trust_function_creators=1`にしてV1〜V33を適用・validate。Flyway `flywayInfo`はschema version 33、全migration state `Success`を表示し、各コマンドexit 0。実行後に設定を0へ戻し、その値を確認した。詳しい工程結果は[工程20 P20-02記録](./feature-plans/phase-20-cross-feature-validation.md#p20-02-空の隔離mysql-migration進行中)を参照。
+- 未解決事項: 同DBでのアプリ認証成功とDB write/read-backは未実施。
+
+## 2026-10-13 09:35:57 JST: 工程20ブラウザー操作とGradle lock
+
+- 対象/手順: 工程20の専用アプリlogin failure受入と、`ppe_teacher_task_test_phase20`用の追加Flyway migration。
+- 期待結果: 認証フォームの無効資格情報を送信し、エラー表示を確認。専用DBへV1〜V33を適用・validate。
+- 実際の結果: ログインbuttonの通常clickがvisible/enabled/stable待ちで30秒timeout。DOM計測ではbuttonはenabledでlayout上visible、スクリーンショットでも表示されており、force clickによる送信は成功。ログイン失敗画面に一般化されたエラー文言を確認した。これは合成の未登録IDを用いたため、既存/実利用アカウントには影響なし。Playwright操作toolの通常clickのみ完了できなかった。
+- 同じ期間のDB作業では、`docker compose ... run --rm --no-deps -e DB_NAME=ppe_teacher_task_test_phase20 app gradle --no-daemon flywayMigrate flywayValidate --warning-mode all`がexit 1。Gradle user homeの`/home/gradle/.gradle/caches/journal-1` lockを、長時間稼働するappRun daemonが保持し、one-off Gradle processがtimeoutした。Flyway taskの実行前に停止し、migrationは適用されなかった。
+- 原因/影響: browser click待機と、専用Compose appRun/test run間のGradle cache共有競合。現時点でアプリコードの障害は示していない。失敗した追加schemaは本工程の使い捨てMySQL内部、共有DB・本番・ソースへの影響なし。
+- 対応/再検証: browser clickは画面・DOM状態確認後のforce clickで認証失敗表示を確認した。Gradle試験は長時間稼働中のappRunとcacheを共有せず、`docker compose exec`のtest processに専用`GRADLE_USER_HOME=/tmp/gradle-p20-integration`を指定してmigrationを再実行する。
+- 未解決事項: 専用schema migrationとbrowserの通常pointer click成功は未確認。Playwright CLI実行環境はNode.js未導入。
+
+## 2026-10-13 09:38:26 JST: 工程20のopt-in統合試験でtrigger作成が失敗
+
+- 対象/手順: P20-03/P20-04専用教師課題統合テスト`control.teacher.TeacherTaskDatabaseTest`、schema `ppe_teacher_task_test_phase20`。
+- 実行: `docker compose --env-file /dev/null -p ppe-p20-20261013 exec -T -e DB_HOST=db -e DB_PORT=3306 -e DB_NAME=ppe_teacher_task_test_phase20 -e DB_USER=ppe_phase20 -e DB_PASSWORD=[専用DB用合成値] -e TEACHER_TASK_DB_TEST=true -e GRADLE_USER_HOME=/tmp/gradle-p20-integration app gradle --no-daemon test --tests control.teacher.TeacherTaskDatabaseTest --rerun-tasks --warning-mode all`
+- 期待結果: DB統合テストが専用schemaで実行され、DB状態・rollbackが検証される。
+- 実際の結果: exit 1、37 tests completed、1 failed、5 skipped。`rollsBackAllDraftChangesWhenMySqlRejectsHintInsert`が`TeacherTaskDatabaseTest.java:1536`で失敗。原因SQLは`createHintInsertFailureTrigger`（同2948行）でMySQL error 1419 (`You do not have the SUPER privilege and binary logging is enabled`)。他の36件はこのrun内で失敗なし。
+- 原因/影響: testは故障注入用triggerを作成するため、専用MySQLの`log_bin_trust_function_creators=1`を追加前提としていた。migration時の一時設定を0へ戻した後に試験を実行したため、trigger作成が拒否された。製品DAO/アプリの失敗を示す証拠ではない。対象は新規隔離schemaと専用Compose DBのみ。
+- 対応/再検証: 当該専用MySQLだけでtest実行中は設定を1にし、全suiteを再実行した後に0へ戻す。suiteの最終件数・exit codeを工程20計画へ追記する。
+- 未解決事項: 正しいtest環境条件での再実行はこの記録作成時点で未実施。
+
+## 2026-10-13 09:46 JST: 工程20評価例保存で古いinactive行がactive化される
+
+- 対象/手順: `ppe_teacher_task_test_phase20`上の`control.teacher.TeacherTaskDatabaseTest.generatesFluctuationsForRevisionWithoutDraftOnlyRubricInitialization`。評価例を生成した後、1日前作成の合成inactive行を同じprompt versionへ追加し、新規生成例を保存した。
+- 期待結果: 今回生成した評価例だけが`active`になり、過去のinactive行は`inactive`のまま残る。
+- 実際の結果: 修正前の回帰テストはexit 1。古い行が`active`となり、`TeacherTaskDatabaseTest.java:814`のassertionが失敗した。原因は`TeacherPromptDao.saveEvaluationExamples`がprompt version内の全inactive行を一括でactive化していたこと。
+- 影響範囲: 同じprompt versionに残る古い合成評価例まで現在の設定例として有効になり、評価設定・後続評価へ混入する可能性がある。今回の再現データは専用schema内の合成値のみ。共有8080、開発DB、実生徒データ、外部AIには影響していない。
+- 対応: DAOの更新対象を、現在読み込んだ生成結果の最新`evaluation_example_id`とprompt versionが一致するinactive行だけに限定した。過去行の一括有効化をしないよう変更。
+- 再検証: 修正後の同じ対象テストはexit 0。続けて`control.teacher.TeacherTaskDatabaseTest`全体をexit 0で再実行し、37 tests、32 passed、0 failures、0 errors、5 skipped。skipはopt-in browser fixture等であり合格件数に含めていない。統合試験用MySQLの`log_bin_trust_function_creators`は終了後に0へ戻し、users/tasks/evaluation_examplesは各0件を確認した。詳細は[工程20実行記録](./feature-plans/phase-20-cross-feature-validation.md#p20-03p20-04-専用教師課題mysql統合試験部分完了)を参照。
+- 未解決事項: 生徒エディターの時間経過を含む30秒自動記録・複数ブラウザー競合・重複提出・再提出確定、およびブラウザーでの画面確認は別途未実施。
+
+## 2026-10-13 10:10 JST: 工程20の統合試験環境・実行順の失敗と再検証
+
+### TeacherSurveyDatabaseTestを既存fixtureと同じschemaで実行した際の失敗
+
+- 実行: `control.teacher.TeacherReviewDatabaseTest`、`control.teacher.TeacherSurveyDatabaseTest`、`control.student.StudentNotificationDatabaseTest`を同じ`ppe_teacher_review_test_phase20` schemaで一括実行。
+- 期待結果: 3 suiteが合成review fixtureを共有して成功する。
+- 実際の結果: exit 1、22 tests completed、21 passed、1 failed。`TeacherSurveyDatabaseTest.consentSchoolHistoricalAnswersExportsAndReadImmutability`が`TeacherSurveyDatabaseTest.java:51`で`SecurityException`。先行するreview testがusers fixtureを作るとsurvey `seed()`がusers非空で早期returnし、`survey-results`権限とsurvey固有fixtureを作らなかった。アプリ機能の失敗ではなくfixtureの共有順序前提と判定。
+- 対応/再検証: review/notificationとsurveyを別の空schemaへ分離。`TeacherReviewDatabaseTest` 2/2、`StudentNotificationDatabaseTest` 19/19、`TeacherSurveyDatabaseTest` 1/1がそれぞれexit 0。すべて専用MySQL・synthetic fixture。
+- 未解決事項: fixture seedの共有schema実行順依存はテスト資産に残る。工程20では分離schemaで再現可能に実行し、既存テスト資産の一般的な再実行性改善は本対応に含めない。
+
+### TeacherReviewDatabaseTestをfixture残存schemaへ再実行した際の失敗
+
+- 実際の結果: 初回のreview/survey/notification混合run後にreviewとnotificationを同じschemaで再実行し、`TeacherReviewDatabaseTest.java:288`のevidence件数assertが失敗。先行runのevidence fixtureが残っており、同suiteを新規DB前提で再実行したため。
+- 対応/再検証: review schemaを専用範囲でdrop/recreateし、V1〜V33を再適用・validate後、reviewのみを新規schemaで実行。2 tests、2 passed、0 failures/errors/skips、exit 0。既存開発schema/共有8080には接続していない。
+
+### StudentExerciseDatabaseTestでPython runner DNSが解決しなかった
+
+- 対象/実行: `docker compose --env-file /dev/null -p ppe-p20-20261013 exec -T -e DB_HOST=db -e DB_PORT=3306 -e DB_NAME=ppe_exercise_test_phase20 -e DB_USER=ppe_phase20 -e EXERCISE_DB_TEST=true -e GRADLE_USER_HOME=/tmp/gradle-p20-integration app gradle --no-daemon test --tests control.student.StudentExerciseDatabaseTest --rerun-tasks --warning-mode all`
+- 期待結果: 実runnerを伴うstudent exercise DB suiteが成功する。
+- 実際の結果: exit 1、36 tests completed、4 failed。`revalidatesInteractiveTargetsAndRejectsCrossFileAccess`、`runsInteractiveExerciseWithOwnerBoundariesAndSinglePersistence`、`runsUnsavedCodeThroughRealRunnerAndPersistsOnlyExerciseExecution`、`monitorsDetachedExecutionAndPersistsCancellation`が`java.net.ConnectException` / `UnresolvedAddressException`。専用Compose projectでappとDBだけを起動し、`python-runner`サービスを起動していなかったため、設定済みrunner hostnameを解決できなかった。
+- 対応: `docker compose --env-file /dev/null -p ppe-p20-20261013 up --build -d --wait python-runner`を実行し、サービスがhealthyになることを確認。
+- 再検証: 同じStudentExerciseDatabaseTestコマンドを再実行し、36 tests、36 passed、0 failures/errors/skips、exit 0。後に追加した所有者境界・DB再読込テストを含む再実行は37/37 passed、exit 0。失敗中も共有開発runner/DBには接続していない。
+
+### Gradle testを同一worktreeで並列実行したことによるbuild output race
+
+- 対象/実行: `StudentExerciseDatabaseTest`と`StudentNotificationDatabaseTest`のGradle testコマンドを同じ専用app container上で同時実行した。
+- 実際の結果: exercise側はexit 1、`:compileJava`時に`NoSuchFileException: /ppe-p20-20261013/build/classes/java/main/control/evaluation/EvaluationResponseValidator.class`。通知側はexit 0、19 tests passed。共有`build/`出力を同時にclean/recompileした実行順raceと判断。
+- 対応/再検証: 同一worktreeでGradleを並列実行しないよう直列化。exercise suiteを単独再実行し37 tests、37 passed、0 failures/errors/skips、exit 0。製品コード変更は不要だった。
+- 影響/未解決事項: 失敗runはtest taskの再実行前にcompileで停止。環境起因の失敗と初回失敗を記録し、成功runの件数へ合算していない。
+
+### 工程20の最終build初回起動でCompose volume指定が不正（2026-10-13 10:14 JST）
+
+- 対象/実行: 隔離app serviceを停止後、最終clean buildを一時Compose containerで実行。初回コマンドは`docker compose --env-file /dev/null -p ppe-p20-20261013 run --rm --no-deps -e GRADLE_USER_HOME=/tmp/gradle-p20-integration --entrypoint gradle app --no-daemon clean build --warning-mode all`。
+- 期待結果: Gradle 8.10.2/JDK 21でclean buildとJUnitを実行する。
+- 実際の結果: exit 1。`--env-file /dev/null`がCompose必須補間値（特に`PROJECT_NAME`）を空にし、repository bind mountのdestinationが`/`へ展開されたため、Dockerが`invalid volume specification ... destination can't be '/'`を返した。Gradleは起動せず、ソース/DBへ変更はなかった。
+- 対応/再検証: project既定の`.env`補間を使い、`--env-file /dev/null`を外して同じ隔離projectで再実行。`docker compose -p ppe-p20-20261013 run --rm --no-deps -e GRADLE_USER_HOME=/tmp/gradle-p20-integration --entrypoint gradle app --no-daemon clean build --warning-mode all`はexit 0、Gradle 8.10.2/JDK 21、`BUILD SUCCESSFUL`。JUnit 140 suites / 524 tests、349 passed、0 failures、0 errors、175 skipped。WAR/build成功。skipはpassへ含めていない。
+- 影響/未解決事項: 初回失敗はCompose実行環境の補間誤りであり、再実行で解消。Gradleの`WarPluginConvention` deprecation warningは継続。Playwrightが実行できず工程20のbrowser受入gapは別途未解決。
+
+### Node.jsのHomebrew導入がCommand Line Tools不足で失敗（2026-10-13 10:38 JST）
+
+- 対象/実行: ユーザー承認後、Playwright受入のため`brew install node`を実行。
+- 期待結果: Node.js/npm/npxを導入し、Playwright browser tierを利用可能にする。
+- 実際の結果: Homebrew exit 1。Node v26.11.1の依存`mpdecimal`をソースbuild中に`fatal error: 'cstdint' file not found`で停止した。Homebrewは`/usr/local`のIntel構成をTier 3と報告し、Command Line Toolsの更新を推奨した。処理途中で`pkgconf`が導入され、`ca-certificates`も更新されたが、Node.jsは導入されなかった。
+- 影響/原因: プロジェクトファイル・Compose環境・DBに影響なし。Homebrew経路が既存のCommand Line Tools不足で依存をbuildできなかった。`sudo rm -rf`やシステムCommand Line Toolsの削除/再導入は実施していない。
+- 対応/再検証: Homebrewを介さず、公式nodejs.orgの署名対象チェックサム一覧でARM64 Node v24.21.0 archiveを確認した。ユーザー領域への公式prebuilt導入を試み、SHA-256を検証してから展開する。
+- 未解決事項: Node.js/Playwright導入とbrowser受入は継続中。未完了の導入・受入を成功扱いしない。

@@ -198,6 +198,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const query = document.getElementById('exerciseSearch').value.trim().toLowerCase();
     const all = entries(), matches = all.filter(entry => entry.name.toLowerCase().includes(query));
     const visible = entry => !query || matches.some(match => covers(entry, match) || covers(match, entry));
+    function toggleFolder(key) {
+      if (expandedFolders.has(key)) expandedFolders.delete(key);
+      else expandedFolders.add(key);
+      if (query) document.getElementById('exerciseSearch').value = '';
+      renderTree();
+    }
     function appendEntry(entry, container, virtualKey = null, nested = []) {
       const folder = entry.type === 'FOLDER', key = virtualKey || String(entry.entryId);
       const wrapper = node('div', null, folder ? 'lesson-tree-folder' : 'lesson-tree-file');
@@ -233,7 +239,12 @@ document.addEventListener('DOMContentLoaded', () => {
           setCheck(entry, !checkedEntries.has(entry.entryId), event.shiftKey); return;
         }
         selectFile(virtualKey ? null : entry);
-        if (folder) { expandedFolders.add(key); renderTree(); }
+        if (folder) toggleFolder(key);
+      });
+      if (folder) row.addEventListener('click', event => {
+        if (event.target.closest('button, input')) return;
+        if (event.target.closest('.lesson-tree-folder-header') !== row) return;
+        toggleFolder(key);
       });
       const children = node('div', null, 'lesson-tree-folder-children');
       if (folder) {
@@ -243,11 +254,7 @@ document.addEventListener('DOMContentLoaded', () => {
         toggle.dataset.focusKey = `toggle-${key}`; toggle.setAttribute('aria-expanded', String(!!open));
         toggle.setAttribute('aria-label', `${entry.name}の展開・折りたたみ`);
         toggle.classList.toggle('is-collapsed', !open); toggle.append(node('span', '▾', 'lesson-tree-folder-toggle-icon'));
-        toggle.addEventListener('click', () => {
-          if (expandedFolders.has(key)) expandedFolders.delete(key); else expandedFolders.add(key);
-          if (query) document.getElementById('exerciseSearch').value = '';
-          renderTree();
-        });
+        toggle.addEventListener('click', () => toggleFolder(key));
         title.append(toggle); title.append(label);
         nested.forEach(item => appendEntry(item.entry, children, item.key, item.children));
         wrapper.append(row, children);

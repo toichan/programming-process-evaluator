@@ -16,3 +16,6 @@ deploy/runtime
 *.enc
 *.age
 *.sql
+# Production migration/tool images need the versioned Flyway scripts.
+!src/main/resources/db/migration/
+!src/main/resources/db/migration/*.sql

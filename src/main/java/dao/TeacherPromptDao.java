@@ -16,6 +16,7 @@ import com.google.gson.JsonParser;
 
 import control.evaluation.GeminiModelCatalog;
 import entity.StandardRubric;
+import entity.SchoolCommonPromptVersion;
 import entity.ReevaluationJobHistory;
 import entity.TeacherPromptAuditEntry;
 import entity.TeacherPromptVersion;
@@ -40,18 +41,17 @@ public final class TeacherPromptDao {
 
 	public long ensureStandardRubric(Connection connection, long teacherUserId, long taskId) throws SQLException {
 		requireWriteTransaction(connection);
-		taskDao.findDraft(connection, teacherUserId, taskId, true)
+		taskDao.findPromptTask(connection, teacherUserId, taskId, true)
 				.orElseThrow(TeacherTaskNotFoundException::new);
 		long standardRubricId = standardRubricDao.requireActiveId(connection);
 		Long currentRubricId = null;
 		try (PreparedStatement statement = connection.prepareStatement("""
 				SELECT rubric_id FROM tasks
-				WHERE task_id = ? AND created_by_user_id = ?
+				WHERE task_id = ?
 				  AND publication_status = 'draft' AND deleted_at IS NULL
 				FOR UPDATE
 				""")) {
 			statement.setLong(1, taskId);
-			statement.setLong(2, teacherUserId);
 			try (ResultSet rows = statement.executeQuery()) {
 				if (!rows.next()) {
 					throw new TeacherTaskNotFoundException();
@@ -65,12 +65,11 @@ public final class TeacherPromptDao {
 		if (currentRubricId == null || currentRubricId != standardRubricId) {
 			try (PreparedStatement statement = connection.prepareStatement("""
 					UPDATE tasks SET rubric_id = ?
-					WHERE task_id = ? AND created_by_user_id = ?
+					WHERE task_id = ?
 					  AND publication_status = 'draft' AND deleted_at IS NULL
 					""")) {
 				statement.setLong(1, standardRubricId);
 				statement.setLong(2, taskId);
-				statement.setLong(3, teacherUserId);
 				if (statement.executeUpdate() != 1) {
 					throw new SQLException("The standard rubric could not be assigned to the task.");
 				}
@@ -124,15 +123,45 @@ public final class TeacherPromptDao {
 		return List.copyOf(versions);
 	}
 
+	public List<SchoolCommonPromptVersion> findCommonPromptVersions(Connection connection, long schoolId)
+			throws SQLException {
+		List<SchoolCommonPromptVersion> versions = new ArrayList<>();
+		try (PreparedStatement statement = connection.prepareStatement("""
+				SELECT cpv.common_prompt_version_id, cpv.school_id, cpv.version_number,
+				       cpv.common_prompt, creator.login_id AS created_by_login_id, cpv.created_at
+				FROM school_common_prompt_versions cpv
+				JOIN users creator ON creator.user_id = cpv.created_by_user_id
+				WHERE cpv.school_id = ?
+				ORDER BY cpv.version_number DESC
+				""")) {
+			statement.setLong(1, schoolId);
+			try (ResultSet rows = statement.executeQuery()) {
+				while (rows.next()) {
+					versions.add(new SchoolCommonPromptVersion(
+							rows.getLong("common_prompt_version_id"),
+							rows.getLong("school_id"),
+							rows.getInt("version_number"),
+							rows.getString("common_prompt"),
+							rows.getString("created_by_login_id"),
+							toLocalDateTime(rows.getTimestamp("created_at"))));
+				}
+			}
+		}
+		return List.copyOf(versions);
+	}
+
 	public TeacherPromptVersion findVersion(Connection connection, long taskId, long promptVersionId)
 			throws SQLException {
 		try (PreparedStatement statement = connection.prepareStatement("""
 				SELECT pv.prompt_version_id, pv.task_id, pv.version, pv.ai_model, pv.common_prompt,
+				       pv.common_prompt_version_id, cpv.version_number AS common_prompt_version_number,
 				       pv.additional_evaluation_instruction, pv.prompt_status,
 				       pv.fluctuation_generation_status, pv.evaluation_examples_status, pv.row_version,
 				       creator.login_id AS created_by_login_id, pv.created_at,
 				       updater.login_id AS updated_by_login_id, pv.updated_at
 				FROM prompt_versions pv
+				LEFT JOIN school_common_prompt_versions cpv
+				  ON cpv.common_prompt_version_id = pv.common_prompt_version_id
 				JOIN users creator ON creator.user_id = pv.created_by_user_id
 				LEFT JOIN users updater ON updater.user_id = pv.updated_by_user_id
 				WHERE pv.task_id = ? AND pv.prompt_version_id = ?
@@ -143,12 +172,18 @@ public final class TeacherPromptDao {
 				if (!rows.next()) {
 					throw new PromptVersionNotFoundException();
 				}
+				long commonPromptVersionId = rows.getLong("common_prompt_version_id");
+				Long nullableCommonPromptVersionId = rows.wasNull() ? null : commonPromptVersionId;
+				int commonPromptVersionNumber = rows.getInt("common_prompt_version_number");
+				Integer nullableCommonPromptVersionNumber = rows.wasNull() ? null : commonPromptVersionNumber;
 				return new TeacherPromptVersion(
 						rows.getLong("prompt_version_id"),
 						rows.getLong("task_id"),
 						rows.getString("version"),
 						rows.getString("ai_model"),
 						rows.getString("common_prompt"),
+						nullableCommonPromptVersionId,
+						nullableCommonPromptVersionNumber,
 						rows.getString("additional_evaluation_instruction"),
 						rows.getString("prompt_status"),
 						rows.getString("fluctuation_generation_status"),
@@ -224,11 +259,10 @@ public final class TeacherPromptDao {
 				JOIN tasks t ON t.task_id = j.task_id
 				JOIN prompt_versions pv ON pv.prompt_version_id = j.prompt_version_id
 				JOIN users requester ON requester.user_id = j.requested_by_user_id
-				WHERE j.task_id = ? AND t.created_by_user_id = ? AND t.deleted_at IS NULL
+				WHERE j.task_id = ? AND t.deleted_at IS NULL
 				ORDER BY requested_at DESC, j.reevaluation_job_id DESC
 				""")) {
 			statement.setLong(1, taskId);
-			statement.setLong(2, teacherUserId);
 			try (ResultSet rows = statement.executeQuery()) {
 				while (rows.next()) {
 					jobs.add(new ReevaluationJobHistory(
@@ -282,29 +316,34 @@ public final class TeacherPromptDao {
 			String commonPrompt,
 			String additionalInstruction) throws SQLException {
 		requireWriteTransaction(connection);
-			var task = taskDao.findPromptTask(connection, teacherUserId, taskId, true)
+		var task = taskDao.findPromptTask(connection, teacherUserId, taskId, true)
 				.orElseThrow(TeacherTaskNotFoundException::new);
-			if ("draft".equals(task.publicationStatus())) {
-				ensureStandardRubric(connection, teacherUserId, taskId);
-			}
+		if ("draft".equals(task.publicationStatus())) {
+			ensureStandardRubric(connection, teacherUserId, taskId);
+		}
+		long schoolId = task.input().schoolId();
 		if (promptVersionId == null) {
+			long commonPromptVersionId = ensureLatestCommonPromptVersion(
+					connection, teacherUserId, schoolId, commonPrompt);
 			String version = nextVersion(connection, taskId);
 			long id;
 			try (PreparedStatement statement = connection.prepareStatement("""
 					INSERT INTO prompt_versions (
-					  task_id, version, ai_model, common_prompt, additional_evaluation_instruction,
+					  task_id, version, ai_model, common_prompt, common_prompt_version_id,
+					  additional_evaluation_instruction,
 					  prompt_status, fluctuation_generation_status, evaluation_examples_status,
 					  created_by_user_id, updated_by_user_id, created_at, updated_at, row_version
-					) VALUES (?, ?, ?, ?, ?, 'draft', 'not_generated', 'not_generated',
+					) VALUES (?, ?, ?, ?, ?, ?, 'draft', 'not_generated', 'not_generated',
 					  ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 1)
 					""", Statement.RETURN_GENERATED_KEYS)) {
 				statement.setLong(1, taskId);
 				statement.setString(2, version);
 				statement.setString(3, modelId);
 				statement.setString(4, commonPrompt);
-				statement.setString(5, nullableText(additionalInstruction));
-				statement.setLong(6, teacherUserId);
+				statement.setLong(5, commonPromptVersionId);
+				statement.setString(6, nullableText(additionalInstruction));
 				statement.setLong(7, teacherUserId);
+				statement.setLong(8, teacherUserId);
 				statement.executeUpdate();
 				try (ResultSet keys = statement.getGeneratedKeys()) {
 					if (!keys.next()) {
@@ -318,6 +357,7 @@ public final class TeacherPromptDao {
 			after.addProperty("version", version);
 			after.addProperty("ai_model", modelId);
 			after.addProperty("common_prompt", commonPrompt);
+			after.addProperty("common_prompt_version_id", commonPromptVersionId);
 			recordAudit(connection, teacherUserId, taskId, "save_prompt_draft", "プロンプト下書きを作成", null, after);
 			return id;
 		}
@@ -332,10 +372,15 @@ public final class TeacherPromptDao {
 		boolean changed = !current.aiModel().equals(modelId)
 				|| !current.commonPrompt().equals(commonPrompt)
 				|| !java.util.Objects.equals(current.additionalInstruction(), nullableText(additionalInstruction));
+		Long commonPromptVersionId = current.commonPromptVersionId();
+		if (!current.commonPrompt().equals(commonPrompt)) {
+			commonPromptVersionId = ensureLatestCommonPromptVersion(connection, teacherUserId, schoolId, commonPrompt);
+		}
 		recoverOrRejectGeneration(connection, teacherUserId, current);
 		try (PreparedStatement statement = connection.prepareStatement("""
 				UPDATE prompt_versions
-				SET ai_model = ?, common_prompt = ?, additional_evaluation_instruction = ?,
+				SET ai_model = ?, common_prompt = ?, common_prompt_version_id = ?,
+				    additional_evaluation_instruction = ?,
 				    updated_by_user_id = ?, updated_at = CURRENT_TIMESTAMP,
 				    row_version = row_version + 1,
 				    fluctuation_generation_status = CASE WHEN ? THEN 'not_generated'
@@ -347,13 +392,18 @@ public final class TeacherPromptDao {
 				""")) {
 			statement.setString(1, modelId);
 			statement.setString(2, commonPrompt);
-			statement.setString(3, nullableText(additionalInstruction));
-			statement.setLong(4, teacherUserId);
-			statement.setBoolean(5, changed);
+			if (commonPromptVersionId == null) {
+				statement.setNull(3, java.sql.Types.BIGINT);
+			} else {
+				statement.setLong(3, commonPromptVersionId);
+			}
+			statement.setString(4, nullableText(additionalInstruction));
+			statement.setLong(5, teacherUserId);
 			statement.setBoolean(6, changed);
-			statement.setLong(7, promptVersionId);
-			statement.setLong(8, taskId);
-			statement.setLong(9, expectedRowVersion);
+			statement.setBoolean(7, changed);
+			statement.setLong(8, promptVersionId);
+			statement.setLong(9, taskId);
+			statement.setLong(10, expectedRowVersion);
 			if (statement.executeUpdate() != 1) {
 				throw new PromptVersionConflictException();
 			}
@@ -408,6 +458,13 @@ public final class TeacherPromptDao {
 				additionalInstruction = rows.getString("additional_evaluation_instruction");
 			}
 		}
+		var copiedTask = taskDao.findPromptTask(connection, teacherUserId, copiedTaskId, false)
+				.orElseThrow(TeacherTaskNotFoundException::new);
+		List<SchoolCommonPromptVersion> commonVersions =
+				findCommonPromptVersions(connection, copiedTask.input().schoolId());
+		if (!commonVersions.isEmpty()) {
+			commonPrompt = commonVersions.get(0).commonPrompt();
+		}
 		return saveDraft(
 				connection,
 				teacherUserId,
@@ -417,6 +474,63 @@ public final class TeacherPromptDao {
 				GeminiModelCatalog.DEFAULT_MODEL,
 				commonPrompt,
 				additionalInstruction);
+	}
+
+	public long copyPromptToDraftFromTask(
+			Connection connection,
+			long teacherUserId,
+			long sourceTaskId,
+			long targetTaskId) throws SQLException {
+		requireWriteTransaction(connection);
+		if (sourceTaskId == targetTaskId) {
+			throw new IllegalArgumentException("コピー元とコピー先には別の課題を選択してください。");
+		}
+		String modelId;
+		String commonPrompt;
+		String additionalInstruction;
+		try (PreparedStatement statement = connection.prepareStatement("""
+				SELECT pv.ai_model, pv.common_prompt, pv.additional_evaluation_instruction
+				FROM tasks source
+				JOIN tasks target ON target.school_id = source.school_id
+				JOIN prompt_versions pv
+				  ON pv.prompt_version_id = source.active_prompt_version_id
+				 AND pv.task_id = source.task_id
+				WHERE source.task_id = ? AND target.task_id = ?
+				  AND source.deleted_at IS NULL AND target.deleted_at IS NULL
+				  AND source.publication_status IN ('draft','published','requires_update')
+				  AND target.publication_status IN ('draft','requires_update')
+				  AND pv.prompt_status IN ('configured','versioned')
+				FOR UPDATE
+				""")) {
+			statement.setLong(1, sourceTaskId);
+			statement.setLong(2, targetTaskId);
+			try (ResultSet rows = statement.executeQuery()) {
+				if (!rows.next()) {
+					throw new IllegalArgumentException("同じ学校の課題に適用済みプロンプトがありません。");
+				}
+				modelId = rows.getString("ai_model");
+				commonPrompt = rows.getString("common_prompt");
+				additionalInstruction = rows.getString("additional_evaluation_instruction");
+			}
+		}
+		var target = taskDao.findPromptTask(connection, teacherUserId, targetTaskId, false)
+				.orElseThrow(TeacherTaskNotFoundException::new);
+		List<SchoolCommonPromptVersion> commonVersions =
+				findCommonPromptVersions(connection, target.input().schoolId());
+		if (commonVersions.isEmpty()) {
+			throw new IllegalStateException("学校共通プロンプトの版がありません。");
+		}
+		commonPrompt = commonVersions.get(0).commonPrompt();
+		long versionId = saveDraft(
+				connection, teacherUserId, targetTaskId, null, 0,
+				modelId == null || modelId.isBlank() ? GeminiModelCatalog.DEFAULT_MODEL : modelId,
+				commonPrompt, additionalInstruction);
+		JsonObject details = new JsonObject();
+		details.addProperty("source_task_id", sourceTaskId);
+		details.addProperty("prompt_version_id", versionId);
+		recordAudit(connection, teacherUserId, targetTaskId, "copy_prompt_from_task",
+				"同じ学校のプロンプトを新しい課題専用の下書きへコピー", null, details);
+		return versionId;
 	}
 
 	public long beginGeneration(Connection connection, long teacherUserId, long taskId, long promptVersionId,
@@ -534,9 +648,10 @@ public final class TeacherPromptDao {
 		}
 		try (PreparedStatement statement = connection.prepareStatement("""
 				UPDATE evaluation_examples SET example_status = 'active'
-				WHERE prompt_version_id = ? AND example_status = 'inactive'
+				WHERE evaluation_example_id = ? AND prompt_version_id = ? AND example_status = 'inactive'
 				""")) {
-			statement.setLong(1, promptVersionId);
+			statement.setLong(1, current.evaluationExamples().getFirst().id());
+			statement.setLong(2, promptVersionId);
 			if (statement.executeUpdate() == 0) {
 				throw new SQLException("No generated evaluation examples were available to save.");
 			}
@@ -576,14 +691,13 @@ public final class TeacherPromptDao {
 				UPDATE tasks
 				SET active_prompt_version_id = ?, updated_by_user_id = ?,
 				    updated_at = CURRENT_TIMESTAMP, version = version + 1
-				WHERE task_id = ? AND created_by_user_id = ? AND version = ?
+				WHERE task_id = ? AND version = ?
 				  AND publication_status IN ('draft','requires_update') AND deleted_at IS NULL
 				""")) {
 			statement.setLong(1, promptVersionId);
 			statement.setLong(2, teacherUserId);
 			statement.setLong(3, taskId);
-			statement.setLong(4, teacherUserId);
-			statement.setLong(5, expectedTaskVersion);
+			statement.setLong(4, expectedTaskVersion);
 			if (statement.executeUpdate() != 1) {
 				throw new PromptVersionConflictException();
 			}
@@ -785,8 +899,9 @@ public final class TeacherPromptDao {
 			try (ResultSet rows = statement.executeQuery()) {
 				while (rows.next()) {
 					String version = rows.getString("version");
-					if (version != null && version.matches("v[1-9][0-9]*")) {
-						greatest = Math.max(greatest, Integer.parseInt(version.substring(1)));
+					if (version != null && version.matches("(?:v|ver\\.)[1-9][0-9]*")) {
+						String number = version.startsWith("ver.") ? version.substring(4) : version.substring(1);
+						greatest = Math.max(greatest, Integer.parseInt(number));
 					}
 				}
 			}
@@ -794,7 +909,64 @@ public final class TeacherPromptDao {
 		if (greatest == Integer.MAX_VALUE) {
 			throw new SQLException("Prompt version sequence is exhausted.");
 		}
-		return "v" + (greatest + 1);
+		return "ver." + (greatest + 1);
+	}
+
+	private long ensureLatestCommonPromptVersion(
+			Connection connection, long teacherUserId, long schoolId, String commonPrompt) throws SQLException {
+		try (PreparedStatement lockSchool = connection.prepareStatement(
+				"SELECT school_id FROM schools WHERE school_id = ? FOR UPDATE")) {
+			lockSchool.setLong(1, schoolId);
+			try (ResultSet rows = lockSchool.executeQuery()) {
+				if (!rows.next()) {
+					throw new SQLException("The task's school could not be found.");
+				}
+			}
+		}
+
+		long latestId = 0;
+		int latestVersion = 0;
+		String latestPrompt = null;
+		try (PreparedStatement statement = connection.prepareStatement("""
+				SELECT common_prompt_version_id, version_number, common_prompt
+				FROM school_common_prompt_versions
+				WHERE school_id = ?
+				ORDER BY version_number DESC
+				LIMIT 1
+				FOR UPDATE
+				""")) {
+			statement.setLong(1, schoolId);
+			try (ResultSet rows = statement.executeQuery()) {
+				if (rows.next()) {
+					latestId = rows.getLong("common_prompt_version_id");
+					latestVersion = rows.getInt("version_number");
+					latestPrompt = rows.getString("common_prompt");
+				}
+			}
+		}
+		if (commonPrompt.equals(latestPrompt)) {
+			return latestId;
+		}
+		if (latestVersion == Integer.MAX_VALUE) {
+			throw new SQLException("School common prompt version sequence is exhausted.");
+		}
+		try (PreparedStatement statement = connection.prepareStatement("""
+				INSERT INTO school_common_prompt_versions (
+				  school_id, version_number, common_prompt, created_by_user_id, created_at
+				) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+				""", Statement.RETURN_GENERATED_KEYS)) {
+			statement.setLong(1, schoolId);
+			statement.setInt(2, latestVersion + 1);
+			statement.setString(3, commonPrompt);
+			statement.setLong(4, teacherUserId);
+			statement.executeUpdate();
+			try (ResultSet keys = statement.getGeneratedKeys()) {
+				if (!keys.next()) {
+					throw new SQLException("The shared common prompt version insert returned no identifier.");
+				}
+				return keys.getLong(1);
+			}
+		}
 	}
 
 	private void updateGenerationStatus(

@@ -126,6 +126,40 @@
   min-height: 28rem;
 }
 
+.common-prompt-history {
+  border: 1px solid #e2e8f0;
+  border-radius: 0.6rem;
+  padding: 0.75rem 0.9rem;
+  background: #f8fafc;
+}
+
+.common-prompt-history > summary,
+.common-prompt-history-version > summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: #334155;
+}
+
+.common-prompt-history-version {
+  margin-top: 0.75rem;
+  padding: 0.65rem;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+}
+
+.common-prompt-history-text {
+  max-height: 18rem;
+  overflow: auto;
+  margin: 0.65rem 0 0;
+  padding: 0.75rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: #334155;
+  background: #f1f5f9;
+  border-radius: 0.4rem;
+}
+
 .CodeMirror {
   height: 28rem !important;
   border: 1px solid #1f2937;

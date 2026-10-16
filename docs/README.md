@@ -60,11 +60,11 @@ codeで機能開発へ戻る。[実装/運用状況と次回本番更新の引�
 | 認証・学校管理 | [認証計画](./system-configuration/feature-plans/authentication-and-login.md)。教師業務機能・教師アカウント管理・管理者画面統合・本番認証条件の完了を意味しない |
 | 生徒ホーム・同意・アカウント | [生徒ホーム等の計画](./system-configuration/feature-plans/student-home-consent-account.md)。ID統一・認証情報履歴等も記録済み。個別の未確認事項を保持 |
 | 生徒エディター | [エディター計画](./system-configuration/feature-plans/student-editor.md)。主要実装済み、30秒記録・競合・重複提出・再提出等の受入残件あり |
-| 評価・コードログ・課題別アンケート | [評価・アンケート計画](./system-configuration/feature-plans/student-evaluation-survey.md)。主要実装と既知バグ検証は済み、正式設定・ユーザー手動E2Eは教師画面完成後。全体アンケートはシステム対象外 |
+| 評価・コードログ・課題別アンケート | [評価・アンケート計画](./system-configuration/feature-plans/student-evaluation-survey.md)。主要実装と個別検証は済み。評価例保存DAOのinactive行不具合は工程20で修正・回帰確認済み。正式設問設定UIは現行仕様の対象外 |
 
 ### 次工程・後続範囲
 
-次は[ロードマップの工程10](./system-configuration/implementation-roadmap.md)です。[教師課題下書きの初回スライス計画](./system-configuration/feature-plans/teacher-task-draft.md)のS1・T001〜T015は完了しました。専用DBの受入でV1〜V16と権限/状態/競合/rollback、認証済みHTTP回帰、全テスト180件（成功126、失敗0、skip54）とWAR生成を確認済みです。その後、ユーザーの確認用に8080の開発DBもV16とし、合成テスト教師アカウントを追加、教師ホームと課題編集を8080で表示確認しました。認証情報は計画文書やソースに保存していません。次はS2（ルーブリック/プロンプト準備・AI生成）の計画具体化です。詳細は[最終受入レポート](./system-configuration/feature-plans/checkpoints/teacher-task-draft/batch-report-T014-T015.yaml)、8080環境更新の詳細は[エラーレポート](./system-configuration/error-report.md)と[AGENTS.mdの引継ぎ](../AGENTS.md)を参照してください。画面遷移図・プロトタイプは変更していません。正式な評価/アンケートE2E、工程11〜13は後続の保留としてロードマップに保持します。
+現在は[ロードマップの工程20](./system-configuration/implementation-roadmap.md)を実行中です。全体clean build/JUnit、複数領域の専用MySQL統合試験、評価例DAO不具合の修正・回帰、Node.js/Playwrightによる計6件（別々の2 fixture環境/実行バッチ）を実施済みです。認証境界・30秒保存/再読込・browser間競合に加え、N166 deny画面遷移、教師の確認画面/出力、対象4画面の390px表示も確認しました。残るopt-in試験、全主要導線/権限境界の網羅、他ブラウザー/OS等があるため、工程20は`PARTIAL / NEEDS_SIGNOFF`です。[工程20テスト計画](./system-configuration/feature-plans/phase-20-cross-feature-validation.md)に詳細な実行記録、[runtime validation report](./system-configuration/feature-plans/runtime-validation-report.md)に結果要約を記録しています。プロトタイプは変更せず、Gemini実API/実データ送信および本番試験は別ゲートです。
 
 ## 機能別・補助資料
 
@@ -72,6 +72,8 @@ codeで機能開発へ戻る。[実装/運用状況と次回本番更新の引�
 - [フィードバックUIガイド](./feedback-guideline.md): 共通の通知・確認UI。
 - [入出力フォーマット](./format/): 課題、テストケース、ヒント、アンケート、評価データの形式。
 - [評価ルーブリック](./rubric/): 評価観点の詳細。
+- [工程20 機能横断テスト計画](./system-configuration/feature-plans/phase-20-cross-feature-validation.md): 現行ベースライン、認可・状態遷移、既知未確認事項と不具合修正の実行順・合格条件。
+- [工程20 Runtime Validation Report](./system-configuration/feature-plans/runtime-validation-report.md): 工程20の最終build、MySQL統合試験、環境ごとの判定、未解決browser gap。
 - [サーバ維持費・AI API費の試算](./server-cost-estimate.md): 仮定に基づく試算。現在の確定価格としては扱わず、公開前に再確認する。
 - [本番運用条件の確認テンプレート](./system-configuration/production-operations-decisions.md): AWS・バックアップ・費用・運用など、公開前に人が決定する項目。
 - [デプロイ準備調査](./system-configuration/deployment-readiness-assessment.md): 現行コード・設定の実装根拠、公開前の不足事項、確認質問、機能開発と並行できる準備順。決定内容の正本は上記の本番運用条件。

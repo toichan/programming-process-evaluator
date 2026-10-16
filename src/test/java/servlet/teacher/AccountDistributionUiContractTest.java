@@ -42,4 +42,28 @@ class AccountDistributionUiContractTest {
 		assertTrue(jsp.contains("配信設定済み"));
 		assertTrue(jsp.contains("停止中"));
 	}
+	@Test void sharedDistributionHistoryKeepsExecutorAndOperationColumnsReadable() throws Exception {
+		String jsp = read("WEB-INF/teacher/distribution/distribution.jsp");
+		String css = read("css/teacher/distribution/distribution.css");
+		assertTrue(jsp.contains("${distribution.executedBy}"));
+		assertTrue(jsp.contains("distribution-operation-history-table"));
+		for (String heading : new String[] { "操作</th>", "日時</th>", "実行者</th>", "状態</th>" }) {
+			assertTrue(jsp.contains(heading));
+		}
+		assertTrue(jsp.contains("${entry.actor}"));
+		assertTrue(jsp.contains("${entry.occurredAt}"));
+		assertTrue(jsp.contains("${entry.result == 'success'}"));
+		assertTrue(css.contains(".distribution-operation-history-wrap"));
+		assertTrue(css.contains("overflow-wrap: anywhere"));
+		assertTrue(css.contains("td.distribution-actions"));
+	}
+	@Test void distributionFolderToggleUsesTheSharedChevronStyle() throws Exception {
+		String js = read("js/teacher/distribution/distribution.js");
+		String css = read("css/teacher/distribution/distribution.css");
+		assertTrue(js.contains("distribution-tree-folder-toggle"));
+		assertTrue(js.contains("distribution-tree-folder-toggle-icon"));
+		assertTrue(js.contains("chevron.textContent = '▾'"));
+		assertFalse(js.contains("toggle.appendChild(controlIcon('expand'))"));
+		assertTrue(css.contains(".distribution-tree-folder-toggle.is-collapsed .distribution-tree-folder-toggle-icon"));
+	}
 }

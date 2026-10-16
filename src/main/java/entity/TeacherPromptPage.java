@@ -8,6 +8,7 @@ public record TeacherPromptPage(
 		Long activePromptVersionId,
 		List<TeacherPromptVersion> versions,
 		TeacherPromptVersion selectedVersion,
+		List<SchoolCommonPromptVersion> commonPromptVersions,
 		StandardRubric standardRubric,
 		String targetSummary,
 		List<TeacherPromptAuditEntry> auditEntries,
@@ -16,6 +17,7 @@ public record TeacherPromptPage(
 	public TeacherPromptPage {
 		tasks = List.copyOf(tasks);
 		versions = List.copyOf(versions);
+		commonPromptVersions = List.copyOf(commonPromptVersions);
 		auditEntries = List.copyOf(auditEntries);
 		reevaluationJobs = List.copyOf(reevaluationJobs);
 	}
@@ -25,6 +27,7 @@ public record TeacherPromptPage(
 	public Long getActivePromptVersionId() { return activePromptVersionId; }
 	public List<TeacherPromptVersion> getVersions() { return versions; }
 	public TeacherPromptVersion getSelectedVersion() { return selectedVersion; }
+	public List<SchoolCommonPromptVersion> getCommonPromptVersions() { return commonPromptVersions; }
 	public StandardRubric getStandardRubric() { return standardRubric; }
 	public String getTargetSummary() { return targetSummary; }
 	public List<TeacherPromptAuditEntry> getAuditEntries() { return auditEntries; }

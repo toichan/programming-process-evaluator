@@ -22,7 +22,13 @@ SESSION_RETENTION_SECONDS = 120
 MAX_SESSION_RECORDS = 32
 RUNTIME_IMAGE = os.environ.get("PYTHON_RUNTIME_IMAGE", "python:3.12-alpine")
 EXECUTION_WRAPPER = (
-    "import os; "
+    "import builtins, contextlib, io, os\n"
+    "if os.environ.get('PPE_SUPPRESS_INPUT_PROMPT') == '1':\n"
+    "    original_input = builtins.input\n"
+    "    def input_without_prompt(prompt=''):\n"
+    "        with contextlib.redirect_stdout(io.StringIO()):\n"
+    "            return original_input(prompt)\n"
+    "    builtins.input = input_without_prompt\n"
     "exec(compile(os.environ['PPE_STUDENT_CODE'], '<student>', 'exec'))"
 )
 MAX_CONCURRENT_EXECUTIONS = threading.BoundedSemaphore(4)
@@ -148,7 +154,7 @@ def _write_stdin(stream, value):
         stream.close()
 
 
-def _container_command(container_name, source):
+def _container_command(container_name, source, suppress_input_prompt=False):
     production = os.environ.get("PPE_ENV") == "production"
     labels = []
     if production:
@@ -175,6 +181,7 @@ def _container_command(container_name, source):
         "--ulimit=nofile=64:64",
         "--ulimit=fsize=1048576:1048576",
         "--env=PYTHONDONTWRITEBYTECODE=1",
+        *(["--env=PPE_SUPPRESS_INPUT_PROMPT=1"] if suppress_input_prompt else []),
         "--env=PPE_STUDENT_CODE=" + source,
         *labels,
         RUNTIME_IMAGE,
@@ -188,9 +195,9 @@ def _container_name(execution_id):
     return "ppe-python" + namespace + "-" + execution_id
 
 
-def _run_container(source, standard_input):
+def _run_container(source, standard_input, suppress_input_prompt=False):
     container_name = _container_name(uuid.uuid4().hex)
-    command = _container_command(container_name, source)
+    command = _container_command(container_name, source, suppress_input_prompt)
     try:
         process = subprocess.Popen(
             command,
@@ -615,7 +622,9 @@ class RequestHandler(BaseHTTPRequestHandler):
                 return
             source = payload.get("source")
             standard_input = payload.get("standardInput", "")
-            if not isinstance(source, str) or not isinstance(standard_input, str):
+            suppress_input_prompt = payload.get("suppressInputPrompt", False)
+            if (not isinstance(source, str) or not isinstance(standard_input, str)
+                    or not isinstance(suppress_input_prompt, bool)):
                 self._write_json(400, {"error": "invalid_request"})
                 return
             if len(source.encode("utf-8")) > MAX_SOURCE_BYTES:
@@ -627,7 +636,7 @@ class RequestHandler(BaseHTTPRequestHandler):
             if len(standard_input.encode("utf-8")) > MAX_INPUT_BYTES:
                 self._write_json(413, {"error": "input_too_large"})
                 return
-            result, status = _run_container(source, standard_input)
+            result, status = _run_container(source, standard_input, suppress_input_prompt)
             self._write_json(status, result)
         finally:
             MAX_CONCURRENT_EXECUTIONS.release()

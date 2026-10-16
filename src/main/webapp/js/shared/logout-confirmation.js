@@ -12,7 +12,6 @@
 		pending.add(form);
 		const submitButton = form.querySelector('button[type="submit"], input[type="submit"]');
 		const wasDisabled = submitButton?.disabled ?? false;
-		if (submitButton) submitButton.disabled = true;
 
 		try {
 			if (window.PPEConfirmLeave && !(await window.PPEConfirmLeave())) return;
@@ -23,6 +22,7 @@
 				cancelLabel: 'キャンセル'
 			});
 			if (confirmed) {
+				if (submitButton) submitButton.disabled = true;
 				window.PPEAllowNavigation?.();
 				HTMLFormElement.prototype.submit.call(form);
 			}

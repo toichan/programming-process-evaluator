@@ -91,6 +91,12 @@ public final class TeacherTaskDao {
 				"t.publication_status IN ('draft','published','requires_update')");
 	}
 
+	public List<TeacherTaskDetails> findPromptTasks(Connection connection, List<Long> authorizedSchoolIds)
+			throws SQLException {
+		return findTasksForSchools(connection, authorizedSchoolIds,
+				"t.publication_status IN ('draft','published','requires_update')", false);
+	}
+
 	private List<TeacherTaskDetails> findTasks(
 			Connection connection, long teacherUserId, String publicationPredicate) throws SQLException {
 		requireTeacherId(teacherUserId);
@@ -166,12 +172,10 @@ public final class TeacherTaskDao {
 				FROM tasks revision
 				JOIN tasks source ON source.task_code = revision.task_code
 				WHERE revision.task_id = ? AND revision.supersedes_task_id = ?
-				  AND revision.created_by_user_id = ? AND source.created_by_user_id = ?
+				  AND revision.school_id = source.school_id
 				""")) {
 			statement.setLong(1, revisionTaskId);
 			statement.setLong(2, sourceTaskId);
-			statement.setLong(3, teacherUserId);
-			statement.setLong(4, teacherUserId);
 			try (ResultSet rows = statement.executeQuery()) {
 				return rows.next();
 			}
@@ -222,8 +226,8 @@ public final class TeacherTaskDao {
 			long teacherUserId,
 			long taskId,
 			boolean forUpdate) throws SQLException {
-		return findTask(connection, teacherUserId, taskId, forUpdate,
-				"t.publication_status IN ('draft','published','requires_update')");
+		return findTask(connection, (Long) null, taskId, forUpdate,
+				"t.publication_status IN ('draft','published','requires_update')", false);
 	}
 
 	public boolean hasStartedLearning(Connection connection, long taskId, boolean forUpdate) throws SQLException {
@@ -273,8 +277,8 @@ public final class TeacherTaskDao {
 			long teacherUserId,
 			long taskId,
 			boolean forUpdate) throws SQLException {
-		return findTask(connection, teacherUserId, taskId, forUpdate,
-				"t.publication_status IN ('draft','published','requires_update')");
+		return findTask(connection, (Long) null, taskId, forUpdate,
+				"t.publication_status IN ('draft','published','requires_update')", false);
 	}
 
 	private Optional<TeacherTaskDetails> findTask(
@@ -307,13 +311,10 @@ public final class TeacherTaskDao {
 				       t.title, t.theme, t.difficulty, t.description, t.input_constraints,
 				       t.creation_rules, t.initial_code,
 				       r.rubric_status,
-				       COALESCE(p.prompt_status, (
-				         SELECT latest.prompt_status
-				         FROM prompt_versions latest
-				         WHERE latest.task_id = t.task_id
-				         ORDER BY latest.created_at DESC, latest.prompt_version_id DESC
-				         LIMIT 1
-				       )) AS prompt_status
+				       p.prompt_status,
+				       (r.rubric_status = 'active'
+				        AND p.prompt_status IN ('configured','versioned')
+				        AND p.evaluation_examples_status = 'completed') AS prompt_ready_for_publication
 				FROM tasks t
 				JOIN users creator ON creator.user_id = t.created_by_user_id
 				LEFT JOIN users updater ON updater.user_id = t.updated_by_user_id
@@ -354,6 +355,7 @@ public final class TeacherTaskDao {
 						rows.getString("publication_status"),
 						rows.getString("rubric_status"),
 						rows.getString("prompt_status"),
+						rows.getBoolean("prompt_ready_for_publication"),
 						learningStarted,
 						loadInput(connection, taskId,
 								rows.getString("title"),
@@ -487,13 +489,12 @@ public final class TeacherTaskDao {
 		try (PreparedStatement statement = connection.prepareStatement("""
 				SELECT task_code, revision_number, school_id, rubric_id, rubric_version
 				FROM tasks
-				WHERE task_id = ? AND created_by_user_id = ?
+				WHERE task_id = ?
 				  AND publication_status = 'published' AND deleted_at IS NULL AND version = ?
 				FOR UPDATE
 				""")) {
 			statement.setLong(1, sourceTaskId);
-			statement.setLong(2, teacherUserId);
-			statement.setLong(3, expectedVersion);
+			statement.setLong(2, expectedVersion);
 			try (ResultSet rows = statement.executeQuery()) {
 				if (!rows.next()) {
 					throw new IllegalArgumentException("課題の状態が更新されています。再読み込みしてください。");
@@ -643,7 +644,7 @@ public final class TeacherTaskDao {
 				    title = ?, theme = ?, difficulty = ?, language = 'Python',
 				    description = ?, input_constraints = ?, creation_rules = ?, initial_code = ?,
 				    save_status = 'draft', version = version + 1, updated_at = CURRENT_TIMESTAMP
-				WHERE task_id = ? AND created_by_user_id = ?
+				WHERE task_id = ?
 				  AND publication_status = ? AND deleted_at IS NULL AND version = ?
 				""")) {
 			statement.setLong(1, teacherUserId);
@@ -656,9 +657,8 @@ public final class TeacherTaskDao {
 			statement.setString(8, input.creationRules());
 			statement.setString(9, input.initialCode());
 			statement.setLong(10, taskId);
-			statement.setLong(11, teacherUserId);
-			statement.setString(12, current.publicationStatus());
-			statement.setLong(13, expectedVersion);
+			statement.setString(11, current.publicationStatus());
+			statement.setLong(12, expectedVersion);
 			if (statement.executeUpdate() != 1) {
 				throw new SQLException("Task draft update lost its version or ownership condition.");
 			}
@@ -680,13 +680,12 @@ public final class TeacherTaskDao {
 		try (PreparedStatement statement = connection.prepareStatement("""
 				UPDATE tasks
 				SET active_prompt_version_id = NULL
-				WHERE task_id = ? AND created_by_user_id = ?
+				WHERE task_id = ?
 				  AND publication_status IN ('draft','requires_update')
 				  AND deleted_at IS NULL AND version = ?
 				""")) {
 			statement.setLong(1, taskId);
-			statement.setLong(2, teacherUserId);
-			statement.setLong(3, expectedVersion);
+			statement.setLong(2, expectedVersion);
 			if (statement.executeUpdate() != 1) {
 				throw new SQLException("Task prompt invalidation lost its version or ownership condition.");
 			}
@@ -715,10 +714,9 @@ public final class TeacherTaskDao {
 		try (PreparedStatement statement = connection.prepareStatement("""
 				SELECT publication_status, supersedes_task_id
 				FROM tasks
-				WHERE task_id = ? AND created_by_user_id = ? AND deleted_at IS NULL
+				WHERE task_id = ? AND deleted_at IS NULL
 				""")) {
 			statement.setLong(1, taskId);
-			statement.setLong(2, teacherUserId);
 			try (ResultSet rows = statement.executeQuery()) {
 				if (!rows.next()) {
 					throw new IllegalArgumentException("課題が見つからないか、公開できません。");
@@ -754,14 +752,13 @@ public final class TeacherTaskDao {
 				LEFT JOIN rubrics r ON r.rubric_id = t.rubric_id
 				LEFT JOIN prompt_versions p
 				  ON p.prompt_version_id = t.active_prompt_version_id AND p.task_id = t.task_id
-				WHERE t.task_id = ? AND t.created_by_user_id = ?
+				WHERE t.task_id = ?
 				  AND t.publication_status IN ('draft','requires_update') AND t.deleted_at IS NULL
 				  AND t.version = ?
 				FOR UPDATE
 				""")) {
 			statement.setLong(1, taskId);
-			statement.setLong(2, teacherUserId);
-			statement.setLong(3, expectedVersion);
+			statement.setLong(2, expectedVersion);
 			try (ResultSet rows = statement.executeQuery()) {
 				if (!rows.next()) {
 					throw new IllegalArgumentException("課題の状態が更新されています。再読み込みしてください。");
@@ -835,14 +832,13 @@ public final class TeacherTaskDao {
 				UPDATE tasks
 				SET save_status = 'saved', publication_status = 'published', published_at = CURRENT_TIMESTAMP,
 				    updated_by_user_id = ?, version = version + 1, updated_at = CURRENT_TIMESTAMP
-				WHERE task_id = ? AND created_by_user_id = ? AND publication_status = ?
+				WHERE task_id = ? AND publication_status = ?
 				  AND deleted_at IS NULL AND version = ?
 				""")) {
 			statement.setLong(1, teacherUserId);
 			statement.setLong(2, taskId);
-			statement.setLong(3, teacherUserId);
-			statement.setString(4, currentTaskStatus);
-			statement.setLong(5, expectedVersion);
+			statement.setString(3, currentTaskStatus);
+			statement.setLong(4, expectedVersion);
 			if (statement.executeUpdate() != 1) {
 				throw new SQLException("Task publication lost its version, ownership, or state condition.");
 			}
@@ -860,12 +856,11 @@ public final class TeacherTaskDao {
 					UPDATE tasks
 					SET publication_status = 'requires_update', updated_by_user_id = ?,
 					    version = version + 1, updated_at = CURRENT_TIMESTAMP
-					WHERE task_id = ? AND created_by_user_id = ?
+					WHERE task_id = ?
 					  AND publication_status = 'published' AND deleted_at IS NULL
 					""")) {
 				statement.setLong(1, teacherUserId);
 				statement.setLong(2, supersedesTaskId);
-				statement.setLong(3, teacherUserId);
 				if (statement.executeUpdate() != 1) {
 					throw new SQLException("The previous task revision could not be retired.");
 				}
@@ -1230,8 +1225,8 @@ public final class TeacherTaskDao {
 		if ("requires_update".equals(observed.publicationStatus())) {
 			sourceTaskId = findSupersededTaskId(connection, taskId);
 			if (sourceTaskId == null
-					|| findTask(connection, teacherUserId, sourceTaskId, true,
-							"t.publication_status = 'published'").isEmpty()
+					|| findTask(connection, (Long) null, sourceTaskId, true,
+							"t.publication_status = 'published'", false).isEmpty()
 					|| hasStartedLearning(connection, sourceTaskId, true)) {
 				throw new IllegalArgumentException(
 						"公開元の課題に学習開始済みの生徒がいるか、状態が更新されているため編集できません。");

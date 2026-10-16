@@ -1,6 +1,10 @@
 import io
+import json
 import sys
+import threading
 import time
+import urllib.error
+import urllib.request
 import unittest
 from subprocess import CompletedProcess, TimeoutExpired
 from unittest.mock import patch
@@ -65,6 +69,14 @@ class BoundedOutputTest(unittest.TestCase):
 
 
 class SynchronousPipeOwnershipTest(unittest.TestCase):
+    def test_input_prompt_suppression_is_opt_in_for_container_command(self):
+        ordinary = runner._container_command("ppe-python-test", "print('ok')")
+        submission_check = runner._container_command(
+            "ppe-python-test", "print('ok')", suppress_input_prompt=True)
+
+        self.assertNotIn("--env=PPE_SUPPRESS_INPUT_PROMPT=1", ordinary)
+        self.assertIn("--env=PPE_SUPPRESS_INPUT_PROMPT=1", submission_check)
+
     def test_closes_all_pipes_after_success_failure_and_timeout(self):
         original_popen = runner.subprocess.Popen
         for source, expected in [
@@ -93,6 +105,80 @@ class SynchronousPipeOwnershipTest(unittest.TestCase):
                 self.assertIsNotNone(process.poll())
                 for stream in (process.stdin, process.stdout, process.stderr):
                     self.assertTrue(stream.closed)
+
+    def test_submission_check_suppresses_only_input_prompt(self):
+        source = "value = input('入力してください>'); print(value)"
+        command = [sys.executable, "-u", "-c", runner.EXECUTION_WRAPPER]
+        with patch.object(runner, "_container_command", return_value=command):
+            with patch.dict("os.environ", {"PPE_STUDENT_CODE": source}, clear=False):
+                with patch.dict("os.environ", {"PPE_SUPPRESS_INPUT_PROMPT": "1"}, clear=False):
+                    result, status = runner._run_container(source, "パー\n", suppress_input_prompt=True)
+        self.assertEqual(200, status)
+        self.assertEqual("succeeded", result["status"])
+        self.assertEqual("パー\n", result["standardOutput"])
+
+    def test_regular_execution_keeps_input_prompt(self):
+        source = "value = input('入力してください>'); print(value)"
+        command = [sys.executable, "-u", "-c", runner.EXECUTION_WRAPPER]
+        with patch.object(runner, "_container_command", return_value=command):
+            with patch.dict("os.environ", {"PPE_STUDENT_CODE": source}, clear=False):
+                with patch.dict("os.environ", {"PPE_SUPPRESS_INPUT_PROMPT": ""}, clear=False):
+                    result, status = runner._run_container(source, "パー\n")
+        self.assertEqual(200, status)
+        self.assertEqual("succeeded", result["status"])
+        self.assertEqual("入力してください>パー\n", result["standardOutput"])
+
+
+class ExecutionRequestPromptOptionTest(unittest.TestCase):
+    def test_execute_validates_and_forwards_prompt_suppression_option(self):
+        response = {
+            "status": "succeeded",
+            "exitCode": 0,
+            "standardOutput": "",
+            "standardError": "",
+            "standardOutputTruncated": False,
+            "standardErrorTruncated": False,
+            "errorCode": None,
+        }
+        server = runner.RunnerServer(("127.0.0.1", 0), runner.RequestHandler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            url = f"http://127.0.0.1:{server.server_address[1]}/execute"
+            with patch.object(runner, "_run_container", return_value=(response, 200)) as execute:
+                for payload, expected in (
+                    ({"source": "print(1)", "standardInput": "", "suppressInputPrompt": True}, True),
+                    ({"source": "print(1)", "standardInput": ""}, False),
+                ):
+                    request = urllib.request.Request(
+                        url,
+                        data=json.dumps(payload).encode(),
+                        headers={"Content-Type": "application/json"},
+                        method="POST",
+                    )
+                    with urllib.request.urlopen(request, timeout=2) as result:
+                        self.assertEqual(200, result.status)
+                    execute.assert_called_with("print(1)", "", expected)
+
+                execute.reset_mock()
+                invalid = urllib.request.Request(
+                    url,
+                    data=json.dumps({
+                        "source": "print(1)",
+                        "standardInput": "",
+                        "suppressInputPrompt": "true",
+                    }).encode(),
+                    headers={"Content-Type": "application/json"},
+                    method="POST",
+                )
+                with self.assertRaises(urllib.error.HTTPError) as error:
+                    urllib.request.urlopen(invalid, timeout=2)
+                self.assertEqual(400, error.exception.code)
+                execute.assert_not_called()
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
 
 
 class ContainerCleanupTest(unittest.TestCase):

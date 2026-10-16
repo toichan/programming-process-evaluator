@@ -1,4 +1,15 @@
 (() => {
+	const feedbackHost = document.querySelector('#notificationFeedback');
+	if (feedbackHost) {
+		const feedback = window.PPEFeedback.createPageFeedback({
+			title: '通知',
+			alertTarget: feedbackHost
+		});
+		if (feedbackHost.dataset.taskTargetUnavailable === 'true') {
+			feedback.inlineAlert('この課題は削除済みです。通知を既読にしました。', 'warning');
+		}
+	}
+
 	const pending = new WeakSet();
 	document.addEventListener('submit', async (event) => {
 		const form = event.target;

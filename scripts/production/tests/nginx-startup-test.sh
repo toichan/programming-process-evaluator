@@ -106,9 +106,20 @@ docker compose --env-file /dev/null -p "$project" -f "$repo/compose.production.y
 compose_ready=1
 dc config --quiet
 image_created=1
-docker build --tag "$image" "$repo/containers/nginx"
+mkdir "$test_root/context"
+cp "$repo/containers/nginx/Dockerfile" "$repo/containers/nginx/nginx.conf" "$test_root/context/"
+chmod 0600 "$test_root/context/nginx.conf"
+docker build --tag "$image" "$test_root/context"
 docker image inspect "$image" |
     jq -e '.[0].Config | .Entrypoint == ["nginx"] and .Cmd == ["-g", "daemon off;"]' >/dev/null
+image_id=$(docker image inspect --format '{{.Id}}' "$image")
+docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges \
+    --entrypoint sh "$image_id" -ec '
+    test "$(id -u):$(id -g)" = 101:101
+    test -r /etc/nginx/nginx.conf
+    test "$(stat -c %a /etc/nginx/nginx.conf)" = 644
+'
+echo "PASS: private mode-0600 build context yields UID/GID 101:101-readable config in immutable local image $image_id"
 
 assert_command() {
     local service=$1 expected=$2 container

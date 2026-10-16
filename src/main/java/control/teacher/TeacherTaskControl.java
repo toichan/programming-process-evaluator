@@ -125,6 +125,59 @@ public final class TeacherTaskControl {
 		return saveDraft(user, taskId, expectedVersion, input, requestId, true);
 	}
 
+	public void publishExistingTask(
+			AuthenticatedUser user, long taskId, long expectedVersion, String requestId) throws SQLException {
+		requireTeacher(user);
+		requirePositiveId(taskId, "課題");
+		if (expectedVersion < 1) {
+			throw new IllegalArgumentException("課題の更新情報が不正です。画面を読み込み直してください。");
+		}
+		validateRequestId(requestId);
+		String action = "publish_task";
+		try (Connection connection = connectionFactory.open()) {
+			connection.setAutoCommit(false);
+			try {
+				permissionDao.requireTaskManagementAccess(connection, user.userId());
+				Optional<Long> previousRequest = taskDao.findSuccessfulTaskRequest(
+						connection, user.userId(), action, requestId);
+				TeacherTaskDetails task = taskDao.findTaskForManagement(connection, taskId, true)
+						.orElseThrow(TaskDraftNotFoundException::new);
+				permissionDao.requireAuthorizedSchool(connection, user.userId(), task.input().schoolId());
+				requireAuthorizedAssignments(connection, user.userId(), task, task.input());
+				if (previousRequest.isPresent()) {
+					if (previousRequest.get() != taskId || !"published".equals(task.publicationStatus())) {
+						throw new SecurityException("The publication request token belongs to another task.");
+					}
+					connection.commit();
+					return;
+				}
+				if (task.version() != expectedVersion) {
+					throw new TaskDraftConflictException();
+				}
+				if (!"draft".equals(task.publicationStatus())
+						&& !"requires_update".equals(task.publicationStatus())) {
+					throw new IllegalArgumentException("課題の状態が更新されています。再読み込みしてください。");
+				}
+				TeacherTaskDao.PublicationResult result = taskDao.publishDraft(
+						connection, user.userId(), taskId, expectedVersion, task.input().classAssignments().size());
+				taskDao.recordAudit(
+						connection,
+						user.userId(),
+						taskId,
+						action,
+						requestId,
+						"課題を保存済み設定から公開（即時 " + result.immediatelyPublishedAssignments()
+								+ " クラス、予約 " + result.scheduledAssignments() + " クラス）",
+						taskStateJson(task.publicationStatus(), task.version()),
+						publicationJson(result));
+				connection.commit();
+			} catch (SQLException | RuntimeException failure) {
+				rollback(connection, failure);
+				throw failure;
+			}
+		}
+	}
+
 	public long createRevision(
 			AuthenticatedUser user,
 			long sourceTaskId,
@@ -154,7 +207,6 @@ public final class TeacherTaskControl {
 					throw new SecurityException("The revision request token belongs to another task.");
 				}
 				TeacherTaskDetails existing = taskDao.findTaskForManagement(connection, revisionTaskId, true)
-						.filter(task -> task.createdByUserId() == user.userId())
 						.orElseThrow(TaskDraftNotFoundException::new);
 				requireAuthorizedAssignments(connection, user.userId(), existing, input);
 				connection.commit();
@@ -270,8 +322,7 @@ public final class TeacherTaskControl {
 					throw new SecurityException("The copy request token belongs to another task.");
 				}
 				TeacherTaskDetails existing = taskDao.findTaskForManagement(connection, copiedTaskId, false)
-						.filter(task -> task.createdByUserId() == user.userId()
-								&& !"archived".equals(task.publicationStatus()))
+						.filter(task -> !"archived".equals(task.publicationStatus()))
 						.orElseThrow(TaskDraftNotFoundException::new);
 				if (existing.input().schoolId() != source.input().schoolId()) {
 					throw new SecurityException("The copied task belongs to another school.");
@@ -630,7 +681,6 @@ public final class TeacherTaskControl {
 			try {
 				permissionDao.requireTaskManagementAccess(connection, user.userId());
 				TeacherTaskDetails task = taskDao.findTaskForManagement(connection, taskId, false)
-						.filter(candidate -> candidate.createdByUserId() == user.userId())
 						.orElseThrow(TaskDraftNotFoundException::new);
 				permissionDao.requireAuthorizedSchool(connection, user.userId(), task.input().schoolId());
 				requireAuthorizedAssignments(connection, user.userId(), task, task.input());
@@ -680,8 +730,7 @@ public final class TeacherTaskControl {
 					}
 					TeacherTaskDetails existing = publish
 							? taskDao.findTaskForManagement(connection, savedTaskId, true)
-									.filter(task -> task.createdByUserId() == user.userId()
-											&& "published".equals(task.publicationStatus()))
+									.filter(task -> "published".equals(task.publicationStatus()))
 									.orElseThrow(TaskDraftNotFoundException::new)
 							: taskDao.findDraft(connection, user.userId(), savedTaskId, true)
 									.orElseThrow(TaskDraftNotFoundException::new);

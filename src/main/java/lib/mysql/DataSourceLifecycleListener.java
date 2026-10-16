@@ -11,6 +11,7 @@ import control.student.StudentDueSoonReminderWorker;
 import control.student.StudentSurveyProgressReminderWorker;
 import control.teacher.TeacherTaskPublicationWorker;
 import control.teacher.TeacherDistributionWorker;
+import control.teacher.TeacherPromptGenerationQueue;
 
 @WebListener
 public final class DataSourceLifecycleListener implements ServletContextListener {
@@ -21,6 +22,7 @@ public final class DataSourceLifecycleListener implements ServletContextListener
 	private TeacherDistributionWorker teacherDistributionWorker;
 	private StudentDueSoonReminderWorker studentDueSoonReminderWorker;
 	private StudentSurveyProgressReminderWorker studentSurveyProgressReminderWorker;
+	private TeacherPromptGenerationQueue teacherPromptGenerationQueue;
 
 	@Override
 	public void contextInitialized(ServletContextEvent event) {
@@ -30,6 +32,9 @@ public final class DataSourceLifecycleListener implements ServletContextListener
 		reevaluationJobWorker = new ReevaluationJobWorker();
 		teacherTaskPublicationWorker = new TeacherTaskPublicationWorker();
 		teacherDistributionWorker = new TeacherDistributionWorker();
+		teacherPromptGenerationQueue = new TeacherPromptGenerationQueue();
+		event.getServletContext().setAttribute(
+				TeacherPromptGenerationQueue.SERVLET_CONTEXT_ATTRIBUTE, teacherPromptGenerationQueue);
 		studentDueSoonReminderWorker = new StudentDueSoonReminderWorker();
 		studentSurveyProgressReminderWorker = new StudentSurveyProgressReminderWorker();
 		evaluationWorker.start();
@@ -51,6 +56,9 @@ public final class DataSourceLifecycleListener implements ServletContextListener
 		}
 		if (teacherDistributionWorker != null) {
 			teacherDistributionWorker.stop();
+		}
+		if (teacherPromptGenerationQueue != null) {
+			teacherPromptGenerationQueue.stop();
 		}
 		if (teacherTaskPublicationWorker != null) {
 			teacherTaskPublicationWorker.stop();

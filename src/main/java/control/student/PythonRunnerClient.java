@@ -85,7 +85,12 @@ public final class PythonRunnerClient {
 
 	PythonExecutionResult execute(String source, String standardInput)
 			throws IOException, InterruptedException {
-		String requestBody = GSON.toJson(new ExecutionRequest(source, standardInput));
+		return execute(source, standardInput, false);
+	}
+
+	private PythonExecutionResult execute(String source, String standardInput, boolean suppressInputPrompt)
+			throws IOException, InterruptedException {
+		String requestBody = GSON.toJson(new ExecutionRequest(source, standardInput, suppressInputPrompt));
 		HttpRequest request = authorizedRequest(executionUri)
 				.timeout(Duration.ofSeconds(65))
 				.header("Content-Type", "application/json; charset=UTF-8")
@@ -128,8 +133,18 @@ public final class PythonRunnerClient {
 	}
 
 	TimedResult executeTimed(String source, String standardInput) throws IOException, InterruptedException {
+		return executeTimed(source, standardInput, false);
+	}
+
+	TimedResult executeTimedForSubmissionCheck(String source, String standardInput)
+			throws IOException, InterruptedException {
+		return executeTimed(source, standardInput, true);
+	}
+
+	private TimedResult executeTimed(String source, String standardInput, boolean suppressInputPrompt)
+			throws IOException, InterruptedException {
 		long startedAt = System.nanoTime();
-		PythonExecutionResult result = execute(source, standardInput);
+		PythonExecutionResult result = execute(source, standardInput, suppressInputPrompt);
 		int duration = (int) Math.min(
 				Integer.MAX_VALUE, Math.max(0, (System.nanoTime() - startedAt) / 1_000_000));
 		return new TimedResult(result, duration);
@@ -219,7 +234,7 @@ public final class PythonRunnerClient {
 		return result;
 	}
 
-	private record ExecutionRequest(String source, String standardInput) {
+	private record ExecutionRequest(String source, String standardInput, boolean suppressInputPrompt) {
 	}
 
 	private record ExecutionSessionRequest(String source) {

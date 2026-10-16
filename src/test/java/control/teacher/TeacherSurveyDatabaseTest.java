@@ -14,11 +14,21 @@ public class TeacherSurveyDatabaseTest {
 	public static void guard() { TeacherReviewFixture.guard(System.getenv()); }
 	public static void seed(Connection c) throws SQLException {
 		guard();
-		if(count(c,"users")!=0)return;
-		var d=TeacherReviewFixture.install(c);
+		var d=TeacherReviewFixture.installOrFind(c);
+		long task=number(c,"SELECT task_id FROM task_class_assignments WHERE task_class_assignment_id="+d.assignment());
+		long existing=number(c,"SELECT COUNT(*) FROM surveys WHERE title='Synthetic survey' AND task_id="+task);
+		if(existing!=0){
+			long questions=number(c,"SELECT COUNT(*) FROM survey_questions q JOIN surveys s USING(survey_id) WHERE s.title='Synthetic survey' AND s.task_id="+task);
+			long responses=number(c,"SELECT COUNT(*) FROM survey_responses r JOIN surveys s USING(survey_id) WHERE s.title='Synthetic survey' AND s.task_id="+task);
+			long answers=number(c,"SELECT COUNT(*) FROM survey_answers a JOIN survey_responses r USING(survey_response_id) JOIN surveys s USING(survey_id) WHERE s.title='Synthetic survey' AND s.task_id="+task);
+			if(existing!=1||questions!=8||responses!=3||answers!=9)
+				throw new SQLException("Existing synthetic survey fixture is incomplete or ambiguous.");
+			return;
+		}
+		c.setAutoCommit(false);
+		try{
 		for(long teacher:new long[]{d.teacher(),d.outsider(),d.deniedTeacher()})
 			insert(c,"INSERT INTO teacher_feature_permissions(teacher_user_id,feature_code,is_enabled,updated_by_user_id,updated_at) VALUES (?,'survey-results',?,?,NOW())",teacher,teacher!=d.deniedTeacher(),d.teacher());
-		long task=number(c,"SELECT task_id FROM task_class_assignments WHERE task_class_assignment_id="+d.assignment());
 		long rubric=number(c,"SELECT rubric_id FROM evaluations WHERE evaluation_id="+d.completedEvaluation());
 		long survey=insert(c,"INSERT INTO surveys(task_id,title,survey_status,created_at) VALUES (?,'Synthetic survey','active',NOW())",task);
 		long submitted=response(c,d.student(),survey,task,d.completedEvaluation(),"submitted","standard");
@@ -40,6 +50,23 @@ public class TeacherSurveyDatabaseTest {
 		insert(c,"INSERT INTO survey_question_options(question_id,option_code,label,value,sort_order,option_status) VALUES (?,'logs','ログ','logs',2,'inactive')",choices);
 		insert(c,"INSERT INTO survey_answers(survey_response_id,question_id,answer_value) VALUES (?,?,'[\"editor\",\"logs\"]')",submitted,choices);
 		c.commit();
+		}catch(SQLException|RuntimeException failure){c.rollback();throw failure;}
+	}
+	@Test void extendsAnExistingReviewFixtureAndRepeatsWithoutDuplicateSurveyData()throws Exception{
+		Assumptions.assumeTrue("true".equals(System.getenv("TEACHER_SURVEY_DB_TEST")));guard();
+		try(var c=Client.createConnection()){
+			TeacherReviewFixture.installOrFind(c);
+			seed(c);
+			String before=snapshot(c);
+			seed(c);
+			assertEquals(before,snapshot(c));
+			assertEquals(2,new TeacherSurveyControl().list(teacher("review_teacher"),TeacherSurveyFilter.empty()).size());
+			c.setAutoCommit(false);
+			try{
+				update(c,"DELETE FROM survey_answers WHERE question_id IN (SELECT question_id FROM survey_questions WHERE question_code='generic-text')");
+				assertThrows(SQLException.class,()->seed(c));
+			}finally{c.rollback();}
+		}
 	}
 	private static long response(Connection c,long user,long survey,long task,long evaluation,String status,String code)throws SQLException{
 		return insert(c,"INSERT INTO survey_responses(response_code,record_code,student_user_id,survey_id,task_id,evaluation_id,consent_status_at_submission,response_status,started_at,submitted_at) VALUES (?,?, ?,?,?,?,'agreed',?, '2026-10-08 09:00:00',?)","SR-"+code,"REC-"+code,user,survey,task,evaluation,status,status.equals("submitted")?"2026-10-08 09:10:00":null);

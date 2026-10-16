@@ -15,6 +15,9 @@ import entity.StudentNotificationPage;
 import entity.UserCredential.UserType;
 
 public final class StudentNotificationControl {
+	private static final String TASK_UNAVAILABLE_OUTCOME_PATH =
+			"/student/notifications";
+
 	public enum OpenStatus {
 		OPENED,
 		NOT_FOUND,
@@ -137,8 +140,8 @@ public final class StudentNotificationControl {
 	}
 
 	/**
-	 * Marks the notification read only after its target (evaluation result or published task) is
-	 * confirmed accessible, then returns the path the caller should redirect to.
+	 * Resolves the target before marking the notification read. Unavailable task notifications are
+	 * consumed into the same safe in-app outcome regardless of why their target cannot be opened.
 	 *
 	 * @throws SecurityException when the user is not a valid active student
 	 */
@@ -153,6 +156,11 @@ public final class StudentNotificationControl {
 		}
 		StudentNotification notification = found.get();
 		String redirectPath = resolveRedirectPath(user, notification);
+		boolean unavailableTaskTarget = redirectPath == null
+				&& isTaskNotification(notification.getNotificationType());
+		if (unavailableTaskTarget) {
+			redirectPath = TASK_UNAVAILABLE_OUTCOME_PATH;
+		}
 		if (redirectPath == null) {
 			return OpenResult.of(OpenStatus.TARGET_UNAVAILABLE);
 		}
@@ -160,7 +168,15 @@ public final class StudentNotificationControl {
 				&& notificationDao.findRetained(user.userId(), notificationId).isEmpty()) {
 			return OpenResult.of(OpenStatus.NOT_FOUND);
 		}
-		return new OpenResult(OpenStatus.OPENED, redirectPath);
+		return new OpenResult(
+				unavailableTaskTarget ? OpenStatus.TARGET_UNAVAILABLE : OpenStatus.OPENED, redirectPath);
+	}
+
+	private static boolean isTaskNotification(String type) {
+		return StudentNotification.TYPE_TASK_PUBLISHED.equals(type)
+				|| StudentNotification.TYPE_DUE_SOON.equals(type)
+				|| StudentNotification.TYPE_ASSIGNMENT_EXPIRED.equals(type)
+				|| StudentNotification.TYPE_DEADLINE_EXTENDED.equals(type);
 	}
 
 	private String resolveRedirectPath(AuthenticatedUser user, StudentNotification notification) throws SQLException {

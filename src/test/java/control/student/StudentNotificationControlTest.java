@@ -267,7 +267,7 @@ class StudentNotificationControlTest {
 		assertEquals(List.of("find:5:9", "mark:5:9"), dao.calls);
 	}
 
-	@Test void expiredAssignmentUnavailableToStudentRemainsUnread() throws Exception {
+	@Test void expiredAssignmentUnavailableToStudentUsesSameSafeOutcomeAndMarksRead() throws Exception {
 		var dao = new FakeDao();
 		dao.stored = assignmentExpiredNotification(31L);
 		var control = new StudentNotificationControl(
@@ -276,8 +276,10 @@ class StudentNotificationControlTest {
 				(user, assignment) -> TargetAccess.UNAVAILABLE,
 				(user, targetId, exerciseId) -> fail("unexpected"),
 				(user, assignment) -> TargetAccess.UNAVAILABLE);
-		assertEquals(OpenStatus.TARGET_UNAVAILABLE, control.open(STUDENT, 9).status());
-		assertEquals(List.of("find:5:9"), dao.calls);
+		var result = control.open(STUDENT, 9);
+		assertEquals(OpenStatus.TARGET_UNAVAILABLE, result.status());
+		assertEquals("/student/notifications", result.redirectPath());
+		assertEquals(List.of("find:5:9", "mark:5:9"), dao.calls);
 	}
 
 	@Test void exerciseDistributionOpensOnlyTheOwnedDeliveryScopeAndMarksAfterAccessCheck() throws Exception {
@@ -317,17 +319,32 @@ class StudentNotificationControlTest {
 		dao.stored = dueSoonNotification(31L);
 		var control = new StudentNotificationControl(dao, (u, a, s) -> fail("unexpected"),
 				(u, a) -> TargetAccess.UNAVAILABLE);
-		assertEquals(OpenStatus.TARGET_UNAVAILABLE, control.open(STUDENT, 9).status());
-		assertTrue(dao.calls.stream().noneMatch(call -> call.startsWith("mark")));
+		var result = control.open(STUDENT, 9);
+		assertEquals(OpenStatus.TARGET_UNAVAILABLE, result.status());
+		assertEquals("/student/notifications", result.redirectPath());
+		assertEquals(List.of("find:5:9", "mark:5:9"), dao.calls);
 	}
 
-	@Test void taskPublishedNotificationWithUnavailableAssignmentIsConflictWithoutMarking() throws Exception {
+	@Test void taskPublishedNotificationWithUnavailableAssignmentUsesSafeOutcomeAndMarksRead() throws Exception {
 		var dao = new FakeDao();
 		dao.stored = taskPublishedNotification(31L);
 		var control = new StudentNotificationControl(dao, (u, a, s) -> fail("unexpected"),
 				(u, a) -> TargetAccess.UNAVAILABLE);
-		assertEquals(OpenStatus.TARGET_UNAVAILABLE, control.open(STUDENT, 9).status());
-		assertTrue(dao.calls.stream().noneMatch(call -> call.startsWith("mark")));
+		var result = control.open(STUDENT, 9);
+		assertEquals(OpenStatus.TARGET_UNAVAILABLE, result.status());
+		assertEquals("/student/notifications", result.redirectPath());
+		assertEquals(List.of("find:5:9", "mark:5:9"), dao.calls);
+	}
+
+	@Test void malformedTaskNotificationUsesTheSameSafeOutcomeAndMarksRead() throws Exception {
+		var dao = new FakeDao();
+		dao.stored = taskPublishedNotification(null);
+		var control = new StudentNotificationControl(dao, (u, a, s) -> fail("unexpected"),
+				(u, a) -> fail("malformed target must not be checked"));
+		var result = control.open(STUDENT, 9);
+		assertEquals(OpenStatus.TARGET_UNAVAILABLE, result.status());
+		assertEquals("/student/notifications", result.redirectPath());
+		assertEquals(List.of("find:5:9", "mark:5:9"), dao.calls);
 	}
 
 	@Test void taskPublishedNotificationWithInvalidAccountIsRejectedWithoutMarking() {

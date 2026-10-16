@@ -2,6 +2,8 @@
 
 ## 範囲と現在位置
 
+2026-10-16のread-only調査では、現行current `a6e90edf...`/5サービスhealthy/非root nginxの0644読取成功を確認した。これは今回のdeployではなく、ECR固定registry digest・CI/source・新旧release復旧適合性の受入完了でもない。以下の10月11日までの記録は履歴として保持し、最新の稼働状態は[本番調査記録](./production-deployment.md#2026-10-16-本番読み取り調査)を参照する。
+
 2026-10-10 JSTの方針変更により、大規模なvalidator/receipt基盤や包括的hardeningは
 [残課題](./ecr-deployment-debt.md)へ移し、既存releaseへ接続する小さなadapterを使用する。
 ActionsからのEC2操作・自動deployは追加しない。

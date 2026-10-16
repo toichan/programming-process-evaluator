@@ -13,6 +13,7 @@ document.addEventListener('DOMContentLoaded', function() {
   const feedback = window.PPEFeedback.createPageFeedback({ title: '課題編集' });
   const formTaskId = Number(form.querySelector('[name="taskId"]').value);
   const scheduleValues = new Map();
+  const previewCodeEditors = [];
 
   document.querySelectorAll('.task-state-form').forEach(function(operationForm) {
     operationForm.addEventListener('submit', async function(event) {
@@ -33,9 +34,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
   function initializeCodeEditor(textarea, mode) {
     if (!textarea || typeof window.CodeMirror === 'undefined') return null;
+    const isHintCode = textarea.classList.contains('hint-code');
+    const isTestCode = textarea.classList.contains('test-case-io');
     const editor = window.CodeMirror.fromTextArea(textarea, {
       mode: mode,
-      lineNumbers: mode === 'python',
+      lineNumbers: mode === 'python' && !isHintCode && !isTestCode,
       lineWrapping: true,
       theme: 'material-darker',
       indentUnit: 4,
@@ -43,6 +46,8 @@ document.addEventListener('DOMContentLoaded', function() {
       viewportMargin: Infinity
     });
     editor.getWrapperElement().classList.add('task-form-code-mirror', mode === 'python' ? 'is-python' : 'is-shell');
+    if (isHintCode) editor.getWrapperElement().classList.add('is-hint-example');
+    if (isTestCode) editor.getWrapperElement().classList.add('is-test-case');
     editor.on('change', function() {
       textarea.value = editor.getValue();
       updatePreview();
@@ -94,7 +99,11 @@ document.addEventListener('DOMContentLoaded', function() {
     row.append(id);
     row.append(createField('コマンド名', 'input', 'hintTitles', hint ? hint.title : ''));
     row.append(createField('説明', 'textarea', 'hintContents', hint ? hint.content : ''));
-    row.append(createField('使用方法', 'input', 'hintUsageSyntaxes', hint ? hint.syntax : ''));
+    const syntax = document.createElement('input');
+    syntax.type = 'hidden';
+    syntax.name = 'hintUsageSyntaxes';
+    syntax.value = hint ? hint.syntax || '' : '';
+    row.append(syntax);
     const codeField = createField('サンプルコード', 'textarea', 'hintCodes', hint ? hint.code : '');
     codeField.querySelector('textarea').classList.add('hint-code');
     row.append(codeField);
@@ -329,7 +338,14 @@ document.addEventListener('DOMContentLoaded', function() {
       item.textContent = feature;
       featureList.append(item);
     });
-    document.getElementById('previewEditorConstraint').textContent = currentValue('inputConstraints') || '未設定';
+    const constraints = currentValue('inputConstraints').split(/\r?\n|;/).map(function(item) { return item.trim(); }).filter(Boolean);
+    const constraintList = document.getElementById('previewEditorConstraint');
+    constraintList.replaceChildren();
+    (constraints.length ? constraints : ['未設定']).forEach(function(constraint) {
+      const item = document.createElement('li');
+      item.textContent = constraint;
+      constraintList.append(item);
+    });
     const rules = currentValue('creationRules').split(/\r?\n|;/).map(function(item) { return item.trim(); }).filter(Boolean);
     const rulesBlock = document.getElementById('previewEditorRulesBlock');
     rulesBlock.hidden = !rules.length;
@@ -372,27 +388,32 @@ document.addEventListener('DOMContentLoaded', function() {
 
   function renderPreviewHints() {
     const container = document.getElementById('previewHintCards');
+    previewCodeEditors.forEach(function(editor) { editor.toTextArea(); });
+    previewCodeEditors.length = 0;
     container.replaceChildren();
     document.querySelectorAll('#hintList .hint-row').forEach(function(row) {
       const card = document.createElement('div');
       card.className = 'hint-card';
       const title = document.createElement('div');
-      title.className = 'info-label';
+      title.className = 'hint-title-label';
       title.textContent = row.querySelector('[name="hintTitles"]').value || '未設定';
       const description = document.createElement('p');
       description.textContent = row.querySelector('[name="hintContents"]').value || 'ヒント内容未設定';
       card.append(title, description);
-      const syntaxValue = row.querySelector('[name="hintUsageSyntaxes"]').value;
-      if (syntaxValue) {
-        const syntax = document.createElement('pre');
-        syntax.textContent = syntaxValue;
-        card.append(syntax);
-      }
       const codeValue = row.querySelector('[name="hintCodes"]').value;
       if (codeValue) {
-        const code = document.createElement('pre');
-        code.textContent = codeValue;
+        const code = document.createElement('textarea');
+        code.className = 'hint-code hint-code-preview';
+        code.value = codeValue;
         card.append(code);
+        container.append(card);
+        const editor = initializeCodeEditor(code, 'python');
+        if (editor) {
+          editor.setOption('readOnly', true);
+          editor.refresh();
+          previewCodeEditors.push(editor);
+        }
+        return;
       }
       container.append(card);
     });
@@ -418,43 +439,41 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('taskCreateForm').addEventListener('change', updatePreview);
 
   const saveDraftButton = document.getElementById('saveDraftButton');
-  const publishTaskButton = document.getElementById('publishTaskButton');
+  const saveAndConfigurePromptButton = document.getElementById('saveAndConfigurePromptButton');
   const createRevisionButton = document.getElementById('createRevisionButton');
-  let publicationConfirmed = false;
+  const createRevisionAndConfigurePromptButton =
+    document.getElementById('createRevisionAndConfigurePromptButton');
   if (saveDraftButton) {
     saveDraftButton.addEventListener('click', function() {
       document.getElementById('taskAction').value = formTaskId > 0 ? 'updateDraft' : 'createDraft';
     });
   }
+  if (saveAndConfigurePromptButton) {
+    saveAndConfigurePromptButton.addEventListener('click', function() {
+      document.getElementById('taskAction').value = 'saveAndConfigurePrompt';
+    });
+  }
   form.addEventListener('submit', async function(event) {
-    if (event.submitter === publishTaskButton && !publicationConfirmed) {
-      event.preventDefault();
-      const confirmed = await feedback.confirm({
-        title: '課題を保存して公開しますか？',
-        message: '対象クラス、公開日時、提出期限、期限後の提出方針と評価プロンプトを確認してください。',
-        confirmLabel: '公開する',
-        cancelLabel: '戻って確認する',
-        variant: 'warning'
-      });
-      if (!confirmed) return;
-      publicationConfirmed = true;
-      form.requestSubmit(publishTaskButton);
-      return;
-    }
     if (event.submitter === createRevisionButton) {
       document.getElementById('taskAction').value = 'createRevision';
       createRevisionButton.disabled = true;
-      createRevisionButton.textContent = '改訂案を作成中…';
+      createRevisionButton.textContent = '改訂案を保存中…';
       return;
     }
-    const publishing = event.submitter === publishTaskButton;
-    document.getElementById('taskAction').value = publishing
-      ? 'publishTask'
+    if (event.submitter === createRevisionAndConfigurePromptButton) {
+      document.getElementById('taskAction').value = 'createRevisionAndConfigurePrompt';
+      createRevisionAndConfigurePromptButton.disabled = true;
+      createRevisionAndConfigurePromptButton.textContent = '保存中…';
+      return;
+    }
+    const configurePrompt = event.submitter === saveAndConfigurePromptButton;
+    document.getElementById('taskAction').value = configurePrompt
+      ? 'saveAndConfigurePrompt'
       : formTaskId > 0 ? 'updateDraft' : 'createDraft';
-    const button = publishing ? publishTaskButton : saveDraftButton;
+    const button = configurePrompt ? saveAndConfigurePromptButton : saveDraftButton;
     if (button) {
       button.disabled = true;
-      button.textContent = publishing ? '公開処理中…' : '保存中…';
+      button.textContent = configurePrompt ? '保存中…' : '下書き保存中…';
     }
   });
 
@@ -503,6 +522,9 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   document.querySelectorAll('#testCaseList .test-case-io').forEach(function(textarea) {
     initializeCodeEditor(textarea, 'shell');
+  });
+  document.querySelectorAll('#hintList .hint-code').forEach(function(textarea) {
+    initializeCodeEditor(textarea, 'python');
   });
   if (formTaskId === 0 && !document.querySelector('#testCaseList .test-case-row')) {
     addTestCaseRow();

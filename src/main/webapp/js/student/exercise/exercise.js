@@ -615,13 +615,7 @@ window.addEventListener('DOMContentLoaded', () => {
       label.setAttribute('aria-label', entry.name);
       if (active(entry)) {
         label.dataset.entrySelection = 'true';
-        label.addEventListener('click', (event) => {
-          if (!entry.virtualRoot && (event.ctrlKey || event.metaKey || event.shiftKey)) {
-            setCheck('normal', entry.entryId, !checkedEntries.has(entry.entryId), event.shiftKey); return;
-          }
-          if (folder) selectFolder(entry); else selectFile(page.dataset.exerciseId, entry.entryId);
-        });
-      } else {
+      } else if (!folder) {
         label.setAttribute('aria-disabled', 'true');
       }
       const children = document.createElement('div');
@@ -630,27 +624,55 @@ window.addEventListener('DOMContentLoaded', () => {
       const inTrash = trashChild || entry.status === 'trashed';
       const isCollapsed = inTrash ? !expandedTrashFolders.has(folderKey) : !expandedFolders.has(folderKey);
       if (isCollapsed) children.classList.add('is-collapsed');
+      let folderToggle = null;
+      const toggleFolder = () => {
+        const collapsed = children.classList.toggle('is-collapsed');
+        const expanded = inTrash ? expandedTrashFolders : expandedFolders;
+        if (collapsed) expanded.delete(folderKey); else expanded.add(folderKey);
+        folderToggle?.classList.toggle('is-collapsed', collapsed);
+        folderToggle?.setAttribute('aria-expanded', String(!collapsed));
+        label.setAttribute('aria-expanded', String(!collapsed));
+        updateSelectionCounts();
+      };
       if (folder) {
-        const toggle = document.createElement('button');
-        toggle.type = 'button'; toggle.className = 'lesson-tree-folder-toggle';
-        toggle.setAttribute('aria-label', `${entry.name}の展開・折りたたみ`);
-        toggle.setAttribute('aria-expanded', String(!isCollapsed));
-        toggle.classList.toggle('is-collapsed', isCollapsed);
+        label.setAttribute('aria-expanded', String(!isCollapsed));
+        folderToggle = document.createElement('button');
+        folderToggle.type = 'button'; folderToggle.className = 'lesson-tree-folder-toggle';
+        folderToggle.setAttribute('aria-label', `${entry.name}の展開・折りたたみ`);
+        folderToggle.setAttribute('aria-expanded', String(!isCollapsed));
+        folderToggle.classList.toggle('is-collapsed', isCollapsed);
         const chevron = document.createElement('span');
         chevron.className = 'lesson-tree-folder-toggle-icon'; chevron.textContent = '▾';
-        toggle.append(chevron);
-        toggle.addEventListener('click', () => {
-          const collapsed = children.classList.toggle('is-collapsed');
-          if (inTrash) {
-            if (collapsed) expandedTrashFolders.delete(folderKey); else expandedTrashFolders.add(folderKey);
-          } else {
-            if (collapsed) expandedFolders.delete(folderKey); else expandedFolders.add(folderKey);
+        folderToggle.append(chevron);
+        folderToggle.addEventListener('click', toggleFolder);
+        title.append(folderToggle);
+        row.addEventListener('click', (event) => {
+          if (event.target.closest('button, input, a, [data-entry-menu], .lesson-tree-entry-menu, .dropdown-menu')) return;
+          if ((!inTrash && nameSearch.value) || busy || selectionPending || sessionId) {
+            if (active(entry)) selectFolder(entry);
+            return;
           }
-          toggle.classList.toggle('is-collapsed', collapsed);
-          toggle.setAttribute('aria-expanded', String(!collapsed));
-          updateSelectionCounts();
+          toggleFolder();
         });
-        title.append(toggle);
+      }
+      if (active(entry)) {
+        label.addEventListener('click', (event) => {
+          if (!entry.virtualRoot && (event.ctrlKey || event.metaKey || event.shiftKey)) {
+            setCheck('normal', entry.entryId, !checkedEntries.has(entry.entryId), event.shiftKey); return;
+          }
+          if (folder) {
+            if (nameSearch.value || busy || selectionPending || sessionId) {
+              selectFolder(entry);
+              return;
+            }
+            toggleFolder();
+            selectFolder(entry);
+          } else {
+            selectFile(page.dataset.exerciseId, entry.entryId);
+          }
+        });
+      } else if (folder) {
+        label.addEventListener('click', toggleFolder);
       }
       (folder ? title : row).append(label);
       if (!entry.virtualRoot && !trashChild && (active(entry) || entry.status === 'trashed')) {

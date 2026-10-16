@@ -2,9 +2,13 @@ package control.admin;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 
@@ -32,23 +36,56 @@ class TeacherAccountDatabaseTest {
 	private final TeacherAccountControl control = new TeacherAccountControl();
 	private AuthenticatedUser admin;
 	private final List<Long> schools = new ArrayList<>();
+	private boolean retainBrowserFixture;
 
 	@BeforeEach void setUp() throws SQLException {
 		Assumptions.assumeTrue(Boolean.parseBoolean(System.getenv("TEACHER_ACCOUNT_DB_TEST")));
 		assertTrue(System.getenv("DB_NAME").matches("ppe_teacher_(?:self_)?test_[a-z0-9_]+"));
+		String adminLoginId = Boolean.parseBoolean(System.getenv("TEACHER_ACCOUNT_BROWSER_FIXTURE"))
+				? "admin" : "synthetic-admin";
 		try (Connection connection = Client.createConnection()) {
 			assertEquals(0, scalar(connection, "SELECT COUNT(*) FROM users"));
 			try (var statement = connection.prepareStatement("""
 					INSERT INTO users (user_type,login_id,password_hash,display_name,account_status,created_at)
-					VALUES ('admin','synthetic-admin','unused','Synthetic','active',CURRENT_TIMESTAMP)
+					VALUES ('admin',?,'unused','Synthetic','active',CURRENT_TIMESTAMP)
 					""", java.sql.Statement.RETURN_GENERATED_KEYS)) {
+				statement.setString(1, adminLoginId);
 				statement.executeUpdate();
 				try (var keys = statement.getGeneratedKeys()) {
 					assertTrue(keys.next());
-					admin = new AuthenticatedUser(keys.getLong(1), "synthetic-admin", "Synthetic", UserType.ADMIN, false, "test");
+					admin = new AuthenticatedUser(keys.getLong(1), adminLoginId, "Synthetic", UserType.ADMIN, false, "test");
 				}
 			}
 		}
+	}
+
+	@Test void createsRetainedAdminManagementBrowserFixture() throws Exception {
+		Assumptions.assumeTrue(Boolean.parseBoolean(System.getenv("TEACHER_ACCOUNT_BROWSER_FIXTURE")));
+		String password = System.getenv("PPE_P20_ADMIN_PASSWORD");
+		assertNotNull(password);
+		assertFalse(password.isBlank());
+		assertEquals("admin", admin.loginId());
+
+		try (Connection connection = Client.createConnection();
+				var statement = connection.prepareStatement(
+						"UPDATE users SET password_hash=? WHERE user_id=? AND user_type='admin'")) {
+			char[] passwordChars = password.toCharArray();
+			try {
+				statement.setString(1, new PasswordHasher().hash(passwordChars));
+			} finally {
+				Arrays.fill(passwordChars, '\0');
+			}
+			statement.setLong(2, admin.userId());
+			assertEquals(1, statement.executeUpdate());
+		}
+
+		long schoolId = new SchoolControl().save(admin, 0, 0,
+				new SchoolInput("P20 synthetic admin school", 1));
+		schools.add(schoolId);
+		Path fixture = Path.of("build/phase20-admin-management-browser-fixture.properties");
+		Files.createDirectories(fixture.getParent());
+		Files.writeString(fixture, "schoolId=" + schoolId + System.lineSeparator(), StandardCharsets.UTF_8);
+		retainBrowserFixture = true;
 	}
 
 	@Test void roundTripsCredentialsPermissionsVersionsStatusAndRetainedHistory() throws SQLException {
@@ -167,7 +204,7 @@ class TeacherAccountDatabaseTest {
 	}
 
 	@AfterEach void cleanUp() throws SQLException {
-		if (admin == null) return;
+		if (admin == null || retainBrowserFixture) return;
 		try (Connection connection = Client.createConnection(); var statement = connection.createStatement()) {
 			for (String table : List.of("login_history", "audit_logs", "credential_history", "password_reset_records",
 					"teacher_feature_permissions", "teacher_school_permissions")) statement.executeUpdate("DELETE FROM " + table);

@@ -1099,7 +1099,7 @@ public final class EvaluationWorkerDao implements EvaluationWorkRepository {
 			statement.setLong(1, evaluationId);
 			statement.setLong(2, dimensionId);
 			statement.setBigDecimal(3, java.math.BigDecimal.valueOf(score));
-			statement.setString(4, String.format(java.util.Locale.ROOT, "%.1f", (double) score));
+			statement.setString(4, Integer.toString(score));
 			statement.setString(5, "評価結果");
 			statement.setString(6, reason);
 			statement.executeUpdate();

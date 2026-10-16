@@ -32,7 +32,24 @@ class StudentEvaluationSurveyRuntimeTest {
 		var student = new Browser();
 		student.login("review_student");
 		String resultPath = "/student/evaluation?assignmentId=" + assignment + "&submissionId=" + submission;
-		assertTrue(student.get(resultPath).body().contains("アンケートが設定されていません"));
+		var initialResultPage = student.get(resultPath);
+		assertEquals(200, initialResultPage.statusCode());
+		assertTrue(initialResultPage.body().contains("アンケートが設定されていません"),
+				"Expected the unavailable-survey notice; evaluationTitle="
+						+ initialResultPage.body().contains("評価結果")
+						+ ", evaluationPending="
+						+ initialResultPage.body().contains("AIがコードを評価しています")
+						+ ", waitingForCompletion="
+						+ initialResultPage.body().contains("この提出版の評価完了後にアンケートへ回答できます")
+						+ ", consentRequired="
+						+ initialResultPage.body().contains("研究同意が必要")
+						+ ", latestEvaluationRequired="
+						+ initialResultPage.body().contains("最新の完了済み評価")
+						+ ", surveyUnavailable="
+						+ initialResultPage.body().contains("先生に確認してください")
+						+ ", surveyLink="
+						+ initialResultPage.body().contains("href=\"/student/survey")
+						+ ", loginPage=" + initialResultPage.body().contains("ログイン"));
 		long survey;
 		long question;
 		try (var c = Client.createConnection()) {

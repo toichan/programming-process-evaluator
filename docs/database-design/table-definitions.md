@@ -537,12 +537,14 @@ T012最終確認（2026-10-03）: runnerの各出力は捕捉生バイト/表示
 課題ごとのプロンプト設定・版・生成段階状態
 
 - V17で`updated_by_user_id`、`updated_at`、`row_version`を追加する。未適用下書きの更新者と楽観ロック版を保存し、設定済み/版管理済みの内容は上書きしない。
+- V34で学校単位の共通プロンプト版を参照する`common_prompt_version_id`を追加する。共通本文の履歴正本は`school_common_prompt_versions`とし、課題単位のprompt versionは評価生成状態・追加指示・適用状態を保持する。過去データはその学校の最新本文が一致する場合に対応する共通版へ関連付ける。
 - V17は標準ルーブリックが既にDBへ登録されている場合、未削除draft課題で`rubric_id`がNULLの行へ共通標準版を関連付ける。登録前にmigrationされたDBでは、教師prompt操作時にトランザクション内で不足分を関連付ける。
 
 |フィールド名|和名|型|主キー|NULL|その他制約|備考|
 |:--|:--|:--|:--|:--|:--|:--|
 |prompt_version_id|プロンプト版ID|BIGINT|〇|NO|PRIMARY_KEY, AUTO_INCREMENT||
 |task_id|課題ID|BIGINT||NO|FOREIGN_KEY|tasks.task_id|
+|common_prompt_version_id|学校共通プロンプト版ID|BIGINT||YES|FOREIGN_KEY|school_common_prompt_versions.common_prompt_version_id。V34追加|
 |version|版数|VARCHAR(50)||NO|UNIQUE(task_id, version)||
 |ai_model|AIモデル|VARCHAR(100)||NO|||
 |common_prompt|共通プロンプト|LONGTEXT||NO|||
@@ -555,6 +557,19 @@ T012最終確認（2026-10-03）: runnerの各出力は捕捉生バイト/表示
 |created_at|作成日時|DATETIME||NO|||
 |updated_at|更新日時|DATETIME||YES|||
 |row_version|更新競合検出版|BIGINT||NO||V17追加。初期値1|
+
+## school_common_prompt_versions
+
+学校内の全課題で共有する共通プロンプト本文の不変な版履歴。本文を変更して保存した場合のみ学校内版番号を増やし、同一内容の保存では版を追加しない。
+
+|フィールド名|和名|型|主キー|NULL|その他制約|備考|
+|:--|:--|:--|:--|:--|:--|:--|
+|common_prompt_version_id|学校共通プロンプト版ID|BIGINT|〇|NO|PRIMARY_KEY, AUTO_INCREMENT||
+|school_id|学校ID|BIGINT||NO|FOREIGN_KEY, UNIQUE(school_id, version_number)|schools.school_id|
+|version_number|版番号|INT||NO|UNIQUE(school_id, version_number)|表示形式は`ver.N`|
+|common_prompt|共通プロンプト|LONGTEXT||NO||版作成後は変更不可|
+|created_by_user_id|作成者ユーザID|BIGINT||NO|FOREIGN_KEY|users.user_id|
+|created_at|作成日時|DATETIME||NO|||
 
 ## prompt_fluctuation_items
 

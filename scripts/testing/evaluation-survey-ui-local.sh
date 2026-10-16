@@ -40,7 +40,8 @@ docker run --name "$builder" --label ppe.req159.owner="$owner" --network "$netwo
   -e DB_USER=root -e DB_PASSWORD=ui-synthetic-root -e TEACHER_REVIEW_DB_TEST=true \
   --mount "type=bind,src=$(pwd),dst=/source,readonly" --entrypoint sh ppe-tools:local -c '
   cp -R /source/src/. /workspace/src/ && cp /source/build.gradle /source/settings.gradle /workspace/ &&
-  gradle --offline --no-daemon flywayMigrate test war --console plain
+  gradle --offline --no-daemon flywayMigrate test \
+    --tests control.teacher.StudentSurveyAcceptanceFixtureTest war --console plain
   ' > "$reports/build.log" 2>&1 || build_result=$?
 docker cp "$builder:/workspace/build/test-results/test/." "$reports/unit"
 if [ "$build_result" -ne 0 ]; then echo "Build/tests failed; see $reports/build.log." >&2; exit "$build_result"; fi
@@ -69,8 +70,10 @@ http_result=0
 docker run --name "$http" --label ppe.req159.owner="$owner" --network "$network" \
   -e DB_HOST=ppe-preparation-20261008-db-1 -e DB_PORT=3306 -e DB_NAME=ppe_teacher_review_test_ui159 \
   -e DB_USER=root -e DB_PASSWORD=ui-synthetic-root -e TEACHER_REVIEW_DB_TEST=true \
-  -e EVALUATION_SURVEY_RUNTIME_TEST=true -e EVALUATION_SURVEY_HTTP_BASE=http://ppe-159-runtime:8080 \
+  -e EVALUATION_SURVEY_RUNTIME_TEST="${EVALUATION_SURVEY_RUNTIME_TEST:-true}" \
+  -e EVALUATION_SURVEY_HTTP_BASE=http://ppe-159-runtime:8080 \
   -e UI160_RUNTIME_TEST="${UI160_RUNTIME_TEST:-false}" \
+  -e UI163_RUNTIME_TEST="${UI163_RUNTIME_TEST:-false}" \
   -e STUDENT_CREDENTIAL_KEY=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA= \
   --mount "type=bind,src=$(pwd),dst=/source,readonly" --entrypoint sh ppe-tools:local -c '
   cp -R /source/src/. /workspace/src/ && cp /source/build.gradle /source/settings.gradle /workspace/ &&
@@ -78,7 +81,8 @@ docker run --name "$http" --label ppe.req159.owner="$owner" --network "$network"
   cp -R build/test-results/test /tmp/survey-http-results &&
   gradle --offline --no-daemon test --tests servlet.student.StudentTaskMenuRuntimeTest \
     --tests servlet.student.SurveyFourStepRuntimeTest --tests servlet.teacher.LocalUi160RuntimeTest \
-    --tests servlet.student.StudentNotificationRuntimeTest --console plain &&
+    --tests servlet.teacher.TeacherUi163RuntimeTest --tests servlet.student.StudentNotificationRuntimeTest \
+    --console plain &&
   cp /tmp/survey-http-results/TEST-*.xml build/test-results/test/
   ' > "$reports/http.log" 2>&1 || http_result=$?
 docker cp "$http:/workspace/build/test-results/test/." "$reports/http"

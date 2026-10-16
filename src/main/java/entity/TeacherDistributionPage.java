@@ -26,7 +26,7 @@ public record TeacherDistributionPage(
 	}
 
 	public record DistributionSummary(long distributionId, String templateName, String status,
-			long templateId, String createdAt, String schoolName, String classroomNames,
+			long templateId, String createdAt, String executedBy, String schoolName, String classroomNames,
 			List<TargetSummary> targets, List<HistorySummary> history) {
 		public DistributionSummary {
 			targets = List.copyOf(targets);
@@ -37,6 +37,7 @@ public record TeacherDistributionPage(
 		public String getStatus() { return status; }
 		public long getTemplateId() { return templateId; }
 		public String getCreatedAt() { return createdAt; }
+		public String getExecutedBy() { return executedBy; }
 		public String getSchoolName() { return schoolName; }
 		public String getClassroomNames() { return classroomNames; }
 		public List<TargetSummary> getTargets() { return targets; }

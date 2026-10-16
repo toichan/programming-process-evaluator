@@ -27,6 +27,7 @@ class StudentNotificationUiContractTest {
 		assertTrue(jsp.contains("通知はありません"));
 		assertTrue(jsp.contains("notificationPage.hasNext"));
 		assertTrue(jsp.contains("notificationPage.pageNumber - 1"));
+		assertTrue(jsp.contains("data-task-target-unavailable"));
 		assertTrue(jsp.contains("home-action.jspf"));
 	}
 
@@ -34,6 +35,8 @@ class StudentNotificationUiContractTest {
 		String js = Files.readString(Path.of("src/main/webapp/js/student/shared/notifications.js"));
 		assertTrue(js.contains("await window.PPEConfirmLeave()"));
 		assertTrue(js.contains("window.PPEAllowNavigation?.()"));
+		assertTrue(js.contains("PPEFeedback.createPageFeedback"));
+		assertTrue(js.contains("この課題は削除済みです。通知を既読にしました。"));
 		assertTrue(js.indexOf("await window.PPEConfirmLeave()")
 				< js.indexOf("HTMLFormElement.prototype.submit.call(form)"));
 		assertTrue(js.contains("pending.has(form)"));

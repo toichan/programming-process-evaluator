@@ -12,8 +12,10 @@ public final class TeacherReviewFixture {
 			long secondSubmission, long completedEvaluation, long pendingEvaluation) {}
 
 	public static void guard(Map<String, String> environment) {
+		String databaseHost = environment.getOrDefault("DB_HOST", "");
+		boolean isolatedPhase20Host = databaseHost.matches("ppe-p20-[a-z0-9-]+-db-1");
 		if (!"true".equals(environment.get("TEACHER_REVIEW_DB_TEST"))
-				|| !"ppe-preparation-20261008-db-1".equals(environment.get("DB_HOST"))
+				|| (!"ppe-preparation-20261008-db-1".equals(databaseHost) && !isolatedPhase20Host)
 				|| !environment.getOrDefault("DB_NAME", "").matches("ppe_teacher_review_test_[a-z0-9_]+")) {
 			throw new IllegalStateException("Teacher review fixture requires its explicitly isolated test database and host.");
 		}
@@ -79,6 +81,9 @@ public final class TeacherReviewFixture {
 				for (String feature : new String[] { "submission-review", "evaluation-review" }) {
 					insert(c, "INSERT INTO teacher_feature_permissions (teacher_user_id,feature_code,is_enabled,updated_by_user_id,updated_at) VALUES (?,?,?,?,NOW())", id, feature, id != denied, teacher);
 				}
+			}
+			for (long id : new long[] { teacher, outsider }) {
+				insert(c, "INSERT INTO teacher_feature_permissions (teacher_user_id,feature_code,is_enabled,updated_by_user_id,updated_at) VALUES (?,'task-progress',TRUE,?,NOW())", id, teacher);
 			}
 			for (long id : new long[] { student, withdrawnStudent }) {
 				insert(c, "INSERT INTO student_profiles (user_id,school_id,student_code,security_level,first_login_status,must_change_password) VALUES (?,?,?,1,'completed',FALSE)", id, school, "dummy-" + id);

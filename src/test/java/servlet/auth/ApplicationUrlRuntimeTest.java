@@ -40,6 +40,10 @@ import lib.mysql.Client;
 
 @TestMethodOrder(OrderAnnotation.class)
 class ApplicationUrlRuntimeTest {
+	static {
+		System.setProperty("jdk.httpclient.allowRestrictedHeaders", "host");
+	}
+
 	private static final String SYNTHETIC_PASSWORD = "SyntheticUrl2026!Aa";
 	private static final String CHANGED_PASSWORD = "ChangedUrl2026!Aa";
 	private static final String OPTIONAL_PASSWORD = "OptionalUrl2026!Aa";

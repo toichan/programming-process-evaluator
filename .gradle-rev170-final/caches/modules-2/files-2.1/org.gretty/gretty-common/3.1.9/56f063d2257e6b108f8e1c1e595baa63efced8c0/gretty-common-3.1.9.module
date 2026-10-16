@@ -1,0 +1,101 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "group": "org.gretty",
+    "module": "gretty-common",
+    "version": "3.1.9",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "6.9.4",
+      "buildId": "xd7vyki7zvab3ltxqbf2jk4aq4"
+    }
+  },
+  "variants": [
+    {
+      "name": "apiElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.version": 8,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-api"
+      },
+      "files": [
+        {
+          "name": "gretty-common-3.1.9.jar",
+          "url": "gretty-common-3.1.9.jar",
+          "size": 9279,
+          "sha512": "289ee16fe275a6fdd9fd3c75ece7c6f0edef02d2d4977f8c4781de36d8f632e06d862529d140fd7b2bec7c72f893cd586ba343edc7088fbc77d1f1af78217886",
+          "sha256": "5551d08bdc0b9ea2ce681a25ca2329cb530b8afd3c7099081cc9a60e64aeaf12",
+          "sha1": "ff58889380e87b4fe957d0b97bfd713221e28f08",
+          "md5": "5e29e14c871c9ca59a375accc3e1ac5e"
+        }
+      ]
+    },
+    {
+      "name": "runtimeElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.version": 8,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "gretty-common-3.1.9.jar",
+          "url": "gretty-common-3.1.9.jar",
+          "size": 9279,
+          "sha512": "289ee16fe275a6fdd9fd3c75ece7c6f0edef02d2d4977f8c4781de36d8f632e06d862529d140fd7b2bec7c72f893cd586ba343edc7088fbc77d1f1af78217886",
+          "sha256": "5551d08bdc0b9ea2ce681a25ca2329cb530b8afd3c7099081cc9a60e64aeaf12",
+          "sha1": "ff58889380e87b4fe957d0b97bfd713221e28f08",
+          "md5": "5e29e14c871c9ca59a375accc3e1ac5e"
+        }
+      ]
+    },
+    {
+      "name": "javadocElements",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "javadoc",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "gretty-common-3.1.9-javadoc.jar",
+          "url": "gretty-common-3.1.9-javadoc.jar",
+          "size": 33255,
+          "sha512": "96e066833fb9b861501ace974ffabc4358c66365ab703b85ba4a2f4add5ee87359d5e5be3837ac2f119855a5fa3b1f0bab6654c7814a23d46d176a839e70f7e9",
+          "sha256": "35a9f20e46641ac32790f4bc5efd7eeec8b35ce8fc5365951f6c15e283598eb1",
+          "sha1": "586e65983ea11c670b6ae7da006a7c2b3ad83ecd",
+          "md5": "f776c3fba9430941630bb83f8d2f9f32"
+        }
+      ]
+    },
+    {
+      "name": "sourcesElements",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "sources",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "gretty-common-3.1.9-sources.jar",
+          "url": "gretty-common-3.1.9-sources.jar",
+          "size": 1549,
+          "sha512": "91ebc9ebb69750d62eede913ada8faf7c76352fe302e782e08e08e0e48e81e23f7b2a17366a808015899d9ab2871bc08d992af9273538568081861d0d558a7e0",
+          "sha256": "1e299fba9d1b0829251fab1fef89e605ff91a9800837704f12886a07993702c7",
+          "sha1": "86843731bd20cc71c64a2edfd8a1b85493b4b964",
+          "md5": "2a8e2ba660e4e484c75b78c053c5550c"
+        }
+      ]
+    }
+  ]
+}

@@ -151,12 +151,151 @@ class TeacherReviewRuntimeTest {
 		assertEquals(logs, number("SELECT COUNT(*) FROM code_logs"));
 		assertEquals(executions, number("SELECT COUNT(*) FROM code_executions"));
 		assertEquals("print(input())", teacher.json("/teacher/submissions?view=detail&submissionId=" + submission).getAsJsonObject().get("code").getAsString());
+
+		long progressAssignment = number("""
+				SELECT tca.task_class_assignment_id
+				FROM task_class_assignments tca
+				JOIN tasks t ON t.task_id=tca.task_id
+				WHERE t.task_code='review-task'
+				""");
+		long progressStudent = number("SELECT user_id FROM users WHERE login_id='review_student'");
+		var progressDetailPath = "/teacher/progress?view=detail&assignmentId=" + progressAssignment
+				+ "&studentUserId=" + progressStudent;
+		var progressOwner = teacher.json(progressDetailPath).getAsJsonObject();
+		assertEquals("review_student", progressOwner.getAsJsonObject("row").get("studentLoginId").getAsString());
+		assertNotNull(progressOwner.getAsJsonObject("latestCode"));
+		var progressPage = teacher.get("/teacher/progress");
+		assertEquals(200, progressPage.statusCode());
+		assertTrue(progressPage.body().contains("data-progress-row"));
+		assertTrue(progressPage.body().contains("review_student"));
+		var progressDownload = teacher.get("/teacher/progress?view=download&assignmentId=" + progressAssignment
+				+ "&studentUserId=" + progressStudent);
+		assertEquals(200, progressDownload.statusCode());
+		assertEquals(progressOwner.getAsJsonObject("latestCode").get("code").getAsString(),
+				progressDownload.body());
+
+		try (var connection = Client.createConnection();
+				var statement = connection.prepareStatement("""
+						UPDATE teacher_feature_permissions SET is_enabled=FALSE
+						WHERE teacher_user_id=? AND feature_code='task-progress'
+						""")) {
+			statement.setLong(1, number("SELECT user_id FROM users WHERE login_id='review_teacher'"));
+			assertEquals(1, statement.executeUpdate());
+		}
+		assertEquals(403, teacher.get("/teacher/progress").statusCode());
+		var revokedProgressDetail = teacher.get(progressDetailPath);
+		assertEquals(403, revokedProgressDetail.statusCode());
+		assertFalse(revokedProgressDetail.body().contains("review_student"));
+		var revokedProgressDownload = teacher.get("/teacher/progress?view=download&assignmentId="
+				+ progressAssignment + "&studentUserId=" + progressStudent);
+		assertEquals(403, revokedProgressDownload.statusCode());
+		assertFalse(revokedProgressDownload.body().contains(
+				progressOwner.getAsJsonObject("latestCode").get("code").getAsString()));
+		assertEquals(200, teacher.get("/teacher/submissions").statusCode(),
+				"Revoking progress access must not revoke separate review permissions.");
+
+		try (var connection = Client.createConnection();
+				var statement = connection.prepareStatement("""
+						UPDATE teacher_feature_permissions SET is_enabled=TRUE
+						WHERE teacher_user_id=? AND feature_code='task-progress'
+						""")) {
+			statement.setLong(1, number("SELECT user_id FROM users WHERE login_id='review_teacher'"));
+			assertEquals(1, statement.executeUpdate());
+		}
+		try (var connection = Client.createConnection();
+				var statement = connection.prepareStatement("""
+						UPDATE teacher_school_permissions SET access_status='disabled'
+						WHERE teacher_user_id=? AND school_id=(
+							SELECT school_id FROM tasks WHERE task_id=(
+								SELECT task_id FROM task_class_assignments
+								WHERE task_class_assignment_id=?
+							)
+						)
+						""")) {
+			statement.setLong(1, number("SELECT user_id FROM users WHERE login_id='review_teacher'"));
+			statement.setLong(2, progressAssignment);
+			assertEquals(1, statement.executeUpdate());
+		}
+		var revokedSchoolProgressPage = teacher.get("/teacher/progress");
+		assertEquals(200, revokedSchoolProgressPage.statusCode());
+		assertFalse(revokedSchoolProgressPage.body().contains("data-progress-row"));
+		assertFalse(revokedSchoolProgressPage.body().contains("review_student"));
+		assertEquals(404, teacher.get(progressDetailPath).statusCode());
+		var revokedSchoolProgressDownload = teacher.get("/teacher/progress?view=download&assignmentId="
+				+ progressAssignment + "&studentUserId=" + progressStudent);
+		assertEquals(404, revokedSchoolProgressDownload.statusCode());
+		assertFalse(revokedSchoolProgressDownload.body().contains(
+				progressOwner.getAsJsonObject("latestCode").get("code").getAsString()));
+		assertEquals(200, teacher.get("/teacher/submissions").statusCode(),
+				"Revoking school access must not revoke separate review permissions.");
+
 		var outsider = new Browser("teacher"); outsider.login("review_outsider", "teacher");
+		var outsiderProgressPage = outsider.get("/teacher/progress");
+		assertEquals(200, outsiderProgressPage.statusCode(),
+				"Outsider has the progress feature enabled for a different school.");
+		assertFalse(outsiderProgressPage.body().contains("data-progress-row"));
+		assertFalse(outsiderProgressPage.body().contains("review_student"));
+		assertEquals(404, outsider.get(progressDetailPath).statusCode());
+		var outsiderProgressDownload = outsider.get("/teacher/progress?view=download&assignmentId="
+				+ progressAssignment + "&studentUserId=" + progressStudent);
+		assertEquals(404, outsiderProgressDownload.statusCode());
+		assertFalse(outsiderProgressDownload.body().contains("print(input())"));
+		assertTrue(outsider.json("/teacher/submissions?view=list").getAsJsonArray().isEmpty());
 		assertEquals(404, outsider.get("/teacher/submissions?view=detail&submissionId=" + submission).statusCode());
 		assertEquals(404, outsider.get("/teacher/submissions?view=file&submissionId=" + submission).statusCode());
+		long submissionExportAudits = number("SELECT COUNT(*) FROM audit_logs WHERE feature_code='submission-review' AND action_type='csv_export'");
+		long zeroRowSubmissionExportAudits = number("""
+				SELECT COUNT(*) FROM audit_logs
+				WHERE feature_code='submission-review' AND action_type='csv_export'
+				  AND detail='Teacher review CSV; latest consent granted only; rows=0'
+				""");
+		var outsiderSubmissionCsv = outsider.get("/teacher/submissions?view=csv");
+		assertEquals(200, outsiderSubmissionCsv.statusCode());
+		assertFalse(outsiderSubmissionCsv.body().contains("review_student"));
+		assertFalse(outsiderSubmissionCsv.body().contains("print(input())"));
+		assertEquals(submissionExportAudits + 1, number(
+				"SELECT COUNT(*) FROM audit_logs WHERE feature_code='submission-review' AND action_type='csv_export'"));
+		assertEquals(zeroRowSubmissionExportAudits + 1, number("""
+				SELECT COUNT(*) FROM audit_logs
+				WHERE feature_code='submission-review' AND action_type='csv_export'
+				  AND detail='Teacher review CSV; latest consent granted only; rows=0'
+				"""));
+		var outsiderSubmissionZip = outsider.client.send(outsider.request("/teacher/submissions?view=zip")
+				.GET().build(), HttpResponse.BodyHandlers.ofByteArray());
+		assertEquals(400, outsiderSubmissionZip.statusCode());
+		var deniedSubmissionArchive = new String(outsiderSubmissionZip.body(), StandardCharsets.UTF_8);
+		assertFalse(deniedSubmissionArchive.contains("review_student"));
+		assertFalse(deniedSubmissionArchive.contains("print(input())"));
 		assertEquals(404, outsider.get("/teacher/evaluations?view=detail&submissionId=" + submission).statusCode());
 		assertEquals(404, outsider.get("/teacher/evaluations?view=file&submissionId=" + submission).statusCode());
 		assertEquals(404, outsider.get("/teacher/evaluations?view=logs&submissionId=" + submission).statusCode());
+		assertTrue(outsider.json("/teacher/evaluations?view=list").getAsJsonArray().isEmpty());
+		long evaluationExportAudits = number("SELECT COUNT(*) FROM audit_logs WHERE feature_code='evaluation-review' AND action_type='csv_export'");
+		long zeroRowExportAudits = number("""
+				SELECT COUNT(*) FROM audit_logs
+				WHERE feature_code='evaluation-review' AND action_type='csv_export'
+				  AND detail='Teacher review CSV; latest consent granted only; rows=0'
+				""");
+		var outsiderEvaluationCsv = outsider.get("/teacher/evaluations?view=csv");
+		assertEquals(200, outsiderEvaluationCsv.statusCode());
+		assertFalse(outsiderEvaluationCsv.body().contains("review_student"));
+		assertFalse(outsiderEvaluationCsv.body().contains("print(input())"));
+		for (String view : new String[] { "zip", "logs-zip" }) {
+			var outsiderArchive = outsider.client.send(outsider.request("/teacher/evaluations?view=" + view)
+					.GET().build(), HttpResponse.BodyHandlers.ofByteArray());
+			assertEquals(400, outsiderArchive.statusCode(), view);
+			var deniedArchive = new String(outsiderArchive.body(), StandardCharsets.UTF_8);
+			assertFalse(deniedArchive.contains("review_student"), view);
+			assertFalse(deniedArchive.contains("print(input())"), view);
+		}
+		assertEquals(evaluationExportAudits + 1, number(
+				"SELECT COUNT(*) FROM audit_logs WHERE feature_code='evaluation-review' AND action_type='csv_export'"),
+				"The empty CSV export attempt should be audited without exporting out-of-scope data.");
+		assertEquals(zeroRowExportAudits + 1, number("""
+				SELECT COUNT(*) FROM audit_logs
+				WHERE feature_code='evaluation-review' AND action_type='csv_export'
+				  AND detail='Teacher review CSV; latest consent granted only; rows=0'
+				"""));
 		var denied = new Browser("teacher"); denied.login("review_denied", "teacher");
 		assertEquals(403, denied.get("/teacher/submissions").statusCode());
 		assertEquals(403, denied.get("/teacher/submissions?view=zip").statusCode());
@@ -166,6 +305,85 @@ class TeacherReviewRuntimeTest {
 		assertEquals(403, student.get("/teacher/submissions?view=detail&submissionId=" + submission).statusCode());
 		var admin = new Browser("teacher"); admin.login("admin", "teacher");
 		assertEquals(403, admin.get("/teacher/evaluations?view=detail&submissionId=" + submission).statusCode());
+
+		try (var connection = Client.createConnection();
+				var statement = connection.prepareStatement("""
+						UPDATE teacher_feature_permissions SET is_enabled=FALSE
+						WHERE teacher_user_id=? AND feature_code='evaluation-review'
+						""")) {
+			statement.setLong(1, number("SELECT user_id FROM users WHERE login_id='review_teacher'"));
+			assertEquals(1, statement.executeUpdate());
+		}
+		for (String path : new String[] {
+				"/teacher/evaluations",
+				"/teacher/evaluations?view=list",
+				"/teacher/evaluations?view=detail&submissionId=" + submission,
+				"/teacher/evaluations?view=file&submissionId=" + submission,
+				"/teacher/evaluations?view=logs&submissionId=" + submission,
+				"/teacher/evaluations?view=csv",
+				"/teacher/evaluations?view=zip",
+				"/teacher/evaluations?view=logs-zip" }) {
+			var response = teacher.get(path);
+			assertEquals(403, response.statusCode(), path);
+			assertFalse(response.body().contains("review_student"), path);
+			assertFalse(response.body().contains("print(input())"), path);
+		}
+		assertEquals(200, teacher.get("/teacher/submissions").statusCode(),
+				"Revoking evaluation access must not revoke separate submission review permissions.");
+
+		try (var connection = Client.createConnection();
+				var statement = connection.prepareStatement("""
+						UPDATE teacher_feature_permissions SET is_enabled=FALSE
+						WHERE teacher_user_id=? AND feature_code='submission-review'
+						""")) {
+			statement.setLong(1, number("SELECT user_id FROM users WHERE login_id='review_teacher'"));
+			assertEquals(1, statement.executeUpdate());
+		}
+		logs = number("SELECT COUNT(*) FROM code_logs");
+		executions = number("SELECT COUNT(*) FROM code_executions");
+		for (String path : new String[] {
+				"/teacher/submissions",
+				"/teacher/submissions?view=list",
+				"/teacher/submissions?view=detail&submissionId=" + submission,
+				"/teacher/submissions?view=file&submissionId=" + submission,
+				"/teacher/submissions?view=csv",
+				"/teacher/submissions?view=zip" }) {
+			var response = teacher.get(path);
+			assertEquals(403, response.statusCode(), path);
+			assertFalse(response.body().contains("review_student"), path);
+			assertFalse(response.body().contains("print(input())"), path);
+		}
+		assertEquals(403, teacher.post("/teacher/submissions", Map.of(
+				"action", "preview",
+				"submissionId", Long.toString(submission),
+				"code", "print('must not run')",
+				"standardInput", "",
+				"csrfToken", csrf)).statusCode());
+		assertEquals(logs, number("SELECT COUNT(*) FROM code_logs"));
+		assertEquals(executions, number("SELECT COUNT(*) FROM code_executions"));
+		restoreReviewOwnerAccess();
+		assertEquals(3, teacher.json("/teacher/submissions?view=list").getAsJsonArray().size(),
+				"Successful runtime verification must leave the disposable browser fixture usable.");
+	}
+	private static void restoreReviewOwnerAccess() throws Exception {
+		try (var connection = Client.createConnection();
+				var statement = connection.prepareStatement("""
+						UPDATE teacher_school_permissions
+						SET access_status='enabled', updated_by_user_id=teacher_user_id, updated_at=NOW()
+						WHERE teacher_user_id=(SELECT user_id FROM users WHERE login_id='review_teacher')
+						  AND school_id=(SELECT school_id FROM schools WHERE school_code='review-dummy')
+						""")) {
+			assertEquals(1, statement.executeUpdate());
+		}
+		try (var connection = Client.createConnection();
+				var statement = connection.prepareStatement("""
+						UPDATE teacher_feature_permissions
+						SET is_enabled=TRUE, updated_by_user_id=teacher_user_id, updated_at=NOW()
+						WHERE teacher_user_id=(SELECT user_id FROM users WHERE login_id='review_teacher')
+						  AND feature_code IN ('submission-review','evaluation-review','task-progress')
+						""")) {
+			assertEquals(3, statement.executeUpdate());
+		}
 	}
 	private static long number(String sql) throws Exception {
 		try (var c = Client.createConnection(); var s = c.createStatement(); var r = s.executeQuery(sql)) {

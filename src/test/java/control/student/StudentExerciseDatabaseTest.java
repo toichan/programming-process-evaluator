@@ -21,6 +21,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import control.auth.AuthenticatedUser;
+import control.auth.PasswordHasher;
 import entity.ExerciseConflictException;
 import entity.ExerciseNotFoundException;
 import entity.ExerciseSaveResult;
@@ -36,6 +37,7 @@ class StudentExerciseDatabaseTest {
 	private final List<Long> schools = new ArrayList<>();
 	private AuthenticatedUser student;
 	private AuthenticatedUser other;
+	private boolean retainFixture;
 
 	@BeforeEach
 	void setup() throws SQLException {
@@ -53,6 +55,31 @@ class StudentExerciseDatabaseTest {
 			student = addStudent(connection, school);
 			other = addStudent(connection, school);
 		}
+	}
+
+	@Test
+	void createsRetainedNarrowLayoutBrowserFixture() throws Exception {
+		Assumptions.assumeTrue("true".equals(System.getenv("EXERCISE_BROWSER_FIXTURE")));
+		assertTrue(System.getenv("DB_NAME").matches("ppe_exercise_test_[a-z0-9_]+"));
+		String password = System.getenv("EXERCISE_BROWSER_PASSWORD");
+		assertTrue(password != null && password.length() >= 12,
+				"A throwaway password must be supplied for the isolated browser fixture.");
+
+		try (Connection connection = Client.createConnection();
+				PreparedStatement statement = connection.prepareStatement("""
+						UPDATE users SET login_id = ?, password_hash = ? WHERE user_id = ?
+						""")) {
+			assertEquals(System.getenv("DB_NAME"), connection.getCatalog());
+			statement.setString(1, "p20-exercise-layout");
+			statement.setString(2, new PasswordHasher().hash(password.toCharArray()));
+			statement.setLong(3, student.userId());
+			assertEquals(1, statement.executeUpdate());
+		}
+
+		var folder = create(null, null, 0, Type.FOLDER, "基礎");
+		var file = create(folder.exerciseId(), folder.entryId(), folder.version(), Type.FILE, "hello.py");
+		control.save(student, file.exerciseId(), file.entryId(), file.version(), "print('layout fixture')");
+		retainFixture = true;
 	}
 
 	@Test
@@ -305,6 +332,28 @@ class StudentExerciseDatabaseTest {
 		assertThrows(ExerciseNotFoundException.class,
 				() -> create(file.exerciseId(), second.entryId(), file.version(), Type.FILE, "child.py"));
 		assertEquals(file.version(), control.loadPage(student, null, null).scopes().get(0).version());
+	}
+
+	@Test
+	void foreignOwnerWriteRejectionPreservesTheAuthorizedUsersPersistedFile() throws SQLException {
+		var file = create(null, null, 0, Type.FILE, "owned.py");
+		var saved = control.save(student, file.exerciseId(), file.entryId(), file.version(), "print('owner data')");
+
+		assertThrows(ExerciseNotFoundException.class,
+				() -> control.save(other, file.exerciseId(), file.entryId(), saved.version(), "print('foreign write')"));
+		assertEquals("print('owner data')", control.loadPage(student, file.exerciseId(), file.entryId())
+				.entries().stream().filter(entry -> entry.entryId() == file.entryId()).findFirst().orElseThrow().content());
+		try (Connection connection = Client.createConnection();
+				var statement = connection.prepareStatement("""
+						SELECT current_content FROM student_exercise_entries WHERE exercise_entry_id = ?
+						""")) {
+			assertEquals(System.getenv("DB_NAME"), connection.getCatalog());
+			statement.setLong(1, file.entryId());
+			try (var rows = statement.executeQuery()) {
+				assertTrue(rows.next());
+				assertEquals("print('owner data')", rows.getString(1));
+			}
+		}
 	}
 
 	@Test
@@ -1156,6 +1205,7 @@ class StudentExerciseDatabaseTest {
 
 	@AfterEach
 	void cleanup() throws SQLException {
+		if (retainFixture) return;
 		if (users.isEmpty()) return;
 		try (Connection c = Client.createConnection()) {
 			for (long user : users) {

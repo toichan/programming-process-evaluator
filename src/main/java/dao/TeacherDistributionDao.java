@@ -109,14 +109,16 @@ public final class TeacherDistributionDao {
 
 	public TeacherDistributionPage loadPage(Connection connection, long teacherId) throws SQLException {
 		List<TeacherSchoolOption> schools = permissions.findDistributionAuthorizedSchools(connection, teacherId);
+		Set<Long> authorizedSchoolIds = schools.stream().map(TeacherSchoolOption::schoolId)
+				.collect(java.util.stream.Collectors.toSet());
 		List<TeacherClassOption> classes = new ArrayList<>();
 		for (TeacherSchoolOption school : schools) {
 			classes.addAll(permissions.findDistributionAuthorizedClasses(connection, teacherId, school.schoolId()));
 		}
 		Set<Long> authorizedClassIds = classes.stream().map(TeacherClassOption::classroomId)
 				.collect(java.util.stream.Collectors.toSet());
-		return new TeacherDistributionPage(schools, classes, findTemplates(connection, teacherId),
-				findDistributions(connection, teacherId, authorizedClassIds));
+		return new TeacherDistributionPage(schools, classes, findTemplates(connection, teacherId, authorizedSchoolIds),
+				findDistributions(connection, teacherId, authorizedClassIds, authorizedSchoolIds));
 	}
 
 	public void requireCodeDistributionAccess(Connection connection, long teacherId) throws SQLException {
@@ -129,22 +131,24 @@ public final class TeacherDistributionDao {
 		String name;
 		String rootName;
 		int version;
+		long createdBy;
 		try (PreparedStatement statement = connection.prepareStatement("""
-				SELECT template_name, COALESCE(root_path, template_name) AS root_path, template_version
+				SELECT created_by_user_id, template_name,
+				       COALESCE(root_path, template_name) AS root_path, template_version
 				FROM distribution_templates
-				WHERE distribution_template_id = ? AND created_by_user_id = ?
-				  AND template_status = 'active'
+				WHERE distribution_template_id = ? AND template_status = 'active'
 				FOR UPDATE
 				""")) {
 			statement.setLong(1, templateId);
-			statement.setLong(2, teacherId);
 			try (ResultSet rows = statement.executeQuery()) {
 				if (!rows.next()) throw new IllegalArgumentException("配信テンプレートが見つかりません。");
+				createdBy = rows.getLong("created_by_user_id");
 				name = rows.getString("template_name");
 				rootName = rows.getString("root_path");
 				version = rows.getInt("template_version");
 			}
 		}
+		requireTemplateSchoolAccess(connection, teacherId, templateId, createdBy);
 		return new TemplateDefinition(templateId, version, name, rootName, findTemplateItems(connection, templateId));
 	}
 
@@ -222,7 +226,8 @@ public final class TeacherDistributionDao {
 	public void archive(Connection connection, long teacherId, long templateId, int expectedVersion)
 			throws SQLException {
 		permissions.requireCodeDistributionAccess(connection, teacherId);
-		long distributionId = findLatestDistribution(connection, teacherId, templateId);
+		requireAccessibleTemplate(connection, teacherId, templateId, true);
+		long distributionId = findLatestDistribution(connection, templateId);
 		if (distributionId == 0) {
 			distributionId = findOrCreateDraftDistribution(connection, teacherId, templateId);
 		}
@@ -230,13 +235,12 @@ public final class TeacherDistributionDao {
 				UPDATE distribution_templates
 				SET template_status = 'archived', template_version = template_version + 1,
 				    updated_by_user_id = ?, updated_at = CURRENT_TIMESTAMP
-				WHERE distribution_template_id = ? AND created_by_user_id = ?
+				WHERE distribution_template_id = ?
 				  AND template_status = 'active' AND template_version = ?
 				""")) {
 			statement.setLong(1, teacherId);
 			statement.setLong(2, templateId);
-			statement.setLong(3, teacherId);
-			statement.setInt(4, expectedVersion);
+			statement.setInt(3, expectedVersion);
 			if (statement.executeUpdate() != 1) throw new IllegalArgumentException("テンプレートが更新されています。再読み込みしてください。");
 		}
 		recordHistory(connection, distributionId, teacherId, "アーカイブ",
@@ -245,7 +249,7 @@ public final class TeacherDistributionDao {
 
 	public void stop(Connection connection, long teacherId, long distributionId) throws SQLException {
 		permissions.requireCodeDistributionAccess(connection, teacherId);
-		requireOwnedDistribution(connection, teacherId, distributionId, true);
+		requireAccessibleDistribution(connection, teacherId, distributionId, true);
 		List<TargetRow> targets = findTargets(connection, distributionId, true);
 		for (TargetRow target : targets) {
 			permissions.requireDistributionAuthorizedClass(connection, teacherId, target.classroomId(),
@@ -267,7 +271,7 @@ public final class TeacherDistributionDao {
 
 	public void resume(Connection connection, long teacherId, long distributionId) throws SQLException {
 		permissions.requireCodeDistributionAccess(connection, teacherId);
-		requireOwnedDistribution(connection, teacherId, distributionId, true);
+		requireAccessibleDistribution(connection, teacherId, distributionId, true);
 		List<TargetRow> targets = findTargets(connection, distributionId, true);
 		for (TargetRow target : targets) {
 			permissions.requireDistributionAuthorizedClass(connection, teacherId, target.classroomId(),
@@ -293,7 +297,7 @@ public final class TeacherDistributionDao {
 		permissions.requireCodeDistributionAccess(connection, teacherId);
 		DeliveryTarget target = lockDeliveryTarget(connection, targetId);
 		if (target == null) throw new IllegalArgumentException("配信対象が見つかりません。");
-		requireOwnedDistribution(connection, teacherId, target.distributionId(), false);
+		requireAccessibleDistribution(connection, teacherId, target.distributionId(), false);
 		permissions.requireDistributionAuthorizedClass(connection, teacherId, target.classroomId(), target.schoolId());
 		try (PreparedStatement statement = connection.prepareStatement("""
 				UPDATE distribution_targets SET target_status = 'stopped'
@@ -311,7 +315,7 @@ public final class TeacherDistributionDao {
 		permissions.requireCodeDistributionAccess(connection, teacherId);
 		DeliveryTarget target = lockDeliveryTarget(connection, targetId);
 		if (target == null) throw new IllegalArgumentException("配信対象が見つかりません。");
-		requireOwnedDistribution(connection, teacherId, target.distributionId(), false);
+		requireAccessibleDistribution(connection, teacherId, target.distributionId(), false);
 		permissions.requireDistributionAuthorizedClass(connection, teacherId, target.classroomId(), target.schoolId());
 		try (PreparedStatement statement = connection.prepareStatement("""
 				UPDATE distribution_targets
@@ -336,7 +340,7 @@ public final class TeacherDistributionDao {
 		}
 		DeliveryTarget target = lockDeliveryTarget(connection, targetId);
 		if (target == null) throw new IllegalArgumentException("配信対象が見つかりません。");
-		requireOwnedDistribution(connection, teacherId, target.distributionId(), false);
+		requireAccessibleDistribution(connection, teacherId, target.distributionId(), false);
 		permissions.requireDistributionAuthorizedClass(connection, teacherId, target.classroomId(), target.schoolId());
 		if (!"scheduled".equals(target.status()) || target.scheduledAt() == null) {
 			throw new IllegalArgumentException("予約中のクラスだけ配信日時を変更できます。");
@@ -536,7 +540,7 @@ public final class TeacherDistributionDao {
 					UPDATE distribution_templates
 					SET updated_by_user_id = ?, template_name = ?, root_path = ?, save_status = ?,
 					    template_version = template_version + 1, updated_at = CURRENT_TIMESTAMP
-					WHERE distribution_template_id = ? AND created_by_user_id = ?
+					WHERE distribution_template_id = ?
 					  AND template_status = 'active' AND template_version = ?
 					""")) {
 				statement.setLong(1, teacherId);
@@ -544,8 +548,7 @@ public final class TeacherDistributionDao {
 				statement.setString(3, input.rootName());
 				statement.setString(4, saveStatus);
 				statement.setLong(5, input.templateId());
-				statement.setLong(6, teacherId);
-				statement.setInt(7, input.expectedVersion());
+				statement.setInt(6, input.expectedVersion());
 				if (statement.executeUpdate() != 1) {
 					throw new IllegalArgumentException("テンプレートが更新またはアーカイブされています。再読み込みしてください。");
 				}
@@ -583,11 +586,10 @@ public final class TeacherDistributionDao {
 			throws SQLException {
 		try (PreparedStatement statement = connection.prepareStatement("""
 				SELECT distribution_id FROM distributions
-				WHERE distribution_template_id = ? AND executed_by_user_id = ? AND distribution_status = 'draft'
-				ORDER BY distribution_id DESC LIMIT 1 FOR UPDATE
+				WHERE distribution_template_id = ? AND distribution_status = 'draft'
+				ORDER BY created_at DESC, distribution_id DESC LIMIT 1 FOR UPDATE
 				""")) {
 			statement.setLong(1, templateId);
-			statement.setLong(2, teacherId);
 			try (ResultSet rows = statement.executeQuery()) {
 				if (rows.next()) return rows.getLong(1);
 			}
@@ -723,16 +725,34 @@ public final class TeacherDistributionDao {
 		return List.copyOf(items);
 	}
 
-	private List<TemplateSummary> findTemplates(Connection connection, long teacherId) throws SQLException {
+	private List<TemplateSummary> findTemplates(
+			Connection connection, long teacherId, Set<Long> authorizedSchoolIds) throws SQLException {
 		List<TemplateSummary> templates = new ArrayList<>();
+		String sharedTemplates = authorizedSchoolIds.isEmpty() ? "1 = 0" : """
+				EXISTS (
+				  SELECT 1
+				  FROM distributions scoped_distribution
+				  JOIN distribution_targets scoped_target
+				    ON scoped_target.distribution_id = scoped_distribution.distribution_id
+				  JOIN classrooms scoped_classroom
+				    ON scoped_classroom.classroom_id = scoped_target.classroom_id
+				  WHERE scoped_distribution.distribution_template_id = t.distribution_template_id
+				  GROUP BY scoped_distribution.distribution_template_id
+				  HAVING COUNT(DISTINCT scoped_classroom.school_id) = 1
+				     AND MIN(scoped_classroom.school_id) IN (%s)
+				)
+				""".formatted(String.join(",", java.util.Collections.nCopies(authorizedSchoolIds.size(), "?")));
 		try (PreparedStatement statement = connection.prepareStatement("""
 				SELECT distribution_template_id, template_name, root_path, template_version,
 				       save_status, template_status
-				FROM distribution_templates
-				WHERE created_by_user_id = ? AND template_status = 'active'
+				FROM distribution_templates t
+				WHERE template_status = 'active'
+				  AND (created_by_user_id = ? OR __SHARED_TEMPLATES__)
 				ORDER BY updated_at DESC, distribution_template_id DESC
-				""")) {
+				""".replace("__SHARED_TEMPLATES__", sharedTemplates))) {
 			statement.setLong(1, teacherId);
+			int parameter = 2;
+			for (long schoolId : authorizedSchoolIds) statement.setLong(parameter++, schoolId);
 			try (ResultSet rows = statement.executeQuery()) {
 				while (rows.next()) {
 					templates.add(new TemplateSummary(rows.getLong("distribution_template_id"),
@@ -747,14 +767,14 @@ public final class TeacherDistributionDao {
 
 	private TemplateSummary findTemplateSummary(Connection connection, long teacherId, long templateId)
 			throws SQLException {
+		requireAccessibleTemplate(connection, teacherId, templateId, true);
 		try (PreparedStatement statement = connection.prepareStatement("""
 				SELECT distribution_template_id, template_name, root_path, template_version,
 				       save_status, template_status
 				FROM distribution_templates
-				WHERE distribution_template_id = ? AND created_by_user_id = ?
+				WHERE distribution_template_id = ?
 				""")) {
 			statement.setLong(1, templateId);
-			statement.setLong(2, teacherId);
 			try (ResultSet rows = statement.executeQuery()) {
 				if (!rows.next()) throw new IllegalArgumentException("配信テンプレートが見つかりません。");
 				return new TemplateSummary(rows.getLong("distribution_template_id"), rows.getString("template_name"),
@@ -764,33 +784,47 @@ public final class TeacherDistributionDao {
 		}
 	}
 
-	private List<DistributionSummary> findDistributions(
-			Connection connection, long teacherId, Set<Long> authorizedClassIds) throws SQLException {
+	private List<DistributionSummary> findDistributions(Connection connection, long teacherId,
+			Set<Long> authorizedClassIds, Set<Long> authorizedSchoolIds) throws SQLException {
 		List<DistributionSummary> distributions = new ArrayList<>();
-		String allowedTargets = authorizedClassIds.isEmpty()
-				? """
-				  NOT EXISTS (
-				    SELECT 1 FROM distribution_targets scoped_target
-				    WHERE scoped_target.distribution_id = d.distribution_id)
-				  """
+		String allowedOwnTargets = authorizedClassIds.isEmpty()
+				? "NOT EXISTS (SELECT 1 FROM distribution_targets own_target WHERE own_target.distribution_id = d.distribution_id)"
 				: """
 				  NOT EXISTS (
-				    SELECT 1 FROM distribution_targets scoped_target
-				    WHERE scoped_target.distribution_id = d.distribution_id
-				      AND scoped_target.classroom_id NOT IN (%s))
+				    SELECT 1 FROM distribution_targets own_target
+				    WHERE own_target.distribution_id = d.distribution_id
+				      AND own_target.classroom_id NOT IN (%s))
 				  """.formatted(String.join(",", java.util.Collections.nCopies(authorizedClassIds.size(), "?")));
+		String sharedScope = authorizedSchoolIds.isEmpty() ? "1 = 0" : """
+				EXISTS (
+				  SELECT 1
+				  FROM distributions scope_distribution
+				  JOIN distribution_targets scope_target
+				    ON scope_target.distribution_id = scope_distribution.distribution_id
+				  JOIN classrooms scope_classroom
+				    ON scope_classroom.classroom_id = scope_target.classroom_id
+				  WHERE scope_distribution.distribution_template_id = d.distribution_template_id
+				  GROUP BY scope_distribution.distribution_template_id
+				  HAVING COUNT(DISTINCT scope_classroom.school_id) = 1
+				     AND MIN(scope_classroom.school_id) IN (%s)
+				)
+				""".formatted(String.join(",", java.util.Collections.nCopies(authorizedSchoolIds.size(), "?")));
 		try (PreparedStatement statement = connection.prepareStatement("""
 				SELECT d.distribution_id, d.distribution_template_id, d.template_name_snapshot,
 				       d.distribution_status,
-				       DATE_FORMAT(d.created_at, '%Y-%m-%d %H:%i') AS created_at
+				       DATE_FORMAT(d.created_at, '%Y-%m-%d %H:%i') AS created_at,
+				       executor.login_id AS executed_by
 				FROM distributions d
-				WHERE d.executed_by_user_id = ? AND __ALLOWED_TARGETS__
+				JOIN users executor ON executor.user_id = d.executed_by_user_id
+				WHERE (d.executed_by_user_id = ? AND __OWN_TARGETS__)
+				   OR __SHARED_SCOPE__
 				ORDER BY d.created_at DESC, d.distribution_id DESC
 				LIMIT 100
-				""".replace("__ALLOWED_TARGETS__", allowedTargets))) {
+				""".replace("__OWN_TARGETS__", allowedOwnTargets).replace("__SHARED_SCOPE__", sharedScope))) {
 			statement.setLong(1, teacherId);
 			int parameter = 2;
 			for (long classroomId : authorizedClassIds) statement.setLong(parameter++, classroomId);
+			for (long schoolId : authorizedSchoolIds) statement.setLong(parameter++, schoolId);
 			try (ResultSet rows = statement.executeQuery()) {
 				while (rows.next()) {
 					long distributionId = rows.getLong("distribution_id");
@@ -802,6 +836,7 @@ public final class TeacherDistributionDao {
 					distributions.add(new DistributionSummary(distributionId,
 							rows.getString("template_name_snapshot"), rows.getString("distribution_status"),
 							rows.getLong("distribution_template_id"), rows.getString("created_at"),
+							rows.getString("executed_by"),
 							schoolNames, classroomNames, targets, findHistorySummaries(connection, distributionId)));
 				}
 			}
@@ -893,32 +928,81 @@ public final class TeacherDistributionDao {
 		}
 	}
 
-	private long findLatestDistribution(Connection connection, long teacherId, long templateId)
+	private long findLatestDistribution(Connection connection, long templateId)
 			throws SQLException {
 		try (PreparedStatement statement = connection.prepareStatement("""
 				SELECT distribution_id FROM distributions
-				WHERE distribution_template_id = ? AND executed_by_user_id = ?
-				ORDER BY distribution_id DESC LIMIT 1
+				WHERE distribution_template_id = ?
+				ORDER BY created_at DESC, distribution_id DESC LIMIT 1
 				""")) {
 			statement.setLong(1, templateId);
-			statement.setLong(2, teacherId);
 			try (ResultSet rows = statement.executeQuery()) {
 				return rows.next() ? rows.getLong(1) : 0;
 			}
 		}
 	}
 
-	private void requireOwnedDistribution(Connection connection, long teacherId, long distributionId, boolean lock)
+	private void requireAccessibleDistribution(
+			Connection connection, long teacherId, long distributionId, boolean lock)
 			throws SQLException {
-		String sql = """
-				SELECT distribution_id FROM distributions
-				WHERE distribution_id = ? AND executed_by_user_id = ?
-				""" + (lock ? " FOR UPDATE" : "");
-		try (PreparedStatement statement = connection.prepareStatement(sql)) {
+		long templateId;
+		try (PreparedStatement statement = connection.prepareStatement(
+				"SELECT distribution_template_id FROM distributions WHERE distribution_id = ?")) {
 			statement.setLong(1, distributionId);
-			statement.setLong(2, teacherId);
 			try (ResultSet rows = statement.executeQuery()) {
 				if (!rows.next()) throw new IllegalArgumentException("配信履歴が見つかりません。");
+				templateId = rows.getLong("distribution_template_id");
+			}
+		}
+		requireAccessibleTemplate(connection, teacherId, templateId, false);
+		if (lock) {
+			try (PreparedStatement statement = connection.prepareStatement(
+					"SELECT distribution_id FROM distributions WHERE distribution_id = ? FOR UPDATE")) {
+				statement.setLong(1, distributionId);
+				try (ResultSet rows = statement.executeQuery()) {
+					if (!rows.next()) throw new IllegalArgumentException("配信履歴が見つかりません。");
+				}
+			}
+		}
+	}
+
+	private void requireAccessibleTemplate(Connection connection, long teacherId, long templateId,
+			boolean activeOnly) throws SQLException {
+		permissions.requireCodeDistributionAccess(connection, teacherId);
+		String sql = "SELECT created_by_user_id FROM distribution_templates WHERE distribution_template_id = ?"
+				+ (activeOnly ? " AND template_status = 'active'" : "") + " FOR UPDATE";
+		long createdBy;
+		try (PreparedStatement statement = connection.prepareStatement(sql)) {
+			statement.setLong(1, templateId);
+			try (ResultSet rows = statement.executeQuery()) {
+				if (!rows.next()) throw new IllegalArgumentException("配信テンプレートが見つかりません。");
+				createdBy = rows.getLong("created_by_user_id");
+			}
+		}
+		requireTemplateSchoolAccess(connection, teacherId, templateId, createdBy);
+	}
+
+	private void requireTemplateSchoolAccess(Connection connection, long teacherId, long templateId,
+			long createdBy) throws SQLException {
+		if (createdBy == teacherId) return;
+		long schoolId = findTemplateSchoolScope(connection, templateId);
+		if (schoolId < 1) throw new IllegalArgumentException("配信テンプレートが見つかりません。");
+		permissions.requireDistributionAuthorizedSchool(connection, teacherId, schoolId);
+	}
+
+	private long findTemplateSchoolScope(Connection connection, long templateId) throws SQLException {
+		try (PreparedStatement statement = connection.prepareStatement("""
+				SELECT COUNT(DISTINCT c.school_id) AS school_count, MIN(c.school_id) AS school_id
+				FROM distribution_templates t
+				LEFT JOIN distributions d ON d.distribution_template_id = t.distribution_template_id
+				LEFT JOIN distribution_targets dt ON dt.distribution_id = d.distribution_id
+				LEFT JOIN classrooms c ON c.classroom_id = dt.classroom_id
+				WHERE t.distribution_template_id = ?
+				""")) {
+			statement.setLong(1, templateId);
+			try (ResultSet rows = statement.executeQuery()) {
+				if (!rows.next() || rows.getInt("school_count") != 1) return 0;
+				return rows.getLong("school_id");
 			}
 		}
 	}

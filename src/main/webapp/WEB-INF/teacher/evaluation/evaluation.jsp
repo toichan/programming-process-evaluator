@@ -62,9 +62,9 @@
 		<label class="form-label">評価履歴<select id="evaluationVersions" class="form-select"></select></label><p id="evaluationState"></p><div id="previousEvaluation"></div>
 		<div class="teacher-evaluation-detail-section container" id="teacherEvaluationDetailContent">
 			<section class="sample-section detail-hero mb-4"><div><span class="hero-kicker">Student Evaluation</span><h1 class="section-title mb-3">評価結果</h1><p class="hero-description">保存済みソースコード編集ログと実行履歴をもとにした評価結果と根拠を確認できます。</p><button class="btn btn-warning btn-lg" id="openLogs">ソースコード編集ログを見る</button></div><div class="hero-meta-card"><div class="meta-label">対象課題</div><div class="meta-value" id="detailTask"></div><p id="detailTaskMetadata"></p><div class="hero-score-row" id="detailScorePills"></div></div></section>
-			<section class="sample-section mb-4"><div class="section-heading-row"><div><h2 class="card-title">総合評価</h2><p class="text-muted">2つの観点ごとに、ルーブリックをもとにした総合点を表示します。</p></div><span>5段階評価</span></div><div class="score-panels" id="evaluationResults"></div><p id="feedbackSummary"></p></section>
+			<section class="sample-section mb-4"><div class="section-heading-row"><div><h2 class="card-title">総合評価</h2><p class="text-muted">2つの観点ごとに、ルーブリックをもとにした総合点を表示します。</p></div><span>5段階評価</span></div><div class="score-panels" id="evaluationResults"></div></section>
 			<section class="sample-section mb-4"><h2 class="card-title">観点別スコア</h2><p class="text-muted">細かな評価項目ごとの点数です。</p><div class="breakdown-grid" id="evaluationMetrics"></div></section>
-			<section class="sample-section"><h2 class="card-title">評価理由</h2><p id="processAnalysis"></p><div class="reason-filters" id="reasonFilters"></div><div id="evaluationReasons"></div></section>
+			<section class="sample-section"><h2 class="card-title">評価理由</h2><div class="reason-filters" id="reasonFilters"></div><div id="evaluationReasons"></div></section>
 			<div class="d-flex justify-content-center flex-wrap gap-3 mt-4"><button class="btn btn-warning btn-lg px-5" id="openLogsBottom">ソースコード編集ログを見る</button></div>
 		</div>
 		<section id="evaluationLogView" class="container" hidden>

@@ -292,6 +292,7 @@ body {
   color: var(--lesson-accent-dark);
   font-weight: 700;
   min-width: 0;
+  cursor: pointer;
 }
 
 .lesson-tree-folder-header.is-selected-folder {
@@ -766,7 +767,7 @@ body {
   .lesson-toolbar, .section-header-row, .lesson-status-row {
     align-items: flex-start; flex-direction: column;
   }
-  .lesson-tree-folder-header { flex-direction: column; align-items: stretch; }
+  .lesson-tree-folder-header { flex-direction: row; align-items: center; }
   .lesson-status-right { width: 100%; align-items: flex-start; margin-left: 0; }
   .lesson-language-chip { align-self: flex-end; }
   .lesson-workspace-section .button-group { width: 100%; flex-direction: column; }

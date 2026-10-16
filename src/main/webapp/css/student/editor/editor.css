@@ -639,6 +639,12 @@ body {
   margin-bottom: 0.6rem;
 }
 
+.hint-title-label {
+  text-transform: none;
+  letter-spacing: normal;
+  overflow-wrap: anywhere;
+}
+
 .creation-rules {
   white-space: pre-wrap;
   overflow-wrap: anywhere;

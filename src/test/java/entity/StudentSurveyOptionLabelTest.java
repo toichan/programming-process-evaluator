@@ -19,8 +19,49 @@ class StudentSurveyOptionLabelTest {
 		assertEquals("Configured label", question("additional").getOptionLabel(option));
 		assertEquals("Configured label", question("q1ThinkingScore").getOptionLabel(option));
 	}
+	@Test void processResistanceUsesPrototypeLabelsWithoutChangingStoredValues() {
+		assertLabels("q3ProcessResistanceScore", new String[] {
+				"とても感じる", "やや感じる", "どちらともいえない", "あまり感じない", "全く感じない"
+		});
+	}
+	@Test void usabilityUsesPrototypeLabelsWithoutChangingStoredValues() {
+		assertLabels("q4UsabilityScore", new String[] {
+				"とても使いにくい", "やや使いにくい", "どちらともいえない", "やや使いやすい", "とても使いやすい"
+		});
+	}
+	@Test void displayOptionsKeepDatabaseValuesAndUsePrototypeLabels() {
+		assertDisplayLabels("q3ProcessResistanceScore", new String[] {
+				"とても感じる", "やや感じる", "どちらともいえない", "あまり感じない", "全く感じない"
+		});
+		assertDisplayLabels("q4UsabilityScore", new String[] {
+				"とても使いにくい", "やや使いにくい", "どちらともいえない", "やや使いやすい", "とても使いやすい"
+		});
+	}
+	private void assertDisplayLabels(String code, String[] labels) {
+		var databaseOptions = new java.util.ArrayList<StudentSurveyQuestion.Option>();
+		for (int i = 1; i <= 5; i++) {
+			databaseOptions.add(new StudentSurveyQuestion.Option(Integer.toString(i), "DB label " + i));
+		}
+		var displayOptions = question(code, databaseOptions).getDisplayOptions();
+		for (int i = 0; i < labels.length; i++) {
+			assertEquals(Integer.toString(i + 1), displayOptions.get(i).value());
+			assertEquals(labels[i], displayOptions.get(i).label());
+		}
+	}
+	private void assertLabels(String code, String[] labels) {
+		var question = question(code);
+		for (int i = 1; i <= 5; i++) {
+			String value = Integer.toString(i);
+			var option = new StudentSurveyQuestion.Option(value, "Synthetic " + i);
+			assertEquals(labels[i - 1], question.getOptionLabel(option));
+			assertEquals(value, option.getValue());
+		}
+	}
 	private StudentSurveyQuestion question(String code) {
+		return question(code, List.of());
+	}
+	private StudentSurveyQuestion question(String code, List<StudentSurveyQuestion.Option> options) {
 		return new StudentSurveyQuestion(1, code, "rating", "Prompt", "", true, false, 1,
-				List.of(), List.of(), "");
+				options, List.of(), "");
 	}
 }

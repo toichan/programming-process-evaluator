@@ -18,11 +18,21 @@ class EvaluationPrototypeUiContractTest {
 		assertTrue(jsp.contains("/js/student/evaluation/evaluation.js"));
 		assertTrue(jsp.contains("class=\"score-meter\""));
 		assertTrue(jsp.contains("dimension.score + 0.5"));
+		assertTrue(jsp.contains("class=\"dimension-score-toolbar\""));
+		assertTrue(jsp.contains("思："));
+		assertTrue(jsp.contains("態："));
 		assertTrue(jsp.contains("data-reason-filter=\"thinking\""));
 		assertTrue(jsp.contains("data-reason-filter=\"attitude\""));
+		assertFalse(jsp.contains("data-reason-filter=\"other\""));
+		assertFalse(jsp.contains("<h3 class=\"h5\">フィードバック</h3>"));
+		assertFalse(jsp.contains("<h3 class=\"h5\">学習過程の分析</h3>"));
 		assertTrue(jsp.contains("data-category=\"<c:out value='${reasonCategory}'/>\""));
 		assertTrue(jsp.contains("<c:out value=\"${reason.body}\"/>"));
 		assertFalse(jsp.contains("ai-wait-skeleton"));
+		String style = read("src/main/webapp/css/student/evaluation/evaluation.css");
+		assertTrue(style.contains(".dimension-score-toolbar"));
+		assertTrue(style.contains("flex-wrap: nowrap"));
+		assertTrue(style.contains("white-space: nowrap"));
 		assertTrue(script.contains("aria-pressed"));
 		assertTrue(script.contains("classList.toggle(\"is-hidden\", hidden)"));
 	}
@@ -37,10 +47,19 @@ class EvaluationPrototypeUiContractTest {
 		assertTrue(jsp.contains("<c:out value=\"${entry.standardOutput}\"/>"));
 		assertTrue(jsp.contains("data-reason-filter=\"all\""));
 		assertTrue(jsp.contains("data-category=\"<c:out value='${reasonCategory}'/>\""));
+		assertTrue(jsp.contains(">ログ一覧</button>"));
+		assertFalse(jsp.contains("data-reason-filter=\"other\""));
 		assertTrue(script.contains("function diffLines(previous, current)"));
+		assertTrue(script.contains("execution-stream-${stream}"));
+		assertTrue(script.contains("標準入力"));
+		assertTrue(script.contains("標準出力"));
+		assertTrue(script.contains("標準エラー"));
 		assertTrue(script.contains("lineContent.textContent = content || \" \";"));
 		assertTrue(script.contains("aria-pressed"));
 		assertFalse(script.contains("innerHTML"));
+		String style = read("src/main/webapp/css/student/evaluation/log.css");
+		assertTrue(style.contains(".execution-stream-content"));
+		assertTrue(style.contains("white-space: pre-wrap"));
 	}
 
 	@Test
@@ -54,6 +73,14 @@ class EvaluationPrototypeUiContractTest {
 		}
 		assertTrue(script.contains("dimension.scoreText?.trim()"));
 		assertTrue(script.contains("dimension.score"));
+		assertFalse(jsp.contains("id=\"feedbackSummary\""));
+		assertFalse(jsp.contains("id=\"processAnalysis\""));
+		assertFalse(script.contains("set('feedbackSummary'"));
+		assertFalse(script.contains("set('processAnalysis'"));
+		assertTrue(script.contains("['', 'すべて']"));
+		assertTrue(script.contains("['思考力・判断力・表現力', '思考・判断・表現']"));
+		assertTrue(script.contains("['主体的に学習に取り組む態度', '態度']"));
+		assertFalse(script.contains("categories.set(reason.dimensionLabel"));
 		assertTrue(script.contains("function diffLines(previous, current)"));
 		assertTrue(script.contains("line.append(node('span', number == null ? '' : number, 'line-number')"));
 		assertTrue(script.contains("aria-pressed"));

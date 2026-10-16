@@ -51,15 +51,22 @@ class TeacherTaskFormTest {
 	}
 
 	@Test
-	void acceptsPublishActionForNewDraftWithNoExistingVersion() {
+	void rejectsPublishingFromTheTaskEditorForm() {
 		Map<String, List<String>> values = new java.util.HashMap<>(validCreateValues());
 		values.put("action", List.of("publishTask"));
 
+		assertThrows(IllegalArgumentException.class, () -> TeacherTaskForm.parse(values));
+	}
+
+	@Test
+	void acceptsSaveAndConfigurePromptActionForANewDraft() {
+		Map<String, List<String>> values = new java.util.HashMap<>(validCreateValues());
+		values.put("action", List.of("saveAndConfigurePrompt"));
+
 		TeacherTaskForm form = TeacherTaskForm.parse(values);
 
-		assertEquals("publishTask", form.action());
+		assertEquals("saveAndConfigurePrompt", form.action());
 		assertEquals(0, form.taskId());
-		assertEquals(0, form.expectedVersion());
 	}
 
 	@Test
