@@ -900,6 +900,47 @@ grep -qx "${previous_release##*/}" "$PPE_STATE_DIR/current-release"
 [[ -n "$(find "$PPE_STATE_DIR" -name 'failed-update-*.state' -print)" ]]
 if grep -Eq 'run --rm --no-deps migrate$| (up|stop|rm|restart) (.* )?db$' "$PPE_FAKE_DOCKER_TRACE"; then exit 1; fi
 echo "PASS: app_started/no-migration failed update recovers old broker/runner/app/nginx using TLS network pins and current-schema review without DB lifecycle"
+
+for point in before-nginx after-nginx; do
+    project="ppe-sim-nginx-recovery-$point"
+    export PPE_PROJECT=$project PPE_STATE_DIR="$test_root/$project/state"
+    export PPE_FAKE_DB_STATE="$test_root/$project/database.state"
+    mkdir -p "$PPE_STATE_DIR" "$test_root/$project/remote"
+    chmod 0700 "$PPE_STATE_DIR"
+    printf '%s\n' "${previous_release##*/}" > "$PPE_STATE_DIR/current-release"
+    printf '1 0\n' > "$PPE_FAKE_DB_STATE"
+    export MOCK_ROOT="$test_root/$project"
+    : > "$PPE_FAKE_DOCKER_TRACE"
+    if run_deploy "$project" "$point" update backward-compatible \
+        > "$test_root/$project.update.log" 2>&1; then
+        echo "FAIL: nginx failure injection did not stop update: $point" >&2; exit 1
+    fi
+    grep -qx phase=nginx_started "$PPE_STATE_DIR/deployment.state"
+    grep -qx migration_attempted=yes "$PPE_STATE_DIR/deployment.state"
+    grep -qx apps_restored=no "$PPE_STATE_DIR/deployment.state"
+    grep -qx recovery_attempted=no "$PPE_STATE_DIR/deployment.state"
+    grep -qx "${previous_release##*/}" "$PPE_STATE_DIR/current-release"
+    [[ "$(cat "$PPE_FAKE_DB_STATE")" = '23 0' ]]
+    export PPE_SOURCE_MANIFEST_SHA256="$(source_hash "$previous_release/source.sha256")"
+    export PPE_ROLLBACK_COMPATIBILITY_REFERENCE="$PPE_STATE_DIR/current-schema-review"
+    printf 'source_release=%s\ntarget_release=%s\nsource_container=%s\nhistory_hash=%s\ncompatible=yes\n' \
+        "${previous_release##*/}" "${previous_release##*/}" "$PPE_RECOVERY_DB_CONTAINER_ID" \
+        "$history_hash" > "$PPE_ROLLBACK_COMPATIBILITY_REFERENCE"
+    unset PPE_BIND_ADDRESS PPE_HTTP_PORT PPE_HTTPS_PORT PPE_DEPLOYMENT_TEST_FAIL_AT
+    PPE_SCHEMA_POLICY=backward-compatible bash "$scripts/rollback-release.sh" "$previous_release" \
+        > "$test_root/$project.rollback.log" 2>&1
+    grep -qx phase=published "$PPE_STATE_DIR/deployment.state"
+    grep -qx mode=rollback "$PPE_STATE_DIR/deployment.state"
+    grep -qx "${previous_release##*/}" "$PPE_STATE_DIR/current-release"
+    grep -qx "PPE_RELEASE=${previous_release##*/}" "$PPE_BACKUP_OPERATION_ENV"
+    grep -qx "PPE_RELEASE=${previous_release##*/}" "$PPE_TLS_OPERATION_ENV"
+    [[ "$(cat "$PPE_FAKE_DB_STATE")" = '23 0' ]]
+    [[ -n "$(find "$PPE_STATE_DIR" -name 'failed-update-*.state' -print)" ]]
+    if grep -Eq ' (up|start|stop|rm|restart) (.* )?db$|volume (create|rm)' "$PPE_FAKE_DOCKER_TRACE"; then
+        echo "FAIL: nginx failure/recovery changed DB lifecycle: $point" >&2; exit 1
+    fi
+    echo "PASS: $point failure after migration requires reviewed old-to-old recovery and preserves migrated DB/config references"
+done
 unset PPE_TEST_USE_REAL_BACKUP FAIL_STAGE PPE_DB_RELEASE PPE_FAKE_DB_RELEASE
 
 find "$release" -type f -exec shasum -a 256 '{}' \; > "$test_root/release-after.sha256"

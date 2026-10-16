@@ -17,6 +17,26 @@ The earlier preparation/install statuses below are historical, not instructions
 to reinstall completed operations. The Stage C record proves initial-state
 restoration only, not populated research-data recovery.
 
+## 2026-10-16 最小デプロイの進捗
+
+ユーザーの「必要最低限の計画を順番に実行」の指示により、PR #60を統合済みmainへ固定し、
+同SHAのpush/main CI成功後に既存の手動ECR workflowを1回実行した。
+公開run `38856040632`の7imageとOCI保存は成功したが、隔離した実imageのPython実行で
+Runner/brokerの固定command契約の不一致を検出し、**acfcd60版は本番反映不可**とした。
+既存3browser正常フロー、保存再読込、権限/認証拒否、image権限確認の成功でこの失敗を代替しない。
+[詳細な判定と再検証](./feature-plans/runtime-validation-report.md#2026-10-16-最小デプロイの最終image-gate)を参照。
+
+通常実行と提出前チェックの契約だけを同期し、unit/APIと専用実Runnerで修正を受け入れた。
+次は新SHAのCI・ECR再公開と最終image受入。本番currentは`a6e90edf...`、
+DBは既存`0e2bfae5...`/V33/同じcontainerとVolumeを維持し、migration/サービス更新は未実行。
+新規CI/CD方式・IAM/Secrets変更・Gemini再呼出しは追加しない。
+更新直前に最終版、V34、復帰条件、合成確認範囲を提示して改めて明示承認を得る。
+
+既存operationsのbytesを照合した結果、deploy/rollbackにはa6版の正規helperを使う。
+ECR取得には869版の一致するentry/source/CI共通helperだけを使用できる。
+869版の古いdeploy/rollback/config同期3件と、a6版の追加verbose wrapperは使わない。
+新旧imageのdata保持と、migration後のnginx失敗時に自動復帰しない条件は維持する。
+
 ## 2026-10-16 本番読み取り調査
 
 ユーザーが承認したrelease/image・backup receipt/S3 Version・監視の読取だけを実施した。

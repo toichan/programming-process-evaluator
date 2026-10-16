@@ -1,4 +1,7 @@
+import importlib.util
+from pathlib import Path
 import unittest
+from unittest.mock import patch
 
 import broker
 
@@ -40,6 +43,49 @@ class PolicyTest(unittest.TestCase):
         self.assertTrue(result["NetworkDisabled"])
         self.assertEqual("none", result["HostConfig"]["LogConfig"]["Type"])
         self.assertEqual([], result["HostConfig"]["Binds"])
+
+    def runner_request(self, suppress_input_prompt):
+        path = Path(__file__).resolve().parent.parent / "python-runner" / "runner.py"
+        spec = importlib.util.spec_from_file_location("contract_runner", path)
+        runner = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(runner)
+        with patch.dict("os.environ", {
+                "PPE_ENV": "production", "PYTHON_BROKER_NAMESPACE": "test"}):
+            command = runner._container_command(
+                self.name, "print(2)", suppress_input_prompt=suppress_input_prompt)
+        request = valid_request()
+        request["Cmd"] = command[command.index(runner.RUNTIME_IMAGE) + 1:]
+        request["Env"] = [item.removeprefix("--env=")
+                          for item in command if item.startswith("--env=")]
+        request["Labels"] = dict(item.removeprefix("--label=").split("=", 1)
+                                 for item in command if item.startswith("--label="))
+        return request
+
+    def test_accepts_actual_runner_command_for_regular_execution(self):
+        request = self.runner_request(False)
+        admitted = self.admit(request)
+        self.assertEqual(request["Cmd"], admitted["Cmd"])
+        self.assertEqual(request["Env"], admitted["Env"])
+        self.assertNotIn("PPE_SUPPRESS_INPUT_PROMPT=1", admitted["Env"])
+
+    def test_accepts_actual_runner_command_for_submission_check(self):
+        request = self.runner_request(True)
+        admitted = self.admit(request)
+        self.assertEqual(request["Cmd"], admitted["Cmd"])
+        self.assertEqual(request["Env"], admitted["Env"])
+        self.assertEqual(1, admitted["Env"].count("PPE_SUPPRESS_INPUT_PROMPT=1"))
+
+    def test_denies_invalid_or_duplicate_prompt_suppression_environment(self):
+        for extra in [
+                ["PPE_SUPPRESS_INPUT_PROMPT=0"],
+                ["PPE_SUPPRESS_INPUT_PROMPT=true"],
+                ["PPE_SUPPRESS_INPUT_PROMPT=1", "PPE_SUPPRESS_INPUT_PROMPT=1"],
+                ["PPE_SUPPRESS_INPUT_PROMPT=1", "SECRET=x"]]:
+            with self.subTest(extra=extra):
+                request = valid_request()
+                request["Env"].extend(extra)
+                with self.assertRaises(broker.BrokerError):
+                    self.admit(request)
 
     def test_cli_limit_order_and_unset_swappiness_are_safe(self):
         request = valid_request()
