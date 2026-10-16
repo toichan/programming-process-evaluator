@@ -2,6 +2,43 @@
 
 秘密情報・実際の生徒データ・研究データは記載しない。解消後も履歴を保持する。
 
+## 2026-10-16 15:07〜15:09 JST 最終ECRイメージの隔離起動初回
+
+- 対象・手順: ECR run `38856040632`の最終7imageをdigest指定でPullし、config Image ID/revision/linux amd64と必要ファイルの権限監査は7/7成功。専用project `ppe-ecr-acceptance-20261016`、合成Secrets/TLS、空の専用MySQLで本番Composeを隔離起動した。
+- 期待結果と実際: `run-runtime.sh`はbrokerのhealth待ちでexit 1。DBはhealthy、broker自体はrunningだがhealth probeが3秒timeoutを5回記録した。migration・fixture・ブラウザーは未実行。失敗ログと専用資源を保持して診断した。
+- 原因・対応: 同じbrokerへ同じPython/urllib probeを手動実行すると`OK`、exit 0、実測5.17秒。Mac ARM上の最終amd64イメージのエミュレーションでは、Python起動込みの3秒制限を満たさない。アプリの不具合とは断定せず、ローカル受入だけbroker/runnerのprobe timeoutを15秒へ変更して再試行する。本番Compose・最終image・CPU/メモリー制約・probe内容は変更しない。
+- 未確認事項: native amd64本番での元の3秒health thresholdは更新前後に別確認する。隔離起動の成功を元の時間閾値の合格とは扱わない。MySQLのNative AIO非対応警告もエミュレーション環境に記録され、フォールバック後にhealthyとなった。
+- 2回目はV1〜V34のmigrate/validate/info、合成fixture、最終5サービスのhealthyまで成功。続く初回HTTPS login取得が15秒timeout（curl exit 28）となり、ブラウザーは未実行。診断時の同URLはHTTP 200、TLS 0.075秒、全体0.105秒で取得できた。初回JSP生成・エミュレーション負荷の影響が考えられるが直接原因は断定しない。検証側の初回GETだけ90秒上限・proxy不使用を明示し、同じDB/fixtureを保持してUI検証から再開する。image・本番のtimeout設定は変更しない。
+- nginxにはエミュレーション上の`io_setup() failed (38: Function not implemented)`も記録された。プロセスとHTTPS応答は稼働しているが、この警告のないnative環境と同等とは扱わず、本番更新前後のnative確認に残す。
+- UI初回は既存3件（教師認証/権限拒否、演習行配置、ログアウト取消focus）が成功、新規保存/実行試験1件が90秒timeoutで失敗、exit 1。保存自体は成功していたが、新規testの`waitForResponse`が操作名をPOST bodyで探しており、実契約の`/student/exercise/save` URLを見ていなかった。待機条件を正確なPOST pathへ修正し、同じ専用データの保存再読込・実行試験だけ再実行する。初回失敗のreport/traceを保持し、既存3件を無変更で再実装しない。
+- 保存test修正後は保存/再読込が成功したが、Python実行が`Docker broker policy denied the request`、Runner HTTP 503 `runner_unavailable`で失敗し、test 0 passed / 1 failed、exit 1。最終image内のbrokerへ、拒否されたfield名のみを記録して同じpolicyを再throwする一時診断を付け、合成コードで再現したところ`required_mismatches=["Cmd"]`、missing/unknown/default不一致0となった。
+- 根本原因: Runnerの`EXECUTION_WRAPPER`は入力prompt非表示対応を含む新しい固定commandだが、brokerの`COMMAND`は旧wrapperのまま。通常実行も厳密allowlistで拒否される。さらにprompt非表示実行ではRunnerが追加する`PPE_SUPPRESS_INPUT_PROMPT=1`もbrokerのEnv2件限定に対応していない。policyを緩めず固定command/限定flagの契約と両者の回帰testを修正する必要がある。**acfcd60版は本番反映不可（最終runtime FAIL）**。実image受入で検出したため本番は旧a6版を維持し、無条件retryや失敗したreleaseの再利用はしない。
+- 修正前のcross-contract unittestは10件中8 passed / 2 errors、exit 1で通常実行と提出前チェックの両方を再現した。VS Code test toolではPython testが検出されなかったため、既存Python 3.12 image/標準unittestを使用。修正後の最初の`test_*.py` selectorは、秘密tokenを必要とする別の実環境専用4件までunit環境で選択し、24 passed / 4 errors（`PYTHON_RUNNER_TOKEN_FILE`未設定）、exit 1となった。unitは既存`test_runner.py`/`test_broker.py`を明示し、実環境専用は合成tokenを設定した専用Runnerで別実行する。skipやsecretの偽造で成功扱いしない。
+- 修正後の正確なunit selectorはRunner 24/24、broker 10/10成功、skip/failure/error 0、exit 0。Pylanceによる変更Python 3ファイルの構文確認も成功。修正brokerのローカルamd64 imageと公開済み最終Runnerを専用環境で接続し、`test_production_runtime.py`の認証/サイズ、通常prompt維持と提出前prompt抑制、正常実行/実エラー/出力上限/非root/CPU/メモリー/ネットワーク/ファイルシステム隔離の3件を実行し、3/3成功、exit 0（6.568秒）。これはソース修正の受入であり、新しい固定ECR imageの受入ではない。
+- nginx失敗復帰の追加回帰: `deployment-recovery-test.sh`は60 assertion groups成功、exit 0。migration後の`before-nginx`/`after-nginx`で`nginx_started`、自動復帰なし、old→oldのCURRENT履歴referenceを使った明示rollback、DB lifecycle/Volume変更なし、config同期を確認。Docker/AWSをfake化した状態機械回帰であり、本番完全DRや実rollbackの再実行ではない。
+
+### 2026-10-16 15:12 JST 本番read-onlyのoperations探索範囲
+
+- `production-release-assets-readonly.sh`は現行a6版operationsの配下に` scripts/ci`もあることを要求し、`find: scripts/ci: No such file or directory`、exit 1で停止した。現行a6版の配布は本番操作用の` scripts/production`のみであり、ECR取得用一式が配置済みの869版とは構成が異なる。
+- 本番サービス・DB・設定は変更していない。a6版はdeploy/rollback用のbytes、869版はECR取得用のbytesを分けて確認するよう読取scriptを修正した。どちらもローカルの固定リリースsourceと照合するまで実行に採用しない。
+- 再読取はexit 0。ローカル比較の初回は、installed a6版の追加`deploy-verbose.sh`がrepositoryに存在しないためENOENTで停止した。この追加wrapperは実行しない。必要な正規helper群の存在とbytes一致を個別に確認し、追加ファイルの存在を正規helperの改変や照合成功に読み替えない。
+- helper全量比較では869版のdeploy/rollback/config同期3件が現行sourceと不一致で停止。用途を分離し、a6版の正規28helperは一致、869版のECR取得entry/source/CI共通3件も一致を確認した。deploy/rollbackはa6版を明示指定し、869版の古いdeploy/rollback/config同期と追加verbose wrapperは使わない。ECR取得helperはこれらの古い3件をsource/実行しないことを読んで確認した。
+
+## 2026-10-16 14:35〜15:03 JST ECR公開の観測中断とローカルDocker停止
+
+- 対象・手順: 固定main `acfcd60c9eb9800275057ac24a0f5bc6d2da7114`のpush/main CI `38855211776`成功後、14:29:25 JSTに既存ECR workflowを1回だけ起動した（HTTP 204、run `38856040632` attempt 1）。本番操作・migrationは行っていない。
+- 期待結果と実際: 待機helperは14:35:38 JSTまでrunを`in_progress`と観測した後、`GitHub API transport failed`でexit 1。これは公開job自体の失敗判定ではないため再dispatchしなかった。15:02:58〜15:03:12 JSTに同runをGETで再確認し、14:36:57 JSTにcompleted/success、build/publishの両job・固定SHA・attempt 1の一致を確認した。通信失敗の直接原因は未確定。
+- ローカル受入の前提確認: 15:03 JSTの`docker ps`はdaemon接続不可でexit 1。`docker context ls`と`docker desktop status`で既存Desktopの停止を確認し、`docker desktop start`はexit 0。15:04 JSTの`docker info`はserver 29.8.1/overlay2で応答し、既存Runner/DB等3containerの稼働を再確認した。共有8080のappはExited(255)であり、今回の専用受入に不要なため勝手に再起動しない。最終image受入は後続で行う。共有container/Volumeの削除、prune、daemon設定変更はしていない。
+- 影響範囲・未解決事項: 公開の観測とローカル検証環境のみ。本番更新は未実行。公開成功を最終imageの起動受入や本番デプロイ成功とは扱わない。
+
+## 2026-10-16 14:10 JST 最小デプロイ準備のGitHub保護確認
+
+- 対象・手順: リリース候補PR #60の統合前に、GitHub APIで`main`の保護条件を確認した。`GET /repos/toichan/programming-process-evaluator/branches/main`はHTTP 200、`protected=true`。
+- 期待結果と実際: 続く従来の`GET /branches/main/protection`は保護設定のHTTP 200を想定したが、HTTP 404、`Branch not protected`、helper exit 1となった。これを保護なし・統合可能とは扱わず停止し、適用中のruleset用APIへ切り替えた。
+- 対応・再検証: 14:10:38 JSTの`GET /repos/toichan/programming-process-evaluator/rules/branches/main`はHTTP 200、exit 0。PR必須、厳密な最新baseへの追従、Java/Shellの必須2check、thread解決、非fast-forward/削除禁止を確認した。従来APIの404だけでruleset保護を判定できないため、今後も有効ruleを確認する。
+- 影響範囲・未解決事項: 読取経路の不一致のみで解消。保護設定の緩和・bypass・本番変更は行っていない。元の`code`は内容差分なしで`main`をmergeして通常pushし、PR側の必須check成功を待つ。認証情報は記録していない。
+- 14:20 JSTの統合直前guard: `main`が元の`7122540...`と一致することを要求したところ、既にPR #60が14:19:52 JSTに`toichan`によりmerge済みで、`acfcd60c9eb9800275057ac24a0f5bc6d2da7114`となっておりhelperはexit 1で停止した。こちらからmerge PUTは送信していない。通常fetch後、統合先・PR元`47ce55d...`・受入済み元`ee3c110...`のGit treeが全て`f59883460252b33327c033bb4b4e38173668f0aa`と一致し、差分0であることを確認。別変更の混入ではないため、この統合済みmain SHAのpush/main CIを待つ。保護の回避・上書き・二重mergeは行わない。
+
 ## 2026-10-16 07:36 JST 未解決課題の受入テスト初回実行
 
 - 対象: V-01〜V-04、F-02、T-01/T-02。共有8080と既存DB・他projectのcontainerは変更せず、専用MySQL/Tomcat/Playwrightを使用。

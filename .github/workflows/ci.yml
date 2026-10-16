@@ -71,6 +71,10 @@ jobs:
           bash scripts/ci/tests/ecr-release-test.sh
       - name: Prepare isolated test images
         run: bash scripts/ci/prepare-shell-tests.sh
+      - name: Check Python runner and broker contracts
+        run: |
+          python3 -B -m unittest discover -s containers/python-runner -p test_runner.py
+          python3 -B -m unittest discover -s containers/docker-broker -p test_broker.py
       - name: Run all deployment regressions
         run: bash scripts/ci/run-shell-tests.sh "$RUNNER_TEMP/ppe-ci-shell-results"
       - name: Publish Shell summary

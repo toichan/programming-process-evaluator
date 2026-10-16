@@ -19,7 +19,13 @@ CHILD_LIFETIME_SECONDS = 70
 NAMESPACE_LABEL = "ppe.execution.namespace"
 ID_LABEL = "ppe.execution.id"
 WRAPPER = (
-    "import os; "
+    "import builtins, contextlib, io, os\n"
+    "if os.environ.get('PPE_SUPPRESS_INPUT_PROMPT') == '1':\n"
+    "    original_input = builtins.input\n"
+    "    def input_without_prompt(prompt=''):\n"
+    "        with contextlib.redirect_stdout(io.StringIO()):\n"
+    "            return original_input(prompt)\n"
+    "    builtins.input = input_without_prompt\n"
     "exec(compile(os.environ['PPE_STUDENT_CODE'], '<student>', 'exec'))"
 )
 COMMAND = ["python3", "-I", "-S", "-B", "-u", "-c", WRAPPER]
@@ -95,9 +101,14 @@ class Policy:
         if not isinstance(value, dict):
             raise BrokerError()
         environment = value.get("Env")
-        if (not isinstance(environment, list) or len(environment) != 2
+        if (not isinstance(environment, list) or len(environment) not in (2, 3)
                 or any(not isinstance(item, str) for item in environment)
                 or environment.count("PYTHONDONTWRITEBYTECODE=1") != 1):
+            raise BrokerError()
+        prompt_options = [item for item in environment
+                          if item.startswith("PPE_SUPPRESS_INPUT_PROMPT=")]
+        if (prompt_options not in ([], ["PPE_SUPPRESS_INPUT_PROMPT=1"])
+                or len(environment) != 2 + len(prompt_options)):
             raise BrokerError()
         sources = [item[len("PPE_STUDENT_CODE="):] for item in environment
                    if item.startswith("PPE_STUDENT_CODE=")]

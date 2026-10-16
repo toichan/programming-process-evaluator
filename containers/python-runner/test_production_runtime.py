@@ -36,6 +36,18 @@ class RuntimeTest(unittest.TestCase):
             self.assertEqual(401, self.request(path, payload, authorized=False)[0])
         self.assertEqual(413, self.request("/execute", {"source": "x" * 65537})[0])
 
+    def test_submission_check_suppresses_only_input_prompt(self):
+        for suppress, expected in [(False, "prompt>synthetic\n"), (True, "synthetic\n")]:
+            with self.subTest(suppress=suppress):
+                status, result = self.request("/execute", {
+                    "source": "value = input('prompt>'); print(value)",
+                    "standardInput": "synthetic\n",
+                    "suppressInputPrompt": suppress,
+                })
+                self.assertEqual(200, status, result)
+                self.assertEqual("succeeded", result["status"])
+                self.assertEqual(expected, result["standardOutput"])
+
     def test_normal_error_output_and_filesystem_isolation(self):
         result = self.execute("print(int(input()) * 2)", "3\n")
         self.assertEqual("succeeded", result["status"])

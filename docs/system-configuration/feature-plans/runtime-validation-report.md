@@ -4,6 +4,43 @@
 
 **Target**: `/Users/t.toida/programming-process-evaluator` — 工程20と関連機能（工程14以降の履歴を保持）
 
+## 2026-10-16 最小デプロイの最終image gate
+
+工程20の既存受入と、本番配布する最終imageの受入は分ける。
+PR #60のmain `acfcd60...`はpush/main CI `38855211776`成功後、
+ECR公開`38856040632` attempt 1に成功した。
+report ZIPの固定SHA256と6ファイル集合、OCI digest
+`sha256:e92c55c2af5092b4d4b15be4ea01a51ad41afb7a28083c090c820d1c586eeff7`、
+7/7imageのregistry digest/config ID/source/platform/必要ファイル権限を照合した。
+隔離起動では合成Secrets/TLSと専用MySQLだけを使用し、外部AIのoutboundを外した。
+
+```yaml
+environment:
+  docker: AVAILABLE — Docker Desktop 29.8.1 / overlay2
+  node: AVAILABLE — existing Playwright container Node v24.21.0
+  playwright: AVAILABLE — cached v1.64.0 / Chromium, no package installation
+  infra-tier: PRIMARY — real MySQL and seven fixed ECR images, amd64 emulation
+  browser-tier: PRIMARY — existing three Playwright files reused unchanged plus one new persistence flow
+startup: PASS — five healthy after emulation-only broker/runner probe deadline adjustment
+integration: FAIL — exit_code: 1, Python execution rejected by broker fixed-command contract
+e2e: FAIL — exit_code: 1, passed: 3, failed: 1, saved code reload passed; execution failed
+overall: FAIL — acfcd60 candidate must not be deployed
+```
+
+broker/runner probeの3秒→15秒と初回GETの15秒→90秒はローカル検証のみの差異。
+本番の元の時間閾値、ARM companion Python、エミュレーションのAIO警告はnative確認に残す。
+新規testのPOST待機条件誤りを修正した後、最終image内でRunnerの新wrapperとbrokerの旧allowlist
+の不一致を再現した。詳細な失敗・診断・再検証は[エラーレポート](../error-report.md)を正本とする。
+
+修正sourceの検証:
+
+- `docker run --rm --network none --mount type=bind,src=$PWD/containers,dst=/workspace/containers,readonly python:3.12-alpine sh -ec 'python3 -B -m unittest discover -s /workspace/containers/python-runner -p test_runner.py; python3 -B -m unittest discover -s /workspace/containers/docker-broker -p test_broker.py'`: exit 0、24+10件成功、skip 0。修正前はbroker 10件中2 errorsで再現。
+- 専用Runner内の`python3 -B /dev/stdin RuntimeTest.test_authentication_and_size_limits RuntimeTest.test_submission_check_suppresses_only_input_prompt RuntimeTest.test_normal_error_output_and_filesystem_isolation < containers/python-runner/test_production_runtime.py`: exit 0、3/3成功。ローカル修正broker＋公開済みRunnerの実通信であり、モックではない。
+- 既存`ppe-ci-shell:local`で`bash scripts/production/tests/deployment-recovery-test.sh`: exit 0、60 assertion groups。migration後のnginx前後の失敗とold→old復帰を追加。状態機械のmock回帰であり実本番rollbackではない。
+
+新SHAの統合CI・再公開・固定image受入、本番Flyway validate/info、fresh backupと更新直前承認は未完了。
+機能ソースの修正でDB/画面/状態遷移や隔離制限を変更しない。
+
 ## 2026-10-16 工程20の最終受入
 
 **P20-01〜P20-10: PASS / 完了。** [受入条件と全Servlet対応表](./phase-20-cross-feature-validation.md)を正本とする。
