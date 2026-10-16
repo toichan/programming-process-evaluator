@@ -112,6 +112,18 @@ test('other-school teacher cannot view or export evaluations outside their schoo
     await ownerPage.locator('#evaluationRows button', { hasText: '表示' }).first().click();
     await expect(ownerPage.locator('#evaluationDetailModal')).toBeVisible();
     await expect(ownerPage.locator('#detailTask')).not.toBeEmpty();
+    await expect(ownerPage.locator('#reasonFilters button'))
+      .toHaveText(['すべて', '思考・判断・表現', '態度']);
+    const detailModal = ownerPage.locator('#evaluationDetailModal');
+    await expect(detailModal).not.toContainText('総合フィードバック');
+    await expect(detailModal).not.toContainText('学習過程分析');
+    await expect(detailModal.locator('#evaluationFeedback, #processAnalysis')).toHaveCount(0);
+    await ownerPage.locator('#reasonFilters').getByRole('button', { name: '態度', exact: true }).click();
+    await expect(ownerPage.locator('#reasonFilters').getByRole('button', { name: '態度', exact: true }))
+      .toHaveAttribute('aria-pressed', 'true');
+    await expect(ownerPage.locator('#evaluationReasons')).not.toContainText('Synthetic reason');
+    await ownerPage.locator('#reasonFilters').getByRole('button', { name: 'すべて', exact: true }).click();
+    await expect(ownerPage.locator('#evaluationReasons')).toContainText('Synthetic reason');
 
     await assertRejectedLogin(
       outsiderPage,

@@ -46,12 +46,20 @@ test('student can expand and collapse a folder from its row hit area', async ({ 
   for (const width of [390, 320]) {
     await page.setViewportSize({ width, height: 844 });
     await expect(folderHeader).toHaveCSS('flex-direction', 'row');
-    const [headerBounds, ...controlBounds] = await Promise.all([folderHeader, folderToggle, folderButton, folderActions]
-      .map(control => control.boundingBox()));
-    expect(controlBounds.every(Boolean)).toBe(true);
+    await expect(folderToggle).toBeVisible();
+    await expect(folderActions).toBeVisible();
+    const headerBounds = await folderHeader.boundingBox();
     expect(headerBounds.height).toBeLessThanOrEqual(52);
-    expect(Math.max(...controlBounds.map(bounds => bounds.y + bounds.height / 2))
-      - Math.min(...controlBounds.map(bounds => bounds.y + bounds.height / 2))).toBeLessThanOrEqual(1);
+    await expect.poll(async () => {
+      const centers = await folderHeader.locator('button').evaluateAll(elements =>
+        elements.filter(element => element.getClientRects().length > 0).map(element => {
+          const bounds = element.getBoundingClientRect();
+          return bounds.y + bounds.height / 2;
+        })
+      );
+      expect(centers).toHaveLength(3);
+      return Math.max(...centers) - Math.min(...centers);
+    }).toBeLessThanOrEqual(1);
   }
 
   await page.setViewportSize({ width: 390, height: 844 });

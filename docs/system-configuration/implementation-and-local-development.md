@@ -196,7 +196,37 @@ V11の学校ポリシー移行はDBトリガーを追加する。バイナリロ
 - 接続確認は合成入力だけで行い、実際の生徒提出や個人情報を含むデータを外部送信する前に、データ取扱いと本番運用条件を確認します。
 - ローカル `.env` を本番へ流用せず、本番用シークレットストアから実行時に注入します。
 
-現時点では自動テスト基盤が十分に整っていないため、テスト追加は機能実装の一部として計画します。少なくとも状態遷移と Control / DAO のデータ処理には再現可能なテストを追加し、実行できない確認は「未確認」と明記します。
+### 専用DB・ブラウザーの対象別受入
+
+下記のrunnerは既存のローカルtool/app/DB imageと`e2e`の依存を使い、専用MySQL・Gradle workspace・Tomcat・Playwrightを作成し、所有ラベルを照合して後処理します。同じschemaで全DB suiteを混在させず、同じ名前のrunnerを並列起動しないでください。共通imageがない場合は既存のセットアップ手順を先に実行します。
+
+| Command | 対象 |
+|---|---|
+| `sh scripts/testing/teacher-submission-review-local.sh acceptance` | 進捗/提出/評価のDB・認証HTTP・学校境界browserと評価詳細 |
+| `sh scripts/testing/teacher-survey-review-local.sh integration` | survey seed再実行性、DB・認証HTTPの同意/学校/出力境界 |
+| `sh scripts/testing/student-exercise-layout-local.sh` | 演習の狭幅行操作・ログアウト取消/確定とfocus・ロール境界 |
+| `sh scripts/testing/teacher-prompt-generation-local.sh` | 専用HTTPSと合成providerで非同期生成/polling/再訪/保存。実Gemini APIは呼ばない |
+| `sh scripts/testing/teacher-distribution-ui-local.sh` | 履歴からのテンプレート編集、三角アイコン通常/狭幅、同一校共有/他校拒否 |
+
+結果は`build/*-validation/`に保全します。失敗時のJUnit XML/trace/runtime logとexit codeを確認し、skip・実API・本番/OS-nativeの未確認を成功扱いしません。合成プロンプトrunnerの自己署名証明書は専用環境だけに使い、`PPE_P20_IGNORE_HTTPS_ERRORS=true`はPlaywright側に限定します。本実装のHTTPS条件や外部API endpoint制限は緩和しません。最新実測は[Runtime Validation Report](./feature-plans/runtime-validation-report.md#2026-10-16-ローカル課題解決の再受入)を参照してください。
+
+### 隔離復元DBの読戻しテスト
+
+[BackupRestoreDatabaseTest](../../src/test/java/control/operations/BackupRestoreDatabaseTest.java)は
+復元済みの業務データがある場合だけ使うopt-inで、通常buildではskipします。
+`PPE_RESTORE_DB_TEST=true`、`DB_NAME=ppe`、hostが
+`ppe-restore-phase20-[0-9]{8}-db-1`に一致する専用環境を要求し、
+`gradle --offline --no-daemon test --tests control.operations.BackupRestoreDatabaseTest --console plain`
+で実行します。教師進捗を実Control/DAOで読み、全表fingerprintの読取前後不変を確認します。
+認証情報は非表示のfile/env注入で渡し、本番/共有DBをこのテスト先に指定しません。
+
+復号鍵をcontainerへ転送せずhost age→専用MySQLへstreamし、復元後にmigration差分を
+正しい専用migration userでvalidateします。pendingをignoreで隠さず、DDL適用が必要なら
+復元先を確認したうえで隔離DBにだけ適用します。
+2026-10-16の専用DB/合成secretは清掃済みです。同名helperをそのまま再実行せず、
+次回は空の専用環境を作り直してください。[復旧受入と限界](./production-deployment.md#2026-10-16-追加承認による復元通知試験)を参照します。
+
+状態遷移とControl/DAOには再現可能なテストを追加し、実行できない確認は「未確認」と明記します。
 
 ## 7. 段階2の完了条件
 

@@ -2,6 +2,160 @@
 
 秘密情報・実際の生徒データ・研究データは記載しない。解消後も履歴を保持する。
 
+## 2026-10-16 07:36 JST 未解決課題の受入テスト初回実行
+
+- 対象: V-01〜V-04、F-02、T-01/T-02。共有8080と既存DB・他projectのcontainerは変更せず、専用MySQL/Tomcat/Playwrightを使用。
+- 修正前の隔離Gradle `clean build --warning-mode all` はexit 0、145 suites / 556 tests（369 passed、187 skipped、failures/errors 0）。前回記録の552件とは異なる現行ソースの基準線であり、skipは成功扱いしない。
+- `sh scripts/testing/teacher-submission-review-local.sh acceptance` はexit 0、Playwright 3/3成功。進捗の学校境界とコード再読込、提出/評価の既存学校境界、評価詳細の理由3フィルターと削除対象セクションの非表示を確認した。
+- `bash scripts/production/tests/nginx-startup-test.sh` はexit 0、7 PASS。既に存在する`chmod 0644`修正を、mode 0600の元configから構築したローカル固定image ID `sha256:7a4a0aa409bfae47337d71a6db22e4bc6093e9c0eafb01006b923076bad33cac`で検証。UID/GID 101:101の読取、TLS proxy、reload、ローカルdeploy/rollback再作成を確認。本番ECRの固定digest受入・再deployとは区別する。
+- 失敗1: `sh scripts/testing/student-exercise-layout-local.sh` はexit 1、Playwright 2 passed / 1 failed。追加したログアウト試験が閉じたユーザーメニュー内のbuttonを直接clickし、50秒timeoutとなった。これはテスト操作の欠落であり、現時点ではfocus不具合の再現証拠ではない。通常のメニュー展開操作を追加して再実行する。
+- 失敗2: `sh scripts/testing/teacher-prompt-generation-local.sh` はexit 1、専用Tomcatのreadiness判定に失敗しbrowserは未実行。WAR起動は成功しているが、`PPE_ENV=simulation`ではHTTPS必須のため直接HTTPのprobeが拒否された。simulationの制約は緩和せず、専用TLS proxyと正確なtrusted proxy IPを構成して再実行する。
+- 失敗時のJUnit XML、browser trace、runtime logは停止containerから`docker cp`で回収できた。実行ログは`build/error-resolution-validation/`、各runnerの個別報告directoryに保存。上記2件の再検証結果は後続へ追記する。
+- ユーザーは今回の課題解決に伴うGemini呼出しも許可した。再診断は実生徒データを含まない合成候補要求だけとし、既定モデル・採用・fallbackは変更しない。
+
+### 2026-10-16 07:40〜07:48 JST 再診断・取消フォーカスの再現
+
+- Gemini: ユーザーの許可を受け、モデル一覧のGETと`gemini-2.5-pro`への合成Interactions structured要求1件（自動retryなし、`store=false`）を実行。`GeminiApiDiagnosticSupportTest`2件と一覧GETは成功、候補要求はHTTP 404、全4件中3 passed / 1 failed、exit 1。`provider_code=not_found`、応答は「This model models/gemini-2.5-pro is no longer available to new users. Please update your code to use models/gemini-3.1-pro-preview for the latest features and improvements.」。モデル一覧には名前が残っているが、この認証情報でのInteractions利用可否を意味しない。request ID / Retry-Afterは応答に無いため補完しない。停止containerからJUnitと診断JSONを`build/error-resolution-validation/gemini/`へ回収できた。
+- F-01の原因は候補モデルの利用制約と判明。既存のUI候補・既定に2.5 Proは含まれていないため本実装のモデル・fallbackは変更しない。診断の失敗を成功/skipへ変更せず、2.5 Proを採用可能な候補として扱わない。再採用を依頼する場合はアクセス資格・提供状況から再判断する。
+- 演習の2回目: `sh scripts/testing/student-exercise-layout-local.sh` はexit 1、1 passed / 2 failed。メニューを通常展開した結果、取消後にユーザーメニューの起動元へfocusが戻らないことを再現した。submit直後のbutton無効化で共通確認が起動元を取得できず、メニュー閉鎖後のfallbackも主領域へ移る構成だった。重複submitの排他を維持しつつ無効化を確定後へ移し、shared feedbackで同じdropdownの可視トグルへ復帰させる。
+- 同じ演習runで既存の行配置試験も失敗（中心位置の差1.2548828125px、期待1px以下）。viewport変更直後に別々のbrowser呼出しで各座標を測っていたため、同一DOM評価内の測定と条件到達待ちへ変更する。閾値1pxは緩めず、再検証する。
+- プロンプトの2回目: `sh scripts/testing/teacher-prompt-generation-local.sh` はexit 1、browser未実行。非root/read-onlyの専用nginxで`/var/cache/nginx/fastcgi_temp`の作成が拒否された。通常proxyだけでなくfastcgi/uwsgi/scgiの一時directoryも専用`/tmp`へ指定し、proxyの生存確認とHTTP status証跡を追加する。アプリのHTTPS必須条件は維持する。
+
+### 2026-10-16 07:52 JST テスト手順の追補とsurvey受入
+
+- 演習3回目はexit 1、1 passed / 2 failed。取消のfocus復帰は先へ進んだが、Escapeをモーダルの表示アニメーション中に送ったため閉鎖判定に失敗した。Bootstrapのfocus trapがモーダルへfocusを移すまで待ってからキーボード操作を行う。座標の同時測定では非表示dropdown内の5ボタンも取得していたため、可視の3操作へ限定する。閾値1pxと3操作の検査は維持する。
+- プロンプト3回目はHTTPS経由のlogin表示まで成功し、browserを実行。fixture教師は許可された機能に応じ`/teacher/task`へ遷移するが、新試験が`/teacher/home`を期待して失敗した（1 failed、exit 1）。実装のログイン先契約に合わせて期待と一時離脱先を課題一覧へ修正する。
+- `sh scripts/testing/teacher-survey-review-local.sh integration` はexit 0。既存review fixtureへのsurvey追加、再seed時の非重複、不完全fixtureの拒否、既存の同意・学校境界・export・実HTTPの試験が成功した。surveyとreviewの全suiteを無条件に同居させる契約へは拡張せず、schema分離を維持する。
+- 07:54〜07:56 JST: 演習4回目はexit 0、fixture JUnit 1/1、Playwright 3/3成功。取消・Escape・二段階確認の取消でコード/セッション保持と可視メニュートグルへのfocus復帰を確認し、キーボードによる再操作、重複submit抑止、確定ログアウト/失効後の保護画面拒否も成功。狭幅の行配置は1px以下の元条件で成功した。今回の代表フローでは`aria-hidden`/focus警告なし。
+- 同時実行したプロンプト4回目はexit 1、browser 1 failed。揺らぎ生成・polling・離脱/再訪・表示までは成功したが、教師対応の入力後に必要な「揺らぎ項目指示を保存」を押さず、無効な評価例生成buttonを待って90秒timeoutとなった。既存の保存→生成契約にテストを合わせ、保存後の再読込とbutton有効化を検査して再実行する。合成providerの呼出しは揺らぎ1件のみで、実APIへの接続はない。
+
+## 2026-10-16 08:09 JST ローカル修正の最終受入
+
+- `sh scripts/testing/teacher-prompt-generation-local.sh`: exit 0、fixture JUnit 1/1、Playwright 1/1。専用HTTPS proxy、simulation制約下の合成provider、揺らぎ/評価例の各非同期生成、状態polling、課題一覧への離脱/再訪、完全な合成ログ/評価JSON表示、明示保存後の再読込を確認した。providerは合成2要求のみ。DB read-backは`configured / completed / completed / active / 2`で一致した。証跡は`build/teacher-prompt-generation-validation/run-77003/`。
+- `sh scripts/testing/teacher-distribution-ui-local.sh`: exit 0、fixture JUnit 1/1、Playwright 1/1。配信履歴からテンプレートを開き、1280px/390pxで三角記号`▾`、折畳時の-90度回転、展開/折畳とキーボード操作を確認。同一校peerによる更新とownerの再読込、履歴snapshot保持、別校の直接URL拒否も成功。証跡は`build/teacher-distribution-ui-validation/run-76997/`。
+- 共通feedback変更後の`sh scripts/testing/teacher-submission-review-local.sh acceptance`: exit 0、JUnit 9 suites / 28 tests（26 passed、2 skipped）、認証HTTP 1/1、Playwright 3/3成功。証跡は`build/teacher-submission-review-validation/acceptance/run-77628/`。
+- surveyの正確な件数はJUnit 5 suites / 8 tests（7 passed、1 gated runtime skip）、別の認証HTTP 1/1、exit 0。演習はfixture 1/1、Playwright 3/3、exit 0。今回の最終browser受入は合計8論理ケースであり、中間の失敗runや再実行を成功件数に加算していない。
+- 修正後の隔離`gradle --offline --no-daemon clean build --warning-mode all --console plain`: exit 0、146 suites / 559 tests（371 passed、188 skipped、failures/errors 0）、WAR成功。`build/error-resolution-validation/final/`にJUnitとbuild logを保全。標準buildのskipは外部環境の未実行であり、今回/過去に個別受入したケース以外を合格に含めない。
+- 変更したJS/Javaのeditor診断はエラーなし。`sh -n`（変更した4 runner）、`bash -n`（nginx起動試験）、`git diff --check`はexit 0。共有8080、共有DB、共有Python runner、他project DBは停止・再作成せず維持した。プロトタイプ、DB migration、アプリ既定モデル、本番は変更していない。
+- 本番固定digest、バックアップ/復旧、正式品質E2E、OS-native、UTC/JST契約、全route/action対応表と依存互換性の残件は未完了のまま。候補2.5 Pro診断のexit 1も保持し、工程20全体をPASSとはしない。
+- 08:19 JST文書・集計補正: 最終skip一覧のsuite名抽出が`hostname`属性まで一致していたため、XMLファイル名由来へ変更し、46 suites / 188 skippedと再確認した。JUnit件数・成功判定自体は変化なし。追記文書1行の末尾空白で`git diff --check`がexit 2となったため除去し、再検査exit 0。いずれもアプリの試験失敗ではない。証跡回収済みの停止container 3個と、既知の合成TLS鍵/証明書8ファイルのみを限定清掃した。共有4 containerの稼働を維持し、対象Java/JS 6ファイルのeditor診断エラー0、shell構文検査もexit 0。
+
+## 2026-10-16 08:25 JST 本番の読み取り専用調査を承認
+
+ユーザーが、AWS・本番環境の稼働release/image digest、バックアップ実行記録・S3固定Version・監視値を照合する読み取り専用調査を明示承認した。deploy、バックアップ再実行、IAM変更、DB復元、業務データの内容取得は含めない。結果は後続へ記録し、調査許可を変更/復元の許可へ拡張しない。
+
+- 同日08:25 JST、`AWS_PAGER='' aws sts get-caller-identity --profile ppe-deployer --region ap-northeast-1 --query '{Account:Account,Arn:Arn}' --output json`はexit 255、`Error when retrieving token from sso: Token has expired and refresh failed`。期待したAWS identityを取得できず、本番のinstance/release/receipt/S3/metric読取には進めていない。ローカルのAWS CLIとSSM pluginは存在するが、有効なSSOセッションの再認証が必要。
+- IAM拡張、別管理profileへの切替、SSH経路への迂回、秘密値の取得、backup/deploy/復元の実行は行っていない。F-02/H-01は読み取り調査の承認待ちから**SSO再認証待ち**へ移る。再認証後はまず同じidentity確認を再実行し、対象account/instanceを確認してから読取を続ける。
+- その後、ユーザーはSSOログイン開始も承認。`aws sso login --profile ppe-deployer`を開始したが、120秒待機後もブラウザーでの本人認証を待っている。ログイン完了・本番調査完了とは扱わず、認証待ちとして引き継ぐ。認証URL/一時コードや資格情報は本書へ保存しない。
+
+## 2026-10-16 本番読取の再開・権限制約と受入結果
+
+- 08:38 JST、ユーザーの認証完了後に同profile/東京のSTS identityを再確認しexit 0。account `024378233912`、EC2 `i-0ffd69e8f390bd396`のrunning/SSM Onlineも確認した。以前開始した認証待ちCLIだけを停止し、SSO資格情報は変更・表示していない。
+- `cloudwatch describe-alarms`と`cloudwatch get-metric-statistics`（PPE/Backup / FreshBackup / Project=ppe-production / 直近24時間）は既存roleで各1回AccessDenied、各exit 254。期待した保存監視値を読めず、未確認を維持する。IAM変更・別管理profileへの切替はしていない。
+- `ssm send-command`もAccessDeniedでcommand IDなし。複合wrapperの末尾`cat`がexit 0となったが、これはAPI成功ではない。API単独のexit codeは回収できておらず、拒否・未送信として記録する。同roleの既存interactive StartSession経路で読み取りpayloadだけを実行した。
+- 08:41〜08:44 JSTの最初のPTY wrapperは、metadataの観測完了後に外側のexit markerを取得できずtimeout/exit 1。payload完了表示だけでwrapperを成功扱いしない。以後はpayload内のEXIT trapで実codeを返し、pagerも明示無効化した。
+- 08:46 JSTの最終readonly probeはexit 0。現行currentは`a6e90edf31c5369ea71c2e10efc78d37461423d6`、state published、5サービスhealthy/restarts 0。nginx image `sha256:c0826b1d4675a8815eaa4c42e82b48d9a6416ab3c3d50de70c7ca7836269f046`の設定は0644でUID/GID 101:101の読取成功。両domain `/health`は200。10月11日の旧release記録は過去時点であり、現行本番の読取拒否継続とは扱わない。
+- 定期backupはretained journalで10月10〜16日の7開始/7完了・失敗entry 0。最新は16日02:03:01〜02:03:15 JST、success/exit 0とtimer LastTriggerが一致。latest receipt作成02:03:04 JST、current release一致、age 24,208秒で93,600秒以内。3固定Versionのサイズ・SHA-256・checksum・SSE-KMS/keyとローカル暗号化artifact/sidecarが全項目一致し、検証前後のreceipt hash/currentも不変だった。
+- 今回はread-onlyのみで、backup再実行・deploy/restart・IAM変更・SQL/復元・S3 body取得・秘密値/業務データ取得は行っていない。独立した監視API読取、業務データ入り復旧、鍵custody、将来のECR固定release受入は未完了。詳細なVersion ID・時刻・境界は[本番調査記録](./production-deployment.md#2026-10-16-本番読み取り調査)を正本とする。
+
+## 2026-10-16 管理プロファイルの監視読取を承認
+
+09:32 JST、ユーザーは、既存`ppe-infra-admin`を使い、同一本番accountの対象アラームと保存メトリクスを読み取ることを明示承認した。09:35 JSTのSTS identityはaccount `024378233912`の`PPE-Infrastructure-Admin` roleで一致、exit 0。IAM・アラーム設定・サービス状態の変更、通知試験は含めない。以下に承認後の読取結果を記録する。
+
+- 09:36 JST、`cloudwatch describe-alarms --alarm-names ppe-production-backup-freshness-alarm`、FreshBackup直近24hとBackupSuccess直近7dの`get-metric-statistics`を同profile/東京で各1回実行し、全てexit 0。アラームはOK/ActionsEnabled=true、承認済み評価条件とSNS action ARNに一致。
+- 保存FreshBackupは24連続hourly区間、各SampleCount=1、Minimum=Maximum=1。BackupSuccessは7集計区間すべてSum>0、合計13サンプル。APIは実行種別を区別しないため13回の定期実行とは扱わず、scheduledの根拠は先のsystemd 7回とする。bucket時刻や最終alarm状態遷移時刻も、service実行/今回の読取時刻と混同しない。
+- JSON条件/連続性のローカル検査もexit 0。これによりH-01の独立監視readbackは解消。以前の権限エラーはroleを改変せず履歴として残す。alarm起点の実SNS配送、業務DB復旧/アプリ読戻し、鍵custody、将来release受入は未検証。詳細は[本番調査記録](./production-deployment.md#0936-jst-管理プロファイルによる独立監視readback)を参照。
+- 記録更新後の`git diff --check`とsession YAMLの構文/集計整合検査はexit 0。VS Code Problemsには文書lint指摘が残る（190件中先頭50件のみ表示、履歴節のMD038/MD060等）。本番調査記録・ロードマップ・ECR負債・2つのYAMLは診断なしだが、全対象のlint cleanとは扱わない。今回の読取/JSON検査の失敗ではなく、履歴文書の無関係な整形は行っていない。アプリコード変更のない本追補で全build/browserの重複実行はしていない。
+
+## 2026-10-16 11:44 JST 工程20終結作業・復旧と通知試験を承認
+
+ユーザーが「次の作業」「復旧、通知試験」を明示承認した。工程20のP20-01〜10と既存証跡を対応付け、対象外だった運用/OS/実採点品質を未検証のまま別ゲートとして分離する。復旧は既存Mac鍵と固定S3 Versionを用いるローカル隔離DBで実施し、稼働DBは上書きしない。通知は既存SNS宛の明示された合成試験と一時的な専用metric/alarmを使い、実FreshBackup/既存alarmのstateや閾値を偽装しない。IAM・recipient変更、実データの外部AI送信は承認に含めない。対象accountはSTSで`024378233912`と再確認、exit 0。
+
+- 初期診断のDocker image表示は`.RepoTags`に`join`を使い、Docker 29の`[]interface{}`と合わずtemplate error。利用可能性の確認方法を`json .RepoTags`へ修正する。同じ診断の`du`も存在しない最終WAR候補パスを含みexit 1。既存review WARの存在を確認し、復旧には最新sourceからのWARを別途生成する。サービスやDBの変更・消失ではない。Mac空きは11GiBで、追加image pull/全体再buildを重複させず既存cacheと小さい専用資源を使う。
+- 同日11時台JSTの固定backup復旧準備: `download-backup.sh`で10月16日02:03 JSTの3固定S3 Versionを取得・検証しexit 0。続くhost `age --decrypt ... > /dev/null`は`no identity matched any of the recipients`、exit 1。候補のプロジェクト内既存鍵は0600/本人所有だが、この本番recipientに対応しない。鍵の再生成/書換え/転送、平文dump保存、復元先/稼働DBへの書込みはしていない。正しい本番用age identityの所在確認が必要。暗号化artifactはsessionのprivate directoryに保持し、正しい鍵で認証できるまで実復元は開始しない。
+- ユーザーが本番用identityの既存パスを指定。12:15:28 JST、0600/本人所有を確認し、指定鍵による固定ciphertext全体のhost age認証はexit 0。候補鍵の不一致は正しい鍵の指定で解消した。鍵はMacだけに置き、本文の取得/表示・Dockerへのmount・EC2への転送や再生成は行っていない。復元はこの認証済み固定artifactから専用DBへstreamする。
+- 通知試験は11:49:46〜11:52:18 JST、専用`PPE/BackupAcceptance` metricと一時alarmでOK→ALARMを実評価。11:51:50 JSTのCloudWatch action Succeeded、既存SNSのDelivered=1/Failed=0を確認、最終exit 0。一時alarm削除後も本番alarmはOK。IAM/topic/recipient・実FreshBackup/本番alarmの設定は変更していない。人間の受信箱での開封確認とは区別する。AWSは個別metric削除APIを持たないため合成datapointは通常retentionで失効し、以降の送信や継続alarmはない。
+- 12時台JST、全登録routeの共通認証filter契約を追加した初回buildは561件中1失敗/189 skip、exit 1。テストが「管理者→teacher領域をfilterだけで403」と誤期待していた。実契約はstaff領域をadmin/teacher共通で通し、教師専用handler/Controlでadminを拒否する二段階（既存の実HTTP試験で教師課題403受入済み）。新しい共通filter契約はその責務に合わせ、teacher領域のadminをfilter拒否の対象にしない。製品認可を緩めずテスト側のみ修正した。初回XMLとlogをsessionへ保持し、下記の最終全体buildで再成功を確認した。
+
+## 2026-10-16 12時台 JST 復旧検証の差分解消と最終回帰
+
+以下の失敗は同日12時台JSTの実行。個別ログに分秒の時刻がないものは補完しない。
+対象は専用project `ppe-restore-phase20-20261016`のみで、本番DBへの書込みはない。
+期待結果は固定backupの復元、現行migrationとの整合、実Control/DAO読戻し、最後の全体回帰成功。
+
+| 手順・失敗 | 原因・影響 | 対応と再検証 |
+| --- | --- | --- |
+| 最初の全体build後の`flywayValidate`、1045/Access denied、exit 1 | private wrapperが`ppe_migration`という存在しないmigration user名を指定。先行build成功とwrapper全体の失敗を区別する | 実ユーザーmetadataを確認し、既存の正しい`ppe_migrate`を使用。credentialの変更/表示はせず、後述のmigrate/validateはexit 0 |
+| app権限での`flywayValidate`、`Detected resolved migration not applied to database: 34.`、exit 1 | 固定dumpはV33で、現行sourceにはV34がある。checksum破損ではなくpending差分。成功を期待したvalidateはこの時点では失敗 | ignore/repairで隠さず、専用復元DBだけへ`flywayMigrate flywayValidate`を正しいmigration権限で実行しexit 0。66→67表、成功履歴33→34、失敗0。users23/tasks2/submissions4/evaluations4/code_logs108を保持 |
+| 専用runnerの`.State.Health.Status` inspect probe、exit 1 | image自体にHealth属性がなく、共有構成のhealthはCompose側定義だった。未起動の証拠ではなく、誤ったreadiness確認方法 | private helperを実`GET /health`へ変更。HTTP 200、`{"status":"ok"}`、curl exit 0を確認してから対象テストを実行 |
+| 新規filter testのadmin拒否誤期待、全体build exit 1 | staff共通filterと教師専用handler/Controlの責務差。製品の認可不具合ではない | 契約どおりの期待へ修正し、最終147 suites / 561 testsのbuildで失敗/エラー0。保護66 routeと共有logoutをinventoryへ記録 |
+
+- V33復元直後とV34互換更新後に`BackupRestoreDatabaseTest`を各1件実行し、各1 passed / 0 failed/errors/skipped、exit 0。実`TeacherProgressControl`→DAOで復元進捗の一覧/詳細を読み、未認証拒否と全表全行fingerprintの読取前後不変を確認。V33/V34間のschema差自体は不変とはしていない。元のage鍵・稼働DBは変更していない。
+- 過去opt-in XMLの照合で成功証跡が見つからなかったsnapshot/stale保存と冪等提出/再提出の2件、演習schema1件を、新規空schemaへV1〜V34を適用/validateしたうえで再実行。2/2と1/1、skip/failure/error 0、exit 0。global function-creator trustは0へ復元し、最終件数も確認した。
+- definitiveな最終コマンド`gradle --offline --no-daemon clean build --warning-mode all --console plain`は独立exit file 0、147 suites / 561 tests、373 passed / 188 skipped、failure/error 0、WAR成功。復元DBのopt-in 1件を有効化した全体実行であり、全DB flagを有効にした実行ではない。
+- 188 skipをXML timestampで個別照合し、171件は別実行の非skip成功XML、1件は不採用2.5 Pro診断FAIL、16件は非skip成功XML未発見（任意API7、保持browser fixture補助9）。中間失敗を消したり、未確認16件を成功へ換算したりしない。業務受入と補助fixture/候補診断の責務は[最終対応表](./feature-plans/phase-20-cross-feature-validation.md)で区別した。
+- 12:38:37 JST、今回所有の8 test containersと復元ComposeのDB/container/volume/networkを清掃し残存0。合成secret3ファイルと一時WARを削除。共有4サービスのID/image/StartedAtは前後同一かつrunning、共有教師/生徒loginは各HTTP 200。元の本番age鍵、暗号化backup、証跡は維持した。
+- 通知のAction Succeeded/Delivered1/Failed0と隔離復旧の詳細は[運用受入記録](./production-deployment.md#2026-10-16-追加承認による復元通知試験)に集約。独立offline鍵custody、人間のメール開封、復元Tomcat/browser、本番完全DR/切替は未確認のままとする。
+- 13時台JSTの文書リンク検査は初回Ruby既定US-ASCIIで`invalid byte sequence in US-ASCII`となりexit 1。`-EUTF-8:UTF-8`を明示して解消した後、工程20計画の既存相対リンク3件の参照先欠落を検出。親階層への参照へ修正した。続くad-hoc検査はhost Rubyにない`filter_map`でexit 1となり、互換性のある走査を使うsession専用検査へ置き換えた。製品/DB/外部APIへの影響はない。
+- 13:21:10 JST、`/usr/bin/ruby -EUTF-8:UTF-8 <session>/oct16-phase20-closeout/verify-closeout.rb`はexit 0。641条件で最終/個別JUnitの実値とtimestamp、188 skipのケース別根拠、P20全10件のcheckpoint、配送/清掃JSON、参照ファイル、`git diff --check`を照合し、失敗0・リンク欠落0。結果を`closeout-integrity.json`へ保存した。
+- 最後のeditor診断はJava2 testファイルに「project classpath外でsyntaxのみ解析」の環境通知がある。editorでtype/compileまで確認できたとはせず、実Gradleのcompile/test成功を根拠とする。文書のProblemsは191件中先頭50件のみ表示され、履歴節のMD038/MD060等を確認。全repo lint cleanとはしない。今回追加した受入条件を満たすために無関係な履歴表の全量整形は行わない。
+
+## 現在の未解決・未確認事項（2026-10-16 更新）
+
+ローカル再受入・合成Gemini診断と本番読取に加え、追加承認の実SNS配送、固定backupの隔離復元/V34互換更新/実Control読戻し、12:38 JSTまでの最終回帰・清掃とP20対応付けを反映した。**工程20のP20-01〜10はPASS / 完了**。[実装ロードマップ](./implementation-roadmap.md#20-機能横断のローカル検証を行う)、[最終受入表](./feature-plans/phase-20-cross-feature-validation.md)、[Runtime Validation Report](./feature-plans/runtime-validation-report.md)を併せて参照する。本番DB/deploy/既存alarm設定は変更せず、実生徒データを外部送信していない。
+
+本文には時系列順でない追補や、後続で解消した「未解決」の記載がある。履歴は書き換えず、現在の着手判断にはこの一覧と各計画の最新記録を使う。「未確認」は不具合確定を意味せず、「別ゲート・保留」は工程20で無条件に実行する指示ではない。以下のIDは課題群の整理用で、失敗テスト件数やskip件数ではない。
+
+### 失敗が残る項目
+
+| ID | 現状・影響 | 次の対応・停止条件 | 根拠 |
+| --- | --- | --- | --- |
+| F-01 | **原因確定・現行アプリへの変更不要。** 承認済みの合成再診断もHTTP 404、`provider_code=not_found`。APIは2.5 Proが新規利用者に提供されない旨を返した。再診断4件中3成功/1失敗、exit 1を保持 | 既定/選択肢に2.5 Proは元々含まれていないため、現行設定・fallbackを変更しない。モデル一覧の掲載だけで採用可能とせず、再採用する場合はアクセス資格から別判断する。新たな再試行は不要 | [安全な再診断](#2026-10-16-07400748-jst-再診断取消フォーカスの再現)、[元の404](#合成運用候補-gemini-25-pro-structured-generation-のhttp-4042026-10-15-1122-jst) |
+| F-02 | **現行本番の解消を確認。** current `a6e90edf...`のnginx設定は0644、UID/GID 101:101の読取成功。5サービスhealthy/restarts 0、両HTTPS health200。これは今回のdeployではなく、10月13日起動の現行releaseの観測結果 | 失敗したef55を再受入したわけではない。将来のECR固定registry digest/CI/source照合と新旧releaseの復旧適合性は別のrelease gateとして維持し、現行停止継続とは扱わない | [本番実測](./production-deployment.md#2026-10-16-本番読み取り調査)、[元の障害](#2026-10-11-0324-jst-ef55本番updateのnginx起動失敗) |
+
+### 工程20で閉じる検証・確認
+
+| ID | 区分・現状 | 次の対応・完了条件 | 根拠 |
+| --- | --- | --- | --- |
+| V-01 | **解消。** P20-01〜10と全29 Servlet/71 routeを共通filter・業務DB/HTTP/browser証跡へ対応付けた。最終561 tests中373 passed/188 skipped、failure/error 0、exit 0。必要なeditor2件/schema1件も再成功 | 188 skipは171件に個別成功証跡、1件候補診断FAIL、16件任意API/保持fixture補助として説明。全action×入力×roleの実HTTP総当たりではなく、元のP20合格条件に対する完了 | [最終回帰](#2026-10-16-12時台-jst-復旧検証の差分解消と最終回帰)、[P20最終対応表](./feature-plans/phase-20-cross-feature-validation.md) |
+| V-02 | **解消。** 現行の非同期生成を合成provider/専用MySQL/HTTPS/認証browserで受入。polling、離脱/再訪、完全な合成ログ/評価JSON、明示保存後のDB再読込を確認 | runnerはexit 0、fixture 1/1、browser 1/1。実API疎通・実データ採点品質とは別。再受入は関連変更時だけ行う | [最終受入](#2026-10-16-0809-jst-ローカル修正の最終受入)、[runner](../../scripts/testing/teacher-prompt-generation-local.sh) |
+| V-03 | **解消。** 履歴から開く配信ツリーを1280px/390pxで展開/折畳・回転・キーボード受入。評価詳細の非表示項目・理由3フィルターと操作も受入 | 配信browser 1/1、教師確認browser 3/3、各exit 0。prototypeは変更しない | [最終受入](#2026-10-16-0809-jst-ローカル修正の最終受入)、[配信runner](../../scripts/testing/teacher-distribution-ui-local.sh) |
+| V-04 | **修正・代表フロー受入完了。** ログアウト確認前のbutton無効化を確定後へ移し、shared feedbackで可視dropdownトグルへfocus復帰。取消/Escape/二段階取消のコード保持と再操作、重複submit抑止、確定logout/失効を確認 | 演習browser 3/3、exit 0、対象操作の`aria-hidden`/focus警告なし。全OS/全画面の保証とはしない | [再現・修正](#2026-10-16-07400748-jst-再診断取消フォーカスの再現)、[最終受入](#2026-10-16-0809-jst-ローカル修正の最終受入) |
+
+### 別ゲート・承認または運用/手動確認が必要な事項
+
+| ID | 現状 | 次の対応・境界 | 根拠 |
+| --- | --- | --- | --- |
+| H-01 | **実SNS配送・隔離業務復旧まで受入。** 定期7回/固定Version/独立監視に加え、合成alarm実評価→SNS Delivered1/Failed0、固定backup復元とV34互換更新、実Control/DAO読戻し/全表読取不変を確認、各最終exit 0。専用資源清掃済み | 残るのは独立offline鍵custody、人間の受信箱開封、復元先Tomcat/browser・本番完全DR/切替/RTO。今回のMac鍵による復号成功を別媒体保管とせず、本番DB上書きや再試験を自動実行しない | [追加承認の運用受入](./production-deployment.md#2026-10-16-追加承認による復元通知試験)、[鍵保管等の負債](./ecr-deployment-debt.md) |
+| H-02 | **正式な評価・アンケート全体の手動E2E/採点品質校正。** 現行アンケート6設問の合成回答保存・再読込は受入済みだが、実運用設定での全体受入、品質・大人数queue・予算/quota・本番SLAの確認は別 | 工程8/19の残ゲートとして扱う。合成API smoke成功を採点品質保証とせず、実提出/編集ログの送信・同意/契約・費用は別途承認条件を満たしてから進める | [現行アンケート受入](./feature-plans/phase-20-cross-feature-validation.md#現行アンケート設定を前提とする部分検証2026-10-14)、[AI計画](./feature-plans/teacher-prompt-ai.md)、[ロードマップの保留](./implementation-roadmap.md#次の着手と意図的な保留2026-10-16-jst更新) |
+| H-03 | **他ブラウザー/OS・OS標準ダイアログ。** Chromiumの対象フロー、単体/ZIPの取得内容等に成功証跡はあるが、全組合せやOS-nativeの選択/保存操作は未確認 | 対象環境を定めた受入として別管理する。自動download/Blob確認とOSダイアログ操作を区別し、工程20の対象外を無条件に追加して完了条件を拡張しない | [工程20の対象外・別ゲート](./feature-plans/phase-20-cross-feature-validation.md#対象外別ゲート)、[Chrome取得確認](#2026-10-03-2253-jst-授業演習のchrome実ダウンロード表示追加確認) |
+| H-04 | **システム全体のUTC保存/日本時間表示の統一が未確認。** runtime timezoneが固定されていないため通知の「日本時間」断定ラベルを外したが、全体の運用条件までは検証していない | DB/JVM/表示の時刻契約と対象環境を確認する。通知の個別成功を全体統一と扱わず、本番timezone設定を自動変更しない | [第165版の時刻記録](#2026-10-12-第165版-通知基盤評価完了) |
+
+### 検証基盤・非阻害の残件
+
+| ID | 現状 | 扱い・次の対応 | 根拠 |
+| --- | --- | --- | --- |
+| T-01 | **部分改善・運用上の分離を維持。** 既存review fixtureがあってもsurveyを追加でき、再seedの非重複と不完全fixture拒否を新テストで確認。survey DB 7 passed/1 skipped、認証HTTP 1/1、exit 0 | review/notification/surveyの全suite無条件同居までは保証しない。機能別runnerの空schemaと独立したGradle workspaceを使う。全suite混在の一般化は別の基盤作業として残す | [survey受入](#2026-10-16-0752-jst-テスト手順の追補とsurvey受入)、[以前の混在失敗](#2026-10-13-1010-jst-工程20の統合試験環境実行順の失敗と再検証) |
+| T-02 | **今回の欠落は解消・以後の回収を改善。** 承認済み再診断のprovider code/messageとJUnitを、失敗終了済みcontainerから`docker cp`で取得。新しいUI runnerも失敗時のtrace/runtime logを保全 | 秘密情報を除去し、取得できないrequest ID等は捏造しない。以前のDB smoke retry attempt数は遡及確定できないため不明のまま保持し、回収だけのために追加の実APIを呼ばない | [安全な再診断](#2026-10-16-07400748-jst-再診断取消フォーカスの再現)、[診断helper](../../src/test/java/control/evaluation/GeminiApiDiagnosticSupport.java) |
+| T-03 | **非阻害の警告整備は残る。** 現行clean buildでもGradle `WarPluginConvention`、runtimeでSLF4J binding、fresh MySQLでroutine dropの1305警告を確認。変更したJava/JSのeditor診断はエラーなし | 依存更新やno-op loggerによる警告隠蔽は行っていない。Gretty/Gradle互換性、logging方針、任意Docker pluginとPython pipe警告の現行再現確認を基盤作業として残す。過去警告すべての再発とは断定しない | [最終受入](#2026-10-16-0809-jst-ローカル修正の最終受入)、[過去のrunner警告](#2026-10-03-23252344-jst-t012のrunner修正最終再検証) |
+
+### 未解決として再計上しない履歴
+
+| 過去の記載 | 現在の扱い・後続証跡 |
+| --- | --- |
+| runner cleanup競合・UTF-8出力32KiB超過 | [T012最終再検証](#2026-10-03-23252344-jst-t012のrunner修正最終再検証)で修正・実制限/DB再読込を確認済み |
+| 古いinactive評価例の一括active化 | [工程20 DAO回帰](./feature-plans/phase-20-cross-feature-validation.md#既知dao不具合の再現修正回帰2026-10-13完了)で修正・専用DB再検証済み |
+| 改訂課題の生成開始がアプリ内404、揺らぎ生成429 | [N167-03の修正・認証browser受入](#n167-03-改訂課題のgemini揺らぎ生成がhttp-4042026-10-13-01580204-jst)と[N167-02の承認後再検証](#n167-02-gemini揺らぎ生成のhttp-4292026-10-13-0110-jst)を参照。F-01の候補モデルAPI 404とは別事象 |
+| Node.js未導入でPlaywright不可、通常pointer未受入 | ホストNode.jsは未導入だが公式Playwright imageで実行済み。フォルダ行pointerも受入済み。[工程20の現状](./feature-plans/phase-20-cross-feature-validation.md#現在のテスト状況)を参照。ホスト導入は継続の必須条件ではない |
+| 30秒保存・同時保存競合・重複提出・再提出が未確認 | [P20-06](./feature-plans/phase-20-cross-feature-validation.md#p20-06-生徒エディター未確認ケース完了)で指定4ケースは完了。旧assignment 17の409を起こした更新者/厳密な時系列は未特定だが、現行コードでのチェック成功と意図した競合拒否の検証は別に記録済み。再発根拠なしに機能障害として再オープンしない |
+| 教師課題S1/T014・S2 preview/job履歴の未受入 | [ロードマップの完了記録](./implementation-roadmap.md#次の着手と意図的な保留2026-10-16-jst更新)を参照。V-02の後日の非同期生成/スキーマ変更は今回の別受入記録を参照 |
+| V11権限不足、Host header拒否、runner URL不足、最近の所有範囲testのfixture/assertion失敗 | 対象を限定した環境・test修正後の成功を各履歴に記録済み。最新の所有範囲browser受入は成功しており、同じ初回失敗を残件へ再計上しない |
+| 本番update失敗後の「サービス停止継続」、段階B/Dの「再実行・timer承認待ち」 | 後続の[旧release復旧成功](#2026-10-11-0711-jst-ef55失敗から旧releaseへの緊急復旧成功)と[backup最終checkpoint](./production-deployment.md#final-acceptance-checkpoint-2026-10-09-2234-jst)で当時の状態は更新されている。F-02/H-01の未解決部分だけを保持する |
+
+### 次の着手
+
+工程20の元のP20-01〜10は完了し、V-01〜04は対象範囲で解消・受入済み。次は研究/運用開始前に必要なH系別ゲートの対象と優先順を利用者と決める。特に鍵の独立保管、正式品質/手動E2E、対象OS、時刻契約を区別し、本番切替/実データ送信/ECR改善へ自動着手しない。F-01の不採用候補診断FAILは残すが、現行アプリのモデル変更や同じAPI再試行は不要。
+
 ## 工程20 授業演習コード所有範囲browser試験の期待値・fixture修正（2026-10-16 00:17–00:26 JST）
 
 - 対象/期待: 合成MySQL/Tomcat fixtureでowner教師が授業演習コードを表示でき、他校のみ担当する教師には一覧・detail・download・ZIP・CSV/bulkから対象コードが漏れないことをbrowserで確認する。

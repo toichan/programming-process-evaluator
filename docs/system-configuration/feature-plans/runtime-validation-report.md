@@ -1,9 +1,153 @@
 # Runtime Validation Report
 
-**Generated**: 2026-10-08  
-**Target**: `/Users/t.toida/programming-process-evaluator` — 工程14「課題進捗確認」
+**Generated**: 2026-10-08 / **Latest update**: 2026-10-16 JST
 
-## Summary
+**Target**: `/Users/t.toida/programming-process-evaluator` — 工程20と関連機能（工程14以降の履歴を保持）
+
+## 2026-10-16 工程20の最終受入
+
+**P20-01〜P20-10: PASS / 完了。** [受入条件と全Servlet対応表](./phase-20-cross-feature-validation.md)を正本とする。
+後段の08時台の`overall: FAIL`は、当時の実行群に候補Gemini診断FAILを含む履歴であり、
+その失敗自体は取り消さない。今回の判定は工程20の元の受入条件に限定する。
+
+### Smoke Test Verdict
+
+```yaml
+build_command: "gradle --offline --no-daemon clean build --warning-mode all --console plain"
+build_working_directory: "/workspace (repository-root source/configuration copy in isolated tools container)"
+covers_all_modules: yes
+returncode: 0
+install_command: n/a
+install_returncode: n/a
+install_reason: "Single Gradle Java WAR project; existing offline cache, no dependency changes"
+environment: "JDK 21 / Gradle 8.10.2 / real isolated MySQL"
+junit: {suites: 147, tests: 561, passed: 373, failed: 0, errors: 0, skipped: 188}
+```
+
+実行selectorやtest除外でbuildを縮小していない。最終実行は`PPE_RESTORE_DB_TEST=true`、
+`DB_NAME=ppe`、専用復元hostを使用し、課題/演習DB等の他opt-inは標準の無効状態。
+373 passedには復元DBの1件を含む。最終buildの独立exit fileは0。
+前のbuild成功後に追加したFlyway commandが失敗した中間runとは区別する。
+Java sourceの最終変更はこのbuildより前で、以後は記録・文書のみ。
+
+### Test Results
+
+| Command / step | Exit | Passed / failed / skipped | 実測と証跡 |
+| --- | --- | --- | --- |
+| 上記のroot全体clean build | 0 | 373 / 0 / 188、error 0 | WAR成功。`definitive-final-build.log` / `full-build-exit-code.txt` / `verified-junit/` |
+| `gradle --offline --no-daemon test --tests control.teacher.TeacherTaskDatabaseTest.periodicSnapshotPersistsAndAStaleEditorVersionCannotOverwriteIt --tests control.teacher.TeacherTaskDatabaseTest.duplicateSubmissionIsIdempotentAndResubmissionPersistsTheNextRevision --console plain` | 0 | 2 / 0 / 0 | 新規空schema→V1〜V34、実runner health200。`editor-opt-in-junit/` |
+| `gradle --offline --no-daemon test --tests control.student.StudentExerciseSchemaTest --console plain` | 0 | 1 / 0 / 0 | 別の新規空schema、legacy文脈/参照/version。`exercise-schema-opt-in-junit/` |
+| `gradle --offline --no-daemon test --tests control.operations.BackupRestoreDatabaseTest --console plain`（V33/V34後各1回） | 各0 | 各1 / 0 / 0 | 実Control/DAOの進捗一覧/詳細、全表fingerprint不変 |
+| `gradle --offline --no-daemon flywayMigrate flywayValidate --console plain`（隔離復元DBのみ） | 0 | N/A（migration task） | V33→V34、67表、業務件数保持、成功履歴34/失敗0、trust0 |
+| 既存最終UI受入（下段の5 runner） | 各0 | browser計8 / 0 / 0 | review3、exercise3、prompt1、distribution1。今回重複再実行せず既存証跡へ対応付け |
+| `/usr/bin/ruby <session>/oct16-phase20-closeout/notification-drill.rb` | 0 | N/A（実配送） | CloudWatch実評価action成功、既存SNS Delivered1/Failed0、一時alarm削除、本番alarm OK |
+| `/usr/bin/ruby <session>/oct16-phase20-closeout/cleanup.rb` | 0 | N/A（後処理） | 専用資源残存0、合成secret削除、共有4サービス不変、両login200 |
+
+証跡の基点はsessionの`files/oct16-phase20-closeout/`。
+共通認証テストは29 Servlet / 71 route / 保護66 routeのfilter GET/POST境界を検証し、
+各業務の学校/所有/状態/競合は既存DB/HTTP/browser証跡へ対応付けた。
+全action×parameter×roleを実HTTPで総当たりしたとはしない。
+188 skipの個別照合はXML timestampを用い、171件に非skip成功証跡、1件は不採用2.5 ProのFAIL、
+16件は成功XML未発見（任意API7、retained browser fixture補助9）。
+これらを今回の373成功へ加算したり、skipを網羅済みと読み替えたりしない。
+
+### Environment and final scoped verdict
+
+```text
+infra-tier: PRIMARY — real disposable MySQL; root Gradle WAR build; no H2/infra fallback
+browser-tier: PRIMARY — official Playwright 1.64.0 image / Chromium, authenticated application
+startup: PASS — existing HTTP/HTTPS acceptance; final shared teacher/student login each HTTP 200
+integration: PASS — final 373 passed / 188 skipped / 0 failure / 0 error; focused results above
+e2e: PASS — eight final local UI cases plus P20-required prior journeys mapped to evidence
+operations-addendum: PASS — isolated populated restore, application Control/DAO readback, SNS delivery
+cleanup: PASS — 2026-10-16 12:38:37 JST; owned resources removed, shared services unchanged
+overall: PASS — P20-01..P20-10 scope only
+candidate-diagnostic: FAIL — excluded Gemini 2.5 Pro remains HTTP 404 / exit 1; no retry or model change
+```
+
+中間の誤role期待、migration user 1045、V34 pending、runner Health属性probeの失敗は
+[エラーレポート](../error-report.md#2026-10-16-12時台-jst-復旧検証の差分解消と最終回帰)に残し、最終成功と区別する。
+復元先Tomcat/browser、本番切替/完全DR/RTO、独立offline鍵保管、人間のメール開封、
+正式採点品質/実運用全体E2E、全OS/native dialog、UTC/JST全体契約、ECR release/hardeningは別ゲート。
+復元・通知の正確な承認/対象/限界は[運用受入記録](../production-deployment.md#2026-10-16-追加承認による復元通知試験)を参照する。
+
+## 2026-10-16 ローカル課題解決の再受入
+
+本節は08時台と09:36 JSTまでの履歴。最新判定は冒頭の工程20最終受入を参照する。
+
+| Command / step | Exit code | Passed / failed / skipped | Scope |
+|---|---:|---|---|
+| 隔離Gradle `gradle --offline --no-daemon clean build --warning-mode all --console plain` | 0 | 371 / 0 / 188（146 suites、559 tests） | JDK 21 / Gradle 8.10.2、WAR成功 |
+| `sh scripts/testing/teacher-submission-review-local.sh acceptance` | 0 | JUnit 26 / 0 / 2、HTTP 1 / 0 / 0、browser 3 / 0 / 0 | 進捗/提出/評価の学校境界、保存コード、評価詳細の非表示項目/3フィルター |
+| `sh scripts/testing/teacher-survey-review-local.sh integration` | 0 | JUnit 7 / 0 / 1、HTTP 1 / 0 / 0 | review後のsurvey seed追加、再実行、同意/学校/出力/監査境界 |
+| `sh scripts/testing/student-exercise-layout-local.sh` | 0 | fixture 1 / 0 / 0、browser 3 / 0 / 0 | 390px/320px行配置、未保存logout取消/Escape/二段階取消、focus・再操作、重複submit、確定logoutと失効 |
+| `sh scripts/testing/teacher-prompt-generation-local.sh` | 0 | fixture 1 / 0 / 0、browser 1 / 0 / 0 | 専用TLS、合成provider2要求、生成polling、離脱/再訪、完全なログ/JSON、保存後DB読戻し |
+| `sh scripts/testing/teacher-distribution-ui-local.sh` | 0 | fixture 1 / 0 / 0、browser 1 / 0 / 0 | 履歴から開く三角/回転/展開・折畳、1280px/390px、peer更新・owner読戻し・他校拒否 |
+| `bash scripts/production/tests/nginx-startup-test.sh` | 0 | 7 PASS checks | source config 0600から構築しimage内0644を非rootで読取、TLS・reload・再作成。本番digestではない |
+| 承認済みGemini限定診断（下記） | 1 | 3 / 1 / 0 | 診断helper2単体＋モデル一覧GET成功、2.5 Pro要求は404 |
+
+最終browser結果は8論理ケースで、中間失敗・同じcaseの再実行を加算していない。標準buildの188 skip、focused runのgated runtime skip、過去の個別opt-in成功を混同しない。
+
+### Gemini診断の再現可能な選択条件
+
+`GEMINI_API_DIAGNOSTIC_TEST=true`、`GEMINI_API_SMOKE_TEST=true`、`GEMINI_API_OPERATION_CANDIDATE_TEST=true`と設定済みキーをDockerの非表示envで渡し、次のGradle commandを1回実行した。実生徒データは使用せず、候補生成要求は1件、自動retryなし。キーは記録しない。
+
+```sh
+gradle --offline --no-daemon test \
+  --tests control.evaluation.GeminiApiDiagnosticSupportTest \
+  --tests control.evaluation.GeminiOperationalCandidateTest.readsAvailableModelNamesWithoutAGenerationRequest \
+  --tests control.evaluation.GeminiOperationalCandidateTest.validatesProCandidateWithOneStructuredRequestAndReadback \
+  --console plain
+```
+
+Result: exit 1、4 tests、3 passed / 1 failed。`POST https://generativelanguage.googleapis.com/v1beta/interactions`、`gemini-2.5-pro`、`store=false`、HTTP 404、provider code `not_found`。providerは「This model models/gemini-2.5-pro is no longer available to new users. Please update your code to use models/gemini-3.1-pro-preview for the latest features and improvements.」と返した。request ID / Retry-Afterは取得できず、捏造しない。モデル一覧には名前があるが利用可能性とは同義ではない。既定/選択肢/fallbackは変更していない。
+
+停止済みcontainerへ`exec`せず`docker cp`でJUnit/診断JSONを回収した。証跡は`build/error-resolution-validation/gemini/`。過去のDB smokeのretry attempt数は引き続き不明で、補完だけの追加APIは実行しない。
+
+### Environment, evidence and verdict
+
+```text
+environment:
+  docker: AVAILABLE — existing functional daemon, dedicated disposable MySQL/Tomcat/proxy containers
+  node: AVAILABLE in official Playwright 1.64.0 image; host Node remains absent
+  playwright: AVAILABLE — bundled Chromium executed all eight final browser cases
+  infra-tier: PRIMARY(Docker-based) — real isolated MySQL; no infra fallback
+  browser-tier: PRIMARY(Playwright) — authenticated production implementation, synthetic fixtures
+startup: PASS — exit_code: 0, HTTPS prompt login and HTTP fixture logins responded before browser execution
+integration: PASS for local app — exit_code: 0, full build passed: 371, failed: 0, skipped: 188; separate focused DB/HTTP counts above
+e2e: PASS — exit_code: 0 for each final runner, passed: 8, failed: 0, Chromium; other OS/native dialogs unverified
+overall: FAIL — the separately requested Gemini candidate diagnostic still exits 1; local implementation acceptance is green but production/full-matrix/quality sign-off remains pending
+```
+
+Evidence: final build `build/error-resolution-validation/final/`; review `build/teacher-submission-review-validation/acceptance/run-77628/`; survey `build/teacher-survey-review-validation/integration/`; exercise `build/student-exercise-layout-validation/`; prompt `build/teacher-prompt-generation-validation/run-77003/`（DBは`configured/completed/completed/active/2`、合成provider2要求）; distribution `build/teacher-distribution-ui-validation/run-76997/`。
+
+08:25 JSTの別ゲート追補: ユーザーは本番のrelease/digest・backup receipt/S3 Version/監視値に限定した読み取り調査を承認した。ただし`aws sts get-caller-identity --profile ppe-deployer --region ap-northeast-1`はSSO token失効でexit 255。本番の実測に進めておらず、再認証待ち。ローカル受入の成功とは別の阻害要因であり、本番未確認を解除しない。詳細は[エラーレポート](../error-report.md#2026-10-16-0825-jst-本番の読み取り専用調査を承認)を参照。
+
+### 08:38〜08:47 JST 本番読取の追補（認証待ちは解消）
+
+| Command / observation | Exit code | Result / limitation |
+|---|---:|---|
+| `aws sts get-caller-identity --profile ppe-deployer --region ap-northeast-1`、対象EC2/SSM情報 | 0 | 承認先account/instance、running/Onlineを確認 |
+| 同profileの`cloudwatch describe-alarms` | 254 | AccessDenied、現在のalarmは未確認 |
+| 同profileの`cloudwatch get-metric-statistics --namespace PPE/Backup --metric-name FreshBackup --dimensions Name=Project,Value=ppe-production`（直近24h、period3600） | 254 | AccessDenied、保存metric値は未確認 |
+| SSM `send-command` | API拒否 | command IDなし。外側wrapperの末尾cat exit 0はAPI成功ではない |
+| 同profileのinteractive SSM metadata probe初回 | 1 | 観測結果は回収したが、PTY wrapperの終了code捕捉がtimeout |
+| EXIT trap補正後の同profile interactive SSM backup probe | 0 | current/receipt hash不変、最新backupの3固定S3 Version/local暗号化hash/size/SSE-KMS照合成功、5サービスhealthy、nginx0644の非root読取成功 |
+| 両domain `curl --fail --max-time 15 https://{student,teacher}.ppeval.net/health` | 各0 | 各HTTP 200、DB/業務flowの試験ではない |
+
+本番currentは`a6e90edf31c5369ea71c2e10efc78d37461423d6`、10月13日更新済みのreleaseだった。今回は変更していない。scheduled backupは10月10〜16日JSTの7開始/7完了、最新02:03:01〜02:03:15 JST、receipt02:03:04 JST、freshness直近08:00:13〜08:00:19 JST。CloudWatch独立readback・業務DB復元・鍵custody・将来のECR release gateは残る。候補Gemini診断の既存FAILも解除しない。
+
+再現payloadと出力はsession `files/oct16-error-resolution/production-readonly-{metadata,backup}.{sh,log}`、`production-readonly-session.exp`に保全した。固定Version/サイズの正本は[本番調査記録](../production-deployment.md#2026-10-16-本番読み取り調査)。実行は`AWS_PAGER='' AWS_MAX_ATTEMPTS=1 /usr/bin/expect <session>/production-readonly-session.exp <session>/production-readonly-backup.sh <session>/production-readonly-backup.log`、exit 0。新しいアプリtestやbuildの再実行ではなく、承認済みの運用メタデータ受入である。
+
+### 09:36 JST 独立した保存監視値の受入
+
+ユーザーが`ppe-infra-admin`による読取を別承認。同一account/東京をSTSで確認後、対象alarmの`describe-alarms`、FreshBackup直近24hの`get-metric-statistics`（period3600、Minimum/Maximum/SampleCount）、BackupSuccess直近7dの同API（period86400、Sum/SampleCount）を各1回実行、全てexit 0。alarmはOK/ActionsEnabled=true、承認済み評価条件・SNS action ARNと一致。FreshBackupは24連続hourly区間の全てでmin=max=1/sample1、BackupSuccessは7区間で合計13成功サンプル。ローカルJSON条件/連続性検査もexit 0。
+
+取得JSONはsession `files/oct16-error-resolution/production-cloudwatch-{alarm,freshness,success,summary}.json`。集計bucket時刻は実行時刻ではなく、13サンプルは13回のscheduled実行という意味でもない。独立監視readbackの未確認は解除するが、以前のAPI拒否/候補Gemini診断FAILは履歴として保持し、alarm起点の実配送・業務DB復旧/鍵custody・工程20全量sign-offは未完了。設定変更/通知試験は行っていない。
+
+中間のテスト操作・TLS proxy構成ミスと修正履歴は[エラーレポート](../error-report.md#2026-10-16-0736-jst-未解決課題の受入テスト初回実行)に保持した。8 browser casesは既存Playwright資産を再利用/拡張し、3 specを追加したもので、新しいテストframeworkは導入していない。テストの座標測定は同一DOM評価で行い、1px基準を緩めていない。
+
+## 2026-10-08 Summary（工程14の履歴）
 
 | Step | Status | Exit Code | Details |
 |---|---|---:|---|

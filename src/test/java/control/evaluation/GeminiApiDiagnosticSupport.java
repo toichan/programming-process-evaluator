@@ -131,6 +131,33 @@ public final class GeminiApiDiagnosticSupport {
 		}
 	}
 
+	public static JsonObject operationalCandidate(
+			String label, String model, String instruction, String input, JsonObject schema) throws Exception {
+		reserveGeneration();
+		JsonObject body = new JsonObject();
+		body.addProperty("model", model);
+		body.addProperty("system_instruction", instruction);
+		body.addProperty("input", input);
+		body.addProperty("store", false);
+		JsonObject format = new JsonObject();
+		format.addProperty("type", "text");
+		format.addProperty("mime_type", "application/json");
+		format.add("schema", schema.deepCopy());
+		body.add("response_format", format);
+		JsonObject config = new JsonObject();
+		config.addProperty("max_output_tokens", 4096);
+		config.addProperty("thinking_level", "high");
+		body.add("generation_config", config);
+		return sendRaw(label, HttpRequest.newBuilder(
+				URI.create("https://generativelanguage.googleapis.com/v1beta/interactions"))
+				.timeout(EvaluationRetryPolicy.REQUEST_TIMEOUT)
+				.header("Content-Type", "application/json")
+				.header("x-goog-api-key", System.getenv("GEMINI_API_KEY"))
+				.header("Api-Revision", "2026-05-20")
+				.POST(HttpRequest.BodyPublishers.ofString(body.toString(), StandardCharsets.UTF_8))
+				.build(), bytes(input), bytes(schema.toString()), model);
+	}
+
 	public static Path saveOutput(String label, JsonObject response)
 			throws EvaluationProviderException, java.io.IOException {
 		String text = new GeminiEvaluationClient().extractOutputText(response);
@@ -144,8 +171,14 @@ public final class GeminiApiDiagnosticSupport {
 
 	private static JsonObject sendRaw(
 			String label, HttpRequest request, int inputBytes, int schemaBytes) throws Exception {
+		return sendRaw(label, request, inputBytes, schemaBytes, GeminiModelCatalog.DEFAULT_MODEL);
+	}
+
+	private static JsonObject sendRaw(
+			String label, HttpRequest request, int inputBytes, int schemaBytes, String model) throws Exception {
 		long started = System.nanoTime();
 		JsonObject observation = observation(label, inputBytes, schemaBytes);
+		observation.addProperty("model", model);
 		HttpResponse<String> response;
 		try {
 			response = HTTP.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
@@ -160,6 +193,7 @@ public final class GeminiApiDiagnosticSupport {
 		observation.addProperty("elapsed_ms", elapsed(started));
 		observation.addProperty("response_bytes", bytes(response.body()));
 		JsonObject body = JsonParser.parseString(response.body()).getAsJsonObject();
+		appendErrorDetails(observation, body, response.headers(), System.getenv("GEMINI_API_KEY"));
 		if (body.has("error") && body.get("error").isJsonObject()) {
 			JsonObject error = body.getAsJsonObject("error");
 			observation.addProperty("high_demand",
@@ -184,6 +218,35 @@ public final class GeminiApiDiagnosticSupport {
 					false, response.statusCode());
 		}
 		return body;
+	}
+
+	static void appendErrorDetails(
+			JsonObject observation, JsonObject body, java.net.http.HttpHeaders headers, String apiKey) {
+		if (!body.has("error") || !body.get("error").isJsonObject()) return;
+		JsonObject error = body.getAsJsonObject("error");
+		for (String field : new String[] { "code", "status" }) {
+			if (error.has(field) && error.get(field).isJsonPrimitive()
+					&& error.get(field).getAsString().matches("[A-Za-z0-9_]{1,64}")) {
+				observation.add("provider_" + field, error.get(field));
+			}
+		}
+		if (error.has("message") && error.get("message").isJsonPrimitive()) {
+			observation.addProperty("provider_message", diagnosticText(error.get("message").getAsString(), apiKey));
+		}
+		for (String header : new String[] { "x-goog-request-id", "x-request-id", "request-id" }) {
+			var requestId = headers.firstValue(header);
+			if (requestId.isPresent()) {
+				observation.addProperty("request_id", diagnosticText(requestId.get(), apiKey));
+				break;
+			}
+		}
+	}
+
+	private static String diagnosticText(String input, String apiKey) {
+		String redacted = apiKey == null || apiKey.isEmpty() ? input : input.replace(apiKey, "[REDACTED]");
+		redacted = redacted.replaceAll("AIza[A-Za-z0-9_-]{20,}", "[REDACTED]")
+				.replaceAll("[\\p{Cntrl}]", " ");
+		return redacted.substring(0, Math.min(1000, redacted.length()));
 	}
 
 	private static void reserveGeneration() {

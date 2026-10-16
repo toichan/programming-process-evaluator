@@ -4,17 +4,89 @@
 
 工程10〜19で実装・個別受入した教師/管理者機能を、認証・権限・状態遷移・永続化の境界を越えて横断確認する。工程7・8等の既知未確認ケースと、評価例保存で発見されたDAOリスクの再現・修正も対象に含める。
 
+### 2026-10-16 工程20の最終判定: 完了
+
+**判定: P20-01〜P20-10はPASS。** 以下の対応表を最終判定の正本とし、後段の日時付き`PARTIAL / NEEDS_SIGNOFF`は当時点の履歴として保持する。完了対象は本計画の合格条件であり、全入力値・全action×全roleの総当たり、全OS、本番災害対策、実データ採点品質の保証へ拡大しない。別ゲートを合格扱いしたり、失敗した候補診断を免責・成功化したりしたものではない。
+
+- 最終のルート全体build: `gradle --offline --no-daemon clean build --warning-mode all --console plain`、JDK 21/Gradle 8.10.2、exit 0。147 suites / 561 tests、373 passed / 188 skipped、failure/error 0、WAR成功。復元DBのopt-in 1件を有効にした実行であり、通常buildのDB skipを成功へ読み替えていない。
+- 既存のMySQL/認証HTTP/Chromium受入を下表に対応付けた。最後のUI変更後の8論理browserケースはすべて成功済み。今回の終結作業はテスト・証跡と文書が中心で、同じ成功済み画面の再巡回は行わない。
+- 共通認証契約を[AuthenticationFilterTest](../../../src/test/java/servlet/auth/AuthenticationFilterTest.java)へ追加。実コンパイル済み`@WebServlet`から29 Servlet / 71 routeを列挙し、保護対象66 routeのGET/POSTで未認証拒否とfilter責務内の誤role拒否を確認した。staff共通filterがadminを通す教師領域は、教師専用handler/Controlと既存の実HTTP 403受入で補完する。filter単体の成功を業務認可の代用にしない。
+- 証跡照合で最後に成功XMLが見つからなかったエディター2件と[演習schemaテスト](../../../src/test/java/control/student/StudentExerciseSchemaTest.java)1件は、空の専用schemaへV1〜V34を適用/validateし、実runner設定で再実行。2/2と1/1、各exit 0。提出・snapshotの過去失敗を残したまま完了にはしていない。
+- 追加承認の固定backup復元・実Control/DAO読戻し、CloudWatch起点SNS配送も成功。詳細と限界は[運用受入記録](../production-deployment.md#2026-10-16-追加承認による復元通知試験)を参照する。
+- 12:38:37 JSTに今回所有の8 test containers、復元ComposeのDB/container/volume/network、合成secret3ファイルと一時WARを清掃。専用資源の残存0、共有4サービスのID/image/起動時刻不変、共有教師/生徒loginは各HTTP 200。本番DB・元のage鍵・プロトタイプは変更していない。
+
+#### P20受入条件と最終証跡
+
+| ID | 判定 | 対応する実行・根拠 |
+| --- | --- | --- |
+| P20-01 | PASS | 上記の最終clean build、147 suites / 561 tests、373 passed / 188 skipped、exit 0。skipの内訳は下記 |
+| P20-02 | PASS | 各既存runnerの空MySQL→V1〜V34 migrate/validate→WAR/Tomcat readiness→合成fixture保存/HTTP/DB再読込。今回の2新規空schemaでも34件成功/失敗0 |
+| P20-03 | PASS | 全登録routeの共通filter契約に加え、[URL/portal実HTTP](../../../src/test/java/servlet/auth/ApplicationUrlRuntimeTest.java)、教師/管理者/生徒のrole拒否、学校/機能権限失効、停止/削除、stale versionと監査の既存DB/認証HTTP/browser証跡を下表へ対応付けた |
+| P20-04 | PASS | 即時公開、予約worker実公開、改訂通知の対象revision/既読永続化、配信の冪等再送と予約再開。既存の課題/配信DBとpublication/notification browser受入 |
+| P20-05 | PASS | 進捗/提出/評価/演習/アンケートのDB・認証HTTP・学校境界browser、並び順/CSV/JSON/TXT/ZIPと匿名化。現行6設問/30選択肢を変更せず合成回答の保存/再読込 |
+| P20-06 | PASS | 実30秒保存、2 contextの同時要求overlap・200/409・勝者再読込、冪等提出/再提出revision。今回の元DBテスト2件も再成功 |
+| P20-07 | PASS | expired-deny通知→home、直接editor 404、本人/他人/割当/延長のDB/HTTP再検証。拒否時のparticipation非生成とDB不変 |
+| P20-08 | PASS | inactive評価例の誤active化を修正前に再現、最新生成ID限定更新後の専用DB回帰成功。失敗履歴を保持 |
+| P20-09 | PASS | 必須4フロー（教師公開/改訂、管理者管理、対象生徒通知→editor、権限拒否）をChromiumで受入。対象画面の通常/狭幅、shared feedback・キーボードも既存証跡へ対応 |
+| P20-10 | PASS | 最終全体buildとfocused opt-inを実行、12:38 JST清掃と共有サービスの不変/HTTP200、差分検査。skip・別ゲートを明示 |
+
+#### 全Servletのroute/action群と証跡の対応
+
+正確な71 route・宣言HTTP method・filter許可roleは、上記の自動契約が生成する`build/phase20/servlet-surface.json`に記録する。下表はその29 Servletすべてを業務action群へ対応付けたもの。各拒否入力のブラウザー総当たり表ではなく、共通filter・業務DB/HTTP・代表browserがそれぞれ検証した責務を分ける。
+
+| Servlet / route群 | action・状態・境界 | 主な業務証跡（共通filter契約に追加） |
+| --- | --- | --- |
+| Root / Health / HelloWorld / Login / Logout | portal入口、login、logout、旧URL誘導。health/sampleは業務機能の追加要件ではない | [URL実HTTP](../../../src/test/java/servlet/auth/ApplicationUrlRuntimeTest.java)、[認証browser](../../../e2e/phase20/authentication.spec.js)、[logout取消/確定](../../../e2e/phase20/exercise-logout-focus.spec.js) |
+| StudentPasswordChange / StudentAccount / TeacherSelfAccount | 初回/任意/再設定、version競合、旧session失効 | [学習縦断HTTP](../../../src/test/java/servlet/journey/StudentLearningFlowRuntimeTest.java)、[教師本人DB](../../../src/test/java/control/teacher/TeacherSelfAccountDatabaseTest.java)、[URL実HTTP](../../../src/test/java/servlet/auth/ApplicationUrlRuntimeTest.java) |
+| StudentHome / StudentRubric | 公開対象、課題選択、認可、登録済みrubric | [課題menu実HTTP](../../../src/test/java/servlet/student/StudentTaskMenuRuntimeTest.java)、[rubric DB](../../../src/test/java/control/student/StandardRubricDatabaseTest.java)、[公開browser](../../../e2e/phase20/teacher-publication.spec.js) |
+| StudentConsent | 同意/不同意/撤回、本人・version境界 | [同意DB](../../../src/test/java/control/student/ConsentDatabaseTest.java)、[学習縦断HTTP](../../../src/test/java/servlet/journey/StudentLearningFlowRuntimeTest.java)、[現行survey browser](../../../e2e/phase20/current-survey-settings.spec.js) |
+| StudentEditor / StudentEditorPreferences | draft/save、実行/input/poll/cancel、提出前check、submit、resubmission、設定route | [課題DB](../../../src/test/java/control/teacher/TeacherTaskDatabaseTest.java)、[自動保存](../../../e2e/phase20/editor-autosave.spec.js)、[同時保存](../../../e2e/phase20/editor-simultaneous-save.spec.js)、[提出/再提出](../../../e2e/phase20/editor-submit-resubmission.spec.js) |
+| StudentEvaluation / StudentSurvey | evaluation/log/retry、回答draft/submit/read-only、所有・同意 | [評価DB](../../../src/test/java/control/evaluation/EvaluationDatabaseTest.java)、[評価/survey実HTTP](../../../src/test/java/servlet/student/StudentEvaluationSurveyRuntimeTest.java)、[現行survey browser](../../../e2e/phase20/current-survey-settings.spec.js) |
+| StudentExercise | tree/create/rename/save/run/session/input/cancel、upload/preview、duplicate/preview、move、trash/restore/batch、unify/download | [演習DB](../../../src/test/java/control/student/StudentExerciseDatabaseTest.java)、[schema回帰](../../../src/test/java/control/student/StudentExerciseSchemaTest.java)、[行pointer](../../../e2e/phase20/exercise-folder-row-toggle.spec.js)、[logout保持](../../../e2e/phase20/exercise-logout-focus.spec.js) |
+| StudentNotification | list/open/read-all、本人・期限・対象再検証、既読永続化 | [通知DB](../../../src/test/java/control/student/StudentNotificationDatabaseTest.java)、[通知実HTTP](../../../src/test/java/servlet/student/StudentNotificationRuntimeTest.java)、[予約公開通知](../../../e2e/phase20/scheduled-publication-notification.spec.js)、[deny通知](../../../e2e/phase20/expired-deny-notification.spec.js) |
+| AdminHome / SchoolManagement / TeacherAccount | 学校/教師作成・権限・状態・reset・競合・監査、他role拒否 | [学校DB](../../../src/test/java/control/admin/SchoolDatabaseTest.java)、[教師管理DB](../../../src/test/java/control/admin/TeacherAccountDatabaseTest.java)、[管理者browser](../../../e2e/phase20/admin-teacher-management.spec.js) |
+| TeacherHome | 有効な機能権限によるlanding、他role | [URL実HTTP](../../../src/test/java/servlet/auth/ApplicationUrlRuntimeTest.java)、[role境界browser](../../../e2e/phase20/student-teacher-boundary.spec.js) |
+| StudentAccountManagement | create/reveal/reset/status、level1/2、学校/クラス・version・監査・失効 | [生徒管理DB](../../../src/test/java/control/teacher/StudentAccountManagementDatabaseTest.java)、[URL実HTTP](../../../src/test/java/servlet/auth/ApplicationUrlRuntimeTest.java)、[工程12計画](./teacher-student-accounts.md) |
+| TeacherTask | create/save/delete/restore/duplicate/copy-series、publish/schedule/revise、deadline延長/class追加、preview | [課題DB](../../../src/test/java/control/teacher/TeacherTaskDatabaseTest.java)、[peer/他校境界](../../../e2e/phase20/teacher-task-peer-draft-ownership.spec.js)、[改訂通知](../../../e2e/phase20/revision-publication-notification.spec.js)、[公開/改訂計画](./teacher-task-revision.md) |
+| TeacherPrompt | draft/copy/apply、fluctuations/resolutions/examples保存、generationStatus、再評価preview/retry/cancel/confirm | [課題DB](../../../src/test/java/control/teacher/TeacherTaskDatabaseTest.java)、[生成queue browser](../../../e2e/phase20/prompt-generation-queue.spec.js)、[AI計画](./teacher-prompt-ai.md) |
+| TeacherDistribution | draft/distribute/archive、stop/resume、target stop/resume/reschedule、preview/input/poll/cancel | [配信DB](../../../src/test/java/control/teacher/TeacherDistributionDatabaseTest.java)、[peer編集/履歴browser](../../../e2e/phase20/teacher-distribution-peer-edit.spec.js) |
+| TeacherProgress | list/detail/activity/code/CSV、preview/input/poll/cancel、学校/機能失効 | [進捗DB](../../../src/test/java/control/teacher/TeacherProgressDatabaseTest.java)、[preview実HTTP](../../../src/test/java/servlet/teacher/TeacherPreviewRuntimeTest.java)、[学校境界browser](../../../e2e/phase20/teacher-progress-ownership.spec.js) |
+| TeacherReview（submissions/evaluations） | list/detail/sort/filter、csv/file/logs/zip/logs-zip、提出preview、非表示条件 | [確認DB](../../../src/test/java/control/teacher/TeacherReviewDatabaseTest.java)、[確認実HTTP](../../../src/test/java/servlet/teacher/TeacherReviewRuntimeTest.java)、[提出/評価境界browser](../../../e2e/phase20/teacher-submission-ownership.spec.js) |
+| TeacherSurvey | list/detail/csv/text、同意/匿名化、GET不変・POST405 | [survey DB](../../../src/test/java/control/teacher/TeacherSurveyDatabaseTest.java)、[survey実HTTP](../../../src/test/java/servlet/teacher/TeacherSurveyRuntimeTest.java)、[学校境界browser](../../../e2e/phase20/teacher-survey-ownership.spec.js) |
+| TeacherExercise | list/detail/csv/download/zip/bulk/selected、preview/input/poll/cancel、他校/失効 | [演習確認DB](../../../src/test/java/control/teacher/TeacherExerciseDatabaseTest.java)、[実HTTP](../../../src/test/java/servlet/teacher/TeacherExerciseRuntimeTest.java)、[学校境界browser](../../../e2e/phase20/teacher-exercise-ownership.spec.js) |
+
+#### 188 skipの説明と別ゲート
+
+- 最終buildの188 skipは成功件数に含めない。JUnitの実行timestampでケース別に照合した結果、171件には個別opt-inの非skip成功XMLがある。今回だけで171件を再実行したという意味ではない。
+- 1件は不採用候補`gemini-2.5-pro`の診断FAIL（HTTP404/exit1）。現行の既定/選択肢にこの候補は元々なく、P20-01〜10の製品受入tierではない。失敗結果はそのまま残し、再採用を別判断とする。
+- 残16件は、独立した成功XMLが見つからないretained browser fixture補助9件と、任意の実API比較/診断7件。fixture補助を機能受入の追加要件にせず、実際の画面・業務データの受入は上表の実HTTP/DB/browser証跡を使う。未実行の補助/任意APIをpassに変換しない。
+- ケース別のtimestamp/結果/証跡pathはsessionの`oct16-phase20-closeout/opt-in-execution-evidence.json`、全routeは`servlet-surface.json`、終了code・清掃・配送は同ディレクトリの記録へ保全した。新規テストframework/依存更新はない。
+- 独立offline鍵保管、メール受信箱での人間の開封確認、実データ採点品質/正式評価E2E、費用/quota/負荷、本番restore/cutover/RTO、全OS/native dialog、全体UTC/JST契約、将来ECR release gate、非阻害の依存互換警告は別ゲートとして維持する。工程20を終えるために成功したことにはしない。
+
+### 2026-10-16 08時台までのローカル受入（履歴）
+
+- 11:44 JST、ユーザーが残作業の継続、復旧、通知試験を明示承認。工程20本体は下記P20-01〜10の受入条件に対して証跡を対応付け、対象外だったOS-native/全OS組合せ・実データ採点品質・将来release基盤を完了の追加条件にしない。これらを合格扱いするのではなく別ゲートへ分離する。追加承認の復旧は固定S3 Versionからローカル隔離DBへの復元とアプリ読戻し、通知は既存SNS宛の明示的な合成試験とする。稼働DBの上書き、実FreshBackup/既存alarmの偽装、IAM変更、実データの外部AI送信は行わない。新しい試験用metric/alarmは一時資源として識別・清掃し、本番監視を維持する。
+- 追加・修正した最終browser受入は8論理ケース、8 passed / 0 failed、各runner exit 0。進捗の学校境界、評価詳細の表示条件、非同期プロンプト生成/離脱/再訪/完全合成JSON/DB保存、配信履歴から開く三角アイコン（1280px/390px）、ログアウト取消のコード・focus保持/キーボード/確定失効を確認した。
+- 最終隔離clean buildは146 suites / 559 tests（371 passed、188 skipped、failures/errors 0）、exit 0、WAR成功。skipは個別opt-inの結果と対応付ける必要があり、残作業188件という意味ではない。
+- survey seedの追加/繰返し/不完全fixture拒否も受入。全suiteの同一schema混在は依然保証せず、機能別空schemaを使う。共有8080/DB・本番・prototypeは変更していない。
+- 承認済みGemini合成再診断1要求では、2.5 Proの404が新規利用者への提供制約と判明した。既存の既定/選択肢は変えず、候補testのexit 1を保持する。
+- 本番の08:47 JST追補: current `a6e90edf...`とnginx設定0644の非root読取、5サービスhealthy、7回のscheduled backup、最新receipt/3固定S3 Versionの一致を承認済みread-only調査で確認。独立CloudWatch読取・業務DB復旧・鍵custodyは別ゲートとして残す。詳細は[本番調査記録](../production-deployment.md#2026-10-16-本番読み取り調査)を参照。
+- 09:36 JST追補: 別承認の管理profileで独立CloudWatch読取に成功。alarm OK/ActionsEnabled=true、FreshBackup 24連続正常区間を確認し、監視readbackの未確認を解除。実SNS配送・業務DB復旧/鍵custodyは別ゲートのまま。設定変更/通知試験は行っていない。
+- **工程20全体は`PARTIAL / NEEDS_SIGNOFF`を維持。** 全route/actionとopt-in証跡の対応表、運用・正式品質・OS-native・時刻契約・依存互換性は残る。今回の詳細コマンド/件数/失敗履歴は[Runtime Validation Report](./runtime-validation-report.md#2026-10-16-ローカル課題解決の再受入)と[課題台帳](../error-report.md#現在の未解決未確認事項2026-10-16-更新)を参照。
+
+### 2026-10-15までの累積受入記録
+
 この文書は実行計画兼記録である。全体clean buildと個別MySQL統合試験に加え、Playwrightで認証・エディター、N166期限後提出deny、教師確認画面/出力、狭幅表示、教師の即時公開から生徒editor、予約公開workerから通知・editor、認証・権限境界、提出から再提出、管理者による教師アカウント作成、課題改訂通知から新版editor、管理者作成教師の権限境界、現行survey設定受入、フォルダ行pointer操作、同一校教師による他教師所有テンプレートおよび課題下書きの表示・編集と他校教師の直接アクセス拒否、教師アカウントの停止/復帰/削除後の復元拒否、代表portal routeのロール許可・拒否境界、二つのeditor contextからの同時保存競合、提出確認・評価確認・アンケート結果確認・授業演習コード確認の学校所有範囲まで、Playwright 25件を個別に受入済み（30の隔離fixture実行バッチ。中間失敗を含む）。この30バッチはPlaywrightの成功件数とは異なる集計であり、Playwrightは別途29 successful test executions / 23 browser fixture-run invocations（[Runtime Validation Report](./runtime-validation-report.md)）として記録する。さらに2026-10-15、認証HTTP/MySQL fixtureで、進捗・提出確認・評価確認・アンケート結果確認の機能権限失効と進捗の担当校アクセス失効を含む教師確認系アクセス境界を確認した。教師アカウント管理fixtureでは教師から管理者専用画面/作成APIへの直接アクセス拒否に加え、管理者セッションから教師専用`/teacher/task`への直接アクセスがHTTP 403となること、管理者画面は引き続きHTTP 200となること、さらに管理者による古い更新versionの停止要求がHTTP 400で拒否され状態/versionを変えず失敗監査に記録されることを確認した。テスト側の初回失敗も含む実行履歴は[エラーレポート](../error-report.md)に記録した。最新の全体clean buildは144 suites / 552 tests（369 passed、183 skipped、failures/errors 0）、Playwright specはGradle build対象外。skipは未実行として扱う。ただし全主要導線・権限境界のブラウザー網羅、残るopt-in試験、他ブラウザー/OS等が未確認のため、工程20は`PARTIAL / NEEDS_SIGNOFF`である。機能別計画にある過去の成功件数は、その記録された範囲の証跡であって、現行ソース全体の最新ベースラインを代替しない。
 
-## 現在のテスト状況
+## 2026-10-16 08時台までのテスト状況（履歴）
 
 | 層 | 現在確認できる証跡 | 現在の判定 |
 |---|---|---|
-| 単体・JUnit | 最新の隔離clean buildは144 suites / 552 tests（369 passed、183 skipped、failures/errors 0）、Gradle clean build exit 0。Playwright specはGradle build対象外 | 全体clean buildは成功。skipはopt-in環境依存であり、対象MySQL suiteで個別実行したケース以外を合格扱いしない |
-| MySQL統合 | 機能ごとの専用MySQLテスト、migration/validate、DB保存・再読込を行った記録がある。2026-10-15に`TeacherTaskDatabaseTest` 45 tests（35 passed、10 skipped）、Gemini評価DB smoke 1 test、および教師確認系3権限の失効を含む認証HTTP runtime test 1件を専用MySQLで実行し成功 | 個別機能では実施済み。全機能・現行コードを通した統合完了とは判定できない |
-| Gemini synthetic API | 診断/smokeはexit 0（選択7件: 6 passed、1 gated skip）、専用MySQL評価smokeは1/1成功。追加の候補suiteは4件中3 passed/1 failed、exit 1（`gemini-2.5-pro` structured generation HTTP 404） | 候補suiteはFAIL。API一覧への掲載とInteractions structured generationの利用可能性は同義ではない。原因・採用判断は未解決 |
+| 単体・JUnit | 2026-10-16の隔離clean buildは146 suites / 559 tests（371 passed、188 skipped、failures/errors 0）、exit 0。Playwright specはGradle build対象外 | 全体clean buildは成功。skipはopt-in環境依存であり、対象MySQL suiteで個別実行したケース以外を合格扱いしない |
+| MySQL統合 | 過去の課題/評価DB smokeに加え、10月16日に教師確認JUnit 26 passed/2 skipped、survey 7 passed/1 skipped、各認証HTTP 1/1、生成/配信/演習fixture各1/1と保存後のbrowser読戻しを確認 | 個別機能は成功、各exit 0。fixtureは機能別schemaに分離し、全suiteの無条件同居は保証しない |
+| Gemini synthetic API | 過去の診断/smokeと専用MySQL評価smokeは成功。10月16日の承認済み再診断は4件中3 passed/1 failed、exit 1。2.5 Proはproviderの新規利用者向け提供制約でHTTP 404 | 候補診断はFAILを保持。現行の既定/選択肢には2.5 Proがなく変更不要。一覧掲載とInteractions利用可能性は同義ではなく、追加retryは不要 |
 | 認証HTTP | 複数工程で認証後HTTPと権限拒否を確認。進捗の担当校/機能権限失効、提出確認・評価確認・アンケート結果確認の機能権限失効を確認 | 個別範囲は実施済み。横断的なロール/所有範囲の網羅は未確認 |
-| ブラウザー | 認証失敗/成功・管理境界、生徒の30秒自動保存後再読込・逐次stale保存拒否・同時save重複期間での一勝一競合、期限後`DENY`通知遷移・editor直接URL拒否、教師4画面/出力・狭幅、教師の即時公開/予約公開workerから対象生徒の通知・editor、教師アカウント状態/所有範囲のDB境界と認証HTTP/browser、提出・再提出、管理者による教師作成と保存後再読込、改訂通知から新版editor、管理者作成教師の初回パスワード変更後の許可/拒否route、現行survey設定、フォルダ行pointer操作、同一校peer教師によるテンプレート/課題下書きの表示・編集および他校教師の直接アクセス拒否、削除済み教師の復元POST拒否と失敗監査、教師から管理者専用画面/作成APIへの拒否、管理者から教師専用routeへの拒否、古いversionによる管理者更新の競合拒否、生徒・教師・管理者の代表portal route間の許可・拒否、提出確認・評価確認・アンケート結果確認・授業演習コード確認の学校所有範囲までをPlaywrightで確認 | Playwright論理テストケース25件を個別受入済み。全体の30隔離fixture実行バッチ（中間失敗を含む）とPlaywrightの29 successful executions / 23 browser fixture-run invocationsは別集計。進捗・提出確認・評価・アンケート・授業演習コード確認の教師所有範囲は認証HTTPでも確認。その他の主要導線・権限境界は網羅していない |
+| ブラウザー | 10月15日までの25論理ケースに加え、10月16日の対象8ケースで進捗の学校境界、評価詳細の表示条件、非同期合成生成、配信三角アイコン、演習logout取消の修正等を受入 | 今回8/8成功、各exit 0。過去25件との重複を含むため単純加算しない。全route/actionの対応表、その他の主要導線/境界、OS-nativeは未完了 |
 | ブラウザー自動化 | ホストにNode.jsはない。公式Playwright 1.64.0 Docker image内のNode/npmと同梱Chromiumを利用。`e2e` lockfileに基づく`npm ci`とChromium実行に成功 | Playwright primary tierを実行。各fixture batchのexit code 0を記録。未確認フローは合格扱いしない |
 | CIでのopt-in試験 | 標準CIではDB・認証HTTP・ブラウザー・Gemini実API等の環境依存試験が、必要な環境設定なしにskipされる | CIのgreenだけでこれらの試験を合格扱いしない |
 
@@ -193,7 +265,7 @@
 - Geminiの実API呼び出しは行わず、専用appの`GEMINI_API_KEY`を空にしてから提出操作を実施した。システム生成の評価requestは資格情報がないため`failed`となったが、提出と再提出の状態・revision保存は合格。AI評価結果や実API稼働は本受入範囲外としており、合格扱いしない。
 - P20-06の提出・再提出ブラウザー経路とDB冪等境界は受入済み。他ブラウザー/OS・全状態組合せは未確認であり、P20-09や工程20全体の完了を意味しない。
 
-### P20-07 期限後提出拒否・評価/アンケート・通知接続（部分完了）
+### P20-07 期限後提出拒否・評価/アンケート・通知接続（以下は当時の記録）
 
 - `TeacherTaskDatabaseTest.expiredDenyAssignmentDoesNotCreateStudentParticipation`で、期限切れ`DENY`割当を処理した後に対象学生がeditorから除外され、participationが生成されないことを専用MySQLで確認した。
 - P20-05の評価・survey・通知DB試験は合格。追加Playwright受入で期限後`DENY`通知のクリックから`/student/home#taskListSection`への遷移とeditor直接URLのHTTP 404を確認した。教師の進捗/提出/評価/アンケート画面と出力、および390pxでの横overflowなしも確認済み。他の教師/生徒主要導線・権限境界は未網羅。
@@ -203,7 +275,7 @@
 - 古いinactive例と今回の生成例が同一prompt versionにある状態をMySQL回帰テストで作り、修正前に古い行がactive化される不具合を再現した。`TeacherPromptDao.saveEvaluationExamples`を最新生成IDだけ更新するよう修正した。
 - 修正後の`TeacherTaskDatabaseTest`は39 tests、34 passed、0 failures、0 errors、5 skipped、exit 0。opt-in fixtureのskipはpassへ含めない。エラーと対応は[エラーレポート](../error-report.md)に記録した。
 
-### P20-09 ブラウザー横断受入（主要受入完了・追加網羅未完了）
+### P20-09 ブラウザー横断受入（以下は10月15日までの記録）
 
 - ユーザーの選択後、Node.js v24.21.0、npm/npx 11.19.0、Playwright 1.64.0とChromiumを利用可能なユーザー領域へ用意。先行受入時に`e2e/`へ3 specを追加し、その後N166/教師レビュー用に2 spec、即時公開・予約公開受入用に2 specを追加（計7 spec）。fixture/passwordは専用DB・合成アカウントだけで使用。秘密値はレポートへ記録しない。
 - 最終コマンド: `npm --prefix e2e run test:phase20`（Node.js v24.21.0をPATHへ追加、教師/生徒fixture・assignment IDは環境変数）。exit 0、3 tests passed、0 failed。認証specで誤資格情報拒否、教師ログインと課題画面遷移、教師から管理者画面へのアクセスがHTTP 403となる境界を確認。autosave specで誤資格情報拒否、ログイン後にコード編集し30秒周期`periodic_snapshot` POST成功、保存表示と再読込後のDB由来コードを確認。concurrency specで二つのbrowser contextを使い、1つ目の保存後のstaleな2つ目の保存がHTTP 409となり、1つ目の保存内容が再読込後も維持されることを確認。
@@ -222,8 +294,9 @@
 - この受入でPlaywright suiteに1 test declarationを追加した。`e2e/phase20/`のsourceには現時点で合計16個の`test()` declarationがあり、計画冒頭の総数16件と一致する。P20-09の受入要件はP20-04〜07の一部ケースと重複するため、独立したP20-09件数は集計せず、上記フローと個別証跡を基準にする。P20-03の全ロール/全機能所有境界、他ブラウザー/OS、OS標準ダイアログなどは引き続き未確認。
 - 追加網羅の未確認: 全主要導線/権限境界の網羅、全ブラウザー/OS、OS標準ダイアログ、残るopt-inケース。これはP20-09の最低限受入済みフローと区別して、工程20全体の残課題として保持する。
 
-### P20-10 最終回帰・清掃（部分完了）
+### P20-10 最終回帰・清掃（以下は10月16日08時台までの記録）
 
+- 2026-10-16最新: 隔離`gradle --offline --no-daemon clean build --warning-mode all --console plain`は146 suites / 559 tests（371 passed、188 skipped、failures/errors 0）、exit 0。shared feedback修正後の教師browser 3/3、演習3/3、生成1/1、配信1/1も成功。詳細は[最新受入](#2026-10-16-最新のローカル受入)を参照。以下の「最終」「最新」は各過去日付時点の履歴であり、今回の全量網羅を意味しない。
 - 2026-10-14 最終clean build: 作業ツリーをread-onlyでmountした`gradle:8.10.2-jdk21`の一時container内へ`src/`、Gradle設定、`docs/rubric/`をコピーし、既存のホスト`build/`成果物を削除せずに実行。`gradle --no-daemon --console=plain clean build --warning-mode all` — exit 0、`BUILD SUCCESSFUL`。JUnit XML集計は144 suites / 551 tests、368 passed、0 failures、0 errors、183 skipped。skipはopt-in DB/HTTP/browser/real API環境なしによるものでpassには含めない。WAR生成も成功。`WarPluginConvention`のGradle 9.0 deprecation warningあり。集計scriptもexit 0。Playwrightの12件は各専用fixture環境で個別に受入済みで、このbuildでは再実行していない。
 - P20-09管理者ブラウザーfixture追加時のclean build（履歴）: 専用Compose project `ppe-p20-final-20261014`で`docker compose -p ppe-p20-final-20261014 run --rm --no-deps --entrypoint gradle app --no-daemon --console=plain clean build --warning-mode all`を実行。Gradle 8.10.2/JDK 21、exit 0、`BUILD SUCCESSFUL`。JUnit XML集計は144 suites、550 tests、368 passed、0 failures、0 errors、182 skipped。今回の最終clean buildは下記。
 - 最終差分検査: `git diff --check`、exit 0。
@@ -367,9 +440,9 @@
 
 ## 参照資料
 
-- [実装ロードマップ](./implementation-roadmap.md) 工程20と教師/管理者機能の工程状態
-- [CI運用](./continuous-integration.md) 標準build、opt-in環境、skip範囲
-- [実装契約](./implementation-contract.md) ロール/データ所有範囲/状態遷移の制約
+- [実装ロードマップ](../implementation-roadmap.md) 工程20と教師/管理者機能の工程状態
+- [CI運用](../continuous-integration.md) 標準build、opt-in環境、skip範囲
+- [実装契約](../implementation-contract.md) ロール/データ所有範囲/状態遷移の制約
 - [生徒エディター計画](./student-editor.md) 30秒保存・競合・重複提出・再提出
 - [教師課題改訂計画](./teacher-task-revision.md) 評価例保存のDAOリスク
 - [評価・アンケート計画](./student-evaluation-survey.md) 保存/匿名化/未確認事項

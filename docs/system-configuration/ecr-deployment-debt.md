@@ -1,5 +1,7 @@
 # 半手動デプロイ後の技術的負債
 
+2026-10-16追補: 現行currentは`a6e90edf...`、5サービスhealthy、nginx設定0644の非root読取成功を確認した。scheduled backup/固定S3 Version/独立監視readbackに加え、追加承認によるalarm起点のSNS実配送1/失敗0、固定backupの隔離業務復元・V34互換更新・実Control/DAO読戻しと清掃も成功。独立offline鍵custody、人間のメール開封、本番完全DR/切替、将来のECR固定release受入は未完了。以下の10月11日の旧release/障害記録は履歴であり、現在の停止継続ではない。最新の実測と承認境界は[復元・通知受入記録](./production-deployment.md#2026-10-16-追加承認による復元通知試験)を参照する。
+
 2026-10-10 JSTの方針変更で次を今回の必須実装から外した。
 **解決済みではない**。Phase 2は小さなadapterと既存安全gateで完成させる。
 2026-10-11の優先順位と権限障害後の再デプロイ前提条件は
@@ -23,7 +25,7 @@
 | セキュリティ回帰拡充 | producer/adapter mockと既存Shell/Java回帰 | 本番firewall/socket/IMDS境界の証明ではない | 隔離ホストで実ネットワーク/権限境界test | 高 | 1–3日 |
 | Python sandbox runtime | 2026-10-10 EC2のpython:3.12-alpine/linux amd64実IDとbroker指定を確認。7 PPE imageとは別 | 可変upstream tag。更新後の実演習フローは未検証 | デプロイ後の演習受入。将来は独立digest管理/保持 | 高（受入前確認） | 確認1–2h、管理4–8h |
 | 新operations配布 | 86936306...を独立配置しECR取得受入済み。TLS wrapper byte同一、active pointer未変更 | デプロイ時に旧operationsを誤選択するリスク | 新operationsを明示指定し既存gateを維持 | 高（deploy前必須） | 確認30分＋承認待ち |
-| DB復旧訓練 | receipt/Version ID/暗号化/互換性gateを維持 | image rollbackでDDLは戻らない。鍵custody/restore実効性 | 隔離DB restoreと業務データ再読込を定期実施 | 高 | 半日–1日 |
+| DB復旧訓練 | 2026-10-16、固定Versionから隔離業務DB復元・V34互換更新・実Control/DAO読戻しを受入し清掃済み | image rollbackでDDLは戻らない。独立鍵custody・本番完全DR/切替/RTOは未確認 | [今回の範囲](./production-deployment.md#2026-10-16-追加承認による復元通知試験)を再利用し、定期訓練と本番cutoverを別管理 | 高 | 次回訓練 半日–1日 |
 | 取得中の容量/排他 | adapter lock/private staging、失敗時cache/tag保持 | local build/他操作との競合、disk枯渇 | 初回は人間が容量/並列不在確認。将来共通取得lock/容量閾値 | 中 | 2–4h |
 | Docker store portability | Docker29/containerdは固定Descriptor＋local config bytes照合で実受入済み。標準host socket/moby/ctrを要求 | 非標準socket/namespace・将来daemon変更では取得拒否。圧縮/展開双方の保存で容量増 | daemon変更時に互換テスト。必要になった場合のみsocket対応を追加し、既存store切替/restartで回避しない | 中 | 2–4h |
 | 復号鍵の独立保管 | 既存Mac鍵で固定バックアップの再復号認証成功。人間が今回の復旧reference根拠として承認。独立offlineコピーは未確認 | Mac紛失/故障と鍵喪失が重なるとage復号不能。S3/KMSだけでは復旧できない | Phase 2後、所有者が独立した安全な鍵保管と利用可能性を確認。秘密鍵をEC2/Gitに置かない | 高 | 1–2h＋所有者確認 |

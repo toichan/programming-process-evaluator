@@ -22,6 +22,61 @@ import entity.UserCredential.UserType;
 
 class AuthenticationFilterTest {
 	@Test
+	void everyRegisteredProtectedServletRejectsAnonymousAndWrongRoleRequests() throws Exception {
+		var root = java.nio.file.Path.of("src/main/java/servlet");
+		var inventory = new java.util.TreeMap<String, Map<String, Object>>();
+		try (var sources = java.nio.file.Files.walk(root)) {
+			for (var source : sources.filter(path -> path.toString().endsWith("Servlet.java")).toList()) {
+				String name = "servlet." + root.relativize(source).toString()
+						.replace(java.io.File.separatorChar, '.').replaceFirst("\\.java$", "");
+				var type = Class.forName(name, false, getClass().getClassLoader());
+				var annotation = type.getAnnotation(javax.servlet.annotation.WebServlet.class);
+				assertTrue(annotation != null, "Servlet source must declare its route: " + name);
+				var routes = new java.util.TreeSet<String>();
+				routes.addAll(java.util.List.of(annotation.value()));
+				routes.addAll(java.util.List.of(annotation.urlPatterns()));
+				for (String path : routes) {
+					UserType role = path.equals("/student") || path.startsWith("/student/") ? UserType.STUDENT
+							: path.equals("/teacher") || path.startsWith("/teacher/") ? UserType.TEACHER
+							: path.equals("/admin") || path.startsWith("/admin/") ? UserType.ADMIN : null;
+					boolean protectedRoute = (role != null && !path.endsWith("/account/login"))
+							|| path.equals("/auth/logout");
+					var methods = java.util.Arrays.stream(type.getDeclaredMethods()).map(java.lang.reflect.Method::getName)
+							.filter(method -> method.matches("do(Get|Post|Put|Delete|Head|Options|Trace)"))
+							.map(method -> method.substring(2).toUpperCase(java.util.Locale.ROOT)).sorted().toList();
+					assertFalse(inventory.containsKey(path), "Duplicate registered route: " + path);
+					var filterRoles = !protectedRoute ? java.util.List.of()
+							: role == UserType.TEACHER ? java.util.List.of("TEACHER", "ADMIN")
+							: role == null ? java.util.List.of("STUDENT", "TEACHER", "ADMIN")
+							: java.util.List.of(role.name());
+					inventory.put(path, Map.of("servlet", name, "declared_methods", methods,
+							"protected", protectedRoute, "filter_allowed_roles", filterRoles));
+					if (!protectedRoute) continue;
+					for (String method : new String[] { "GET", "POST" }) {
+						Probe anonymous = new Probe(path, method, null);
+						anonymous.run();
+						assertEquals(302, anonymous.status.get(), method + " " + path);
+						assertFalse(anonymous.chained.get());
+						if (role == null) continue;
+						for (UserType candidate : UserType.values()) {
+							if (candidate == role || (role == UserType.TEACHER && candidate == UserType.ADMIN)) continue;
+							Probe wrongRole = new Probe(path, method,
+									user(candidate, candidate == UserType.ADMIN ? "admin" : "synthetic-role"));
+							wrongRole.run();
+							assertEquals(403, wrongRole.status.get(), method + " " + path + " " + candidate);
+							assertFalse(wrongRole.chained.get());
+						}
+					}
+				}
+			}
+		}
+		assertFalse(inventory.isEmpty());
+		var output = java.nio.file.Path.of("build/phase20/servlet-surface.json");
+		java.nio.file.Files.createDirectories(output.getParent());
+		java.nio.file.Files.writeString(output, new com.google.gson.GsonBuilder().setPrettyPrinting().create().toJson(inventory));
+	}
+
+	@Test
 	void anonymousLegacyRequestsRequireLoginBeforeAnyCanonicalRedirect() throws Exception {
 		for (String path : new String[] { "/teacher/account/account", "/teacher/accounts", "/admin/management",
 				"/teacher/account/profile", "/student/account/account", "/student/account/change-password",

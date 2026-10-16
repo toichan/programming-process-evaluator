@@ -1,5 +1,9 @@
 # 教師プロンプト設計・AI生成 S2 実装計画
 
+### 2026-10-16 現行の非同期生成・本番形式合成例の受入
+
+[専用runner](../../../scripts/testing/teacher-prompt-generation-local.sh)で、simulationのHTTPS/合成endpoint制限を維持し、専用MySQL・TLS proxy・認証Chromiumから、揺らぎ生成→polling→離脱/再訪→教師対応保存→評価例生成→完全な合成ログ/評価JSON表示→明示保存→再読込を確認した。fixture JUnit 1/1、browser 1/1、exit 0。providerは合成2要求だけで、DBは`configured/completed/completed/active/2`。これは10月14日の変更後受入であり、実生徒データの採点品質・本番運用受入とは別。詳細と中間失敗履歴は[Runtime Validation Report](./runtime-validation-report.md#2026-10-16-ローカル課題解決の再受入)を参照する。
+
 ### 2026-10-13 追加合意・ローカル画面修正
 
 - 既存S2実装の再評価previewは、画面を離れてもサーバー側処理を継続し、再訪時は同じpreview/jobと保存済み結果を表示する。既存snapshot・30分有効期限・対象者別失敗再試行・全結果確認後の明示確定は変更しない。

@@ -38,7 +38,7 @@ class GeminiOperationalCandidateTest {
 		var schema = JsonParser.parseString("""
 				{"type":"object","properties":{"ok":{"type":"boolean"}},"required":["ok"]}
 				""").getAsJsonObject();
-		var response = GeminiApiDiagnosticSupport.structured(
+		var response = GeminiApiDiagnosticSupport.operationalCandidate(
 				label, model, GeminiApiDiagnosticSupport.INSTRUCTION, GeminiApiDiagnosticSupport.INPUT, schema);
 		var output = GeminiApiDiagnosticSupport.saveOutput(label, response);
 		assertTrue(JsonParser.parseString(Files.readString(output)).getAsJsonObject().get("ok").getAsBoolean());

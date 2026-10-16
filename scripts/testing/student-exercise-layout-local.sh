@@ -74,6 +74,7 @@ docker run --name "$builder" --label ppe.student-layout.owner="$owner" --network
 		--tests control.student.StudentExerciseDatabaseTest.createsRetainedNarrowLayoutBrowserFixture \
 		war --rerun-tasks
 '
+docker cp "$builder:/workspace/build/test-results/test/." "$reports/junit"
 docker cp "$builder:/workspace/build/libs/ROOT.war" "$reports/ROOT.war"
 
 docker run -d --name "$runtime" --label ppe.student-layout.owner="$owner" \
@@ -99,6 +100,7 @@ if [ "$ready" != true ]; then
 	exit 1
 fi
 
+result=0
 docker run --name "$browser" --label ppe.student-layout.owner="$owner" --network "$network" \
 	-e PPE_P20_BASE_URL=http://student.localhost:8080 \
 	-e PPE_P20_HOST_RESOLVER_RULES="MAP student.localhost $runtime, MAP teacher.localhost $runtime" \
@@ -108,5 +110,9 @@ docker run --name "$browser" --label ppe.student-layout.owner="$owner" --network
 	cd /source/e2e
 	exec node node_modules/@playwright/test/cli.js test \
 		phase20/exercise-folder-row-toggle.spec.js phase20/student-teacher-boundary.spec.js \
+		phase20/exercise-logout-focus.spec.js \
 		--output=/tmp/ppe-student-exercise-layout-results
-'
+' || result=$?
+docker cp "$browser:/tmp/ppe-student-exercise-layout-results/." "$reports/browser"
+docker logs "$runtime" > "$reports/runtime.log" 2>&1
+exit "$result"

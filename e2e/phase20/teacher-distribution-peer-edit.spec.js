@@ -23,6 +23,28 @@ test('same-school teacher can edit a peer template while another school is denie
   await expect(editor).toBeVisible();
   await expect(editor).toContainText("print('original peer template')");
 
+  const folder = page.locator('#distributionExercisePage .lesson-tree-folder-header')
+    .filter({ hasText: 'week1' });
+  const toggle = folder.locator('.distribution-tree-folder-toggle');
+  const icon = toggle.locator('.distribution-tree-folder-toggle-icon');
+  const file = page.locator('#distributionExercisePage .lesson-tree-file-button').filter({ hasText: 'main.py' });
+  for (const width of [1280, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expect(icon).toHaveText('▾');
+    await expect(icon).toHaveCSS('transform', 'none');
+    await expect(file).toBeVisible();
+    await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-label', '展開 week1');
+    await expect(icon).toHaveCSS('transform', 'matrix(0, -1, 1, 0, 0, 0)');
+    await expect(file).toBeHidden();
+    await toggle.press('Enter');
+    await expect(toggle).toHaveAttribute('aria-label', '折りたたむ week1');
+    await expect(icon).toHaveCSS('transform', 'none');
+    await expect(file).toBeVisible();
+  }
+  await page.screenshot({ path: test.info().outputPath('distribution-icons-narrow.png'), fullPage: true });
+  await page.setViewportSize({ width: 1280, height: 900 });
+
   await page.locator('#distributionName').fill('P20 Peer Template Updated');
   await editor.click();
   await page.keyboard.press('ControlOrMeta+A');

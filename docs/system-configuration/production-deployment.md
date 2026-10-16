@@ -5,7 +5,9 @@
 supersedes the earlier preparation status. Infrastructure publication is not
 approval to collect research data or to execute the mutation commands in this
 runbook. See [preparation results and system-test plan](production-preparation-plan.md).
-Production business-flow acceptance and disaster restoration remain unverified.
+Production business-flow acceptance and full disaster cutover remain unverified.
+The 2026-10-16 isolated populated-backup restoration and notification delivery
+acceptance below do not constitute a production cutover.
 
 **2026-10-11 status:** The old release was restored successfully after the third
 ECR update failure. ECR publication/acquisition works, but new-release production
@@ -14,6 +16,178 @@ acceptance is **incomplete and paused**. See the
 The earlier preparation/install statuses below are historical, not instructions
 to reinstall completed operations. The Stage C record proves initial-state
 restoration only, not populated research-data recovery.
+
+## 2026-10-16 本番読み取り調査
+
+ユーザーが承認したrelease/image・backup receipt/S3 Version・監視の読取だけを実施した。
+SSO再認証後、`ppe-deployer`のaccount `024378233912`、東京リージョン、
+対象EC2 `i-0ffd69e8f390bd396`のrunning/SSM Onlineを確認した。
+以下は08:41〜08:46 JSTの実測であり、下記10月11日の旧release記録より新しい。
+今回deploy・restart・migration・backup再実行・IAM変更・復元・業務データ取得は行っていない。
+
+### 現行releaseとnginx
+
+| 項目 | 実測・限界 |
+|---|---|
+| Current / state | `a6e90edf31c5369ea71c2e10efc78d37461423d6`、format 2 / mode update / phase published。previousは`0e2bfae5e23bc512f0b7cf844264d4d45a484ecc`。state更新は2026-10-13 08:39:46 JSTで、今回の操作ではない |
+| 5サービス | db / broker / runner / app / nginxが全てhealthy、restart count 0。DBは2026-10-08起動の既存container、アプリ系4サービスは2026-10-13起動 |
+| App image | `sha256:f25d992e669e9b29b9046b18158202e04c60bc726df33ca2d1ef3fd610a8938a`、UID/GID 10001:10001 |
+| Nginx image | `sha256:c0826b1d4675a8815eaa4c42e82b48d9a6416ab3c3d50de70c7ca7836269f046`、UID/GID 101:101 |
+| Nginx config | 実行中containerで`/etc/nginx/nginx.conf`のmode 0644、owner 0:0、`--user 101:101`の`test -r`成功 |
+| HTTPS | 学生/教師両domainの`GET /health`は各HTTP 200、curl exit 0 |
+| 同一性 | receipt検証の前後でcurrentとreceipt hash一致。DBのID・image・StartedAtは既存値と一致し、調査中の再作成はない |
+
+現行本番で設定読取拒否が継続している事実はなく、F-02の現行障害は解消確認とする。
+これは新たなdeployの実施や、失敗した`ef55...`の再受入を意味しない。
+観測RepoDigestsは`ppe-...@sha256:...`形式であり、この読取だけではECR registryの
+固定digest・CI/sourceとの全量照合、将来releaseの起動/rollback受入は証明できない。
+Phase 2全体は引き続き未完了である。
+
+### 定期backupの実行・固定Version照合
+
+- retained systemd journalには2026-10-10〜16 JSTの7開始/7正常完了、失敗entry 0。
+  最初の記録は10月10日02:00:03〜02:00:18 JST。
+  最新は10月16日02:03:01〜02:03:15 JST、Result=success / ExecMainStatus=0、
+  TriggeredBy=`ppe-backup.timer`でtimerのLastTriggerとも一致する。
+- backup/freshness両timerはenabled / active / waiting。
+  freshnessの直近実行は10月16日08:00:13〜08:00:19 JST、Result=success / exit 0。
+- latest receiptはroot:root 0600、作成時刻02:03:04 JST、releaseはcurrentと一致。
+  SHA-256は`0a146e89f50e76bf91fc43ff5ff34883100ec797c6922427017cac4509cf01b6`。
+  08:46:32 JSTでage 24,208秒、許容93,600秒以内。検証前後でhash不変。
+- 既存暗号化ファイル/sidecarのサイズ・SHA-256/base64 checksumと、下記3つの
+  **固定Version**に対するchecksum-enabled S3 HEADを照合し全項目一致、検証exit 0。
+  S3 bodyのdownloadやage復号は行っていない。
+
+| Artifact（`production/mysql/ppe-20261015T170304Z.OelxUY.sql.age`系列） | Version ID | Bytes |
+|---|---|---:|
+| data | `3eCBF3vFVyHvbNYJSgQ6QwBYhGUulMGi` | 801696 |
+| checksum | `mTDKbkKCoLGJzY8jX2QxfbLfodIO6y3W` | 102 |
+| manifest | `gViud1v0UGMWIIjldTXQp3Z2.8mqI7xG` | 994 |
+
+各HEADでVersion ID・ContentLength・ChecksumSHA256・Metadata.sha256・SSE `aws:kms`・
+指定KMS keyがreceiptと一致した。bucketとkeyは既存承認先のみを使用した。
+「最初の定期実行が未到来」という10月9日時点の観測待ちは解除できるが、
+古い初回receipt自体を遡及復元したわけではない。今回固定Versionを検証したのは最新回である。
+
+### 08:47 JST時点の読取経路・制約
+
+`ppe-deployer`の`cloudwatch:DescribeAlarms`と`cloudwatch:GetMetricStatistics`
+（`PPE/Backup` / `FreshBackup` / `Project=ppe-production`）は各1回、AccessDenied / exit 254。
+保存metricの実値、現在のalarm state/ActionsEnabled、alarm起点の通知到達は未確認。
+freshness serviceのexit 0を独立API readbackの代用にしない。IAM変更や管理profile切替はしていない。
+
+SSM Run CommandのSendCommandは既存権限で拒否されたため実行IDなし。
+既存runbookの同profileによるinteractive StartSessionは利用でき、
+instance roleでのS3 HEADを含む最終readonly probeはexit 0で終了した。
+最初のPTY wrapperは終了コードの取得だけでtimeout（exit 1）となり、
+EXIT trapでコードを返すよう補正した。これらの失敗は[エラーレポート](./error-report.md#2026-10-16-本番読取の再開権限制約と受入結果)に保持する。
+
+証跡はsession領域の`files/oct16-error-resolution/production-readonly-{metadata,backup}.log`
+と実行payloadに保存した。業務DB入り復元・アプリ読戻し・独立鍵custodyは
+今回の読取承認の対象外で、従来どおり別ゲートとして残す。
+
+### 09:36 JST 管理プロファイルによる独立監視readback
+
+ユーザーが既存`ppe-infra-admin`による同一accountのアラーム/保存metric読取を別途承認した。
+STSでaccount `024378233912` / `PPE-Infrastructure-Admin` roleを確認しexit 0。
+東京リージョンの次の3読取APIも各exit 0で成功した。IAM・アラーム設定・サービス状態・
+通知経路を変更したり、通知試験を実行したりしていない。
+
+| 読取対象 | 実測 |
+|---|---|
+| `ppe-production-backup-freshness-alarm` | State=`OK`、ActionsEnabled=`true` |
+| 評価条件 | `PPE/Backup` / `FreshBackup`、`Project=ppe-production`、Minimum、period3600、3期間中2期間、threshold1・LessThanThreshold、missing=`breaching` |
+| AlarmActions | 既存の`ppe-production-backup-alerts` SNS ARNと一致。OKActionsは空 |
+| FreshBackup直近24h | 24連続hourly区間、各SampleCount=1、Minimum=Maximum=1、欠落区間なし |
+| BackupSuccess直近7d | 7つの24h集計区間すべてSum>0、合計13成功サンプル |
+
+使用APIは`cloudwatch describe-alarms --alarm-names ppe-production-backup-freshness-alarm`、
+`get-metric-statistics --namespace PPE/Backup --metric-name FreshBackup --dimensions Name=Project,Value=ppe-production --period 3600 --statistics Minimum Maximum SampleCount`（直近24h）、
+同`--metric-name BackupSuccess --period 86400 --statistics Sum SampleCount`（直近7d）。
+全て`--profile ppe-infra-admin --region ap-northeast-1`を明示した。
+
+FreshBackupのbucket開始時刻は10月15日09:36〜16日08:36 JSTで、実際のservice実行時刻ではない。
+BackupSuccessは実行種別を分けないため、13サンプルを13回のscheduled backupと読み替えず、
+scheduled実行の根拠は上記systemdの7回を使う。alarmのStateUpdatedTimestampは
+10月9日18:43:48 JSTの最終状態遷移時刻であり、今回のAPI読取時刻と区別する。
+
+取得JSONとローカルの条件/連続性検証結果（exit 0）はsession領域の
+`files/oct16-error-resolution/production-cloudwatch-{alarm,freshness,success,summary}.json`に保全した。
+**保存metricと現在alarmの独立readbackは受入完了**。以前の`ppe-deployer` AccessDeniedは
+権限を変更せず履歴として保持する。alarm起点の実SNS配送、業務DB入り復元/アプリ読戻し、
+独立鍵custody、将来のECR release gateは引き続き未検証で、今回の成功に含めない。
+
+## 2026-10-16 追加承認による復元・通知試験
+
+11:44 JSTのユーザー指示で復旧・通知試験を別途承認された。以下は09:36 JSTまでの
+読取調査より後の受入であり、そこで「未検証」とした隔離復旧・実SNS配送を更新する。
+稼働DBの上書き、本番deploy/restart/migration、IAM/topic/recipient変更、
+実データの外部AI送信は行っていない。元のage鍵も再生成・変更していない。
+
+### 実アラーム評価とSNS配送
+
+11:49:46〜11:52:18 JST、既存`ppe-infra-admin`で専用namespace
+`PPE/BackupAcceptance` / `FreshBackupTest`、一時alarm
+`ppe-backup-acceptance-20261016T024946Z`を作成した。period60/1期間、
+threshold1未満/missing notBreachingで、合成metric 1→0による実評価
+OK→ALARMを発生させた。既存FreshBackupの実値や本番alarm stateを偽装していない。
+
+| 確認項目 | 結果 |
+| --- | --- |
+| CloudWatch action | 11:51:50 JST、Action Succeeded |
+| 配送経路 | 既存`ppe-production-backup-alerts` SNS、confirmed subscription 1 |
+| SNS配送metric | Delivered=1、Failed=0 |
+| 後処理 | 一時alarmを削除。本番`ppe-production-backup-freshness-alarm`はOK、設定不変 |
+| 実行結果 | exit 0。人間の受信箱での開封/確認はUNVERIFIED |
+
+これは既存SNS宛の実配送成功であり、実backup障害を発生させた試験ではない。
+合成metricの点はAWSの通常retentionで失効する。追加送信・継続alarmはない。
+再現payload/結果はsessionの`files/oct16-phase20-closeout/notification-drill.rb`、
+`notification-result.json`、`test-alarm-action-history.json`、`sns-delivery-metrics.json`へ保全した。
+
+### 固定S3 backupからの隔離業務復旧
+
+上記のdata/checksum/manifestの3固定Versionを`download-backup.sh`で取得し、
+checksum/manifestを照合してexit 0。プロジェクト内の候補鍵はrecipient不一致だったが、
+ユーザー指定の既存本番用identityを0600/本人所有と確認後、
+12:15:28 JSTのhost ageによるciphertext全体認証はexit 0。
+鍵本文の表示・コピー・Docker mount・EC2転送はしていない。
+
+新規Compose project `ppe-restore-phase20-20261016`の内部network/専用volumeへ、
+host ageからMySQL clientへstreamして復元した。host公開port・平文dumpファイルはない。
+元の稼働DBや共有開発DBを復元先にはしていない。
+
+| 段階 | tables / Flyway成功・失敗 | 業務件数・読戻し |
+| --- | --- | --- |
+| 固定V33 dump復元直後 | 66 / 33・0 | users23、tasks2、submissions4、evaluations4、code_logs108 |
+| 実Control/DAO読戻し | 上記schema | [BackupRestoreDatabaseTest](../../src/test/java/control/operations/BackupRestoreDatabaseTest.java) 1/1、exit 0。教師進捗一覧/詳細と未認証拒否、全表fingerprintが読取前後不変 |
+| 現行sourceとの互換検証 | V34 pendingを検出 | 誤ったmigration user名による1045とpending判定は失敗として保持。ignore/repairで隠さず専用復元DBだけを更新 |
+| 正しい`ppe_migrate`でV34 migrate/validate後 | 67 / 34・0 | 上記業務件数を維持。global function-creator trust=0 |
+| V34後の実Control/DAO読戻し | 更新後schema | 同テスト1/1、exit 0。更新後の全表fingerprintもその読取前後で不変 |
+
+読戻しの実コマンドは`gradle --offline --no-daemon test --tests control.operations.BackupRestoreDatabaseTest --console plain`、
+互換更新は`gradle --offline --no-daemon flywayMigrate flywayValidate --console plain`。
+テストは`PPE_RESTORE_DB_TEST=true`と専用host/DBガードでのみ実行し、app権限を使った
+読戻しとmigration権限によるDDLを区別した。V33とV34のfingerprintが同じという意味ではない。
+本番にはV34を適用していない。復元先Tomcatでの認証browser、
+本番host喪失からの完全DR/cutover、RTO/RPO、独立offline鍵custodyの保証ではない。
+
+### 最終回帰と清掃
+
+最終root `gradle --offline --no-daemon clean build --warning-mode all --console plain`は
+exit 0、147 suites / 561 tests、373 passed / 188 skipped、failure/error 0、WAR成功。
+復元DB読戻し1件を有効化した全体実行で、残skipを成功に加えていない。
+工程20の業務条件との対応と別ゲートは[最終受入表](./feature-plans/phase-20-cross-feature-validation.md)を参照する。
+
+12:38:37 JST、今回所有の8 test containers、復元ComposeのDB/container/volume/networkを清掃し
+専用project残存0を確認。合成secret3ファイルと一時WARは削除し、
+暗号化backup・証跡・元のage鍵は維持した。共有4サービスのID/image/起動時刻は
+清掃前後で同一かつrunning、教師/生徒の共有8080 loginは各HTTP 200。
+清掃成功を他project/本番の再作成と混同しない。
+証跡はsessionの`files/oct16-phase20-closeout/`にある
+`restored-counts.tsv`、`restored-upgraded-counts.tsv`、読戻しJUnit、
+`definitive-final-build.log`、`full-build-exit-code.txt`、`cleanup-result.json`へ保全した。
+専用DB/secretは清掃済みなので、同じprivate実行helperを再利用するには環境の再構築が必要。
 
 ## Phase 2 pause and development handoff (2026-10-11 JST)
 
@@ -29,7 +203,7 @@ DB/Volume/23Flyway履歴不変、current旧・rollback state publishedを確認�
 ECR由来の新`ef55edb79cae870d0c1238ae05273c9f34651a0e`はnginx設定読取拒否で失敗し、
 新アプリ系コンテナは稼働していない。新release本番受入/Phase 2は未完了のまま一時終了する。
 
-### 実装・適用・検証の区分
+### 実装・適用・検証の区分（2026-10-11時点）
 
 | 領域 | 実装とコード/運用の入口 | 状態と検証範囲 |
 |---|---|---|

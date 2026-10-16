@@ -249,7 +249,7 @@
     return new Promise((resolve) => {
       const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
       const trigger = document.activeElement;
-      const focusContainer = trigger?.closest('.modal, main') || document.querySelector('main') || document.body;
+      const focusContainer = trigger?.closest('.modal, .dropdown, main') || document.querySelector('main') || document.body;
       let confirmed = false;
 
       function canFocus(element) {

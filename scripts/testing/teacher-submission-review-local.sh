@@ -2,7 +2,7 @@
 set -eu
 cd "$(dirname "$0")/../.."
 mode=${1:-unit}
-case "$mode" in unit|integration|browser) ;; *) echo "Usage: sh scripts/testing/teacher-submission-review-local.sh unit|integration|browser" >&2; exit 2 ;; esac
+case "$mode" in unit|integration|browser|acceptance) ;; *) echo "Usage: sh scripts/testing/teacher-submission-review-local.sh unit|integration|browser|acceptance" >&2; exit 2 ;; esac
 owner=$$
 network=ppe-submission-review-test
 builder=ppe-submission-review-builder
@@ -10,13 +10,17 @@ database=ppe-preparation-20261008-db-1
 runtime=ppe-teacher-review-runtime
 runner=ppe-submission-review-runner
 http=ppe-submission-review-http-tests
+browser=ppe-submission-review-browser
 reports="build/teacher-submission-review-validation/$mode/run-$owner"
-for name in "$builder" "$database" "$runtime" "$runner" "$http"; do
+for name in "$builder" "$database" "$runtime" "$runner" "$http" "$browser"; do
   if docker container inspect "$name" >/dev/null 2>&1; then echo "Existing container $name; refusing to replace it." >&2; exit 1; fi
 done
 if docker network inspect "$network" >/dev/null 2>&1; then echo "Existing test network; refusing to replace it." >&2; exit 1; fi
 cleanup() {
-  for name in "$http" "$runtime" "$runner" "$builder" "$database"; do
+  if docker container inspect "$runtime" >/dev/null 2>&1; then
+    docker logs "$runtime" > "$reports/runtime.log" 2>&1
+  fi
+  for name in "$browser" "$http" "$runtime" "$runner" "$builder" "$database"; do
     if [ "$(docker inspect "$name" --format '{{index .Config.Labels "ppe.submission-review.owner"}}' 2>/dev/null || true)" = "$owner" ]; then docker rm -fv "$name" >/dev/null; fi
   done
   if [ "$(docker network inspect "$network" --format '{{index .Labels "ppe.submission-review.owner"}}' 2>/dev/null || true)" = "$owner" ]; then docker network rm "$network" >/dev/null; fi
@@ -82,6 +86,21 @@ if [ "$mode" != unit ]; then
   ' || result=$?
   mkdir -p "$reports/http"; docker cp "$http:/workspace/build/test-results/test/." "$reports/http/"
   docker logs "$runtime" > "$reports/runtime.log" 2>&1
+fi
+if [ "$mode" = acceptance ] && [ "$result" = 0 ]; then
+  docker run --name "$browser" --label ppe.submission-review.owner="$owner" --network "$network" \
+    -e PPE_P20_BASE_URL=http://teacher.localhost:8080 \
+    -e PPE_P20_HOST_RESOLVER_RULES="MAP teacher.localhost $runtime, MAP student.localhost $runtime" \
+    -e PPE_P20_REVIEW_TEACHER_PASSWORD='ReviewDummy42!' \
+    --mount "type=bind,src=$(pwd),dst=/source,readonly" \
+    --entrypoint sh mcr.microsoft.com/playwright:v1.64.0-noble -c '
+    cd /source/e2e
+    exec node node_modules/@playwright/test/cli.js test \
+      phase20/teacher-submission-ownership.spec.js phase20/teacher-progress-ownership.spec.js \
+      --output=/tmp/ppe-review-acceptance-results
+  ' > "$reports/browser.log" 2>&1 || result=$?
+  cat "$reports/browser.log"
+  docker cp "$browser:/tmp/ppe-review-acceptance-results/." "$reports/browser"
 fi
 if [ "$mode" = browser ] && [ "$result" = 0 ]; then
   echo "Synthetic browser fixture ready: http://teacher.localhost:18089/teacher/account/login"

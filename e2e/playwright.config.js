@@ -14,6 +14,7 @@ module.exports = defineConfig({
   use: {
     baseURL: process.env.PPE_P20_BASE_URL || 'http://student.localhost:18089',
     headless: true,
+    ignoreHTTPSErrors: process.env.PPE_P20_IGNORE_HTTPS_ERRORS === 'true',
     launchOptions: {
       args: hostResolverRules ? [`--host-resolver-rules=${hostResolverRules}`] : []
     },
