@@ -3,6 +3,8 @@ package entity;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
+import lib.time.DateTimeContract;
+
 public final class StudentTaskSummary {
 	private static final DateTimeFormatter DEADLINE_FORMAT = DateTimeFormatter.ofPattern("M月d日 HH:mm");
 
@@ -88,7 +90,7 @@ public final class StudentTaskSummary {
 	}
 
 	public String getDueAtDisplay() {
-		return dueAt == null ? "" : dueAt.format(DEADLINE_FORMAT);
+		return dueAt == null ? "" : DateTimeContract.toUserDisplay(dueAt).format(DEADLINE_FORMAT);
 	}
 
 	public Long getSecondsUntilDue() {

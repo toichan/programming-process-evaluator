@@ -21,6 +21,7 @@ import entity.TeacherTaskInput;
 import entity.TeacherTaskInput.ClassAssignmentInput;
 import entity.TeacherTaskInput.HintInput;
 import entity.TeacherTaskInput.LateSubmissionPolicy;
+import lib.time.DateTimeContract;
 
 public record TeacherTaskForm(
 		String action,
@@ -213,7 +214,7 @@ public record TeacherTaskForm(
 			return null;
 		}
 		try {
-			return LocalDateTime.parse(value);
+			return DateTimeContract.fromUserInput(LocalDateTime.parse(value));
 		} catch (DateTimeParseException e) {
 			throw new IllegalArgumentException("公開日時または提出期限が正しくありません。", e);
 		}

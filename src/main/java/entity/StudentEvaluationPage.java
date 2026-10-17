@@ -4,6 +4,8 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 
+import lib.time.DateTimeContract;
+
 public final class StudentEvaluationPage {
 	private static final DateTimeFormatter DATE_TIME_FORMAT = DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm");
 
@@ -64,7 +66,7 @@ public final class StudentEvaluationPage {
 	public long getSelectedSubmissionId() { return selectedSubmissionId; }
 	public int getSelectedRevision() { return selectedRevision; }
 	public LocalDateTime getSubmittedAt() { return submittedAt; }
-	public String getSubmittedAtDisplay() { return submittedAt.format(DATE_TIME_FORMAT); }
+	public String getSubmittedAtDisplay() { return DateTimeContract.toUserDisplay(submittedAt).format(DATE_TIME_FORMAT); }
 	public String getEvaluationStatus() { return evaluationStatus; }
 	public boolean isEvaluationConfigured() { return evaluationConfigured; }
 	public String getRubricVersion() { return rubricVersion; }
@@ -113,7 +115,7 @@ public final class StudentEvaluationPage {
 		public long getSubmissionId() { return submissionId; }
 		public int getRevisionNumber() { return revisionNumber; }
 		public LocalDateTime getSubmittedAt() { return submittedAt; }
-		public String getSubmittedAtDisplay() { return submittedAt.format(DATE_TIME_FORMAT); }
+		public String getSubmittedAtDisplay() { return DateTimeContract.toUserDisplay(submittedAt).format(DATE_TIME_FORMAT); }
 		public String getEvaluationStatus() { return evaluationStatus; }
 		public String getEvaluationStatusLabel() {
 			return switch (evaluationStatus) {
@@ -168,7 +170,9 @@ public final class StudentEvaluationPage {
 		public int getRevisionNumber() { return revisionNumber; }
 		public String getStatus() { return status; }
 		public LocalDateTime getCompletedAt() { return completedAt; }
-		public String getCompletedAtDisplay() { return completedAt == null ? "" : completedAt.format(DATE_TIME_FORMAT); }
+		public String getCompletedAtDisplay() {
+			return completedAt == null ? "" : DateTimeContract.toUserDisplay(completedAt).format(DATE_TIME_FORMAT);
+		}
 		public String getFeedbackSummary() { return feedbackSummary; }
 		public String getProcessAnalysis() { return processAnalysis; }
 		public List<DimensionResult> getDimensions() { return dimensions; }

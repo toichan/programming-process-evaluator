@@ -68,6 +68,7 @@ import dao.TeacherPermissionDao;
 import dao.TeacherPromptDao;
 import dao.TeacherTaskDao;
 import dao.TeacherTaskPublicationDao;
+import lib.time.DateTimeContract;
 
 class TeacherTaskDatabaseTest {
 	private static final TeacherTaskControl TASKS = new TeacherTaskControl();
@@ -119,7 +120,7 @@ class TeacherTaskDatabaseTest {
 	}
 
 	@Test
-	void createsRetainedSyntheticTeacherFixtureForIsolatedBrowserAcceptance() throws SQLException {
+	void createsRetainedSyntheticTeacherFixtureForIsolatedBrowserAcceptance() throws SQLException, IOException {
 		Assumptions.assumeTrue("true".equals(System.getenv("TEACHER_TASK_BROWSER_FIXTURE")));
 		assertTrue(System.getenv("DB_NAME").matches("ppe_teacher_task_test_[a-z0-9_]+"));
 		String password = System.getenv("TEACHER_TASK_BROWSER_PASSWORD");
@@ -139,6 +140,65 @@ class TeacherTaskDatabaseTest {
 		long taskId = TASKS.createDraft(
 				teacher(), input("Browser publication acceptance"), UUID.randomUUID().toString());
 		activateConfiguredPrompt(teacher(), taskId);
+		long timestampTaskId = TASKS.createDraft(
+				teacher(), input("Browser timestamp acceptance"), UUID.randomUUID().toString());
+		activateConfiguredPrompt(teacher(), timestampTaskId);
+		long promptVersionId;
+		long rubricId;
+		long promptRowVersion;
+		try (Connection connection = Client.createConnection();
+				PreparedStatement statement = connection.prepareStatement("""
+						SELECT t.active_prompt_version_id, t.rubric_id, pv.row_version
+						FROM tasks t JOIN prompt_versions pv ON pv.prompt_version_id = t.active_prompt_version_id
+						WHERE t.task_id = ?
+						""")) {
+			assertEquals(System.getenv("DB_NAME"), connection.getCatalog());
+			statement.setLong(1, timestampTaskId);
+			try (ResultSet rows = statement.executeQuery()) {
+				assertTrue(rows.next());
+				promptVersionId = rows.getLong("active_prompt_version_id");
+				rubricId = rows.getLong("rubric_id");
+				promptRowVersion = rows.getLong("row_version");
+			}
+		}
+		String previewCode = "2e1c7e77-429c-49f9-a7ec-7c3197312514";
+		try (Connection connection = Client.createConnection()) {
+			assertEquals(System.getenv("DB_NAME"), connection.getCatalog());
+			try (PreparedStatement statement = connection.prepareStatement("""
+					INSERT INTO reevaluation_previews (
+					  preview_code, task_id, prompt_version_id, rubric_id, requested_by_user_id,
+					  task_version, prompt_row_version, current_prompt_version_id,
+					  participant_count, target_count, scope_fingerprint, configuration_fingerprint,
+					  preview_status, created_at, expires_at, updated_at, row_version)
+					VALUES (?, ?, ?, ?, ?, 1, ?, ?, 0, 0, ?, ?, 'ready',
+					  '2026-10-16 00:00:00', '2026-10-18 06:00:00', '2026-10-16 00:00:00', 1)
+					""")) {
+				statement.setString(1, previewCode);
+				statement.setLong(2, timestampTaskId);
+				statement.setLong(3, promptVersionId);
+				statement.setLong(4, rubricId);
+				statement.setLong(5, teacherId);
+				statement.setLong(6, promptRowVersion);
+				statement.setLong(7, promptVersionId);
+				statement.setBytes(8, new byte[32]);
+				statement.setBytes(9, new byte[32]);
+				assertEquals(1, statement.executeUpdate());
+			}
+			long jobId = insertReevaluationJob(connection, timestampTaskId, promptVersionId, teacherId,
+					"completed", 1, 1, 100);
+			try (PreparedStatement statement = connection.prepareStatement("""
+					UPDATE reevaluation_jobs SET started_at = '2026-10-16 07:00:00',
+					  completed_at = '2026-10-16 07:00:00' WHERE reevaluation_job_id = ?
+					""")) {
+				statement.setLong(1, jobId);
+				assertEquals(1, statement.executeUpdate());
+			}
+		}
+		Path fixture = Path.of("build", "phase20-prompt-datetime-fixture.properties");
+		Files.createDirectories(fixture.getParent());
+		Files.writeString(fixture, "taskId=" + timestampTaskId + System.lineSeparator()
+				+ "promptVersionId=" + promptVersionId + System.lineSeparator()
+				+ "previewCode=" + previewCode + System.lineSeparator());
 		retainFixtureAfterTest = true;
 	}
 
@@ -3084,7 +3144,7 @@ class TeacherTaskDatabaseTest {
 					throw new SQLException("Synthetic task assignment was not found.");
 				}
 				java.sql.Timestamp value = rows.getTimestamp(1);
-				return value == null ? null : value.toLocalDateTime();
+				return value == null ? null : DateTimeContract.fromDatabaseTimestamp(value);
 			}
 		}
 	}

@@ -3,6 +3,8 @@ package entity;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import lib.time.DateTimeContract;
+
 public record ReevaluationPreview(
 		long previewId,
 		String previewCode,
@@ -24,6 +26,9 @@ public record ReevaluationPreview(
 	public int getParticipantCount() { return participantCount; }
 	public int getTargetCount() { return targetCount; }
 	public LocalDateTime getExpiresAt() { return expiresAt; }
+	public String getExpiresAtDisplay() {
+		return expiresAt == null ? null : DateTimeContract.toUserDisplay(expiresAt).toString();
+	}
 	public List<Target> getTargets() { return targets; }
 
 	public record Target(

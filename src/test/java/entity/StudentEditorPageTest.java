@@ -1,6 +1,7 @@
 package entity;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.Clock;
@@ -44,6 +45,19 @@ class StudentEditorPageTest {
 				LocalDateTime.now(Clock.systemUTC()).minusDays(1), "deny", 13L, 13L, "in_progress");
 		assertFalse(expired.isCanSubmit());
 		assertFalse(expired.isCanStartResubmission());
+	}
+
+	@Test
+	void displaysDeadlinesAndSubmissionTimesInJapanTime() {
+		StudentEditorPage page = new StudentEditorPage(
+				1, 2, 3, "Test task", null, "beginner", "Description", null, null, null, "print('hello')",
+				"completed", "completed", "saved", "deny",
+				LocalDateTime.of(2026, 10, 17, 15, 30), null, null, 13L, 1, "accepted",
+				"print('hello')", LocalDateTime.of(2026, 10, 16, 15, 30),
+				List.of(), List.of(), List.of(), List.of(), LocalDateTime.of(2026, 10, 17, 14, 0));
+
+		assertEquals("10月18日 00:30", page.getDueAtDisplay());
+		assertEquals("10月17日 00:30", page.getLatestSubmittedAtDisplay());
 	}
 
 	private static StudentEditorPage page(

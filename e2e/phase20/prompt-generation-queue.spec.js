@@ -9,6 +9,13 @@ test('queued prompt generations persist production-shaped synthetic examples acr
   await page.goto('/teacher/prompt');
   const taskOption = page.locator('#taskSelect option').filter({ hasText: 'Browser publication acceptance' });
   const taskId = await taskOption.getAttribute('value');
+  const timestampTaskId = requiredEnv('PPE_P20_PROMPT_TASK_ID');
+  await page.goto(`/teacher/prompt?taskId=${encodeURIComponent(timestampTaskId)}`
+    + `&promptVersionId=${encodeURIComponent(requiredEnv('PPE_P20_PROMPT_VERSION_ID'))}`
+    + `&previewCode=${encodeURIComponent(requiredEnv('PPE_P20_REEVALUATION_PREVIEW_CODE'))}`);
+  await expect(page.locator('body')).toContainText('有効期限: 2026-10-18T15:00');
+  await expect(page.locator('#reevaluationHistoryTable')).toContainText('2026-10-16T16:00');
+  await page.goto('/teacher/prompt');
   await page.locator('#taskSelect').selectOption(taskId);
   await page.getByRole('button', { name: '最新版で新しい下書き' }).click();
   await expect(page.locator('#evaluationPromptInput')).not.toHaveAttribute('readonly');

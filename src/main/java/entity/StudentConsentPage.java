@@ -4,6 +4,8 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Optional;
 
+import lib.time.DateTimeContract;
+
 public final class StudentConsentPage {
 	private static final DateTimeFormatter RESPONSE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
@@ -40,6 +42,7 @@ public final class StudentConsentPage {
 	}
 
 	public String getRespondedAtDisplay() {
-		return respondedAt == null ? "" : respondedAt.format(RESPONSE_FORMAT);
+		return respondedAt == null ? ""
+				: DateTimeContract.toUserDisplay(respondedAt).format(RESPONSE_FORMAT);
 	}
 }

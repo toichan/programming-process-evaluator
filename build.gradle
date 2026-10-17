@@ -84,6 +84,13 @@ tasks.register('seedDemoData', JavaExec) {
     mainClass = 'control.dev.DemoDataBootstrap'
 }
 
+tasks.register('initialConfiguration', JavaExec) {
+    group = 'application'
+    description = 'Preserve or rehearse private local initial configuration; never applies to production.'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'control.dev.InitialConfigurationSeed'
+}
+
 tasks.register('seedReviewDemo', JavaExec) {
     group = 'application'
     description = 'Add synthetic evaluation and survey results to the existing local progress demo only.'

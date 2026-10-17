@@ -2,6 +2,8 @@ package entity;
 
 import java.util.List;
 
+import lib.time.DateTimeContract;
+
 public record ExerciseTree(Long exerciseId, List<Scope> scopes, List<Entry> entries,
 		Long selectedEntryId, Execution latestExecution) {
 	public static ExerciseTree from(StudentExercisePage page) {
@@ -10,13 +12,15 @@ public record ExerciseTree(Long exerciseId, List<Scope> scopes, List<Entry> entr
 						s.state().isEditable())).toList(),
 				page.entries().stream().map(e -> new Entry(e.entryId(), e.parentEntryId(),
 						e.type().getValue(), e.status().getValue(), e.name(), e.path(), e.content(),
-						e.trashRootEntryId(), e.trashedAt() == null ? null : e.trashedAt().toString(),
-						e.updatedAt() == null ? null : e.updatedAt().toString())).toList(),
+						e.trashRootEntryId(), e.trashedAt() == null ? null
+								: DateTimeContract.toUserDisplay(e.trashedAt()).toString(),
+						e.updatedAt() == null ? null
+								: DateTimeContract.toUserDisplay(e.updatedAt()).toString())).toList(),
 				page.selectedEntryId(), page.latestExecution() == null ? null
 						: new Execution(page.latestExecution().executionId(), page.latestExecution().result(),
 								page.latestExecution().standardInput(),
 								page.latestExecution().executedAt() == null ? null
-										: page.latestExecution().executedAt().toString()));
+										: DateTimeContract.toUserDisplay(page.latestExecution().executedAt()).toString()));
 	}
 
 	public record Scope(long exerciseId, String name, long version, boolean editable) {}

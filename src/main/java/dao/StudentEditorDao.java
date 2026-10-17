@@ -21,6 +21,7 @@ import entity.EditorTestCase;
 import entity.PythonExecutionResult;
 import entity.StudentEditorPage;
 import lib.mysql.Client;
+import lib.time.DateTimeContract;
 
 public final class StudentEditorDao {
 	private static final String FIND_ASSIGNMENT = """
@@ -841,7 +842,7 @@ public final class StudentEditorDao {
 	}
 
 	private static LocalDateTime toLocalDateTime(Timestamp value) {
-		return value == null ? null : value.toLocalDateTime();
+		return value == null ? null : DateTimeContract.fromDatabaseTimestamp(value);
 	}
 
 	private static LocalDateTime currentDatabaseTime(Connection connection) throws SQLException {

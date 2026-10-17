@@ -243,7 +243,7 @@
 									<details class="common-prompt-history-version">
 										<summary>
 											<c:out value="${commonVersion.version}"/> ・
-											<c:out value="${commonVersion.createdAt}"/> ・
+											<c:out value="${commonVersion.createdAtDisplay}"/> ・
 											<c:out value="${commonVersion.createdByLoginId}"/>
 										</summary>
 										<pre class="common-prompt-history-text"><c:out value="${commonVersion.commonPrompt}"/></pre>
@@ -539,7 +539,7 @@
 				<p class="text-secondary">
 					参加者 <c:out value="${reevaluationPreview.participantCount}"/> 人、
 					再評価対象 <c:out value="${reevaluationPreview.targetCount}"/> 人。
-					有効期限: <c:out value="${reevaluationPreview.expiresAt}"/>
+					有効期限: <c:out value="${reevaluationPreview.expiresAtDisplay}"/>
 				</p>
 				<div class="table-responsive">
 					<table class="table table-hover align-middle">
@@ -681,9 +681,9 @@
 												</c:choose>
 											</span>
 										</td>
-										<td><c:out value="${version.createdAt}"/></td>
+										<td><c:out value="${version.createdAtDisplay}"/></td>
 										<td><code class="history-creator-id"><c:out value="${version.createdByLoginId}"/></code></td>
-										<td><c:out value="${version.updatedAt}"/></td>
+										<td><c:out value="${version.updatedAtDisplay}"/></td>
 										<td><c:out value="${version.updatedByLoginId}"/></td>
 										<td>
 											<form method="post" action="<c:url value='/teacher/prompt'/>">
@@ -720,7 +720,7 @@
 										<c:param name="jobId" value="${job.jobId}"/>
 									</c:url>
 									<tr>
-										<td><c:out value="${job.requestedAt}"/></td>
+										<td><c:out value="${job.requestedAtDisplay}"/></td>
 										<td><code><c:out value="${job.requestedByLoginId}"/></code></td>
 										<td><c:out value="${job.promptVersion}"/></td>
 										<td>
@@ -750,7 +750,7 @@
 				<ul class="list-group list-group-flush">
 					<c:forEach items="${promptPage.auditEntries}" var="entry">
 						<li class="list-group-item px-0">
-							<time><c:out value="${entry.occurredAt}"/></time>
+							<time><c:out value="${entry.occurredAtDisplay}"/></time>
 							<strong class="ms-2"><c:out value="${entry.detail}"/></strong>
 							<span class="text-secondary ms-2"><c:out value="${entry.actorLoginId}"/> ・ <c:out value="${entry.resultStatus}"/></span>
 						</li>

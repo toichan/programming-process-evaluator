@@ -6,6 +6,7 @@ import java.util.List;
 import entity.TeacherReviewDetail;
 import entity.TeacherReviewDetail.*;
 import entity.TeacherReviewRow;
+import lib.time.DateTimeContract;
 
 public final class TeacherReviewDao {
 	private final TeacherPermissionDao permissions = new TeacherPermissionDao();
@@ -190,7 +191,8 @@ public final class TeacherReviewDao {
 				if (!r.next()) throw new NotFoundException();
 				var result = StudentEvaluationDao.findEvaluationResult(connection, evaluationId, r.getLong("submission_id"),
 						r.getInt("revision_number"), r.getString("evaluation_status"),
-						r.getTimestamp("completed_at") == null ? null : r.getTimestamp("completed_at").toLocalDateTime(),
+						r.getTimestamp("completed_at") == null ? null
+								: DateTimeContract.fromDatabaseTimestamp(r.getTimestamp("completed_at")),
 						r.getString("feedback_summary"), r.getString("process_analysis"));
 				return new Evaluation(evaluationId, result.getSubmissionId(), result.getRevisionNumber(), result.getStatus(),
 						date(r, "completed_at"), r.getString("rubric_version"), r.getString("prompt_version"),
@@ -228,7 +230,8 @@ public final class TeacherReviewDao {
 	}
 	private static String date(ResultSet r, String column) throws SQLException {
 		Timestamp value = r.getTimestamp(column);
-		return value == null ? "" : value.toLocalDateTime().toString().replace('T', ' ');
+		return value == null ? "" : DateTimeContract.toUserDisplay(
+				DateTimeContract.fromDatabaseTimestamp(value)).toString().replace('T', ' ');
 	}
 	private static Double number(ResultSet r, String column) throws SQLException {
 		double value = r.getDouble(column);

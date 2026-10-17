@@ -20,6 +20,7 @@ import entity.StudentEvaluationPage.ReasonResult;
 import entity.StudentEvaluationPage.ScoreResult;
 import entity.StudentEvaluationPage.SubmissionSummary;
 import lib.mysql.Client;
+import lib.time.DateTimeContract;
 
 public final class StudentEvaluationDao {
 	private static final String FIND_SELECTED_SUBMISSION = """
@@ -503,13 +504,13 @@ public final class StudentEvaluationDao {
 				""")) {
 			statement.setLong(1, selected.participationId);
 			statement.setLong(2, selected.submissionId);
-			statement.setTimestamp(3, Timestamp.valueOf(selected.submittedAt));
+			statement.setObject(3, selected.submittedAt);
 			if (selected.previousSubmittedAt == null) {
 				statement.setNull(4, java.sql.Types.TIMESTAMP);
 				statement.setNull(5, java.sql.Types.TIMESTAMP);
 			} else {
-				statement.setTimestamp(4, Timestamp.valueOf(selected.previousSubmittedAt));
-				statement.setTimestamp(5, Timestamp.valueOf(selected.previousSubmittedAt));
+				statement.setObject(4, selected.previousSubmittedAt);
+				statement.setObject(5, selected.previousSubmittedAt);
 			}
 			try (ResultSet resultSet = statement.executeQuery()) {
 				while (resultSet.next()) {
@@ -535,7 +536,7 @@ public final class StudentEvaluationDao {
 	}
 
 	private static java.time.LocalDateTime localDateTime(Timestamp timestamp) {
-		return timestamp == null ? null : timestamp.toLocalDateTime();
+		return timestamp == null ? null : DateTimeContract.fromDatabaseTimestamp(timestamp);
 	}
 
 	private static void rollback(Connection connection, Exception original) {

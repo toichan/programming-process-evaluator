@@ -23,6 +23,7 @@ import com.google.gson.JsonParser;
 import control.evaluation.EvaluationInputBuilder;
 import control.evaluation.EvaluationPrivacyRedactor;
 import lib.mysql.Client;
+import lib.time.DateTimeContract;
 
 public final class EvaluationWorkerDao implements EvaluationWorkRepository {
 	private static final SecureRandom RANDOM = new SecureRandom();
@@ -203,10 +204,8 @@ public final class EvaluationWorkerDao implements EvaluationWorkRepository {
 					insert.setString(2, built.anonymizedSubjectId());
 					insert.setString(3, taskSnapshot.toString());
 					insert.setString(4, submissionSnapshot.toString());
-					insert.setTimestamp(5, built.logRangeStart() == null
-							? null : Timestamp.valueOf(built.logRangeStart()));
-					insert.setTimestamp(6, built.submittedAt() == null
-							? null : Timestamp.valueOf(built.submittedAt()));
+					insert.setObject(5, built.logRangeStart());
+					insert.setObject(6, built.submittedAt());
 					insert.executeUpdate();
 				}
 				try (PreparedStatement update = connection.prepareStatement("""
@@ -257,7 +256,7 @@ public final class EvaluationWorkerDao implements EvaluationWorkRepository {
 		JsonObject payload = new JsonObject();
 		JsonObject requestMetadata = new JsonObject();
 		requestMetadata.addProperty("request_id", job.externalRequestId());
-		requestMetadata.addProperty("requested_at", LocalDateTime.now().toString());
+		requestMetadata.addProperty("requested_at", DateTimeContract.utcNow().toString());
 		requestMetadata.addProperty("model_id", job.modelId());
 		requestMetadata.addProperty("feature_name", "student_task_evaluation");
 		requestMetadata.addProperty("task_id", job.taskId());
@@ -430,8 +429,8 @@ public final class EvaluationWorkerDao implements EvaluationWorkRepository {
 								insert.setString(2, metadata.get("anonymized_subject_id").getAsString());
 								insert.setString(3, taskSnapshot.toString());
 								insert.setString(4, submission.toString());
-								insert.setTimestamp(5, logRangeStart == null ? null : Timestamp.valueOf(logRangeStart));
-								insert.setTimestamp(6, Timestamp.valueOf(submittedAt));
+								insert.setObject(5, logRangeStart);
+								insert.setObject(6, submittedAt);
 								insert.executeUpdate();
 							}
 							try (PreparedStatement insert = connection.prepareStatement("""
@@ -613,14 +612,15 @@ public final class EvaluationWorkerDao implements EvaluationWorkRepository {
 				if (!resultSet.next()) {
 					throw new SQLException("The submitted work is no longer available to its owner.");
 				}
-				LocalDateTime submittedAt = resultSet.getTimestamp("submitted_at").toLocalDateTime();
+				LocalDateTime submittedAt = DateTimeContract.fromDatabaseTimestamp(
+						resultSet.getTimestamp("submitted_at"));
 				Timestamp previous = resultSet.getTimestamp("previous_submitted_at");
 				return new InputMetadata(
 						resultSet.getString("display_name"),
 						resultSet.getString("login_id"),
 						resultSet.getString("student_code"),
 						submittedAt,
-						previous == null ? null : previous.toLocalDateTime());
+						previous == null ? null : DateTimeContract.fromDatabaseTimestamp(previous));
 			}
 		}
 	}
@@ -856,7 +856,8 @@ public final class EvaluationWorkerDao implements EvaluationWorkRepository {
 					throw new SQLException("The submission snapshot could not be loaded.");
 				}
 				submission.addProperty("submitted_code", resultSet.getString("submitted_code"));
-				submission.addProperty("submitted_at", resultSet.getTimestamp("submitted_at").toLocalDateTime().toString());
+				submission.addProperty("submitted_at", DateTimeContract.fromDatabaseTimestamp(
+						resultSet.getTimestamp("submitted_at")).toString());
 			}
 		}
 		return submission;
@@ -883,20 +884,21 @@ public final class EvaluationWorkerDao implements EvaluationWorkRepository {
 				""")) {
 			statement.setLong(1, participationId);
 			statement.setLong(2, submissionId);
-			statement.setTimestamp(3, Timestamp.valueOf(metadata.submittedAt()));
+			statement.setObject(3, metadata.submittedAt());
 			if (metadata.logRangeStart() == null) {
 				statement.setNull(4, java.sql.Types.TIMESTAMP);
 				statement.setNull(5, java.sql.Types.TIMESTAMP);
 			} else {
-				statement.setTimestamp(4, Timestamp.valueOf(metadata.logRangeStart()));
-				statement.setTimestamp(5, Timestamp.valueOf(metadata.logRangeStart()));
+				statement.setObject(4, metadata.logRangeStart());
+				statement.setObject(5, metadata.logRangeStart());
 			}
 			try (ResultSet resultSet = statement.executeQuery()) {
 				while (resultSet.next()) {
 					JsonObject log = new JsonObject();
 					log.addProperty("log_id", resultSet.getLong("code_log_id"));
 					log.addProperty("event_type", resultSet.getString("event_type"));
-					log.addProperty("observed_at", resultSet.getTimestamp("observed_at").toLocalDateTime().toString());
+					log.addProperty("observed_at", DateTimeContract.fromDatabaseTimestamp(
+							resultSet.getTimestamp("observed_at")).toString());
 					log.addProperty("snapshot", resultSet.getString("snapshot_text"));
 					long executionId = resultSet.getLong("code_execution_id");
 					if (!resultSet.wasNull()) {

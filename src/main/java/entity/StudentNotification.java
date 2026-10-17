@@ -4,6 +4,8 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Objects;
 
+import lib.time.DateTimeContract;
+
 public final class StudentNotification {
 	public static final String TYPE_EVALUATION_COMPLETED = "evaluation_completed";
 	public static final String TYPE_EVALUATION_FAILED = "evaluation_failed";
@@ -108,7 +110,7 @@ public final class StudentNotification {
 	}
 
 	public String getCreatedAtLabel() {
-		return createdAt.format(LABEL);
+		return DateTimeContract.toUserDisplay(createdAt).format(LABEL);
 	}
 
 	public boolean isRead() {

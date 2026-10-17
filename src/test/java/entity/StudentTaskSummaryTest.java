@@ -2,6 +2,8 @@ package entity;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import java.time.LocalDateTime;
+
 import org.junit.jupiter.api.Test;
 
 class StudentTaskSummaryTest {
@@ -25,6 +27,15 @@ class StudentTaskSummaryTest {
 				1L, 100L, ConsentStatus.AGREED, null, 1L);
 		assertEquals("completed", task.getProgressStatus());
 		assertEquals(1, new StudentHomePage(null, ConsentStatus.AGREED, java.util.List.of(task)).getSubmittedTaskCount());
+	}
+
+	@Test
+	void displaysUtcDeadlineInJapanTime() {
+		StudentTaskSummary task = new StudentTaskSummary(1, 1, "Task", "", "", "",
+				LocalDateTime.of(2026, 10, 17, 15, 30), "not_started", "not_started", "unsaved",
+				"not_started", "not_applicable", null, null, ConsentStatus.AGREED, 5400L, null);
+
+		assertEquals("10月18日 00:30", task.getDueAtDisplay());
 	}
 
 	private static StudentTaskSummary summary(ConsentStatus consentStatus) {

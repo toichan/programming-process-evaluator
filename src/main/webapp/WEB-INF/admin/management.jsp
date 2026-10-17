@@ -47,7 +47,7 @@
 								<td><c:out value="${teacher.loginId}"/></td><td><span class="badge ${teacher.status == 'active' ? 'text-bg-success' : 'text-bg-secondary'}"><c:out value="${teacher.statusLabel}"/></span></td>
 								<td><c:forEach var="school" items="${teacher.schools}"><span class="permission-tag"><c:out value="${school.name}"/></span></c:forEach><c:if test="${empty teacher.schools}">なし</c:if></td>
 								<td><c:forEach var="feature" items="${featureOrder}"><c:if test="${teacher.features.contains(feature)}"><span class="permission-tag"><c:out value="${featureLabels[feature]}"/></span></c:if></c:forEach><c:if test="${empty teacher.features}">なし</c:if></td>
-								<td><c:out value="${teacher.createdAt}"/></td><td><c:out value="${teacher.createdBy}"/></td>
+								<td><c:out value="${teacher.createdAtDisplay}"/></td><td><c:out value="${teacher.createdBy}"/></td>
 								<td><div class="action-buttons"><c:if test="${teacher.status != 'deleted'}">
 									<button class="btn btn-outline-primary btn-sm" type="button" data-action="edit">編集</button>
 									<button class="btn btn-outline-secondary btn-sm" type="button" data-action="reset">パスワード再設定</button>

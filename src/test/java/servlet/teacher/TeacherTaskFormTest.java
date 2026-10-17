@@ -51,6 +51,20 @@ class TeacherTaskFormTest {
 	}
 
 	@Test
+	void interpretsAssignmentDateTimesAsJapanLocalTimeAndStoresUtc() {
+		Map<String, List<String>> values = new java.util.HashMap<>(validCreateValues());
+		values.put("publishAts", List.of("2026-10-18T00:00"));
+		values.put("dueAts", List.of("2026-10-18T00:30"));
+
+		var assignment = TeacherTaskForm.parse(values).input().classAssignments().getFirst();
+
+		assertEquals(java.time.LocalDateTime.of(2026, 10, 17, 15, 0), assignment.publishAt());
+		assertEquals(java.time.LocalDateTime.of(2026, 10, 17, 15, 30), assignment.dueAt());
+		assertEquals("2026-10-18T00:00", assignment.getPublishAtDisplay());
+		assertEquals("2026-10-18T00:30", assignment.getDueAtDisplay());
+	}
+
+	@Test
 	void rejectsPublishingFromTheTaskEditorForm() {
 		Map<String, List<String>> values = new java.util.HashMap<>(validCreateValues());
 		values.put("action", List.of("publishTask"));

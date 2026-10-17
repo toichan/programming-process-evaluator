@@ -46,19 +46,25 @@ class TeacherLearningFlowRuntimeTest {
 		draft.put("commonPrompt", List.of(prompt));
 		draft.put("additionalInstruction", List.of(""));
 		redirect(teacher.post("/teacher/prompt", draft), "/teacher/prompt");
-		assertEquals("completed", text("SELECT fluctuation_generation_status FROM prompt_versions"));
+		awaitText("SELECT fluctuation_generation_status FROM prompt_versions", "completed",
+				java.time.Duration.ofSeconds(30));
 		html = teacher.get(promptPath).body();
 		String resolution = form(html, "promptResolutionForm");
 		var resolved = promptFields(html, "promptResolutionForm", "generateEvaluationExamples");
 		List<String> ids = inputs(resolution, "fluctuationIds");
 		assertFalse(ids.isEmpty());
+		resolved.put("aiModel", List.of(input(resolution, "aiModel")));
+		resolved.put("commonPrompt", List.of(input(resolution, "commonPrompt")));
 		resolved.put("fluctuationIds", ids);
 		resolved.put("resolutionStatuses", ids.stream().map(id -> "resolved").toList());
 		resolved.put("teacherResolutions", ids.stream().map(id ->
 				"Use the supplied code and execution evidence only; explain missing evidence explicitly.").toList());
-		resolved.put("additionalInstruction", List.of("Correct output for input 3 is 6."));
+		resolved.put("additionalInstruction", List.of(""));
 		redirect(teacher.post("/teacher/prompt", resolved), "/teacher/prompt");
-		assertTrue(number("SELECT COUNT(*) FROM evaluation_examples") > 0);
+		awaitText("SELECT evaluation_examples_status FROM prompt_versions", "completed",
+				java.time.Duration.ofSeconds(30));
+		assertTrue(awaitNumberAtLeast("SELECT COUNT(*) FROM evaluation_examples", 1,
+				java.time.Duration.ofSeconds(30)) > 0);
 		html = teacher.get(promptPath).body();
 		var save = promptFields(html, "reevaluationStartForm", "saveEvaluationExamples");
 		redirect(teacher.post("/teacher/prompt", save), "/teacher/prompt");
@@ -78,6 +84,7 @@ class TeacherLearningFlowRuntimeTest {
 		String promptPath = "/teacher/prompt?taskId=" + taskId;
 		String html = teacher.get(promptPath).body();
 		var apply = promptFields(html, "unpublishedPromptApplyForm", "applyUnpublishedPrompt");
+		long expectedRowVersion = Long.parseLong(apply.get("expectedRowVersion").get(0));
 		apply.put("expectedTaskVersion", List.of(input(form(html, "unpublishedPromptApplyForm"), "expectedTaskVersion")));
 		apply.put("applyConfirmed", List.of("no"));
 		assertEquals(400, teacher.post("/teacher/prompt", apply).statusCode());
@@ -92,6 +99,8 @@ class TeacherLearningFlowRuntimeTest {
 		invalid.put("expectedRowVersion", List.of("999"));
 		assertEquals(409, teacher.post("/teacher/prompt", invalid).statusCode());
 		assertEquals(0, number("SELECT COUNT(*) FROM tasks WHERE active_prompt_version_id IS NOT NULL"));
+		assertEquals(expectedRowVersion, number("SELECT row_version FROM prompt_versions"));
+		assertEquals(0, number("SELECT COUNT(*) FROM audit_logs WHERE action_type='apply_unpublished_prompt'"));
 		redirect(teacher.post("/teacher/prompt", apply), "/teacher/prompt");
 		assertEquals(number("SELECT prompt_version_id FROM prompt_versions"),
 				number("SELECT active_prompt_version_id FROM tasks"));
@@ -99,18 +108,13 @@ class TeacherLearningFlowRuntimeTest {
 		assertEquals(0, number("SELECT COUNT(*) FROM evaluations"));
 		assertEquals(0, number("SELECT COUNT(*) FROM reevaluation_jobs"));
 		assertEquals(1, number("SELECT COUNT(*) FROM audit_logs WHERE action_type='apply_unpublished_prompt'"));
-		var page = teacher.get("/teacher/task?taskId=" + taskId);
-		var fields = fields("action", "publishTask", "schoolTargets", "1", "classTargets", "1",
-				"lateSubmissionPolicy", "allow", "taskName", TITLE, "theme", "Integer input and arithmetic",
-				"difficulty", "beginner", "description", "Read one integer n from standard input and print twice n.",
-				"features", "Read integer;Multiply by two;Print result", "inputConstraints", "0 <= n <= 100",
-				"creationRules", "", "initialCode", "# Write your code here\r\n",
-				"testCaseTitles", "Double 3", "testCaseInputs", "3\r\n", "testCaseOutputs", "6\r\n");
-		for (String name : List.of("csrfToken", "requestToken", "taskId", "expectedVersion")) {
-			fields.put(name, List.of(input(page.body(), name)));
-		}
-		fields.put("assignmentIds", List.of(Long.toString(number("SELECT task_class_assignment_id FROM task_class_assignments"))));
-		fields.put("testCaseIds", List.of(Long.toString(number("SELECT test_case_id FROM task_test_cases"))));
+		var listPage = teacher.get("/teacher/task");
+		String publishForm = formContainingInput(listPage.body(), "action", "publishTaskFromList");
+		var fields = fields("action", input(publishForm, "action"),
+				"csrfToken", input(publishForm, "csrfToken"),
+				"requestToken", input(publishForm, "requestToken"),
+				"taskId", input(publishForm, "taskId"),
+				"expectedVersion", input(publishForm, "expectedVersion"));
 		redirect(teacher.post("/teacher/task", fields), "/teacher/task");
 		assertEquals("published", text("SELECT publication_status FROM tasks"));
 		assertEquals("published", text("SELECT assignment_status FROM task_class_assignments"));

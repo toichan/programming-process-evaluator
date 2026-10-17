@@ -3,6 +3,8 @@ package entity;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
+import lib.time.DateTimeContract;
+
 public final class EditorCodeLog {
 	private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm:ss");
 
@@ -50,7 +52,7 @@ public final class EditorCodeLog {
 	}
 
 	public String getObservedAtDisplay() {
-		return observedAt.format(TIME_FORMAT);
+		return DateTimeContract.toUserDisplay(observedAt).format(TIME_FORMAT);
 	}
 
 	public String getSnapshot() {

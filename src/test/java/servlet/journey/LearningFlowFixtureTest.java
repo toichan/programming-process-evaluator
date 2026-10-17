@@ -49,7 +49,7 @@ class LearningFlowFixtureTest {
 		var admin = new AuthenticatedUser(1, "admin", "Synthetic", UserType.ADMIN, false, "test");
 		var control = new TeacherAccountControl();
 		String initial = control.create(admin, new TeacherAccountInput("synthetic-learning-teacher", Set.of(1L),
-				Set.of("task-management", "teacher-prompt-design", "account-management")));
+				Set.of("task-management", "teacher-prompt-design", "account-management", "survey-results")));
 		var teacher = control.list(admin).getFirst();
 		var actor = new AuthenticatedUser(teacher.userId(), teacher.loginId(), "Synthetic", UserType.TEACHER, true, "test");
 		assertEquals(TeacherSelfAccountControl.ChangeResult.SUCCESS,

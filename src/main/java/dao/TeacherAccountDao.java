@@ -15,6 +15,7 @@ import entity.TeacherAccountDetails;
 import entity.TeacherAccountHistory;
 import entity.TeacherAccountInput;
 import entity.TeacherSchoolOption;
+import lib.time.DateTimeContract;
 
 public final class TeacherAccountDao {
 	public List<TeacherAccountDetails> findAll(Connection connection) throws SQLException {
@@ -66,7 +67,7 @@ public final class TeacherAccountDao {
 			}
 		}
 		return new TeacherAccountDetails(id, rows.getString("login_id"), rows.getString("account_status"),
-				rows.getLong("account_version"), rows.getTimestamp("created_at").toLocalDateTime(),
+				rows.getLong("account_version"), DateTimeContract.fromDatabaseTimestamp(rows.getTimestamp("created_at")),
 				rows.getString("created_by"), schools, features, rows.getBoolean("teacher_must_change_password"));
 	}
 
@@ -221,7 +222,8 @@ public final class TeacherAccountDao {
 			List<TeacherAccountHistory> history = new ArrayList<>();
 			try (ResultSet rows = statement.executeQuery()) {
 				while (rows.next()) history.add(new TeacherAccountHistory(
-						rows.getTimestamp("occurred_at").toLocalDateTime(), rows.getString("actor"),
+						DateTimeContract.toUserDisplay(DateTimeContract.fromDatabaseTimestamp(
+								rows.getTimestamp("occurred_at"))), rows.getString("actor"),
 						rows.getString("teacher"), rows.getString("action"), rows.getString("result"),
 						rows.getString("detail")));
 			}

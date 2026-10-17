@@ -231,9 +231,9 @@
 - 1つの機能を「DB変更 → DAO → Control → Servlet → JSP / JavaScript → 動作確認」まで通してから次に進みます。
 - `screen-flow-diagram` は既存の参考用資産として保ち、本実装の JSP / CSS / JavaScript は `src/main/webapp` に直接実装します。両者の差異は許容し、画面ファイルの移植を必須としません。
 
-## 現在の実装状況（2026-10-08）
+## 現在の実装状況（2026-10-17）
 
-この概要は工程の現在位置を示します。完了判定の根拠・コマンド・未確認事項はリンク先の機能別計画を参照してください。コードや画面が存在するだけで機能完了とは判断しません。
+この概要は工程の現在位置を示します。完了判定の根拠・コマンド・未確認事項はリンク先の機能別計画の最終記録を参照してください。過去の日付付き部分判定を現在の未完了件数として再計上しません。コードや画面が存在するだけで機能完了とは判断しません。
 
 | 工程 | 状況 | 根拠・次に残ること |
 |---|---|---|
@@ -242,12 +242,12 @@
 | 2. DBとマイグレーション | 完了（初期スキーマ） | [初期DBマイグレーション計画](./feature-plans/initial-database-migration.md)。将来の変更もFlywayで管理する |
 | 3. DB接続基盤と利用者DAO | 完了 | [DB接続基盤・利用者DAO計画](./feature-plans/database-connection-and-user-dao.md) |
 | 4. Web共通基盤 | 完了 | [Web共通基盤計画](./feature-plans/web-common-foundation.md) |
-| 5. 初期利用者・認証 | 実装済み、拡張確認中 | [認証・ログイン計画](./feature-plans/authentication-and-login.md)。実管理者アカウント、本番TLS/cookie等は未確認 |
+| 5. 初期利用者・認証 | 実装・P20認可境界受入済み。本番の合成認証/停止後失効も確認済み | [認証・ログイン計画](./feature-plans/authentication-and-login.md)、[本番受入](./production-deployment.md#2026-10-16-最小デプロイの進捗)。実運用アカウントの初期構成確認と、本番の合成教師/生徒による受入は区別する |
 | 6. 生徒ホーム・同意・アカウント | 実装済み | [生徒ホーム・同意・アカウント計画](./feature-plans/student-home-consent-account.md)。演習・教師画面等の実装完了を意味しない |
-| 7. Python実行・生徒エディター | 主要実装済み、検証継続 | [生徒エディター計画](./feature-plans/student-editor.md)。対話型runnerは実装済み。ブラウザー・競合・再提出等の残件を同計画で確認 |
-| 8. 評価・コードログ・アンケート | 主要実装済み、合成設定での教師→生徒→アンケート縦断受入済み | [評価・コードログ・アンケート計画](./feature-plans/student-evaluation-survey.md)。新規課題・実Pro生成/適用/公開→初回パスワード変更/同意→実Python解答/提出→実Pro評価・DB再読込→アンケート保存/提出/再読込を確認。設問登録UIは未実装で検証用DB設定を使用。正式設定UI・利用者手動受入・採点品質/運用条件は別に残る |
-| 9. 授業演習 | T001〜T051完了 | [授業演習計画](./feature-plans/student-exercise.md)の最新記録を正とする。実DB/HTTP/runner/ブラウザー検証と通常Chromeでの単体.py保存確認まで実施済み。OS標準フォルダ選択・ZIP保存ダイアログおよび全ブラウザー/OS組合せは未確認。教師配信・進捗制御等は後続機能 |
-| 10. 教師の課題編集・公開・改訂 | 下書き編集・削除/復元、公開・予約公開・期限処理、学習開始前の同一系列改訂、学習開始後の独立系列コピー、期限延長・対象クラス追加を実装。専用MySQL統合テストと認証browser受入済み。期限切れ割当の再開、既存提出履歴保持、追加割当の認可/冪等性を確認。プロンプトAI実API確認は工程19へ延期 | [教師課題下書き計画](./feature-plans/teacher-task-draft.md)、[S3計画](./feature-plans/teacher-task-s3.md)、[公開計画](./feature-plans/teacher-task-publication.md)、[公開後改訂計画](./feature-plans/teacher-task-revision.md)、[期限延長・クラス追加計画](./feature-plans/teacher-task-deadline-and-class-changes.md)、[教師プロンプト計画](./feature-plans/teacher-prompt-ai.md)、[課題状態ルール](../state-rules/teacher/task-state-rules.md) |
+| 7. Python実行・生徒エディター | 主要実装・P20対象ケース受入済み。本番の保存/実行/履歴読戻しも成功 | [生徒エディター計画](./feature-plans/student-editor.md)、[P20最終対応表](./feature-plans/phase-20-cross-feature-validation.md)。30秒保存・同時保存の一勝一競合・冪等提出・再提出は完了。全ブラウザー/OSや全並行編集パターンまでの保証ではない |
+| 8. 評価・コードログ・アンケート | 主要実装・合成データの縦断受入済み。設定内容はローカル確定版を採用済み | [評価・コードログ・アンケート計画](./feature-plans/student-evaluation-survey.md)。実Pro生成/適用/公開→合成生徒の実Python解答/提出→実Pro評価・DB読戻し→アンケート保存/提出を確認。設問登録UIは未実装だが追加を受入の前提にしない。確定設定の投入手順・本番反映・利用者手動E2E・採点品質/運用条件は別 |
+| 9. 授業演習 | T001〜T051完了 | [授業演習計画](./feature-plans/student-exercise.md)の最新記録を正とする。実DB/HTTP/runner/ブラウザー検証と通常Chromeでの単体.py保存確認まで実施済み。OS標準フォルダ選択・ZIP保存ダイアログおよび全ブラウザー/OS組合せは未確認。教師配信・進捗制御との接続は工程13/14とP20を参照 |
+| 10. 教師の課題編集・公開・改訂 | 下書き編集・削除/復元、公開・予約公開・期限処理、学習開始前の同一系列改訂、学習開始後の独立系列コピー、期限延長・対象クラス追加を実装。専用MySQL統合テストと認証browser受入済み。期限切れ割当の再開、既存提出履歴保持、追加割当の認可/冪等性を確認。AI実API受入は工程19、全体の時刻契約はH-04で別管理 | [教師課題下書き計画](./feature-plans/teacher-task-draft.md)、[S3計画](./feature-plans/teacher-task-s3.md)、[公開計画](./feature-plans/teacher-task-publication.md)、[公開後改訂計画](./feature-plans/teacher-task-revision.md)、[期限延長・クラス追加計画](./feature-plans/teacher-task-deadline-and-class-changes.md)、[教師プロンプト計画](./feature-plans/teacher-prompt-ai.md)、[課題状態ルール](../state-rules/teacher/task-state-rules.md) |
 | 11. 管理者の教師アカウント管理・学校管理 | 実装・受入済み | [認証計画の工程11記録](./feature-plans/authentication-and-login.md#工程11教師アカウント管理追加バッチ2026-10-06)。2タブ管理画面、教師作成/学校・9機能権限/停止・解除/論理削除/再設定/履歴/CSVをDB接続。資格情報の一時表示と教師セッション失効を検証済み |
 | 12. 教師の生徒アカウント管理 | 実装・受入済み（2026-10-07） | [生徒アカウント管理計画](./feature-plans/teacher-student-accounts.md)。権限内の一括作成/新規クラス、個別自動生成する8文字初期資格情報、再設定、一覧/CSV/履歴、状態変更・選択削除と生徒セッション失効を接続 |
 | 12a. 教師本人のアカウント管理 | 実装・検証済み（2026-10-07） | [認証計画の工程12a完了記録](./feature-plans/authentication-and-login.md#工程12aの完了記録2026-10-07)。本人情報、初期/再設定後の必須変更・通常変更、全旧セッション失効を8080へ接続。関連する生徒一覧1行表示・権限不足通知も反映 |
@@ -257,10 +257,69 @@
 | 16. 提出課題確認 | プロトタイプ再現・DB/認証HTTP/通常・狭幅ブラウザー受入済み（2026-10-08、第155版） | [提出画面最終受入](./feature-plans/teacher-submission-evaluation-review.md#提出画面のプロトタイプ再現最終受入2026-10-08第155版)。3集計/9列sort/全画面詳細/左右CodeMirror/単体・ZIP・監査CSVを実DBへ接続。全体259成功/132skip/失敗0、8080反映。本番TLS/OS保存完了は別 |
 | 17. 評価確認 | プロトタイプ再現・DB/認証HTTP/通常・狭幅ブラウザー受入済み（2026-10-08、第156版） | [評価画面最終受入](./feature-plans/teacher-submission-evaluation-review.md#評価画面のプロトタイプ再現最終受入2026-10-08第156版)。3カード/独立サマリー・分布/条件式/10列・9sort/全画面詳細/理由・ログ/JSON・ZIP・監査CSVを実DBへ接続。全体260成功/132skip/失敗0、8080反映済み。実AI・再評価の受入は工程19と区別 |
 | 18. アンケート結果確認 | 実装・DB/認証HTTP・認証ブラウザー受入済み（2026-10-08） | [工程18最終受入](#工程18最終受入2026-10-08)。プロトタイプの集計/条件式/一覧/詳細、最新同意/割当学校認可、仮名化CSV/TXTを接続。全体257成功/132skip/失敗0、8080反映済み |
-| 19. AI連携の最終実装・受入 | 実装・合成実API縦断/認証画面確認済み。Pro高思考・時間上限拡張を8080へ反映済み | [教師プロンプト計画](./feature-plans/teacher-prompt-ai.md)、[評価計画](./feature-plans/student-evaluation-survey.md)、[AI連携設計](../ai-api-integration-design.md)。教師生成・preview・確定と通常評価の実API→DB成功。本番quota/費用・品質校正・実データ送信・負荷試験は別ゲート |
-| 20. 機能横断検証 | 部分実施、`PARTIAL / NEEDS_SIGNOFF` | [工程20テスト計画](./feature-plans/phase-20-cross-feature-validation.md)に従い、最新の隔離clean build/JUnitは144 suites / 552 tests（369 passed、183 skipped、失敗/エラー0）。21件の論理テストケースを個別受入済み。runtime reportの20 successful Playwright executions / 16 browser fixture-run invocationsは別の実行集計。P20-05教師画面/出力/狭幅、即時/予約/改訂公開から生徒editor、管理者作成教師の権限境界、peer教師による他教師所有資料の編集と他校の直接アクセス拒否、教師アカウント状態変更と古いversion拒否、生徒/教師/管理者の相互role boundary、および二つのeditor contextによる同時保存の一勝一競合・read-backを確認済み。未実行opt-in試験と主要導線/権限の全量受入が残る |
+| 19. AI連携の最終実装・受入 | 実装・合成実API縦断/認証画面確認済み。アプリ本体はmain41228caとして本番反映済み | [教師プロンプト計画](./feature-plans/teacher-prompt-ai.md)、[評価計画](./feature-plans/student-evaluation-survey.md)、[AI連携設計](../ai-api-integration-design.md)。教師生成・preview・確定と通常評価の実API→DBは成功済みだが、10月16日本番受入で追加AI要求はしていない。本番quota/費用・品質校正・実データ送信・負荷試験は別ゲート |
+| 20. 機能横断検証 | **P20-01〜10 PASS / 完了（2026-10-16）** | [最終対応表](./feature-plans/phase-20-cross-feature-validation.md)と[最終runtime受入](./feature-plans/runtime-validation-report.md#2026-10-16-工程20の最終受入)を正本とする。147 suites / 561 tests、373 passed / 188 skipped、failure/error 0、exit 0。29 Servlet / 71 routeの認証契約と業務DB/HTTP/browser証跡を対応付け済み。skipを成功数に含めず、元の合格条件の完了とH-01〜04等の別ゲートを区別する |
 
 ここでいう「実装済み」は対象計画に記録された範囲に限ります。教師ログイン基盤の存在は教師向け業務機能の完成を意味せず、Gemini構造化出力が一部の合成要求で成功したことも本番評価経路の完了を意味しません。
+
+### 残作業: テストから次回本番反映まで（2026-10-17整理）
+
+**現在位置:** アプリmain `41228ca...`の最小デプロイは10月16日18:06 JSTに完了し、
+合成認証・保存・実Python実行・再読込・停止後session失効と清掃もPASS。
+「これから初回デプロイする」計画には戻さない。以後は設定の再現性と残る差分を整え、
+必要な変更だけをテストして次回本番反映する。UTC/JST変更は現在の作業ツリーで実装・部分検証中だが、
+未レビュー・未commitのため、次回候補として確定または本番反映済みとは扱わない。
+
+初期設定の内容は[第180版](../function-specification.md#第180版-db初期化後の初期設定の採用基準)で
+**研究同意文書以外はローカル確定版を採用済み**。
+その内容が本番でもすべて一致していることや、空DBから再現できることは別の確認である。
+以下は残作業の整理であり、本番変更・データコピー・DB初期化・追加API要求の実行承認ではない。
+
+#### A. 次回本番反映へ向ける作業順
+
+| ID | 残作業 | 状態・前提 | 完了条件 / 停止条件 |
+|---|---|---|---|
+| R-01 | 確定済みローカル初期設定の棚卸しと本番のread-only差分確認 | 完了（2026-10-17）: ローカル確定版を棚卸しし、本番をread-onlyで照合。管理者fingerprintと標準ルーブリック内容は一致。アカウント・学校/クラス・権限・survey・prompt/評価設定には差分あり。本番への書込みなし | 差分と集計値は[本番初期設定のR-01照合記録](./production-deployment.md#r-01-初期設定の棚卸しと本番read-only照合2026-10-17)を参照。初期投入手順・空DBからの再現性はR-03で別に確認する |
+| R-02 | H-04の時刻契約と既存DATETIMEの扱いを合意する | 完了: UTC保存/比較・Asia/Tokyo入出力、本番デモ履歴は初期設定保全/再投入検証後に再作成可能。一括9時間補正はしない | [第181版](../function-specification.md#第181版-日時の統一方針)を正本に実装経路を照合する。日付のみ/期間/コード入出力本文を時刻変換対象と混同しない。本番初期化/更新・資格情報変更は手順提示後の別承認 |
+| R-03 | 再現可能な初期投入手順と時刻差分の実装修正 | 全量seed再現検証完了（2026-10-17）: 確定ローカル25設定テーブルを非公開0600ファイルへ保全。同じファイルから独立した空DB2つへmigration後に再現し、全列内容・ID・参照関係一致、同内容no-op、不一致/並行/履歴混入拒否、途中失敗rollback、再接続後read-backを確認。単体4/4、MySQL統合1/1、WAR成功 | [全量seed手順・結果](./feature-plans/runtime-validation-report.md#r-03-ローカル確定設定の全量seed再現検証2026-10-17)。本番用seedの実行許可ではなく、投入先は`ppe_initial_seed_`隔離DB限定。旧DATETIMEは無変換で保全しており、その意味の確定や本番移行を保証しない。本番の対象/投入範囲/時刻/資格情報の扱いはR-06後のR-07承認時に提示する |
+| R-04 | 変更対象の単体・MySQL統合・実HTTP試験 | 16:57 JST再実行完了: `sh scripts/testing/teacher-learning-flow-local.sh` exit 0。隔離JUnit 7/7 passed、0 failed/errors/skipped。Playwright 3/3 passed、0 failed（375px画面幅を含む）。stale prompt versionはHTTP 409かつ状態/監査記録不変。以前の全Gradle build 571 testsは381 passed/0 failed/0 errors/190 skippedで、全suiteのskipは別途残る | 対象別証跡と初回失敗/修正履歴は[runtime validation report](./feature-plans/runtime-validation-report.md)と[エラーレポート](./error-report.md)。全体Gradle suiteやskipされた任意DBケースの結果を今回の7件へ合算しない |
+| R-05 | 確定設定による代表ブラウザー縦断と利用者受入 | 16:57 JST再実行の合成代表フローについて、利用者が**限定範囲の技術的受入を明示承認**。JUnit 7/7、Playwright 3/3。R-03全量seed照合とは別の合成fixture試験であり、確定設定全量の人間による手動E2E、採点品質、実Gemini、正式同意、本番反映は含まない | [R-05受入記録](./feature-plans/runtime-validation-report.md#r-05-利用者受入の記録2026-10-17)。限定範囲は受入済み。未確認事項と本番更新は別ゲートとして維持する |
+| R-06 | 次回候補のレビュー・CI・ECR最終image受入 | 未完了: R-03/R-04成功、R-05は合成代表フローの限定範囲で受入済み。branch `code` HEAD `8d7cf17...`、worktreeは未commitで118 pathの変更が残る。PR/main review、必須CI、source SHA/ECR digest対応付け、candidate image受入なし | [R-06/R-07候補・復帰条件スナップショット](./feature-plans/runtime-validation-report.md#r-06r-07の候補復帰条件スナップショット2026-10-17-1657-jst)を参照。差分を確定・reviewし、PR/main・必須CIを通し、source SHAと固定digestを結び付ける。candidate imageで本番相当の5サービス/HTTPS/Runner/保存・再読込/restart/DB保持を確認する。R-06完了後もR-07の個別明示承認まで本番反映しない |
+| R-07 | 本番投入前確認と明示承認による反映 | 未実施。R-06成功後、対象・差分・復帰条件を提示した個別承認が必要 | 対象instance/current/DB、運用helperと候補sourceの一致、容量、fresh backupの固定Version/hash/KMS/鮮度、migration可否と復帰referenceを確認する。変更差分・停止/失敗時対応・投入データ範囲を提示して承認後に実行。旧V34専用referenceを異なるschemaへ流用せず、DB初期化や既存資格情報上書きを暗黙に含めない |
+| R-08 | 反映後の本番受入・清掃・記録 | 未実施。R-07の反映後のみ | 固定release/schema/health、両HTTPS、合成認証/認可/保存・実行・再読込、重要な失効と変更した設定/時刻操作を確認し、投入内容をDBから照合する。合成アカウント停止・一時secret/専用資源清掃、backup/timer/監視を確認し、結果と未確認を残す。旧releaseの成功証跡だけで新変更を受入済みにしない |
+
+#### B. 並行して閉じる運用・利用開始の別ゲート
+
+| 項目 | 残っていること | 完了条件・境界 |
+|---|---|---|
+| H-01 次回定期backup | 更新後の新release設定での自動完了を未観測 | 00:05 JSTの観測では10月17日02:03:45 JST予定。実行後にsystemd、receiptのrelease/DB参照、固定S3 Versions/hash/KMS/鮮度をread-only確認する。今回の整理では実行結果を取得しておらず、手動backupや長時間待機はしない |
+| H-01 鍵/通知/復旧 | 独立offline鍵custody、人間のメール開封、復元先Tomcat/browser、本番完全DR・切替・RTO/RPO | 所有者確認と復元先受入を分ける。既存Mac鍵による復号/固定backupの隔離DB復元/実Control・DAO読戻し/SNS配送は完了済み。本番DB上書き・鍵コピー・切替は別計画/承認 |
+| H-02 評価品質と実運用規模 | 利用者の手動E2E、期待評価との校正、同時利用/queue、quota/予算・容量 | R-05の技術E2Eとは別。採点者・期待結果・負荷モデル・測定区間を定める。画面3秒/実行結果2秒の目安、DB1秒/ログ保存3秒等は[既存性能要件](../function-specification.md#パフォーマンスperformance)を参照し、新しいSLAを独断で追加しない。実APIは合成データだけとし、要求数・費用上限・停止条件を先に承認する |
+| H-03 対応ブラウザー/OS | Chrome/Firefox/Safari/Edge、対象OS、OS標準のファイル選択/保存操作 | [既存対応環境](../function-specification.md#対応環境)の最小320 CSS px、通常/狭幅、ページと局所スクロールを確認する。ChromiumだけやPlaywright WebKitを実Safari/全OS受入と扱わず、対応範囲を自動で狭めない。全並行編集パターンの総当たりをP20の新しい完了条件にはしない |
+| 正式な研究同意/IC-008/010 | 正式文面はユーザーが後日提供し、それまで正式化と研究利用開始を保留。紙の運用、学校の承認、研究出力の管理、保持満了/終了時手順等も別 | [同意要件](../function-specification.md#研究協力同意確認機能優先度低)と[実装契約](./implementation-contract.md#研究同意文書と研究利用の開始2026-10-17確認)に従う。実装/合成検証は先行可だが、V10仮文面を正式版とせず、実データ外部送信や追加API要求の承認を兼ねない。IC-010の全体削除を自動実装/実行しない |
+
+#### C. 後続の基盤整備
+
+[既存負債](./ecr-deployment-debt.md)のIMDS/socket/SSM/IAM、署名、保持/GC、
+可変Python runtime管理、最終image gateの継続自動化、復旧手順改善を別計画で維持する。
+優先度「高」の残リスクを解消済み・安全証明済みとは扱わず、重大な露出が実測されたら
+既存方針に従い最小対応と承認判断を提示する。IAM/firewall/鍵/daemonは自動変更しない。
+自動本番デプロイは引き続き採用しない。
+T-01のfixture混在一般化、T-03のGradle/logging警告、任意Pages等も別の整備であり、
+成功済みP20や現releaseを一律に未完了へ戻す理由にしない。
+
+#### 検証・判定の扱い
+
+- 既存JUnit/機能別MySQL・実HTTP runner/Playwrightを再利用し、テストのために確定設定を変更しない。
+  実行時はDocker・Node.js/browserの利用可否を独立に確認する。
+  ホストNode.js未導入だけで、実績のあるPlaywright container利用まで不可と判断しない。
+- 変更対象の最小テストを先行し、時刻等の共通基盤変更や次回候補の節目には全体回帰を行う。
+  既存の全体コマンドは`gradle --offline --no-daemon clean build --warning-mode all --console plain`。
+  opt-in DB/HTTP/browserは機能別runnerの環境条件と分離schemaを使い、通常buildのskipで代替しない。
+- 実行command/exit code/成功・失敗・skip、browser範囲、保存後読戻し、cleanup、未確認を記録する。
+  失敗は[エラーレポート](./error-report.md)へ残し、成功済みの過去履歴と今回結果を分ける。
+- **今回の整理で新しいtests/build/browser/本番readbackは実行していない。**
+  内容の確認には既存証跡を使い、文書変更の`git diff --check`だけを今回の検証とする。
 
 ### 機能仕様書との網羅対応（2026-10-06再照合）
 
@@ -283,7 +342,15 @@
 
 ### 次の着手と意図的な保留（2026-10-16 JST更新）
 
-- **最小デプロイ進行中:** ユーザー承認の順序でPR #60統合、同main CI、7image ECR公開まで成功。最終imageの隔離受入でRunner/broker固定command契約の不一致を検出し、acfcd60版の本番反映を停止した。第171版の意味を変えない狭い修正をunit 34件/実Runner 3件で検証済み。次は修正版のmain CI・再公開・最終image受入→本番前点検→更新直前の明示承認。本番a6/V33は維持し、工程20の既存完了記録と将来配布imageの受入を混同しない。[運用記録](./production-deployment.md#2026-10-16-最小デプロイの進捗)、[runtime判定](./feature-plans/runtime-validation-report.md#2026-10-16-最小デプロイの最終image-gate)を正本とする。
+- **正式同意文面の提供待ち（2026-10-17合意）:** ユーザーが後日提供する。それまで文書の正式化と研究利用開始は保留するが、設定保全・時刻修正・合成データの実装/検証は先行する。通常学習/同意状態の既存条件を変えず、本番変更や追加API要求は別承認とする。
+
+- **H-04方針合意（2026-10-17）:** ユーザーがUTC保存/比較・日本時間（Asia/Tokyo）入出力を選択。本番デモ履歴は継承不要とし、確定済み初期設定の保全/再投入検証を先に行った上で再作成可能とする。[第181版](../function-specification.md#第181版-日時の統一方針)、実装契約、DB共通基準等へ反映済み。実装・移行は未完了。本番初期化/更新・資格情報変更は対象/手順提示後の別承認で、鍵は維持する。下記00:07の「方針判断待ち」は調査時点の履歴。
+
+- **初期設定の確定（2026-10-17ユーザー確認）:** 研究同意文書を除き、現行ローカルの初期設定を確定版として採用する。[第180版の採用基準](../function-specification.md#第180版-db初期化後の初期設定の採用基準)と[本番運用の整理](./production-deployment.md#db初期化後の初期設定2026-10-17ユーザー確認)に記録した。設定内容の再合意待ちは解消し、投入手順・本番反映・利用者手動E2E/採点品質は別に残す。今回はDB初期化・データコピー・資格情報変更・追加API要求を行っていない。正式同意文書とH-04の時刻契約等の別の未決事項は、この設定採用合意では解消しない。
+
+- **最小デプロイ完了（20:40:36 JST最終確認）:** PR #61のmain `41228ca...`、CI `38862737820`・ECR `38863619749`、固定7imageの隔離/native受入後、明示承認を得て既存updateを1回実行した。18:06:18 JSTにpublished確認、V34のみ適用、既存DB image/container/Volume維持。本番Runner 1 testと公開HTTPS browser正常2件＋停止後2件は全成功/exit 0/skip 0。所有コード・成功実行のDB読戻し、既存account不変、合成2account停止/旧session失効を確認。fresh backupの固定3 S3 Version/KMS/hash/鮮度、5healthy/restart 0、config/3timer/重大log0を確認し、今回のpassword/cookie/生成payloadと専用資源は限定清掃済み。次は通常運用で次回定期backupの自動完了を観測する。独立鍵保管・正式品質/手動E2E・全OS・本番完全DRは別ゲートであり、自動着手しない。[運用記録](./production-deployment.md#2026-10-16-最小デプロイの進捗)、[runtime判定](./feature-plans/runtime-validation-report.md#2026-10-16-最小デプロイの最終image-gate)を正本とする。
+- **デプロイ後の整理（2026-10-16）:** ユーザー選択により、定期backupを手動で前倒しせず、実運用開始前の保留事項と開始条件を[受入候補一覧](./production-deployment.md#デプロイ後の受入候補と開始条件)へ整理した。続く質問UIでH-04の時刻/予約・期限処理のread-only調査を選択済み。実設定と日時変換を照合し、設定変更・業務更新・追加API要求は行わない。独立鍵保管・研究利用条件/IC-010・正式評価E2E/品質・負荷/費用・対応OS・完全DRを別判定として維持する。既存要件の変更は行わず、機能仕様書の改版は不要。
+- **H-04調査完了（2026-10-17 00:07 JST）:** OS/JVM/DBと実pool3件は実効UTC、NTP同期正常。日本時間への明示変換がない入力/保存/表示経路を確認し、全体統一は未対応として残した。metadata読取と補完読取は各exit 0、サービス/config/DB/Volume不変。テスト再実行・業務操作・追加APIはなし。次はUTC保存/日本時間入出力等の方針と既存データの扱いを合意してから修正計画へ進む。timezone設定だけの変更や一括9時間補正は行わない。[詳細と根拠](./production-deployment.md#h-04-調査結果2026-10-17-00050007-jst)を参照。次回定期backupは10月17日02:03:45 JST予定で、引き続き自動実行後の観測待ち。
 - **08:47 JST調査追補:** SSO再認証・対象確認後、本番current `a6e90edf...`/5サービスhealthy・nginx0644の非root読取・両health200を確認した。定期backupの7回正常完了と最新receipt/3固定S3 Version/local暗号化hashの一致はreadonly検証exit 0。現在の本番障害継続/初回定期実行の観測待ちは解除し、独立CloudWatch API読取のAccessDenied、業務DB復旧・鍵custody、将来ECR release gateは残す。次は監視値の所有者確認または別承認の既存読取経路を選ぶ。再deploy/backup再実行/IAM変更/復元は行わない。詳細は[本番調査記録](./production-deployment.md#2026-10-16-本番読み取り調査)を参照。
 - **09:36 JST監視追補:** 別承認の`ppe-infra-admin`で同一accountの独立監視readbackに成功。alarm OK/ActionsEnabled=true、保存FreshBackupの24連続hourly区間全て正常を確認し、監視API読取の未確認を解除した。IAM/alarm設定変更・通知試験なし。alarm起点の実配送と業務DB復旧/鍵custodyは別ゲート。
 - **工程20完了・現在の次作業:** P20-01〜10と全29 Servlet/71 routeの証跡対応を完了。最終全体buildは147 suites / 561 tests、373 passed / 188 skipped、failure/error 0、exit 0。独立した専用schemaの課題2件/演習schema1件、固定backupの隔離復元と実Control/DAO読戻し、承認済みSNS実配送1/失敗0も成功し、12:38 JSTの専用資源清掃・共有不変/両login200を確認。工程20の元の受入範囲は**PASS / 完了**。次は研究/運用開始前の別ゲートの対象と優先順を利用者と決める（独立鍵保管、正式品質/手動E2E、対象OS、時刻契約など）。本番切替・実データ送信・将来ECR releaseは自動着手しない。2.5 Pro候補診断のexit 1は保持し、既定/選択肢の変更・追加Gemini要求は不要。下記の日付付き`PARTIAL`は当時の履歴。[最終対応表](./feature-plans/phase-20-cross-feature-validation.md)、[課題台帳](./error-report.md)、[Runtime Validation Report](./feature-plans/runtime-validation-report.md)、[運用受入](./production-deployment.md#2026-10-16-追加承認による復元通知試験)を正本とする。

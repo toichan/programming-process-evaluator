@@ -2,6 +2,8 @@ package entity;
 
 import java.time.LocalDateTime;
 
+import lib.time.DateTimeContract;
+
 public record StudentExerciseEntry(
 		long entryId,
 		long exerciseId,
@@ -65,4 +67,10 @@ public record StudentExerciseEntry(
 	public LocalDateTime getUpdatedAt() { return updatedAt; }
 	public Long getTrashRootEntryId() { return trashRootEntryId; }
 	public LocalDateTime getTrashedAt() { return trashedAt; }
+	public String getTrashedAtDisplay() {
+		return trashedAt == null ? null : DateTimeContract.toUserDisplay(trashedAt).toString();
+	}
+	public String getUpdatedAtDisplay() {
+		return updatedAt == null ? null : DateTimeContract.toUserDisplay(updatedAt).toString();
+	}
 }

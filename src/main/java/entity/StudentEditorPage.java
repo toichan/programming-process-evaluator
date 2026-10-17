@@ -5,6 +5,8 @@ import java.time.Clock;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 
+import lib.time.DateTimeContract;
+
 public final class StudentEditorPage {
 	private static final DateTimeFormatter DEADLINE_FORMAT = DateTimeFormatter.ofPattern("M月d日 HH:mm");
 
@@ -221,10 +223,11 @@ public final class StudentEditorPage {
 	}
 
 	public String getDueAtDisplay() {
-		return dueAt == null ? "期限なし" : dueAt.format(DEADLINE_FORMAT);
+		return dueAt == null ? "期限なし" : DateTimeContract.toUserDisplay(dueAt).format(DEADLINE_FORMAT);
 	}
 
 	public String getLatestSubmittedAtDisplay() {
-		return latestSubmittedAt == null ? "" : latestSubmittedAt.format(DEADLINE_FORMAT);
+		return latestSubmittedAt == null ? ""
+				: DateTimeContract.toUserDisplay(latestSubmittedAt).format(DEADLINE_FORMAT);
 	}
 }

@@ -29,6 +29,7 @@ import entity.StudentExerciseEntry;
 import entity.TeacherDistributionInput;
 import entity.TeacherDistributionInput.Target;
 import entity.UserCredential.UserType;
+import lib.time.DateTimeContract;
 import servlet.auth.CsrfTokens;
 
 @WebServlet("/teacher/distribution")
@@ -265,7 +266,8 @@ public final class TeacherDistributionServlet extends HttpServlet {
 			if (target.has("scheduledAt") && !target.get("scheduledAt").isJsonNull()
 					&& !target.get("scheduledAt").getAsString().isBlank()) {
 				try {
-					scheduledAt = LocalDateTime.parse(target.get("scheduledAt").getAsString());
+					scheduledAt = DateTimeContract.fromUserInput(
+							LocalDateTime.parse(target.get("scheduledAt").getAsString()));
 				} catch (DateTimeParseException failure) {
 					throw new IllegalArgumentException("配信日時が不正です。", failure);
 				}
@@ -342,7 +344,7 @@ public final class TeacherDistributionServlet extends HttpServlet {
 	private static LocalDateTime requiredDateTime(String value) {
 		if (value == null || value.isBlank()) throw new IllegalArgumentException("配信日時を指定してください。");
 		try {
-			return LocalDateTime.parse(value);
+			return DateTimeContract.fromUserInput(LocalDateTime.parse(value));
 		} catch (DateTimeParseException failure) {
 			throw new IllegalArgumentException("配信日時が不正です。", failure);
 		}

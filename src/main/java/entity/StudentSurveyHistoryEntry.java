@@ -3,6 +3,8 @@ package entity;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
+import lib.time.DateTimeContract;
+
 public final class StudentSurveyHistoryEntry {
 	private static final DateTimeFormatter DATE_TIME_FORMAT = DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm");
 
@@ -31,6 +33,7 @@ public final class StudentSurveyHistoryEntry {
 	public String getResponseStatus() { return responseStatus; }
 	public LocalDateTime getSubmittedAt() { return submittedAt; }
 	public String getSubmittedAtDisplay() {
-		return submittedAt == null ? "下書き保存" : submittedAt.format(DATE_TIME_FORMAT);
+		return submittedAt == null ? "下書き保存"
+				: DateTimeContract.toUserDisplay(submittedAt).format(DATE_TIME_FORMAT);
 	}
 }

@@ -118,6 +118,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
   function formatNow() {
     return new Date().toLocaleString('ja-JP', {
+      timeZone: 'Asia/Tokyo',
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
@@ -279,7 +280,7 @@ window.addEventListener('DOMContentLoaded', () => {
     if (runResultTime) {
       runResultTime.textContent = status === 'running'
         ? '実行中...'
-        : `最終実行: ${new Date().toLocaleTimeString('ja-JP')}`;
+        : `最終実行: ${new Date().toLocaleTimeString('ja-JP', { timeZone: 'Asia/Tokyo' })}`;
     }
   }
 

@@ -31,7 +31,18 @@ test('student can expand and collapse a folder from its row hit area', async ({ 
   await login(page, '/student/account/login', studentLogin, studentPassword, '/student/home');
 
   await page.goto('/student/exercise');
+  const exerciseId = await page.locator('#studentExercisePage').getAttribute('data-exercise-id');
+  const selectedFileId = await page.locator('#exerciseEntries [data-name="hello.py"]')
+    .getAttribute('data-entry-id');
+  expect(exerciseId).toBeTruthy();
+  expect(selectedFileId).toBeTruthy();
+  await page.goto(`/student/exercise?exerciseId=${encodeURIComponent(exerciseId)}`
+    + `&entryId=${encodeURIComponent(selectedFileId)}`);
   await expect(page.getByRole('heading', { name: '授業演習', exact: true })).toBeVisible();
+  await expect(page.locator('#runResultTime')).toContainText('2026-10-04 15:00');
+  await page.locator('details.lesson-trash > summary').click();
+  await expect(page.locator('.lesson-trash-entry-details'))
+    .toContainText('削除日時: 2026-10-04 16:00');
   const folderButton = page.getByRole('button', { name: '基礎', exact: true });
   const folderHeader = page.locator('.lesson-tree-folder-header')
     .filter({ has: folderButton });

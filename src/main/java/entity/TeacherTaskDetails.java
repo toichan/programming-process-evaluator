@@ -3,6 +3,8 @@ package entity;
 import java.time.LocalDateTime;
 import java.util.Objects;
 
+import lib.time.DateTimeContract;
+
 public record TeacherTaskDetails(
 		long taskId,
 		String taskCode,
@@ -73,8 +75,16 @@ public record TeacherTaskDetails(
 		return createdAt;
 	}
 
+	public String getCreatedAtDisplay() {
+		return DateTimeContract.toUserDisplay(createdAt).toString();
+	}
+
 	public LocalDateTime getUpdatedAt() {
 		return updatedAt;
+	}
+
+	public String getUpdatedAtDisplay() {
+		return updatedAt == null ? "" : DateTimeContract.toUserDisplay(updatedAt).toString();
 	}
 
 	public String getSaveStatus() {

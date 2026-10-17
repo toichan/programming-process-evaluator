@@ -2,6 +2,8 @@ package entity;
 
 import java.time.LocalDateTime;
 
+import lib.time.DateTimeContract;
+
 public record SchoolCommonPromptVersion(
 		long commonPromptVersionId,
 		long schoolId,
@@ -17,4 +19,5 @@ public record SchoolCommonPromptVersion(
 	public String getCommonPrompt() { return commonPrompt; }
 	public String getCreatedByLoginId() { return createdByLoginId; }
 	public LocalDateTime getCreatedAt() { return createdAt; }
+	public String getCreatedAtDisplay() { return DateTimeContract.toUserDisplay(createdAt).toString(); }
 }

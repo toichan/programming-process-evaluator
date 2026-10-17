@@ -11,6 +11,7 @@ import entity.UserCredential;
 import entity.UserCredential.AccountStatus;
 import entity.UserCredential.UserType;
 import lib.mysql.Client;
+import lib.time.DateTimeContract;
 
 public final class RotateAdminPassword {
 	private static final java.security.SecureRandom RANDOM = new java.security.SecureRandom();
@@ -22,7 +23,7 @@ public final class RotateAdminPassword {
 		char[] password = generatePassword();
 		try {
 			AuthenticationDao dao = new AuthenticationDao();
-			LocalDateTime now = LocalDateTime.now();
+			LocalDateTime now = DateTimeContract.utcNow();
 			try (Connection connection = Client.createConnection()) {
 				connection.setAutoCommit(false);
 				try {

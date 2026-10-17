@@ -10,6 +10,8 @@ import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.UUID;
 
@@ -28,6 +30,7 @@ import entity.TeacherDistributionInput.Target;
 import entity.TeacherDistributionInput.TemplateItem;
 import entity.UserCredential.UserType;
 import lib.mysql.Client;
+import lib.time.DateTimeContract;
 
 class TeacherDistributionDatabaseTest {
 	private final TeacherDistributionControl control = new TeacherDistributionControl();
@@ -259,11 +262,28 @@ class TeacherDistributionDatabaseTest {
 		assertTrue(control.loadPage(foreignTeacher).templates().stream()
 				.noneMatch(item -> item.templateId() == template.templateId()));
 
+		int currentTemplateVersion = templateVersion(template.templateId());
+		LocalDateTime scheduledAt = LocalDateTime.now(ZoneOffset.UTC).plusDays(2)
+				.withSecond(0).withNano(0);
+		var scheduledDistribution = control.schedule(teacher, new TeacherDistributionInput(template.templateId(),
+				currentTemplateVersion, draft.name(), draft.rootName(), items,
+				List.of(new Target(sameSchoolClassroomId, scheduledAt)), UUID.randomUUID().toString()));
+		assertEquals(0, scheduledDistribution.expectedImmediateTargets());
+		long targetId = scalar("SELECT distribution_target_id FROM distribution_targets WHERE distribution_id = "
+				+ scheduledDistribution.distributionId());
+		assertEquals(scheduledAt, targetScheduledAt(targetId));
+
 		retainBrowserFixture = true;
 		Path fixture = Path.of("build", "phase20-distribution-fixture.properties");
 		Files.createDirectories(fixture.getParent());
-		Files.writeString(fixture, "templateId=" + template.templateId() + System.lineSeparator());
-		System.out.printf("P20_DISTRIBUTION_SHARED_FIXTURE templateId=%d%n", template.templateId());
+		String scheduledAtDisplay = DateTimeContract.toUserDisplay(scheduledAt)
+				.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm"));
+		Files.writeString(fixture, "templateId=" + template.templateId() + System.lineSeparator()
+				+ "distributionId=" + scheduledDistribution.distributionId() + System.lineSeparator()
+				+ "targetId=" + targetId + System.lineSeparator()
+				+ "scheduledAtDisplay=" + scheduledAtDisplay + System.lineSeparator());
+		System.out.printf("P20_DISTRIBUTION_SHARED_FIXTURE templateId=%d distributionId=%d targetId=%d%n",
+				template.templateId(), scheduledDistribution.distributionId(), targetId);
 	}
 
 	@Test
@@ -360,7 +380,8 @@ class TeacherDistributionDatabaseTest {
 				() -> control.rescheduleTarget(teacher, targetId, LocalDateTime.now().minusMinutes(1)));
 		control.rescheduleTarget(teacher, targetId, rescheduledAt);
 		assertEquals(rescheduledAt, targetScheduledAt(targetId));
-		assertTrue(historyDetail("配信日時変更").contains(rescheduledAt.toString()));
+		assertTrue(historyDetail("配信日時変更")
+				.contains(DateTimeContract.toUserDisplay(rescheduledAt).toString()));
 		control.stopTarget(teacher, targetId);
 		assertEquals("stopped", targetStatus(targetId));
 		control.resumeTarget(teacher, targetId);

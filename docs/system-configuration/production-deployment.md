@@ -5,19 +5,253 @@
 supersedes the earlier preparation status. Infrastructure publication is not
 approval to collect research data or to execute the mutation commands in this
 runbook. See [preparation results and system-test plan](production-preparation-plan.md).
-Production business-flow acceptance and full disaster cutover remain unverified.
+The synthetic production authentication/save/run/read-back flows were accepted on
+2026-10-16 as recorded below; formal research-use acceptance and full disaster
+cutover remain separate gates.
 The 2026-10-16 isolated populated-backup restoration and notification delivery
 acceptance below do not constitute a production cutover.
 
 **2026-10-11 status:** The old release was restored successfully after the third
 ECR update failure. ECR publication/acquisition works, but new-release production
-acceptance is **incomplete and paused**. See the
+acceptance was **incomplete and paused at that time**, superseded by the
+2026-10-16 deployment and acceptance below. See the historical
 [current handoff](#phase-2-pause-and-development-handoff-2026-10-11-jst).
 The earlier preparation/install statuses below are historical, not instructions
 to reinstall completed operations. The Stage C record proves initial-state
 restoration only, not populated research-data recovery.
 
 ## 2026-10-16 最小デプロイの進捗
+
+**20:40:36 JST最終確認: 最小デプロイと本番受入はPASS / 完了。**
+ユーザーの明示承認後、既存update helperでmain
+`41228ca58509ffbce02345d439caf950997c499c`へ切り替えた。
+2026-10-16 18:01:27 JSTに操作を開始し、18:06:18 JSTにpublishedを確認した。
+この4分51秒は前後確認込みの操作時間であり、実停止時間そのものではない。
+event上のquiesce開始18:02:21〜publish完了18:06:17は3分56秒だが、
+連続外形監視による停止時間の実測とは区別する。
+
+| 項目 | 最終結果 |
+|---|---|
+| 公開先 | 生徒 `https://student.ppeval.net`、教師 `https://teacher.ppeval.net`。両health/loginは証明書検証付きHTTPSで200 |
+| Release | main `41228ca...` / current同値 / phase published。CI `38862737820`、ECR `38863619749` attempt 1、固定OCI `sha256:6d2d1967be3187a8ae81539fbeee3bbe424cc83e88977f895c4472f546d53919` |
+| Migration | V34のみ適用。履歴34件、failed 0、`log_bin_trust_function_creators=0`。完全履歴SHA256 `670c04cc8ff32f425d0ad8cd7a9f5e9c2d6fac6ed9eac3f1d211651dcb595073` |
+| 稼働と保持 | core5サービスhealthy / restart 0。アプリ系4imageは固定releaseのmanifest digest一致。DBは旧`0e2bfae5...`のimage、container `cead40118ed8...`、Volume `ppe-production_database` / CreatedAt `2026-10-08T08:32:49Z`を保持 |
+| 本番browser | 正常2/2件（19.6秒）＋停止後2/2件（6.9秒）、各exit 0 / failed・skipped・flaky 0。教師認証/admin 403、生徒保存→再読込→実Python→履歴再読込、停止後の旧session失効/正しいpasswordでの再login拒否 |
+| DB・Runner | 所有entry/actorの保存コード・成功実行各1件、既存account集約hash不変。実Runnerの通常prompt維持/提出前抑制1 test（2 subcases）成功、exit 0 |
+| 運用 | backup/TLS configは新releaseと旧DB参照に一致。backup/freshness/certbotの3timerはenabled/active/waiting、直近serviceはsuccess/0。更新以後のapp/runner/broker/nginx重大log・policy拒否は0、外部評価queue/preview 0 |
+| 復帰準備 | a6→a6 / 41228ca→a6の2referenceをroot0600で作成済み。V34成功時の完全履歴だけに限定。復帰・DB復元は実行していない |
+| 清掃 | 合成2accountをsuspended/version増分とし、監査・演習・実行履歴は合成履歴として保持。EC2の2password、ローカルの2password/env/生成payload/2cookie state（計6file）を限定削除。専用container残存なし、既存Secrets/鍵を維持 |
+
+### 更新時fresh backupの固定記録
+
+既存helperが停止後・V34適用前に作成したbackupを再検証した。backupの再実行はしていない。
+作成は18:03:35 JST、20:38の確認時age 9,274秒（許容93,600秒以内）。
+receipt SHA256は`9dfeb26ad11a61e6c38cb45d5e7045127912386671e3bde2545096137abfbd31`。
+source a6 / baseline33、target41228ca、既存DB/Volume、復帰referenceと結び付く
+remote completion manifestまで既存検証helperで照合した。
+
+| Object | 固定S3 Version | SHA256 | Bytes |
+|---|---|---|---|
+| data | `1w02B.fNZEOuP95SPDI0amqK2i0eWhjb` | `d3d28e2e69feb8f225dac2bd9779b37df74df6f034b31e42ee5390b374024f19` | 803317 |
+| checksum | `_dWXuq0RrBYPPmJ7C28a2VBCkILIWcCQ` | `f3b1ab85ae4cb86d301f6c63e9d64fb045959a19ff69963305b75c3935fcc256` | 102 |
+| manifest | `YY0JOi_.PRV96zg7N.yCJNhwQ_CzhyWl` | `b89d5799565336414ec5baa50ad4306f1092902826e789b5b8509262d682facf` | 1472 |
+
+3objectともVersion/size/SHA256/SSE-KMS/keyを確認した。独立offline鍵保管、
+本番完全DR、正式な採点品質/手動E2E、全OSの受入を完了したとは扱わない。
+追加Gemini要求、IAM/既存鍵変更、既存password resetは行っていない。
+次回定期backupの新releaseでの自動完了は、その実行後に通常運用として確認する。
+今回の最小デプロイを待機・再実行する条件にはしない。
+
+## デプロイ後の受入候補と開始条件
+
+2026-10-16、ユーザーが「実運用開始前の保留事項を整理し、次の受入範囲を決める」を選択した。
+今回の作業は既存証跡・契約の整理であり、追加の本番操作・外部AI要求は実行していない。
+工程20と上記の最小デプロイは完了のまま維持する。
+本表は既存要件に対する受入候補と開始条件の整理であり、新しい機能仕様や自動実行の承認ではない。
+
+2026-10-17の再整理: テストから次回反映までの依存順・完了条件は
+[ロードマップの残作業一覧](./implementation-roadmap.md#残作業-テストから次回本番反映まで2026-10-17整理)を参照する。
+以下の実運用/研究開始ゲートと、完了済みの最小デプロイを区別する。
+
+### DB初期化後の初期設定（2026-10-17ユーザー確認）
+
+研究同意文書を除き、現行ローカルの内容を確定版として採用する。
+対象と承認境界は[第180版の採用基準](../function-specification.md#第180版-db初期化後の初期設定の採用基準)を正本とする。
+ルーブリック登録処理やアンケートの同梱テンプレートが確定済みローカル設定を再現するかは、
+投入手順を整備する際に内容・版・参照関係を確認する。設定内容の再選択を前提にしない。
+V10が登録する研究同意の仮文面は正式版ではなく、この確定対象に含めない。
+本確認でDB初期化、本番へのデータ移送、認証情報変更、API要求は実行していない。
+
+### R-01 初期設定の棚卸しと本番read-only照合（2026-10-17）
+
+既存ローカルの確定版を、本番DBへread-only接続して件数・内容fingerprint・参照関係で照合した。
+秘密値、管理者login IDそのもの、survey回答、提出内容、コードログ、prompt本文は取得・記録せず、
+内部DB IDの一致だけで内容一致とは判定していない。
+
+| 設定領域 | ローカル確定版 / 本番観測 | 判定 |
+|---|---|---|
+| 管理者 | active row各1件。安全な内容fingerprint一致 | 一致 |
+| 標準ルーブリック | active version各1件、2 dimensions / 6 criteria / 30 levels。内容fingerprint一致 | 一致 |
+| active accounts | local: students 12 / teachers 3 / admins 1; production: students 11 / teachers 11 / admins 1 | 差分 |
+| 学校・クラス | local: active schools 2 / classrooms 3; production: 1 / 1。active student affiliationsは12 / 11 | 差分 |
+| teacher grants | school grants 7 / 11、function grants 38 / 101 | 差分 |
+| survey | active survey各1件、6 questions / 30 options。内容fingerprint不一致。localに追加のclosed surveyあり | 差分 |
+| prompt/evaluation | school-wide promptとactive task-specific evaluation configuration/exampleの内容または参照関係に差分 | 差分 |
+
+したがって、確認できた一致は管理者fingerprintと標準ルーブリック内容に限られる。
+本番が確定済みローカル初期設定と一致しているとは扱わず、今回の照合を初期化・同期・seed・
+本番更新の承認に読み替えない。調査はread-onlyで終了し、本番DB・認証情報・サービス状態に変更なし。
+空DBからの再現性と失敗時のrollbackはR-03、代表利用者フローはR-05で別途確認する。
+
+### R-03全量seed検証とR-05受入待ち（2026-10-17追補）
+
+[全量seed検証記録](./feature-plans/runtime-validation-report.md#r-03-ローカル確定設定の全量seed再現検証2026-10-17)
+のとおり、ローカル確定設定25テーブルを非公開保全し、同一ファイルを独立した空DB2つへ再現した。
+内容・ID・参照関係の一致、同内容no-op、不一致/並行/履歴混入拒否、rollback、再接続後読戻しを確認。
+単体4/4、MySQL統合1/1、WAR生成成功。これは本番コピー・本番初期化・資格情報変更の承認ではない。
+旧日時は保存表現を無変換で保持し、UTC/JSTの意味を決め打ちせず、本番移行方式は別途提示する。
+
+R-05代表合成フローは2026-10-17 16:57 JSTにも再実行し、JUnit 7/7、Playwright 3/3成功。
+[利用者受入記録](./feature-plans/runtime-validation-report.md#r-05-利用者受入の記録2026-10-17)は
+この合成フロー範囲に限る技術的受入を利用者が明示承認済み。本人による全量設定の手動E2E・採点品質の確認とは区別する。
+本番は変更していない。ユーザーの最新指示どおり、R-06完了後に対象・差分・復帰条件を提示し、
+本番反映の個別承認を得る。現時点でデプロイ承認を得たものとして進めない。
+
+[R-06/R-07候補・復帰条件スナップショット](./feature-plans/runtime-validation-report.md#r-06r-07の候補復帰条件スナップショット2026-10-17-1657-jst)を追記した。
+本番対象・暫定source baseline・復帰の停止条件を記録したが、PR/CI/ECR候補imageが未確定のため
+R-06は未完了であり、個別のR-07反映承認も未取得である。
+
+### 優先区分と残る判定
+
+| 区分 | 残作業 | 済んでいること / 未確認範囲 | 次の完了条件・承認境界 |
+|---|---|---|---|
+| 定刻の観測待ち | 更新後の定期backup自動完了 | 更新時のfresh backupと3固定S3 Versionは検証済み。新release設定での次回定期実行はまだ到来していない | 20:38のtimer観測では次回は10月17日02:03:45 JST。02:00〜02:05頃の自動実行後、systemd成功、receiptのrelease/DB参照、3固定Version/size/hash/KMS/鮮度をread-only確認する。手動実行で自動実行の証明を代替しない |
+| 方針合意・実装/移行待ち（H-04） | 時刻・予約/期限処理の契約 | UTC保存/比較・Asia/Tokyo入出力、本番デモ履歴は初期設定保全/再投入検証後に再作成可能と第181版で合意。全体統一の実装は未対応 | 確定設定の保全/再投入検証と入力/保存/比較/表示の修正・テストを行う。本番初期化/更新・資格情報変更は対象/手順提示後の別承認。現行設定/保存値は変更していない |
+| 実データ保持前の所有者確認（H-01） | 復号鍵の独立保管と責任者 | 既存Mac鍵による復号/隔離復元は成功。別媒体・独立保管先の継続利用可能性は未確認 | 所有者が保管先・責任者・取出し手順・別媒体からの利用確認を決め、非秘密の参照だけを記録する。秘密鍵の提示/EC2・Gitへの配置や、エージェントによる無断コピー/再生成は行わない |
+| 所有者による軽量確認（H-01） | 通知メールの受信箱・連絡先運用 | SNSのDelivered1/Failed0は確認済み。人間が受信箱で開封できることは別 | 所有者が既存の試験通知を確認し、非秘密の確認結果だけを残す。メール内容/アドレスを貼り付ける必要はなく、再配送試験は自動実行しない |
+| 研究利用開始前の運用判断 | 同意・外部送信・保持/終了処理 | 同意/撤回/研究出力の実装受入は完了。正式同意文面はユーザーが後日提供し、それまで正式化と研究利用開始を保留。学校の承認、プリント運用、既に提供したデータの扱い、IC-010の保持満了手順は別 | [同意要件](../function-specification.md#研究協力同意確認機能優先度低)と[実装契約](./implementation-contract.md#研究同意文書と研究利用の開始2026-10-17確認)に従う。実装/合成検証は先行できるが、仮文面を正式版としない。通常学習の条件やAPI費用/本番操作の承認境界は変えず、実データ外部送信・削除・保持期間を自動判断しない |
+| 正式な機能受入（H-02） | 評価→表示→アンケート→研究出力の全体E2E/採点品質 | 同意書以外の初期設定はローカル確定版を採用済み。合成provider/合成実APIの個別受入、現行6設問の保存/再読込は成功。人間による全体受入と品質校正は別 | 確定済みローカル設定を基準に対象課題/prompt/rubric/モデルの版、合成入力、期待評価、判定者を固定する。実APIは要求数・費用上限・失敗時停止条件を別承認。現行survey/既存回答は変更せず、設定の確定・本番投入・技術E2E・品質保証を区別する |
+| 実運用規模の検証（H-02） | 容量・同時利用・queue・費用/quota | 今回の少数合成フローは仕様の運用規模/性能を証明しない | [機能仕様の非機能要件](../function-specification.md#非機能要件)を正本とし、負荷モデル、測定環境、cold/warm、計測区間・集計方法を先に確定する。既存の応答目安/上限を勝手に新SLAへ置換せず、本番負荷試験・増設・API大量要求は別承認 |
+| 対応環境の受入（H-03） | Chrome/Firefox/Safari/Edge、対象OS/native dialog | Chromiumの代表フローと対象画面の通常/狭幅には証跡あり。全ブラウザー/OSやOS標準選択・保存ダイアログは別 | 対象OS/実ブラウザー版/端末の受入マトリクスを決める。既存の最小幅等の要件は維持し、Playwright WebKitと実Safari、downloadイベントとOS保存操作を同一視しない |
+| 復旧体制の後段受入（H-01） | 復元先Tomcat/browser、本番完全DR/切替/RTO/RPO | 固定backupの隔離DB復元、V34互換更新、実Control/DAO読戻しは成功 | まず独立した復元先のHTTP/browser受入を別計画にする。本番完全DRは復元先、停止/切替、復帰、目標RTO/RPO、費用を合意してから。既存DBの上書き/切替は自動実行しない |
+| 別計画の基盤改善 | IMDS/socket/SSM/IAM、署名、保持/GC、可変Python runtime等 | 現releaseの固定image照合・native実行・本番演習受入は完了。これをhost全体の安全証明や将来releaseの保証としない | [既存負債一覧](./ecr-deployment-debt.md)から対象を個別選択する。今回の整理をIAM/firewall/鍵/daemon変更、image削除、自動CDの承認としない |
+| 非阻害の整備（T-01/T-03） | fixture混在、Gradle/logging等の警告、任意のPages | 専用schema/workspace運用と既存buildは成功。全suite同居や警告の包括解消は別 | 研究/運用上の優先事項と分離して小さく対応する。警告を消すためだけの依存更新・no-op logger・全体再実行は行わない |
+
+F-01の不採用候補Gemini 2.5 Proの404は再試行不要、F-02の旧nginx障害とV-01〜04は解消済み。
+最終buildのskipを成功件数へ変換したり、完了済み工程を再オープンしたりしない。
+詳細な状態は[課題台帳](./error-report.md#現在の未解決未確認事項2026-10-16-更新)を参照する。
+
+### 選択済みの追加受入: H-04の読み取り調査
+
+2026-10-16の質問UIでユーザーが本読み取り調査を選択したため、
+下記範囲だけを実行する。重要度と着手しやすさは別とし、
+H-01の鍵保管や研究利用開始条件をこの調査で解消したとは扱わない。
+
+- **対象**: 公開済みrelease/instance/DBを特定した上で、OS時計・同期状態・timezone、
+  実行中JVMの既定timezone、MySQL global/session timezoneと接続設定、
+  予約公開/期限/通知/表示における日時変換のコード・既存自動テストを照合する。
+- **禁止範囲**: restart/deploy、OS/JVM/DB timezone変更、業務データ/日時の更新、
+  通知やworkerの手動起動、追加Gemini、鍵/既存password/IAM変更。
+  同期状態等の取得に新権限が必要ならその項目を未確認として止める。
+- **成果物**: 設定値の対応表、保存/比較/表示の契約、既存テストの対応、
+  問題なし/差分あり/未確認の判定と、必要なら最小の修正候補を既存文書に記録する。
+  業務データ内容や秘密値は取得・出力しない。
+- **完了条件**: OS/JVM/DB/接続/表示と予約・期限判定の対応を根拠付きで説明できること。
+  対象未取得や差分が残れば全体統一PASSにしない。修正・新しい業務テストを要する場合は
+  仕様判断と実行環境を確認して次の作業へ分ける。
+
+### H-04 調査結果（2026-10-17 00:05〜00:07 JST）
+
+**読み取り調査と時刻/デモ履歴の方針合意は完了。UTC保存/日本時間入出力の実装・移行は未完了。**
+時計同期の故障を検出したものではなく、UTCの実行基盤とtimezoneを持たない業務日時の
+意味・変換境界を区別する必要がある。今回のデプロイPASSは変更しない。
+
+対象はaccount `024378233912` / EC2 `i-0ffd69e8f390bd396` / current `41228ca...` / published。
+ローカルで読んだ本実装/configurationのtreeが配布mainと一致することもexit 0で確認した。
+
+| 対象 | 実測・根拠 | 判定・限界 |
+|---|---|---|
+| Host | `Timezone=Etc/UTC`、`NTP=yes`、`NTPSynchronized=yes`。00:07:01 JSTの補完読取 | 時計同期は正常。hostの表示がUTCであることと、日本の利用者向け表示の契約は別 |
+| 実行中app | container時計UTC、`TZ` overrideなし。PID 1の`jcmd VM.system_properties`でJVM `user.timezone=Etc/UTC` / Java21.0.11 | 新しいJavaプロセスの推測ではなく、実行中JVMを取得。timezone設定は変更していない |
+| JDBC | 配布済みresourceのURLは`serverTimezone=UTC`。[接続設定](../../src/main/resources/dataSource.properties)も同値 | driverの時刻解釈指定であり、DB sessionをUTCへ固定する操作や画面のJST変換とは区別する |
+| MySQL | 8.0.44、globalと診断sessionは`SYSTEM`、systemは`UTC`、`NOW(6)=UTC_TIMESTAMP(6)`、現在offset0 | 今の実効基準はUTC。`SYSTEM`依存を将来の固定UTC契約と同一視しない |
+| 実app接続 | app containerのDB network IPに限定して`performance_schema`を照合。既存pool接続3件/3件で`time_zone=SYSTEM` | 管理接続だけで推測せず、実際のpoolの設定を確認。業務レコードは取得していない |
+| 日時列 | `task_class_assignments.publish_at/due_at`、`distribution_targets.scheduled_at`は`DATETIME`、通知`created_at`は`DATETIME(6)` | 値にtimezone/offsetを持たない。既存各行が何を意図した日時かは今回取得・判定していない |
+| 課題の入力/保存 | [form](../../src/main/java/servlet/teacher/TeacherTaskForm.java)は`datetime-local`の値を`LocalDateTime.parse`、[DAO](../../src/main/java/dao/TeacherTaskDao.java)は`Timestamp.valueOf`等で保存 | 入力を日本時間と解釈する明示的な境界がない。実行環境の既定とdriverの組合せに依存するため、設定だけを変えて解決済みとしない |
+| 予約公開/期限 | [状態ルール](../state-rules/teacher/task-state-rules.md)どおり[publication DAO](../../src/main/java/dao/TeacherTaskPublicationDao.java)はDBの`CURRENT_TIMESTAMP`で比較、workerは60秒間隔。[期限接近通知](../../src/main/java/dao/StudentNotificationDao.java)もDB時刻基準 | DB内の比較の基準は確認。日本時間の入力が意図した絶対時刻になること、実利用者の希望時刻どおりの発火は今回の読み取りだけで未証明 |
+| 配信予約 | [input](../../src/main/java/entity/TeacherDistributionInput.java)等は`LocalDateTime.now()`で検証、[DAO](../../src/main/java/dao/TeacherDistributionDao.java)は`setObject(LocalDateTime)`で保存しDB時刻と比較 | 現在JVM/DBの実効zoneは同じ。ただし入力の日本時間解釈が未定義で、JVMだけの変更は安全な統一策ではない |
+| 通知/期限表示 | [通知label](../../src/main/java/entity/StudentNotification.java)、[生徒期限label](../../src/main/java/entity/StudentTaskSummary.java)は`LocalDateTime`を直接format。期限接近通知本文もDB `DATE_FORMAT` | UTC由来の値を日本時間へ変換する処理がない。日時の用途/保存元に応じた入出力契約が必要 |
+| エディターの即時表示 | [editor JS](../../src/main/webapp/js/student/editor/editor.js)の`toLocaleString('ja-JP')`は`timeZone`未指定 | 日本語localeだけでは日本時間固定にならず、ブラウザー既定zoneを使う。実利用端末のzoneや認証後画面は今回取得/巡回していない |
+| OSの定期backup | 実timerと[定義](../../containers/production/ppe-backup.timer)は`02:00:00 Asia/Tokyo`、最大300秒のrandom delay。次回は10月17日02:03:45 JST | host UTCでも明示した日本時間のtimerで動く。未到来なので定期backup完了とは判定せず、手動起動していない |
+
+たとえば、日本時間として入力した`12:00`がそのままUTCの`12:00`としてDB比較されれば、
+日本時間`21:00`での判定となる。これは現経路から生じ得る差分の説明であり、
+実レコードや実予約が9時間ずれていると検証・断定したものではない。
+
+#### 既存テストとの対応・今回の非実行範囲
+
+[公開/期限DBテスト](../../src/test/java/control/teacher/TeacherTaskDatabaseTest.java)は
+予定の到来・期限切れ・冪等性・延長を、
+[配信DBテスト](../../src/test/java/control/teacher/TeacherDistributionDatabaseTest.java)は
+予約変更/実配信/通知を、
+[通知DBテスト](../../src/test/java/control/student/StudentNotificationDatabaseTest.java)は
+24時間境界等を検証している。これらの既存成功証跡を維持する。
+今回のtest source照合では、JVM/DB/browserを異なるzoneにした全体契約の受入証跡は確認できなかった。
+相対時刻の成功をUTC/JST変換の証明に拡大しない。
+
+今回はread-onlyのため、テスト・build・browser業務操作・worker手動実行・予約fixture作成は行っていない。
+metadata読取はexit 0。最初の`timedatectl`のcomma形式property指定は
+出力が空だったため同期証明に使わず、複数の`--property`指定と必須key確認で補完読取しexit 0。
+本番5サービスのID/image/開始時刻/restart/health、current/state、backup/TLS config、
+DB container/Volumeは読取前後で保持した。秘密値や業務データ内容は出力していない。
+
+#### 時刻方針の合意と残る停止条件
+
+2026-10-17の質問UIで、**保存・比較をUTC基準、利用者の入力/表示を`Asia/Tokyo`へ明示変換**
+する方針をユーザーが選択した。[第181版](../function-specification.md#第181版-日時の統一方針)と
+実装契約・状態ルール・DB共通基準に反映し、時点を表す日時と期間/日付だけの値を区別する。
+基盤のUTCを維持し、コードの入出力本文は変換対象にしない。これは実装修正・移行完了ではない。
+既存`DATETIME`を一括で9時間動かしたり、OS/JVM/DBのtimezoneだけを先に変更したりしない。
+続く確認で、本番の確認/デモ履歴は継承必須とせず、確定済み初期設定の保全・再投入検証を先行して
+再作成可能とする方針も合意した。実データには適用せず、資格情報変更と本番の初期化/更新の実行は
+対象・手順・保全/復帰方法の提示後に別承認を得る。既存鍵を維持する。
+予約/期限/配信/通知/認証/評価/CSV等の影響範囲、
+日本時間の日付跨ぎ・UTCとの往復・異なるbrowser zoneの受入条件を修正計画で定める。
+今回の方針合意で本番反映・データ初期化/更新まで承認されたと解釈しない。
+
+### 更新前の準備記録（16:38 JST時点）
+
+修正版PR #61を統合したmain
+`41228ca58509ffbce02345d439caf950997c499c`は必須CI `38862737820`成功後、
+ECR `38863619749` attempt 1で7imageを公開した。固定OCIは
+`sha256:6d2d1967be3187a8ae81539fbeee3bbe424cc83e88977f895c4472f546d53919`。
+最終imageの実Runner 3件、browser 4件、保存/実行SQL再読込とapp/nginx再作成後のDB保持を受入済み。
+EC2へ同digestを取得し、READY/7image/既存5サービス・DB・Volume・current/state・運用config不変を確認した。
+native最終Runner/broker全5test、元3秒health、nginx TLS設定/起動/healthも成功。
+観測wrapperのstdin/trap不良は合格扱いせず修正・再確認した。
+
+この時点の最終toolsの本番`flywayValidate flywayInfo`は適用33、pending V34だけで成功し、DDLは未実行だった。
+scheduled backupは固定S3 3 Version/KMS/checksum/鮮度確認済み（確認時52,308秒）。
+更新時の別途fresh backupは上記のとおり既存helperで作成・照合済み。
+復帰準備はCURRENTのa6→a6（更新未publish）と41228ca→a6（publish済み）を分け、
+V34成功時の厳密な履歴hash `670c04cc8ff32f425d0ad8cd7a9f5e9c2d6fac6ed9eac3f1d211651dcb595073`
+に限定したprivate referenceをローカルで用意した。hostへの作成は更新承認の範囲として確認し、
+復帰実行・部分DDL修復・DB復元を無条件に許可しない。
+既存Mac age identityと復元リハーサルの根拠は維持し、独立offline custodyの未確認を解消済みとしない。
+
+**更新直前の質問UIでユーザーが「この範囲で本番更新する（推奨）」を明示選択済み。**
+fresh backup、a6/V33→41228ca/V34、既存DB/Volume維持、復帰reference作成、
+合成生徒/教師2accountの作成と試験後無効化だけを実行した。復帰実行/DB復元は別承認。
+承認後の最終read-only確認はSSO期限切れで一度停止したが、ユーザー再認証後にaccount/roleと現行状態を再確認した。
+自動外部AI評価queue/previewは両方0、active schoolは1、fixture login衝突0、
+FlywayはV33/failed 0であり、本番を変更する前に停止条件を解消した。
+a6/V33の既存本番は実行直前まで維持し、専用検証資源は清掃済み。
+必要最小限の更新後受入に合成の生徒/教師アカウントを使う場合は、新規一時作成と試験後無効化を承認範囲に含める。
+既存ユーザーのpassword reset、Gemini呼出し、IAM/既存Secrets変更、DB復元は含めない。
+詳細コマンド・件数・初回失敗と再検証は[最終image判定](./feature-plans/runtime-validation-report.md#2026-10-16-最小デプロイの最終image-gate)
+と[エラーレポート](./error-report.md)を参照する。
+
+### 先行候補の停止と修正方針
 
 ユーザーの「必要最低限の計画を順番に実行」の指示により、PR #60を統合済みmainへ固定し、
 同SHAのpush/main CI成功後に既存の手動ECR workflowを1回実行した。
@@ -27,10 +261,11 @@ Runner/brokerの固定command契約の不一致を検出し、**acfcd60版は本
 [詳細な判定と再検証](./feature-plans/runtime-validation-report.md#2026-10-16-最小デプロイの最終image-gate)を参照。
 
 通常実行と提出前チェックの契約だけを同期し、unit/APIと専用実Runnerで修正を受け入れた。
-次は新SHAのCI・ECR再公開と最終image受入。本番currentは`a6e90edf...`、
-DBは既存`0e2bfae5...`/V33/同じcontainerとVolumeを維持し、migration/サービス更新は未実行。
+当時は新SHAのCI・ECR再公開と最終image受入が次の手順だった。本番currentは`a6e90edf...`、
+DBは既存`0e2bfae5...`/V33/同じcontainerとVolumeを維持していた。
+その後の再公開・承認・切替・受入結果は本節冒頭を正とする。
 新規CI/CD方式・IAM/Secrets変更・Gemini再呼出しは追加しない。
-更新直前に最終版、V34、復帰条件、合成確認範囲を提示して改めて明示承認を得る。
+更新直前には最終版、V34、復帰条件、合成確認範囲を提示して改めて明示承認を得た。
 
 既存operationsのbytesを照合した結果、deploy/rollbackにはa6版の正規helperを使う。
 ECR取得には869版の一致するentry/source/CI共通helperだけを使用できる。

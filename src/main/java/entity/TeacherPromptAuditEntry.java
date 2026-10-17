@@ -2,6 +2,8 @@ package entity;
 
 import java.time.LocalDateTime;
 
+import lib.time.DateTimeContract;
+
 public record TeacherPromptAuditEntry(
 		long auditLogId,
 		String actorLoginId,
@@ -15,4 +17,7 @@ public record TeacherPromptAuditEntry(
 	public String getResultStatus() { return resultStatus; }
 	public String getDetail() { return detail; }
 	public LocalDateTime getOccurredAt() { return occurredAt; }
+	public String getOccurredAtDisplay() {
+		return DateTimeContract.toUserDisplay(occurredAt).toString();
+	}
 }

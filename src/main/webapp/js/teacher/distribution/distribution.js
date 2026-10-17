@@ -4,6 +4,14 @@
   const form = document.getElementById('distributionForm');
   if (!form) return;
 
+  function japanDateTimeParts(date) {
+    return Object.fromEntries(new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23'
+    }).formatToParts(date).filter(part => part.type !== 'literal')
+      .map(part => [part.type, Number(part.value)]));
+  }
+
   const feedback = window.PPEFeedback.createPageFeedback({
     title: 'コード配信',
     alertTarget: '#distributionFeedback'
@@ -1013,9 +1021,9 @@
     const locals = [];
     const centrals = [];
     let offset = 0;
-    const now = new Date();
-    const dosTime = (now.getHours() << 11) | (now.getMinutes() << 5) | Math.floor(now.getSeconds() / 2);
-    const dosDate = ((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate();
+    const now = japanDateTimeParts(new Date());
+    const dosTime = (now.hour << 11) | (now.minute << 5) | Math.floor(now.second / 2);
+    const dosDate = ((now.year - 1980) << 9) | (now.month << 5) | now.day;
     const zipEntries = [
       ...Array.from(folderPaths).map(path => ({ path: rootName + (path ? '/' + path : '') + '/', content: '', type: 'folder' })),
       ...fileEntries.map(item => ({ path: rootName + '/' + item.path, content: item.content || '', type: 'file' }))
@@ -1217,7 +1225,8 @@
       const text = String(value || '');
       return /[",\r\n]/.test(text) ? '"' + text.replace(/"/g, '""') + '"' : text;
     }).join(',')).join('\r\n');
-    const date = new Date().toISOString().slice(0, 10);
+    const dateParts = japanDateTimeParts(new Date());
+    const date = `${dateParts.year}-${String(dateParts.month).padStart(2, '0')}-${String(dateParts.day).padStart(2, '0')}`;
     downloadBlob('distribution_history_' + date + '.csv', new Blob([csv], { type: 'text/csv;charset=utf-8' }));
   }
 
@@ -1306,7 +1315,7 @@
       terminal.dataset.placeholder = 'true';
     }
     document.getElementById('runResultTime').textContent = running ? '実行中…'
-      : '最終実行: ' + new Date().toLocaleTimeString('ja-JP');
+      : '最終実行: ' + new Date().toLocaleTimeString('ja-JP', { timeZone: 'Asia/Tokyo' });
     document.getElementById('terminalInput').disabled = !running || previewInputSending;
     document.getElementById('terminalSendButton').disabled = !running || previewInputSending;
     document.getElementById('terminalCancelButton').hidden = !running;

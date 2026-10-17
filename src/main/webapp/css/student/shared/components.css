@@ -59,6 +59,10 @@
 		position: static;
 		width: 100%;
 	}
+	.navbar .navbar-collapse .task-shortcut-menu {
+		position: static;
+		width: 100%;
+	}
 }
 
 #header-placeholder {
@@ -86,6 +90,10 @@
 .navbar .dropdown-menu {
   position: absolute;
   z-index: 2100;
+}
+
+.navbar .dropdown-menu:not(.show) {
+  display: none;
 }
 
 .modal-backdrop {

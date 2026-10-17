@@ -17,6 +17,7 @@ import com.google.gson.JsonParser;
 
 import entity.ReevaluationPreview;
 import lib.mysql.Client;
+import lib.time.DateTimeContract;
 
 public final class ReevaluationPreviewDao implements ReevaluationPreviewWorkRepository {
 	public long insertPreview(
@@ -135,7 +136,7 @@ public final class ReevaluationPreviewDao implements ReevaluationPreviewWorkRepo
 						status,
 						rows.getInt("participant_count"),
 						rows.getInt("target_count"),
-						rows.getTimestamp("expires_at").toLocalDateTime(),
+						DateTimeContract.fromDatabaseTimestamp(rows.getTimestamp("expires_at")),
 						rows.getLong("row_version"),
 						findTargets(connection, rows.getLong("reevaluation_preview_id")));
 			}
@@ -197,7 +198,7 @@ public final class ReevaluationPreviewDao implements ReevaluationPreviewWorkRepo
 						rows.getBytes("scope_fingerprint"),
 						rows.getBytes("configuration_fingerprint"),
 						rows.getString("preview_status"),
-						rows.getTimestamp("expires_at").toLocalDateTime(),
+						DateTimeContract.fromDatabaseTimestamp(rows.getTimestamp("expires_at")),
 						rows.getLong("row_version"),
 						findTargetSnapshots(connection, rows.getLong("reevaluation_preview_id")));
 			}

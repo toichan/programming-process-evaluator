@@ -23,6 +23,7 @@ import entity.TeacherPromptVersion;
 import entity.TeacherPromptVersion.EvaluationExample;
 import entity.TeacherPromptVersion.FluctuationItem;
 import entity.TeacherTaskDetails;
+import lib.time.DateTimeContract;
 
 public final class TeacherPromptDao {
 	private static final String FEATURE_CODE = "teacher-prompt-design";
@@ -1061,7 +1062,7 @@ public final class TeacherPromptDao {
 	}
 
 	private static LocalDateTime toLocalDateTime(Timestamp timestamp) {
-		return timestamp == null ? null : timestamp.toLocalDateTime();
+		return timestamp == null ? null : DateTimeContract.fromDatabaseTimestamp(timestamp);
 	}
 
 	private static void requireWriteTransaction(Connection connection) throws SQLException {

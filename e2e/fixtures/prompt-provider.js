@@ -42,6 +42,25 @@ function examples(input) {
   };
 }
 
+function evaluation() {
+  return {
+    scores: { thinking_expression_level: 3, proactive_attitude_level: 4 },
+    reasons: {
+      thinking_expression_reason: '合成されたコードと実行記録に基づく理由',
+      proactive_attitude_reason: '合成された取り組み記録に基づく理由'
+    },
+    process_analysis: {
+      pattern_label: 'synthetic_completion',
+      turning_points: [],
+      stagnation_points: [],
+      teacher_support_suggestions: []
+    },
+    confidence: 0.8,
+    evidence_refs: [],
+    warnings: ['合成providerによる技術検証用の結果です。']
+  };
+}
+
 http.createServer(async (request, response) => {
   response.setHeader('Content-Type', 'application/json; charset=utf-8');
   if (request.method === 'GET' && request.url === '/health') {
@@ -61,21 +80,29 @@ http.createServer(async (request, response) => {
     let body = '';
     for await (const chunk of request) body += chunk;
     const payload = JSON.parse(body);
-    const input = JSON.parse(payload.input);
+    const evaluationPrefix = '次のデータを評価してください。\n';
+    const isEvaluation = payload.input.startsWith(evaluationPrefix);
+    const input = JSON.parse(isEvaluation
+      ? payload.input.slice(evaluationPrefix.length)
+      : payload.input);
     if (!payload.response_format?.schema || payload.store !== false
-        || !input.task_context || !input.standard_rubric || !input.evaluation_prompt) {
+        || (isEvaluation
+          ? !Array.isArray(input.timeline_logs)
+          : !input.task_context || !input.standard_rubric || !input.evaluation_prompt)) {
       throw new Error('Incomplete synthetic request');
     }
     generations++;
-    const stage = input.synthetic_submission_samples ? 'examples' : 'fluctuations';
+    const stage = isEvaluation ? 'evaluation'
+      : input.synthetic_submission_samples ? 'examples' : 'fluctuations';
     requests.push({ stage, model: payload.model });
-    const output = stage === 'examples' ? examples(input) : {
-      ambiguity_items: [{
-        title: '合成の境界値', ambiguity_reason: '合成例の解釈を固定する',
-        risk_level: 'medium', clarification_question: '境界値をどう扱いますか',
-        recommended_rule_text: '課題仕様に従って判定する'
-      }]
-    };
+    const output = isEvaluation ? evaluation()
+      : stage === 'examples' ? examples(input) : {
+        ambiguity_items: [{
+          title: '合成の境界値', ambiguity_reason: '合成例の解釈を固定する',
+          risk_level: 'medium', clarification_question: '境界値をどう扱いますか',
+          recommended_rule_text: '課題仕様に従って判定する'
+        }]
+      };
     setTimeout(() => response.end(JSON.stringify({ output_text: JSON.stringify(output) })), 6000);
   } catch (failure) {
     console.error('Synthetic provider rejected a request:', failure.message);

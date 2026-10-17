@@ -58,7 +58,7 @@ window.PPETeacherPreview = {
       if ((result.standardOutputTruncated || result.standardErrorTruncated) && !copy.truncated) {
         copy.segments.push({ text: '\n[出力は上限で切り詰められました]\n', style: 'terminal-system-message' }); copy.truncated = true;
       }
-      copy.status = result.status; copy.time = result.status === 'running' ? '実行中...' : `最終実行: ${new Date().toLocaleTimeString('ja-JP')}`;
+      copy.status = result.status; copy.time = result.status === 'running' ? '実行中...' : `最終実行: ${new Date().toLocaleTimeString('ja-JP', { timeZone: 'Asia/Tokyo' })}`;
       if (result.status !== 'running') {
         copy.sessionId = null;
         if (!copy.segments.length) copy.segments.push({ text: '（出力なし）\n', style: '' });

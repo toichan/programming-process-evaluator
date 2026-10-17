@@ -8,14 +8,14 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class StudentNotificationTest {
-	@Test void exposesAgreedGettersAndFormatsDatabaseTimestamp() {
+	@Test void exposesAgreedGettersAndFormatsDatabaseTimestampInJapanTime() {
 		var notification = new StudentNotification(7, StudentNotification.TYPE_EVALUATION_COMPLETED,
 				"評価が完了しました", "<b>raw</b>", LocalDateTime.of(2026, 10, 7, 9, 5, 59, 999_000_000),
 				false, 11L, 13L);
 		assertEquals(7, notification.getNotificationId());
 		assertEquals("評価が完了しました", notification.getTitle());
 		assertEquals("<b>raw</b>", notification.getMessage(), "escaping belongs to the JSP output");
-		assertEquals("2026/10/07 09:05", notification.getCreatedAtLabel());
+		assertEquals("2026/10/07 18:05", notification.getCreatedAtLabel());
 		assertFalse(notification.isRead());
 		assertEquals(11L, notification.getAssignmentId());
 		assertEquals(13L, notification.getSubmissionId());

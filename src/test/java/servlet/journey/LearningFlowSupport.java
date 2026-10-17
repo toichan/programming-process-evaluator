@@ -24,7 +24,7 @@ final class LearningFlowSupport {
 	static void guard() throws Exception {
 		Assumptions.assumeTrue("true".equals(System.getenv("LEARNING_FLOW_HTTP_TEST")));
 		assertTrue(System.getenv("DB_NAME").matches("ppe_learning_flow_test_[a-z0-9_]+"));
-		assertEquals("http://ppe-learning-flow-runtime:8080", System.getenv("LEARNING_FLOW_HTTP_BASE"));
+		assertEquals("https://teacher.localhost:8443", System.getenv("LEARNING_FLOW_HTTP_BASE"));
 		try (var connection = Client.createConnection()) {
 			assertEquals(System.getenv("DB_NAME"), connection.getCatalog());
 		}
@@ -44,6 +44,30 @@ final class LearningFlowSupport {
 			assertTrue(result.next(), "Expected a persisted synthetic row.");
 			return result.getString(1);
 		}
+	}
+
+	static String awaitText(String sql, String expected, Duration timeout) throws Exception {
+		long deadline = System.nanoTime() + timeout.toNanos();
+		String actual;
+		do {
+			actual = text(sql);
+			if (expected.equals(actual)) return actual;
+			Thread.sleep(100);
+		} while (System.nanoTime() < deadline);
+		assertEquals(expected, actual);
+		return actual;
+	}
+
+	static long awaitNumberAtLeast(String sql, long minimum, Duration timeout) throws Exception {
+		long deadline = System.nanoTime() + timeout.toNanos();
+		long actual;
+		do {
+			actual = number(sql);
+			if (actual >= minimum) return actual;
+			Thread.sleep(100);
+		} while (System.nanoTime() < deadline);
+		assertTrue(actual >= minimum, "Expected at least " + minimum + " persisted fixture rows; found " + actual);
+		return actual;
 	}
 
 	static String input(String html, String name) {
@@ -68,6 +92,19 @@ final class LearningFlowSupport {
 		return matcher.group(1);
 	}
 
+	static String formContainingInput(String html, String name, String value) {
+		var forms = Pattern.compile("<form\\b[^>]*>(.*?)</form>", Pattern.DOTALL).matcher(html);
+		while (forms.find()) {
+			String form = forms.group(1);
+			if (Pattern.compile("<input\\b[^>]*\\bname=\"" + Pattern.quote(name)
+					+ "\"[^>]*\\bvalue=\"" + Pattern.quote(value) + "\"").matcher(form).find()) {
+				return form;
+			}
+		}
+		fail("Missing form containing " + name + "=" + value);
+		return "";
+	}
+
 	static String decode(String value) {
 		return value.replace("&amp;", "&").replace("&quot;", "\"")
 				.replace("&#039;", "'").replace("&#39;", "'").replace("&lt;", "<").replace("&gt;", ">");
@@ -87,7 +124,10 @@ final class LearningFlowSupport {
 	static void redirect(HttpResponse<String> response, String path) {
 		assertTrue(response.statusCode() == 302 || response.statusCode() == 303,
 				"Expected redirect; status=" + response.statusCode());
-		assertTrue(response.headers().firstValue("location").orElseThrow().startsWith(path));
+		String location = response.headers().firstValue("location").orElseThrow();
+		String locationPath = URI.create(location).getPath();
+		assertTrue(locationPath != null && locationPath.startsWith(path),
+				"Expected redirect to " + path + "; location=" + location);
 	}
 
 	static final class Browser {
