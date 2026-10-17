@@ -1,7 +1,6 @@
 package entity;
 
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Objects;
 
@@ -194,9 +193,7 @@ public record TeacherTaskInput(
 		}
 
 		private static String inputDateTime(LocalDateTime utcValue) {
-			return utcValue == null ? ""
-					: DateTimeContract.toUserDisplay(utcValue)
-							.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm"));
+			return utcValue == null ? "" : DateTimeContract.toUserDisplay(utcValue).toString();
 		}
 
 		public LateSubmissionPolicy getLateSubmissionPolicy() {

@@ -99,6 +99,32 @@ R-07開始前には、候補release SHA/image digest、実際のDB/migration差�
 - No PR exists yet. The integrated browser is signed out, and no GitHub PR-creation operation is available in the current toolset. The pushed branch's GitHub create-PR page is [Create pull request](https://github.com/toichan/programming-process-evaluator/pull/new/release/r03-r05-r06-20261017). The repository template is [`.github/pull_request_template.md`](../../../.github/pull_request_template.md); preserve its headings `概要`, `変更内容`, `補足`. Suggested body: summarize R-03 private full-seed rehearsal and R-05 synthetic-flow acceptance; list exact local commands/results from this report; state that ECR publication and production deployment are not included.
 - ECR publication was not started. It requires a separate approval with the exact successful main SHA and image-publication scope after PR/main CI and review; production deployment remains a further separately approved operation.
 
+## 2026-10-17 23:46 JST R-06 full review and correction follow-up
+
+The previous GitHub candidate follow-up is historical. Main CI run
+[`39040399054`](https://github.com/toichan/programming-process-evaluator/actions/runs/39040399054)
+completed successfully for main SHA `3522282622d22b7ca52d2fc0589061af3df22254`;
+both Java build/tests and Shell deployment regressions succeeded.
+
+A complete review of the release change set from prior production main
+`41228ca58509ffbce02345d439caf950997c499c` to that merge SHA found one medium
+issue: the teacher task edit form formatted existing publication/deadline values
+only to minutes, silently discarding seconds. This could alter timestamps on an
+otherwise unrelated edit or make valid values in the same minute equal.
+`TeacherTaskInput.ClassAssignmentInput` now uses the converted `LocalDateTime`
+string representation, retaining nonzero seconds while leaving zero-second
+values in the existing minute-only representation. A regression test checks
+JST display and UTC round-trip for both timestamps.
+
+The exact main SHA above does not contain this follow-up fix. The regression
+test failed before the fix, and after the fix the full offline Gradle build
+passed: 153 suites / 577 tests, **386 passed / 0 failed / 0 errors / 191
+skipped**. Skip cases are not counted as passes. The fix and this follow-up are
+local and uncommitted; a new reviewed PR/main SHA and successful CI are required
+before publishing any ECR candidate. ECR publication, EC2 image acquisition,
+production preflight/migration/deployment, and production acceptance have not
+started. No production resource or database was changed.
+
 ## 2026-10-17 11:11 JST R-03〜R-05 合成縦断検証の再検証結果
 
 以下は11:11時点の履歴。R-03全量seedとR-05の最新判定は上記の追補を正本とする。
