@@ -92,6 +92,13 @@ R-07開始前には、候補release SHA/image digest、実際のDB/migration差�
 | Deployment regressions | `bash scripts/ci/run-shell-tests.sh <new-private-temp-directory>`: **20 suites passed / 0 skipped**。既存のlocal CI imageをread-onlyで利用し、tagの上書きなし。AWS/production accessなし |
 | 対象外 | GitHub上の必須CI、PR/main review、ECR publish、final-image本番相当受入は未実行。R-07の本番反映は未承認・未実施 |
 
+### GitHub candidate follow-up
+
+- User approval was obtained before starting remote changes. Commit `483de49fdce558366335bece152461209f37aa98` was created on `release/r03-r05-r06-20261017` and pushed to `origin`. It contains 117 paths; the two pre-existing generated `.class` deletions remain unstaged and excluded.
+- Push triggered CI run [39039122038](https://github.com/toichan/programming-process-evaluator/actions/runs/39039122038), observed in progress. Do not report it passed until completed.
+- No PR exists yet. The integrated browser is signed out, and no GitHub PR-creation operation is available in the current toolset. The pushed branch's GitHub create-PR page is [Create pull request](https://github.com/toichan/programming-process-evaluator/pull/new/release/r03-r05-r06-20261017). The repository template is [`.github/pull_request_template.md`](../../../.github/pull_request_template.md); preserve its headings `概要`, `変更内容`, `補足`. Suggested body: summarize R-03 private full-seed rehearsal and R-05 synthetic-flow acceptance; list exact local commands/results from this report; state that ECR publication and production deployment are not included.
+- ECR publication was not started. It requires a separate approval with the exact successful main SHA and image-publication scope after PR/main CI and review; production deployment remains a further separately approved operation.
+
 ## 2026-10-17 11:11 JST R-03〜R-05 合成縦断検証の再検証結果
 
 以下は11:11時点の履歴。R-03全量seedとR-05の最新判定は上記の追補を正本とする。
