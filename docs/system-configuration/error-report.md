@@ -2,6 +2,15 @@
 
 秘密情報・実際の生徒データ・研究データは記載しない。解消後も履歴を保持する。
 
+## 2026-10-17 23:46 JST R-06レビューで検出した課題時刻の秒切捨て
+
+- 対象/期待結果: 課題編集フォームへ既存の公開日時・期限を戻す際、UTCからAsia/Tokyoへの表示変換後も秒を保持し、編集・保存で時刻が変化しないこと。
+- レビュー指摘: `TeacherTaskInput.ClassAssignmentInput`の表示値を分精度でformatしており、既存の秒が切り捨てられていた。タイトルだけを変更して保存しても時刻が最大59秒変化し、同一分内の公開時刻と期限が同値になって保存拒否となる可能性があった。
+- 実装前の検証失敗: `functions.runTests`はJava/JUnitファイルを検出できず`No tests found`。Mac上の`gradle --offline --no-daemon test --tests entity.TeacherTaskInputTest --console plain`はJava 21 toolchain不在でexit 1。`ppe-tools:local`を通常起動した最初の試行は`DB_PASSWORD_FILE is required`で停止したため、以後は隔離containerで`--entrypoint gradle`を指定した。回帰テストは修正前に秒を欠く表示値を検出してFAILした。
+- 修正中に検出した互換性回帰: 固定で秒を表示するformatでは、従来分精度の入力を表示したとき末尾`:00`が加わり、`TeacherTaskFormTest.interpretsAssignmentDateTimesAsJapanLocalTimeAndStoresUtc`が失敗した。秒が0の既存表示を変えないよう、UTC→JST変換後の`LocalDateTime.toString()`を使用する形へ修正し、秒がある場合のみ秒を保持するようにした。
+- 再検証: `docker run --rm --network none --entrypoint gradle -v "$PWD:/workspace" -w /workspace ppe-tools:local --offline --no-daemon build --warning-mode all --console plain`はexit 0、`BUILD SUCCESSFUL`。153 suites / 577 tests: **386 passed / 0 failed / 0 errors / 191 skipped**。skipは成功数に含めない。対象入力・validator・control・servlet試験も同containerでexit 0。
+- 残件/境界: 修正はローカル未commit。修正済みsource SHAのPR/main CI、ECR候補公開・digest照合、固定imageの隔離受入は未実施。production/EC2/DBの変更は0。本エラーの検出・修正が旧SHA `3522282622d22b7ca52d2fc0589061af3df22254`のCI成功や、そのSHAに限定されたECR許可を新SHAへ拡張するものではない。
+
 ## 2026-10-17 R-03全量seedの調査SQL・JUnit集計エラーと解消
 
 - 発生日時: 2026-10-17 JST。同日の調査・再検証中。各失敗の開始時刻は保存されていないため不明とし、run識別子で区別する。

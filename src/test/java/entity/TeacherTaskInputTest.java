@@ -3,10 +3,15 @@ package entity;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
+
+import entity.TeacherTaskInput.ClassAssignmentInput;
+import entity.TeacherTaskInput.LateSubmissionPolicy;
+import lib.time.DateTimeContract;
 
 class TeacherTaskInputTest {
 	@Test
@@ -37,6 +42,21 @@ class TeacherTaskInputTest {
 				TeacherTaskInput.LateSubmissionPolicy.fromDatabaseValue("deny").databaseValue());
 		assertThrows(IllegalArgumentException.class,
 				() -> TeacherTaskInput.LateSubmissionPolicy.fromDatabaseValue("sometimes"));
+	}
+
+	@Test
+	void preservesSecondsWhenFormattingExistingAssignmentTimesForEditing() {
+		LocalDateTime publishAt = LocalDateTime.of(2026, 10, 17, 15, 30, 45);
+		LocalDateTime dueAt = LocalDateTime.of(2026, 10, 17, 16, 40, 17);
+		ClassAssignmentInput assignment = new ClassAssignmentInput(
+				12, 34, publishAt, dueAt, LateSubmissionPolicy.DENY);
+
+		assertEquals("2026-10-18T00:30:45", assignment.getPublishAtDisplay());
+		assertEquals(publishAt,
+				DateTimeContract.fromUserInput(LocalDateTime.parse(assignment.getPublishAtDisplay())));
+		assertEquals("2026-10-18T01:40:17", assignment.getDueAtDisplay());
+		assertEquals(dueAt,
+				DateTimeContract.fromUserInput(LocalDateTime.parse(assignment.getDueAtDisplay())));
 	}
 
 	private static TeacherTaskInput input() {
