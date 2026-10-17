@@ -3,6 +3,8 @@ package entity;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 
+import lib.time.DateTimeContract;
+
 public final class TeacherProgressStatus {
 	private TeacherProgressStatus() {
 	}
@@ -30,7 +32,8 @@ public final class TeacherProgressStatus {
 
 	private static boolean isLateAndBlocked(Timestamp dueAt, String assignmentStatus, String lateSubmissionPolicy) {
 		return "deny".equals(lateSubmissionPolicy)
-				&& (dueAt != null && dueAt.toLocalDateTime().isBefore(LocalDateTime.now())
+				&& (dueAt != null && DateTimeContract.fromDatabaseTimestamp(dueAt)
+						.isBefore(DateTimeContract.utcNow())
 						|| "expired".equals(assignmentStatus));
 	}
 }

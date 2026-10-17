@@ -12,6 +12,7 @@ import java.util.Optional;
 import entity.StudentNotification;
 import entity.StudentNotificationPage;
 import lib.mysql.Client;
+import lib.time.DateTimeContract;
 
 public class StudentNotificationDao {
 	public static final int RETENTION_DAYS = 90;
@@ -302,7 +303,8 @@ public class StudentNotificationDao {
 			SELECT u.user_id, ?, ca.task_class_assignment_id,
 			       LEFT(CONCAT('課題「', t.title, '」の提出期限が延長されました'), 255),
 			       LEFT(CONCAT('クラス「', c.name, '」の課題「', t.title, '」の提出期限は ',
-			            DATE_FORMAT(ca.due_at, '%Y/%m/%d %H:%i'), ' に延長されました。引き続き提出できます。'), 500)
+			            DATE_FORMAT(DATE_ADD(ca.due_at, INTERVAL 9 HOUR), '%Y/%m/%d %H:%i'),
+			            ' に延長されました。引き続き提出できます。'), 500)
 			FROM task_class_assignments ca
 			JOIN tasks t ON t.task_id = ca.task_id
 			JOIN classrooms c ON c.classroom_id = ca.classroom_id
@@ -393,7 +395,8 @@ public class StudentNotificationDao {
 			SELECT u.user_id, ?, ca.task_class_assignment_id,
 			       LEFT(CONCAT('課題「', t.title, '」の提出期限が近づいています'), 255),
 			       LEFT(CONCAT('クラス「', c.name, '」の課題「', t.title, '」の提出期限は ',
-			            DATE_FORMAT(ca.due_at, '%Y/%m/%d %H:%i'), ' です。期限までに提出してください。'), 500)
+			            DATE_FORMAT(DATE_ADD(ca.due_at, INTERVAL 9 HOUR), '%Y/%m/%d %H:%i'),
+			            ' です。期限までに提出してください。'), 500)
 			FROM task_class_assignments ca
 			JOIN tasks t ON t.task_id = ca.task_id
 			JOIN classrooms c ON c.classroom_id = ca.classroom_id
@@ -624,7 +627,7 @@ public class StudentNotificationDao {
 				resultSet.getString("notification_type"),
 				resultSet.getString("title"),
 				resultSet.getString("message"),
-				createdAt.toLocalDateTime(),
+				DateTimeContract.fromDatabaseTimestamp(createdAt),
 				resultSet.getTimestamp("read_at") != null,
 				assignment,
 				submission,

@@ -15,6 +15,7 @@ import entity.ReevaluationJobStatus;
 import entity.ReevaluationJobTargetResult;
 import dao.TeacherPromptDao.TeacherTaskNotFoundException;
 import lib.mysql.Client;
+import lib.time.DateTimeContract;
 
 public final class ReevaluationJobDao {
 	public ReevaluationJobStatus loadStatus(
@@ -55,8 +56,8 @@ public final class ReevaluationJobDao {
 				completedCount = rows.getInt("completed_count");
 				failedCount = rows.getInt("failed_count");
 				progressPercent = rows.getBigDecimal("progress_percent");
-				startedAt = started == null ? null : started.toLocalDateTime();
-				completedAt = completed == null ? null : completed.toLocalDateTime();
+				startedAt = started == null ? null : DateTimeContract.fromDatabaseTimestamp(started);
+				completedAt = completed == null ? null : DateTimeContract.fromDatabaseTimestamp(completed);
 			}
 		}
 		return new ReevaluationJobStatus(

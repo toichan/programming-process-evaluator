@@ -8,6 +8,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import lib.time.DateTimeContract;
+
 public record TeacherDistributionInput(
 		long templateId,
 		int expectedVersion,
@@ -57,7 +59,7 @@ public record TeacherDistributionInput(
 			if (target == null || target.classroomId() < 1 || !classrooms.add(target.classroomId())) {
 				throw new IllegalArgumentException("配信先クラスが重複または不正です。");
 			}
-			if (target.scheduledAt() != null && !target.scheduledAt().isAfter(LocalDateTime.now())) {
+			if (target.scheduledAt() != null && !target.scheduledAt().isAfter(DateTimeContract.utcNow())) {
 				throw new IllegalArgumentException("配信日時は現在より後に設定してください。");
 			}
 		}

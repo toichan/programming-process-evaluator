@@ -15,6 +15,7 @@ import entity.UserCredential.AccountStatus;
 import entity.UserCredential.FirstLoginStatus;
 import entity.UserCredential.UserType;
 import lib.mysql.Client;
+import lib.time.DateTimeContract;
 
 public final class UserDao {
 	private static final String FIND_BY_LOGIN_ID = """
@@ -87,7 +88,7 @@ public final class UserDao {
 		Timestamp loginLockedUntilTimestamp = resultSet.getTimestamp("login_locked_until");
 		Optional<LocalDateTime> loginLockedUntil = loginLockedUntilTimestamp == null
 				? Optional.empty()
-				: Optional.of(loginLockedUntilTimestamp.toLocalDateTime());
+				: Optional.of(DateTimeContract.fromDatabaseTimestamp(loginLockedUntilTimestamp));
 		boolean hasStudentProfile = resultSet.getObject("student_profile_user_id") != null;
 
 		Optional<StudentAccountProfile> studentProfile;

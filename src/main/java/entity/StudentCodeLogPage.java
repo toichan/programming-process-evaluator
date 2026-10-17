@@ -4,6 +4,8 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 
+import lib.time.DateTimeContract;
+
 public final class StudentCodeLogPage {
 	private static final DateTimeFormatter DATE_TIME_FORMAT = DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm:ss");
 
@@ -101,7 +103,9 @@ public final class StudentCodeLogPage {
 			};
 		}
 		public LocalDateTime getObservedAt() { return observedAt; }
-		public String getObservedAtDisplay() { return observedAt.format(DATE_TIME_FORMAT); }
+		public String getObservedAtDisplay() {
+			return DateTimeContract.toUserDisplay(observedAt).format(DATE_TIME_FORMAT);
+		}
 		public Long getExecutionId() { return executionId; }
 		public String getSnapshot() { return snapshot; }
 		public String getExecutionStatus() { return executionStatus; }

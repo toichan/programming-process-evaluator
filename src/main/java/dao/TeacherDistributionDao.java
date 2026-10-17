@@ -29,6 +29,7 @@ import entity.TeacherDistributionPage.HistorySummary;
 import entity.TeacherDistributionPage.TargetSummary;
 import entity.TeacherDistributionPage.TemplateSummary;
 import entity.TeacherSchoolOption;
+import lib.time.DateTimeContract;
 
 public final class TeacherDistributionDao {
 	private static final Logger LOGGER = Logger.getLogger(TeacherDistributionDao.class.getName());
@@ -335,7 +336,7 @@ public final class TeacherDistributionDao {
 	public void rescheduleTarget(Connection connection, long teacherId, long targetId,
 			LocalDateTime scheduledAt) throws SQLException {
 		permissions.requireCodeDistributionAccess(connection, teacherId);
-		if (scheduledAt == null || !scheduledAt.isAfter(LocalDateTime.now())) {
+		if (scheduledAt == null || !scheduledAt.isAfter(DateTimeContract.utcNow())) {
 			throw new IllegalArgumentException("配信日時は現在より後に設定してください。");
 		}
 		DeliveryTarget target = lockDeliveryTarget(connection, targetId);
@@ -356,7 +357,8 @@ public final class TeacherDistributionDao {
 		}
 		recordHistory(connection, target.distributionId(), teacherId, "配信日時変更",
 				Map.of("classroomId", target.classroomId(),
-						"before", target.scheduledAt().toString(), "after", scheduledAt.toString()), true);
+						"before", DateTimeContract.toUserDisplay(target.scheduledAt()).toString(),
+						"after", DateTimeContract.toUserDisplay(scheduledAt).toString()), true);
 	}
 
 	public int processDueTargets() throws SQLException {
@@ -812,7 +814,7 @@ public final class TeacherDistributionDao {
 		try (PreparedStatement statement = connection.prepareStatement("""
 				SELECT d.distribution_id, d.distribution_template_id, d.template_name_snapshot,
 				       d.distribution_status,
-				       DATE_FORMAT(d.created_at, '%Y-%m-%d %H:%i') AS created_at,
+				       DATE_FORMAT(DATE_ADD(d.created_at, INTERVAL 9 HOUR), '%Y-%m-%d %H:%i') AS created_at,
 				       executor.login_id AS executed_by
 				FROM distributions d
 				JOIN users executor ON executor.user_id = d.executed_by_user_id
@@ -851,9 +853,9 @@ public final class TeacherDistributionDao {
 				       CONCAT(COALESCE(c.grade_name, ''), CASE WHEN c.grade_name IS NULL OR c.grade_name = '' THEN '' ELSE ' ' END, c.name)
 				         AS classroom_name,
 				       dt.target_status,
-				       DATE_FORMAT(dt.scheduled_at, '%Y-%m-%d %H:%i') AS scheduled_at,
-				       DATE_FORMAT(dt.scheduled_at, '%Y-%m-%dT%H:%i') AS scheduled_input,
-				       DATE_FORMAT(dt.distributed_at, '%Y-%m-%d %H:%i') AS distributed_at,
+				       DATE_FORMAT(DATE_ADD(dt.scheduled_at, INTERVAL 9 HOUR), '%Y-%m-%d %H:%i') AS scheduled_at,
+				       DATE_FORMAT(DATE_ADD(dt.scheduled_at, INTERVAL 9 HOUR), '%Y-%m-%dT%H:%i') AS scheduled_input,
+				       DATE_FORMAT(DATE_ADD(dt.distributed_at, INTERVAL 9 HOUR), '%Y-%m-%d %H:%i') AS distributed_at,
 				       dt.execution_result
 				FROM distribution_targets dt
 				JOIN classrooms c ON c.classroom_id = dt.classroom_id
@@ -881,7 +883,7 @@ public final class TeacherDistributionDao {
 		List<HistorySummary> history = new ArrayList<>();
 		try (PreparedStatement statement = connection.prepareStatement("""
 				SELECT h.action_type, u.user_id AS actor_user_id, u.login_id,
-				       DATE_FORMAT(h.occurred_at, '%Y-%m-%d %H:%i:%s') AS occurred_at,
+				       DATE_FORMAT(DATE_ADD(h.occurred_at, INTERVAL 9 HOUR), '%Y-%m-%d %H:%i:%s') AS occurred_at,
 				       h.execution_status, h.change_detail
 				FROM distribution_histories h
 				JOIN users u ON u.user_id = h.actor_user_id
@@ -1054,14 +1056,15 @@ public final class TeacherDistributionDao {
 						rows.getLong("distribution_id"), rows.getLong("executed_by_user_id"),
 						rows.getLong("distribution_template_id"), rows.getLong("classroom_id"),
 						rows.getLong("school_id"), rows.getString("target_status"),
-						rows.getString("distribution_status"), time == null ? null : time.toLocalDateTime(),
+						rows.getString("distribution_status"),
+						time == null ? null : DateTimeContract.fromDatabaseTimestamp(time),
 						rows.getString("template_name_snapshot"), rows.getString("root_path_snapshot"));
 			}
 		}
 	}
 
 	private static boolean isDue(DeliveryTarget target) {
-		return target.scheduledAt() == null || !target.scheduledAt().isAfter(LocalDateTime.now());
+		return target.scheduledAt() == null || !target.scheduledAt().isAfter(DateTimeContract.utcNow());
 	}
 
 	private List<Long> findActiveStudents(Connection connection, long classroomId) throws SQLException {

@@ -30,6 +30,7 @@ import control.teacher.TeacherNavigationControl;
 import entity.TeacherClassOption;
 import entity.TeacherTaskInput;
 import entity.UserCredential.UserType;
+import lib.time.DateTimeContract;
 import servlet.auth.CsrfTokens;
 
 @WebServlet("/teacher/task")
@@ -240,7 +241,8 @@ public final class TeacherTaskServlet extends HttpServlet {
 					assignmentDeadlineTokens.put(assignment.assignmentId(), UUID.randomUUID().toString());
 					if (assignment.dueAt() != null) {
 						assignmentDeadlineValues.put(assignment.assignmentId(),
-								assignment.dueAt().format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm")));
+								DateTimeContract.toUserDisplay(assignment.dueAt())
+										.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm")));
 					}
 				}
 				eligibleClassOptions.put(task.taskId(), page.classes().stream()
@@ -517,7 +519,7 @@ public final class TeacherTaskServlet extends HttpServlet {
 			return null;
 		}
 		try {
-			return LocalDateTime.parse(value);
+			return DateTimeContract.fromUserInput(LocalDateTime.parse(value));
 		} catch (DateTimeParseException e) {
 			throw new IllegalArgumentException("日時の形式が正しくありません。", e);
 		}
@@ -612,9 +614,9 @@ public final class TeacherTaskServlet extends HttpServlet {
 	private static Map<String, String> assignmentValues(TeacherTaskInput.ClassAssignmentInput assignment) {
 		Map<String, String> values = new LinkedHashMap<>();
 		values.put("assignmentId", Long.toString(assignment.assignmentId()));
-		values.put("publishAt", assignment.publishAt() == null ? "" : assignment.publishAt().toString());
+		values.put("publishAt", assignment.getPublishAtDisplay());
 		values.put("publishImmediate", Boolean.toString(assignment.assignmentId() > 0 && assignment.publishAt() == null));
-		values.put("dueAt", assignment.dueAt() == null ? "" : assignment.dueAt().toString());
+		values.put("dueAt", assignment.getDueAtDisplay());
 		values.put("dueNone", Boolean.toString(assignment.assignmentId() > 0 && assignment.dueAt() == null));
 		return values;
 	}

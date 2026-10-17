@@ -24,6 +24,7 @@ import entity.TeacherTaskInput;
 import entity.TeacherTaskInput.ClassAssignmentInput;
 import entity.TeacherTaskInput.HintInput;
 import entity.TeacherHintOption;
+import lib.time.DateTimeContract;
 
 public final class TeacherTaskDao {
 	@FunctionalInterface
@@ -1057,7 +1058,7 @@ public final class TeacherTaskDao {
 				return Optional.of(new AssignmentState(
 						rows.getLong("classroom_id"),
 						rows.getString("assignment_status"),
-						dueAt == null ? null : dueAt.toLocalDateTime()));
+						dueAt == null ? null : DateTimeContract.fromDatabaseTimestamp(dueAt)));
 			}
 		}
 	}
@@ -1083,7 +1084,7 @@ public final class TeacherTaskDao {
 			if (!rows.next()) {
 				throw new SQLException("The database did not return its current timestamp.");
 			}
-			return rows.getTimestamp(1).toLocalDateTime();
+			return DateTimeContract.fromDatabaseTimestamp(rows.getTimestamp(1));
 		}
 	}
 
@@ -1098,7 +1099,7 @@ public final class TeacherTaskDao {
 				WHERE task_id = ? AND task_class_assignment_id = ?
 				  AND assignment_status IN ('scheduled','published','expired')
 				""")) {
-			statement.setTimestamp(1, Timestamp.valueOf(dueAt));
+			statement.setObject(1, dueAt);
 			statement.setLong(2, taskId);
 			statement.setLong(3, assignmentId);
 			if (statement.executeUpdate() != 1) {
@@ -1128,8 +1129,8 @@ public final class TeacherTaskDao {
 			statement.setLong(1, taskId);
 			statement.setLong(2, classroomId);
 			statement.setString(3, assignmentStatus);
-			statement.setTimestamp(4, toTimestamp(publishAt));
-			statement.setTimestamp(5, toTimestamp(dueAt));
+			statement.setObject(4, publishAt);
+			statement.setObject(5, dueAt);
 			statement.setString(6, lateSubmissionPolicy.databaseValue());
 			if (statement.executeUpdate() != 1) {
 				throw new SQLException("Task class assignment was not inserted.");
@@ -1591,8 +1592,8 @@ public final class TeacherTaskDao {
 						WHERE task_id = ? AND task_class_assignment_id = ?
 						  AND classroom_id = ? AND assignment_status = 'not_published'
 						""")) {
-					statement.setTimestamp(1, toTimestamp(assignment.publishAt()));
-					statement.setTimestamp(2, toTimestamp(assignment.dueAt()));
+					statement.setObject(1, assignment.publishAt());
+					statement.setObject(2, assignment.dueAt());
 					statement.setString(3, assignment.lateSubmissionPolicy().databaseValue());
 					statement.setLong(4, taskId);
 					statement.setLong(5, existingId);
@@ -1689,8 +1690,8 @@ public final class TeacherTaskDao {
 			ClassAssignmentInput assignment) throws SQLException {
 		statement.setLong(1, taskId);
 		statement.setLong(2, assignment.classroomId());
-		statement.setTimestamp(3, toTimestamp(assignment.publishAt()));
-		statement.setTimestamp(4, toTimestamp(assignment.dueAt()));
+		statement.setObject(3, assignment.publishAt());
+		statement.setObject(4, assignment.dueAt());
 		statement.setString(5, assignment.lateSubmissionPolicy().databaseValue());
 	}
 
@@ -1717,12 +1718,8 @@ public final class TeacherTaskDao {
 		}
 	}
 
-	private static Timestamp toTimestamp(LocalDateTime value) {
-		return value == null ? null : Timestamp.valueOf(value);
-	}
-
 	private static LocalDateTime toLocalDateTime(Timestamp value) {
-		return value == null ? null : value.toLocalDateTime();
+		return value == null ? null : DateTimeContract.fromDatabaseTimestamp(value);
 	}
 
 	private static void requireWriteTransaction(Connection connection) throws SQLException {

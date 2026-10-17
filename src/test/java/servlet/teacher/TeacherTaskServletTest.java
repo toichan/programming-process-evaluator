@@ -104,7 +104,7 @@ class TeacherTaskServletTest {
 		assertEquals(3, operation.expectedVersion());
 		assertEquals(22, operation.assignmentId());
 		assertEquals(0, operation.classroomId());
-		assertEquals(LocalDateTime.of(2030, 5, 1, 12, 30), operation.dueAt());
+		assertEquals(LocalDateTime.of(2030, 5, 1, 3, 30), operation.dueAt());
 	}
 
 	@Test

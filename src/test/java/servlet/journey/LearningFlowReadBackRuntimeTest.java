@@ -27,8 +27,10 @@ class LearningFlowReadBackRuntimeTest {
 				+ "&submissionId=" + submissionId).statusCode());
 		String survey = student.get("/student/survey?assignmentId=" + assignmentId
 				+ "&evaluationId=" + evaluationId).body();
-		assertTrue(survey.contains("提出済み（確認のみ）"));
-		assertTrue(survey.contains("Synthetic final: I learned to multiply the input by two."));
+		assertTrue(survey.contains("提出済み"));
+		assertTrue(survey.contains("data-read-only=\"true\""));
+		assertTrue(survey.contains("disabled"));
+		assertTrue(survey.contains(text("SELECT answer_value FROM survey_answers ORDER BY survey_answer_id LIMIT 1")));
 		student.logout("student");
 		Browser declined = new Browser("student");
 		declined.login("synthetic-learning-declined", "student", STUDENT_PASSWORD);

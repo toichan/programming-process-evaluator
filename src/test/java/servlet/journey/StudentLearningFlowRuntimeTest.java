@@ -92,7 +92,11 @@ class StudentLearningFlowRuntimeTest {
 		assertEquals(200, evaluation.statusCode());
 		assertTrue(evaluation.body().contains("思考力・判断力・表現力"));
 		assertTrue(evaluation.body().contains("主体的に学習に取り組む態度"));
-		assertTrue(evaluation.body().contains(text("SELECT feedback_summary FROM evaluations")));
+		assertTrue(evaluation.body().contains(text("""
+				SELECT summary_title FROM evaluation_dimension_results
+				WHERE evaluation_id=(SELECT evaluation_id FROM evaluations WHERE submission_id=%d)
+				ORDER BY evaluation_dimension_result_id LIMIT 1
+				""".formatted(submissionId))));
 		assertTrue(student.get(evaluationPath).body().contains("評価日時"));
 		assertFalse(student.get(editorPath).body().contains("data-editable=\"true\""));
 		assertTrue(student.get("/student/evaluation/log?submissionId=" + submissionId).body().contains("print(n * 2)"));

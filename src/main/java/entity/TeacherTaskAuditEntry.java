@@ -3,6 +3,8 @@ package entity;
 import java.time.LocalDateTime;
 import java.util.Objects;
 
+import lib.time.DateTimeContract;
+
 public record TeacherTaskAuditEntry(
 		long auditLogId,
 		long actorUserId,
@@ -55,5 +57,9 @@ public record TeacherTaskAuditEntry(
 
 	public LocalDateTime getOccurredAt() {
 		return occurredAt;
+	}
+
+	public String getOccurredAtDisplay() {
+		return DateTimeContract.toUserDisplay(occurredAt).toString();
 	}
 }

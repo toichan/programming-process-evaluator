@@ -1,8 +1,11 @@
 package entity;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Objects;
+
+import lib.time.DateTimeContract;
 
 public record TeacherTaskInput(
 		String title,
@@ -178,8 +181,22 @@ public record TeacherTaskInput(
 			return publishAt;
 		}
 
+		public String getPublishAtDisplay() {
+			return inputDateTime(publishAt);
+		}
+
 		public LocalDateTime getDueAt() {
 			return dueAt;
+		}
+
+		public String getDueAtDisplay() {
+			return inputDateTime(dueAt);
+		}
+
+		private static String inputDateTime(LocalDateTime utcValue) {
+			return utcValue == null ? ""
+					: DateTimeContract.toUserDisplay(utcValue)
+							.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm"));
 		}
 
 		public LateSubmissionPolicy getLateSubmissionPolicy() {

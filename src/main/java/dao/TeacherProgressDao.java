@@ -14,6 +14,7 @@ import entity.TeacherProgressActivity;
 import entity.TeacherProgressCode;
 import entity.TeacherProgressRow;
 import entity.TeacherProgressStatus;
+import lib.time.DateTimeContract;
 
 public final class TeacherProgressDao {
 	private static final DateTimeFormatter DATE_TIME_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
@@ -255,7 +256,7 @@ public final class TeacherProgressDao {
 		if (timestamp == null) {
 			return "";
 		}
-		LocalDateTime value = timestamp.toLocalDateTime();
+		LocalDateTime value = DateTimeContract.toUserDisplay(DateTimeContract.fromDatabaseTimestamp(timestamp));
 		return DATE_TIME_FORMAT.format(value);
 	}
 

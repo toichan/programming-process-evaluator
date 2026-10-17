@@ -19,6 +19,7 @@ import entity.StudentCredentialHistoryEntry;
 import entity.StudentTaskSummary;
 import entity.UserCredential.FirstLoginStatus;
 import lib.mysql.Client;
+import lib.time.DateTimeContract;
 
 public final class StudentDao {
 	private static final String FIND_ACCOUNT = """
@@ -205,7 +206,7 @@ public final class StudentDao {
 							resultSet.getString("theme"),
 							resultSet.getString("difficulty"),
 							resultSet.getString("description"),
-							dueAt == null ? null : dueAt.toLocalDateTime(),
+							dueAt == null ? null : DateTimeContract.fromDatabaseTimestamp(dueAt),
 							resultSet.getString("learning_status"),
 							resultSet.getString("progress_status"),
 							resultSet.getString("save_status"),
@@ -369,7 +370,7 @@ public final class StudentDao {
 							resultSet.getString("action_type"),
 							resultSet.getString("result_status"),
 							actorLabel,
-							occurredAt.toLocalDateTime()));
+							DateTimeContract.fromDatabaseTimestamp(occurredAt)));
 				}
 			}
 		}
@@ -414,7 +415,7 @@ public final class StudentDao {
 				return Optional.of(new ConsentResponse(
 						resultSet.getLong("consent_id"),
 						status,
-						respondedAt == null ? null : respondedAt.toLocalDateTime()));
+						respondedAt == null ? null : DateTimeContract.fromDatabaseTimestamp(respondedAt)));
 			}
 		}
 	}

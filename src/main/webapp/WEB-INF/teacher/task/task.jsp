@@ -380,7 +380,7 @@
 								</td>
 								<td><code class="history-creator-id"><c:out value="${task.createdByLoginId}"/></code></td>
 								<td><code class="history-creator-id"><c:out value="${task.updatedByLoginId}" default="-"/></code></td>
-								<td><c:out value="${task.updatedAt}"/></td>
+								<td><c:out value="${task.updatedAtDisplay}"/></td>
 								<td>
 									<div class="d-flex gap-2">
 										<c:if test="${task.publicationStatus == 'requires_update' || task.publicationStatus == 'published' || task.publicationStatus == 'draft'}">
@@ -532,7 +532,7 @@
 				<thead class="table-light"><tr><th>日時</th><th>実行者</th><th>操作</th><th>結果</th><th>詳細</th></tr></thead>
 				<tbody>
 					<c:forEach items="${teacherTaskAuditEntries}" var="entry">
-						<tr><td><c:out value="${entry.occurredAt}"/></td><td><c:out value="${entry.actorLoginId}"/></td>
+						<tr><td><c:out value="${entry.occurredAtDisplay}"/></td><td><c:out value="${entry.actorLoginId}"/></td>
 							<td><c:out value="${entry.actionType}"/></td><td><c:out value="${entry.resultStatus}"/></td>
 							<td><c:out value="${entry.detail}"/></td></tr>
 					</c:forEach>

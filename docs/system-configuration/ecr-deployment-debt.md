@@ -1,6 +1,6 @@
 # 半手動デプロイ後の技術的負債
 
-2026-10-16追補: 現行currentは`a6e90edf...`、5サービスhealthy、nginx設定0644の非root読取成功を確認した。scheduled backup/固定S3 Version/独立監視readbackに加え、追加承認によるalarm起点のSNS実配送1/失敗0、固定backupの隔離業務復元・V34互換更新・実Control/DAO読戻しと清掃も成功。独立offline鍵custody、人間のメール開封、本番完全DR/切替、将来のECR固定release受入は未完了。以下の10月11日の旧release/障害記録は履歴であり、現在の停止継続ではない。最新の実測と承認境界は[復元・通知受入記録](./production-deployment.md#2026-10-16-追加承認による復元通知試験)を参照する。
+2026-10-16 20:40 JSTまでの追補: 旧a6版の復旧確認後、PR #61のmain `41228ca...`を固定ECR最終imageの隔離/native受入、CI/source/digest照合、明示承認を経て本番へ反映し、V34/既存DB・Volume維持/5healthy/restart 0、合成browser4件とRunner1 test、fresh backup/限定清掃まで完了した。先行する定期backup/独立監視、alarm起点のSNS実配送1/失敗0、固定backupの隔離業務復元/V34互換更新/実Control・DAO読戻しも受入済み。独立offline鍵custody、人間のメール開封、本番完全DR/切替、host追加hardeningや将来releaseの個別受入は残る。以下の旧release/障害と「未完了」は当時の履歴であり、現在の停止継続や今回の配布未受入を意味しない。最新の判定と次の承認境界は[本番受入](./production-deployment.md#2026-10-16-最小デプロイの進捗)と[デプロイ後の受入候補](./production-deployment.md#デプロイ後の受入候補と開始条件)を正本とする。
 
 2026-10-10 JSTの方針変更で次を今回の必須実装から外した。
 **解決済みではない**。Phase 2は小さなadapterと既存安全gateで完成させる。
@@ -23,8 +23,8 @@
 | 長期保持/削除 | current/rollback削除禁止。自動GCなし | 容量枯渇、必要release削除の運用ミス | image/OCI/source一体の保持inventoryと削除dry-run | 中 | 1–2日 |
 | 追加自動化 | manual dispatch＋人間の取得/deploy、Actions→EC2なし | 人間の選択・操作ミス | 限定preflight/最終image検証補助のみ検討。現方針では自動本番deployは禁止 | 低 | 1–3日 |
 | セキュリティ回帰拡充 | producer/adapter mockと既存Shell/Java回帰 | 本番firewall/socket/IMDS境界の証明ではない | 隔離ホストで実ネットワーク/権限境界test | 高 | 1–3日 |
-| Python sandbox runtime | 2026-10-10 EC2のpython:3.12-alpine/linux amd64実IDとbroker指定を確認。7 PPE imageとは別 | 可変upstream tag。更新後の実演習フローは未検証 | デプロイ後の演習受入。将来は独立digest管理/保持 | 高（受入前確認） | 確認1–2h、管理4–8h |
-| 新operations配布 | 86936306...を独立配置しECR取得受入済み。TLS wrapper byte同一、active pointer未変更 | デプロイ時に旧operationsを誤選択するリスク | 新operationsを明示指定し既存gateを維持 | 高（deploy前必須） | 確認30分＋承認待ち |
+| Python sandbox runtime | 7 PPE imageとは別。今回のnative全5test、本番prompt1 testと演習の保存/実行/履歴reloadは成功 | 可変upstream tagの管理は残り、将来のpull/更新後も同じ実体とは保証しない | 今回の受入は再実装せず、将来の独立digest管理/保持と更新時の実実行受入を別計画にする | 高（将来更新時確認） | 管理4–8h |
+| 新operations配布 | 今回はa6版正規28helperのtarget sourceとのbytes一致を確認してupdateに使用。ECR取得は869版の一致する限定helperだけを使用 | 次回も古いdeploy/config同期や追加verbose wrapperを誤選択するリスク | 今回の照合結果を次回へ無条件流用せず、対象SHAとhelperの一致を毎回確認する | 高（deploy前必須） | 次回確認30分＋承認待ち |
 | DB復旧訓練 | 2026-10-16、固定Versionから隔離業務DB復元・V34互換更新・実Control/DAO読戻しを受入し清掃済み | image rollbackでDDLは戻らない。独立鍵custody・本番完全DR/切替/RTOは未確認 | [今回の範囲](./production-deployment.md#2026-10-16-追加承認による復元通知試験)を再利用し、定期訓練と本番cutoverを別管理 | 高 | 次回訓練 半日–1日 |
 | 取得中の容量/排他 | adapter lock/private staging、失敗時cache/tag保持 | local build/他操作との競合、disk枯渇 | 初回は人間が容量/並列不在確認。将来共通取得lock/容量閾値 | 中 | 2–4h |
 | Docker store portability | Docker29/containerdは固定Descriptor＋local config bytes照合で実受入済み。標準host socket/moby/ctrを要求 | 非標準socket/namespace・将来daemon変更では取得拒否。圧縮/展開双方の保存で容量増 | daemon変更時に互換テスト。必要になった場合のみsocket対応を追加し、既存store切替/restartで回避しない | 中 | 2–4h |
@@ -97,10 +97,14 @@ ECRに公開された最終イメージが本番相当構成で正常起動す�
 
 ### 将来の改善項目（すべて実装保留）
 
+以下は10月11日に保留した改善計画。10月17日の残作業整理では、Bについて
+今回の固定imageを使う手動受入は完了済み、次回候補ごとの受入と継続自動化は別と区別する。
+今回の完了を、全7imageの包括的権限監査や将来releaseの合格へ拡大しない。
+
 | ID | 改善 | 状態 | 完了判断に必要な証拠 |
 |---|---|---|---|
 | ECR-PERM-A | 全7イメージの権限監査 | 未着手（個別Runner/app修正は済み、全量監査ではない） | 各最終digestと実UID/GID、必要ファイル/親権限/mountの監査結果、適切な権限での実起動 |
-| ECR-PERM-B | ECR最終イメージの隔離統合テスト | 未実施（ローカルCompose試験とは別） | digest/Image ID照合と本番相当5サービス、HTTPS、Runner、restart、DB保全の実行証拠 |
+| ECR-PERM-B | ECR最終イメージの隔離統合テスト | main41228caの隔離/native/本番受入は完了。候補ごとの再受入と継続自動化は別 | [今回の証拠](./production-deployment.md#2026-10-16-最小デプロイの進捗)を維持。次回も固定source/digest、5サービス/HTTPS/Runner/restart/DB保全を確認し、現releaseの成功だけを流用しない |
 | ECR-PERM-C | 公開後・本番前のGitHub Actions検証 | 未実装 | 最終イメージ検証失敗でデプロイ可能判定を拒否し、手動承認を維持する回帰結果 |
 | ECR-PERM-D | 失敗時の安全な復旧手順 | 改善未実装（既存手順の適用確認は別） | migration有無と各失敗段階の復旧/停止、state整合、DB保全、外部HTTPS復旧の回帰結果 |
 

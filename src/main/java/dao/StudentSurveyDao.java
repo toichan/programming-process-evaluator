@@ -24,6 +24,7 @@ import entity.StudentSurveyQuestion;
 import entity.StudentSurveyQuestion.Option;
 import entity.StudentSurveyQuestion.SavedAnswer;
 import lib.mysql.Client;
+import lib.time.DateTimeContract;
 
 public final class StudentSurveyDao {
 	private static final String FIND_PAGE_TARGET = """
@@ -393,7 +394,7 @@ public final class StudentSurveyDao {
 							resultSet.getLong("evaluation_id"),
 							resultSet.getInt("revision_number"),
 							resultSet.getString("response_status"),
-							submittedAt == null ? null : submittedAt.toLocalDateTime()));
+							submittedAt == null ? null : DateTimeContract.fromDatabaseTimestamp(submittedAt)));
 				}
 			}
 		}

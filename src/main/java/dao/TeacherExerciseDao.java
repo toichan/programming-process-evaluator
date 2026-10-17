@@ -7,6 +7,7 @@ import java.util.List;
 import entity.TeacherExerciseDetail;
 import entity.TeacherExerciseRow;
 import entity.ExerciseNotFoundException;
+import lib.time.DateTimeContract;
 
 public final class TeacherExerciseDao {
 	private final TeacherPermissionDao permissions = new TeacherPermissionDao();
@@ -60,7 +61,9 @@ public final class TeacherExerciseDao {
 					result.add(new TeacherExerciseRow(r.getLong("user_id"), r.getString("login_id"),
 							r.getLong("school_id"), r.getString("school_name"), r.getLong("classroom_id"),
 							r.getString("class_name"), r.getInt("file_count"), r.getInt("entry_count"),
-							updated == null ? "" : updated.toLocalDateTime().toString(), r.getString("consent")));
+							updated == null ? "" : DateTimeContract.toUserDisplay(
+									DateTimeContract.fromDatabaseTimestamp(updated)).toString(),
+							r.getString("consent")));
 				}
 			}
 		}

@@ -78,7 +78,23 @@ class StudentExerciseDatabaseTest {
 
 		var folder = create(null, null, 0, Type.FOLDER, "基礎");
 		var file = create(folder.exerciseId(), folder.entryId(), folder.version(), Type.FILE, "hello.py");
-		control.save(student, file.exerciseId(), file.entryId(), file.version(), "print('layout fixture')");
+		var saved = control.save(student, file.exerciseId(), file.entryId(), file.version(), "print('layout fixture')");
+		var deletedFile = create(folder.exerciseId(), folder.entryId(), saved.version(), Type.FILE, "deleted.py");
+		control.trash(student, folder.exerciseId(), deletedFile.entryId(), deletedFile.version());
+		try (Connection connection = Client.createConnection()) {
+			assertEquals(System.getenv("DB_NAME"), connection.getCatalog());
+			execute(connection, """
+					UPDATE student_exercise_entries SET trashed_at = '2026-10-04 07:00:00'
+					WHERE exercise_entry_id = ?
+					""", deletedFile.entryId());
+			execute(connection, """
+					INSERT INTO code_executions (actor_user_id, exercise_entry_id, execution_context,
+					  source_code, standard_input, execution_status, exit_code, standard_output,
+					  standard_output_truncated, standard_error, standard_error_truncated, executed_at)
+					VALUES (?, ?, 'student_exercise', 'print(1)', '', 'succeeded', 0, '1', FALSE, '', FALSE,
+					  '2026-10-04 06:00:00')
+					""", student.userId(), file.entryId());
+		}
 		retainFixture = true;
 	}
 

@@ -4,6 +4,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 
+import lib.time.DateTimeContract;
+
 public record TeacherAccountDetails(long userId, String loginId, String status, long version,
 		LocalDateTime createdAt, String createdBy, List<TeacherSchoolOption> schools, Set<String> features,
 		boolean mustChangePassword) {
@@ -20,6 +22,7 @@ public record TeacherAccountDetails(long userId, String loginId, String status, 
 	public String getStatus() { return status; }
 	public long getVersion() { return version; }
 	public LocalDateTime getCreatedAt() { return createdAt; }
+	public String getCreatedAtDisplay() { return DateTimeContract.toUserDisplay(createdAt).toString(); }
 	public String getCreatedBy() { return createdBy; }
 	public List<TeacherSchoolOption> getSchools() { return schools; }
 	public Set<String> getFeatures() { return features; }

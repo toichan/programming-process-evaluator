@@ -218,7 +218,7 @@ public final class ReevaluationPreviewControl {
 		}
 		try (PreparedStatement expiry = connection.prepareStatement(
 				"SELECT CURRENT_TIMESTAMP(6) < ? AS is_valid")) {
-			expiry.setTimestamp(1, java.sql.Timestamp.valueOf(preview.expiresAt()));
+			expiry.setObject(1, preview.expiresAt());
 			try (ResultSet rows = expiry.executeQuery()) {
 				rows.next();
 				if (!rows.getBoolean("is_valid")) {

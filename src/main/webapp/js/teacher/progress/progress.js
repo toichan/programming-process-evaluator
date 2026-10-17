@@ -554,7 +554,12 @@ function exportHistoryCSV() {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = 'learning_history_' + new Date().toISOString().slice(0, 10) + '.csv';
+  const dateParts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit'
+  }).formatToParts(new Date());
+  const date = Object.fromEntries(dateParts.filter(part => part.type !== 'literal')
+    .map(part => [part.type, part.value]));
+  link.download = `learning_history_${date.year}-${date.month}-${date.day}.csv`;
   document.body.appendChild(link);
   link.click();
   link.remove();

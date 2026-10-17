@@ -12,6 +12,7 @@ import java.util.UUID;
 import entity.ManagedStudentAccount;
 import entity.StudentAccountCreation;
 import entity.TeacherClassOption;
+import lib.time.DateTimeContract;
 
 public final class StudentAccountManagementDao {
 	private static final String ACCOUNTS = """
@@ -70,7 +71,8 @@ public final class StudentAccountManagementDao {
 				rows.getString("account_status"), rows.getLong("school_id"), rows.getString("school_name"),
 				rows.getInt("security_level"), classes, rows.getString("first_login_status"),
 				rows.getBoolean("must_change_password"), rows.getString("consent"), rows.getBoolean("password_available"),
-				rows.getBoolean("login_locked"), rows.getTimestamp("created_at").toLocalDateTime().toString(),
+				rows.getBoolean("login_locked"), DateTimeContract.toUserDisplay(
+						DateTimeContract.fromDatabaseTimestamp(rows.getTimestamp("created_at"))).toString(),
 				text(rows.getString("created_by")), text(rows.getString("updated_by")));
 	}
 
@@ -256,7 +258,8 @@ public final class StudentAccountManagementDao {
 		List<Map<String, String>> result = new ArrayList<>();
 		try (var statement = connection.prepareStatement(sql)) {
 			statement.setLong(1, id); try (var rows = statement.executeQuery()) {
-				while (rows.next()) result.add(Map.of("occurredAt", rows.getTimestamp(1).toLocalDateTime().toString(),
+				while (rows.next()) result.add(Map.of("occurredAt", DateTimeContract.toUserDisplay(
+						DateTimeContract.fromDatabaseTimestamp(rows.getTimestamp(1))).toString(),
 						"actor", text(rows.getString(2)), "action", rows.getString(3), "result", rows.getString(4), "detail", rows.getString(5)));
 			}
 		}

@@ -25,6 +25,7 @@ import entity.TeacherTaskInput.ClassAssignmentInput;
 import entity.TeacherTaskInput.Difficulty;
 import entity.TeacherTaskInput.LateSubmissionPolicy;
 import lib.mysql.Client;
+import lib.time.DateTimeContract;
 
 public final class DemoDataBootstrap {
 	private static final String EXPECTED_DATABASE = "programming_process_evaluator";
@@ -80,7 +81,7 @@ public final class DemoDataBootstrap {
 						List.of(new EditorTestCase(0, "正の整数", "2 3", "5", 1)),
 						List.of(),
 						List.of(new ClassAssignmentInput(
-								0, classroomId, LocalDateTime.now().plusDays(1), null,
+								0, classroomId, DateTimeContract.utcNow().plusDays(1), null,
 								LateSubmissionPolicy.ALLOW)),
 						schoolId);
 				input = new TeacherTaskInputValidator().validateAndNormalize(input);

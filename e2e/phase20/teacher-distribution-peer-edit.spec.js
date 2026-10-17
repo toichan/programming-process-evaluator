@@ -4,6 +4,9 @@ const { assertRejectedLogin, login, requiredEnv } = require('./helpers');
 test('same-school teacher can edit a peer template while another school is denied direct access', async ({ browser, page }) => {
   const teacherBaseUrl = requiredEnv('PPE_P20_TEACHER_BASE_URL');
   const templateId = requiredEnv('PPE_P20_DISTRIBUTION_TEMPLATE_ID');
+  const distributionId = requiredEnv('PPE_P20_DISTRIBUTION_ID');
+  const targetId = requiredEnv('PPE_P20_DISTRIBUTION_TARGET_ID');
+  const scheduledAtDisplay = requiredEnv('PPE_P20_DISTRIBUTION_SCHEDULED_AT_DISPLAY');
   const password = requiredEnv('PPE_P20_DISTRIBUTION_PASSWORD');
   const peerLogin = requiredEnv('PPE_P20_DISTRIBUTION_PEER_LOGIN');
   const ownerLogin = requiredEnv('PPE_P20_DISTRIBUTION_OWNER_LOGIN');
@@ -54,6 +57,31 @@ test('same-school teacher can edit a peer template while another school is denie
     .toHaveAttribute('data-message', '下書きを保存しました。');
   await page.reload();
   await expect(page.locator('#distributionHistoryBody')).toContainText('P20 Peer Template Updated');
+
+  await page.goto('/teacher/distribution');
+  await page.locator(
+    `#distributionHistoryBody button[data-detail-template="distributionDetail${distributionId}"]`
+  ).click();
+  const scheduledInput = page.locator(
+    `#distributionHistoryDetailBody form.distribution-reschedule-form:has(input[name="targetId"][value="${targetId}"]) input[name="scheduledAt"]`
+  );
+  await expect(scheduledInput).toHaveValue(scheduledAtDisplay);
+  await scheduledInput.fill('2030-05-01T12:30');
+  await scheduledInput.locator('xpath=ancestor::form')
+    .locator('button[type="submit"]').click();
+  const rescheduleConfirmation = page.locator('#ppe-feedback-modal [data-feedback-confirm]');
+  await expect(rescheduleConfirmation).toBeVisible();
+  const navigation = page.waitForNavigation();
+  await rescheduleConfirmation.click();
+  await navigation;
+
+  await page.goto('/teacher/distribution');
+  await page.locator(
+    `#distributionHistoryBody button[data-detail-template="distributionDetail${distributionId}"]`
+  ).click();
+  await expect(page.locator(
+    `#distributionHistoryDetailBody form.distribution-reschedule-form:has(input[name="targetId"][value="${targetId}"]) input[name="scheduledAt"]`
+  )).toHaveValue('2030-05-01T12:30');
 
   const ownerContext = await browser.newContext({ baseURL: teacherBaseUrl });
   try {

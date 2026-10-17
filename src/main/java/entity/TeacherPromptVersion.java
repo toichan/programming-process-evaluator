@@ -8,6 +8,7 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import lib.time.DateTimeContract;
 
 public record TeacherPromptVersion(
 		long promptVersionId,
@@ -59,8 +60,12 @@ public record TeacherPromptVersion(
 	public long getRowVersion() { return rowVersion; }
 	public String getCreatedByLoginId() { return createdByLoginId; }
 	public LocalDateTime getCreatedAt() { return createdAt; }
+	public String getCreatedAtDisplay() { return DateTimeContract.toUserDisplay(createdAt).toString(); }
 	public String getUpdatedByLoginId() { return updatedByLoginId; }
 	public LocalDateTime getUpdatedAt() { return updatedAt; }
+	public String getUpdatedAtDisplay() {
+		return updatedAt == null ? "" : DateTimeContract.toUserDisplay(updatedAt).toString();
+	}
 	public List<FluctuationItem> getFluctuationItems() { return fluctuationItems; }
 	public List<EvaluationExample> getEvaluationExamples() { return evaluationExamples; }
 
@@ -79,7 +84,7 @@ public record TeacherPromptVersion(
 
 	public boolean isGenerationStale() {
 		return hasActiveGeneration() && updatedAt != null
-				&& !updatedAt.isAfter(LocalDateTime.now().minusMinutes(15));
+				&& !updatedAt.isAfter(DateTimeContract.utcNow().minusMinutes(15));
 	}
 
 	public record FluctuationItem(

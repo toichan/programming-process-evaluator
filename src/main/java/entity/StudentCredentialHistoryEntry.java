@@ -3,6 +3,8 @@ package entity;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
+import lib.time.DateTimeContract;
+
 public final class StudentCredentialHistoryEntry {
 	private static final DateTimeFormatter DISPLAY_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
@@ -41,6 +43,6 @@ public final class StudentCredentialHistoryEntry {
 	}
 
 	public String getOccurredAtDisplay() {
-		return occurredAt.format(DISPLAY_FORMAT);
+		return DateTimeContract.toUserDisplay(occurredAt).format(DISPLAY_FORMAT);
 	}
 }

@@ -1,10 +1,269 @@
 # Runtime Validation Report
 
-**Generated**: 2026-10-08 / **Latest update**: 2026-10-16 JST
+**Generated**: 2026-10-08 / **Latest update**: 2026-10-17 17:41 JST（R-03/R-05再実行、ローカルCI相当確認、利用者受入）
 
 **Target**: `/Users/t.toida/programming-process-evaluator` — 工程20と関連機能（工程14以降の履歴を保持）
 
+## R-03 ローカル確定設定の全量seed再現検証（2026-10-17）
+
+REQ-INITIAL-180/181に対応する保全・隔離再現を実装し、完了した。本番の初期化/同期/deployは行っていない。
+[実装契約の境界](../implementation-contract.md#r-03-ローカル全量seedの検証境界2026-10-17)に従い、
+[InitialConfigurationSeed](../../../src/main/java/control/dev/InitialConfigurationSeed.java)と
+[ローカルrunner](../../../scripts/testing/initial-configuration-local.sh)を追加した。
+
+- 保全元はCompose project `programming-process-evaluator` / service `db`の既存DB。
+  exportと直後のverifyはread-only transactionで実行し、既存資格情報・設定・鍵を更新しない。
+- 対象25テーブル: users、schools、classrooms、student_profiles、student_class_memberships、
+  teacher_school_permissions、teacher_feature_permissions、student_teacher_credentials、
+  student_login_sequence、rubrics、rubric_dimensions、rubric_criteria、criterion_levels、
+  tasks、task_features、task_test_cases、task_hints、task_class_assignments、
+  school_common_prompt_versions、prompt_versions、prompt_fluctuation_items、evaluation_examples、
+  surveys、survey_questions、survey_question_options。削除/無効状態も含む設定の内容・ID・参照を保持する。
+- 保全内容にはusers 21（active students 12 / teachers 3 / admin 1、他はdeleted）、
+  schools 2、classrooms 3、memberships 15、学校権限7、機能権限38、rubric 1/2/6/30、
+  tasks 11、割当11、学校共通prompt 1、task prompts 5、揺らぎ12、評価例4、
+  surveys 2、questions 12、options 60が含まれる。提出・評価結果・回答・同意履歴・研究識別子は含めない。
+- 非公開ファイルはGit管理外の0700ディレクトリ内に0600で新規作成し、既存ファイル/公開権限/リンクを拒否。
+  SHA-256で内容破損を検出する。認証hash/暗号化資格情報を含むため内容・hash・値をログやレポートに出さない。
+  暗号化鍵はコピー/再生成しない。これは署名された本番deploy資材ではなく、ローカル保全用の機密資材。
+- applyはsimulationの`ppe_initial_seed_`接頭辞DBに限定。空DBへの投入はFKを有効にした単一transactionで実施し、
+  usersの自己参照、tasksの循環参照、student_profilesのINSERT triggerによる初期状態設定を考慮して、
+  最後に全内容と参照を照合してcommitする。一致時はno-op、不一致/欠損/既存業務履歴/並行実行は拒否。
+- 旧DATETIMEの保存表現は無変換で再現する。UTCだったと仮定せず、本番の旧日時移行・予約worker起動は別ゲート。
+  同意文書本文はseed対象外で、migration由来のV10仮文面を正式承認済みと扱わない。
+
+### 実行手順と結果
+
+1. リポジトリ外に自分専用のディレクトリを作り、mode 0700にする。既存の秘密ファイルを上書きしない。
+2. `PPE_INITIAL_SEED_PRIVATE_DIR=/absolute/private-directory sh scripts/testing/initial-configuration-local.sh`
+   を実行する。16:57 JST再実行も**exit 0**、reportはローカルの`build/initial-configuration-validation/run-61294`。
+3. 内部で`gradle --offline --no-daemon test --tests control.dev.InitialConfigurationSeedTest`を実行:
+   **4 passed / 0 failed/errors/skipped**（再実行も同数）。ファイル0600、上書き/公開権限/リンク拒否、
+   checksum不一致、対象外テーブル、識別子/行形状違反を確認。
+4. `gradle --offline --no-daemon test --tests control.dev.InitialConfigurationSeedDatabaseTest --rerun-tasks`:
+   **1 passed / 0 failed/errors/skipped**（再実行も同数）。全量投入、後半option挿入での故障注入→全体rollback、
+   再実行no-op、並行lock拒否、既存login履歴の拒否、内容不一致時の状態不変、再接続後の一致を確認。
+5. `gradle --offline --no-daemon war`: **BUILD SUCCESSFUL**。
+   CLIの`initialConfiguration --args="apply <private-file>"`と`verify`も成功。
+   同じファイルを別の新しい空DBへ`flywayMigrate flywayValidate`後にapply/verifyし、
+   **2つの独立DBで全25テーブルの内容・ID・参照関係一致**を確認。
+6. `sh -n scripts/testing/initial-configuration-local.sh`、`git diff --check`: **exit 0**。
+   専用container/networkを削除し、非公開保全ファイルだけを指定した私有ディレクトリへ残す。
+
+## R-05 利用者受入の記録（2026-10-17）
+
+| 項目 | 結果 |
+|---|---|
+| R-03後の代表合成フロー再検証 | 16:57 JST再実行: `sh scripts/testing/teacher-learning-flow-local.sh` exit 0。JUnit **7 passed / 0 failed/errors/skipped**、Playwright **3 passed / 0 failed**。report: `build/learning-flow-validation/run-61293` |
+| 確認した範囲 | 教師設定/公開、合成生徒の提出・評価、survey保存/提出、教師一覧/詳細/CSV、再起動後read-back、375px幅 |
+| 全量seedとブラウザーの区別 | R-03は確定ローカル設定を全量DB照合。R-05 runnerは独立した合成fixtureによる代表フローで、確定全量設定を人間が操作したE2Eとは扱わない |
+| 利用者への確認 | 16:57 JSTの再実行結果と合成試験の範囲を提示して確認 |
+| 利用者の回答 | **承認**: この合成フロー範囲の技術的受入として記録することを明示承認（2026-10-17） |
+| 判定 | **限定範囲の技術的利用者受入済み**。確定設定全量の手動E2E、採点品質、Gemini実API、正式同意、本番反映は含まない |
+| 別ゲート | 本人の手動E2E、採点品質/実Gemini、正式同意、R-06のレビュー/CI/ECR、R-07本番反映承認 |
+
+受入範囲は上表に限定し、未確認事項を別ゲートとして保持する。
+デプロイはR-06完了後、対象・差分・復帰条件を提示して**個別の明示承認を得るまで実行しない**。
+
+<a id="r-06r-07候補・復帰条件スナップショット2026-10-17-1657-jst"></a>
+## R-06/R-07の候補・復帰条件スナップショット（2026-10-17 17:41 JST）
+
+これは現時点の準備状況であり、R-06合格・R-07承認・本番反映の記録ではない。
+
+| 項目 | 現時点の確認 |
+|---|---|
+| 対象環境 | 本番の生徒 `https://student.ppeval.net`、教師 `https://teacher.ppeval.net`。直近の公開基準はproduction record記載のmain `41228ca...` / 固定OCI digest。 |
+| 候補ソース | 現在のbranch `code`、HEAD `8d7cf17adbf449b9981682c1298460932d14118c`。これは候補release SHAではなく、作業ツリーは未commit。 |
+| 差分 | `git status --short`で118件。追跡済み差分の集計は104 files、1491 insertions / 292 deletions、未追跡15 filesを含み、コンパイル済みclassの削除もある。教師/生徒のServlet・DAO・Entity、日時境界、 seed/HTTP/browser試験、画面資産、仕様/運用文書にまたがるため、差分範囲を確定したレビューが未実施。migration directoryの変更は現時点のstatusで見つかっていないが、candidate SHAによる確定確認は未実施。 |
+| R-06不足 | ローカルCI相当テストは下記のとおり通過。GitHub PR/main reviewと必須CI、source SHAとECR固定digestの対応付け、candidate imageを使った本番相当のservice/HTTPS/Runner/保存・再読込/restart/DB保持検証は未実施。従ってローカル検証だけでR-06を完了扱いしない。 |
+| 変更レビュー | 2回の範囲限定レビューで確認対象に重大な問題なし。seed/R-05主要コード、時刻処理/build構成、残りのテスト/scripts/UIの一部を確認。運用文書の過去記録全件および追跡済み`bin/main/*.class`削除は未レビューで、全118 pathのレビュー完了ではない。 |
+| 復帰の基本条件 | 反映後にhealth/login、認可、保存/再読込、Runner、重要状態遷移の異常が出た場合は、変更を停止し証跡を保全する。DB/Volumeを保持したまま、schema互換性と固定imageを確認したうえで直前releaseへapplication rollbackする。自動down migration、DB初期化/復元、旧V34専用referenceの別schema流用はしない。部分DDLまたはデータ不整合がある場合は即時rollbackを独断で行わず、対象schemaに一致するfresh backup/referenceを確認し、個別判断を得る。 |
+| 判定 | **R-06未完了 / R-07未承認**。source SHA、PR/CI、固定image、候補向け復帰参照が確定するまで本番作業へ進まない。 |
+
+R-07開始前には、候補release SHA/image digest、実際のDB/migration差分、停止・失敗時対応、更新用fresh backupの固定Version/hash/KMS/鮮度とschema対応を確定し、上記復帰条件を再提示して個別の明示承認を得る。
+
+### 2026-10-17 17:41 JST ローカルCI相当検証追補
+
+| 検証 | 結果 |
+|---|---|
+| Gradle full build/test | networkなしの`ppe-tools:local`上で`gradle --offline --no-daemon build --warning-mode all --console plain`を実行。**BUILD SUCCESSFUL**。JUnit 153 XML / 576 tests: **385 passed / 0 failed / 0 errors / 191 skipped**。skipは実DB/HTTP/browser/real API環境を要する非CI opt-in範囲であり、成功へ算入しない |
+| CI shell syntax/mock suites | `bash scripts/ci/check-shell-syntax.sh`、`reporting-test.sh`、`runner-gates-test.sh`、`ecr-release-test.sh`: shell **84 files passed**、ECR test **40 negative scenarios**、ECR acquisition **11 rejection scenarios**を含めすべてPASS（mockのみ） |
+| Python services | `python3 -B -m unittest discover -s containers/python-runner -p test_runner.py`: **24 passed**。docker-broker同コマンド: **10 passed** |
+| Deployment regressions | `bash scripts/ci/run-shell-tests.sh <new-private-temp-directory>`: **20 suites passed / 0 skipped**。既存のlocal CI imageをread-onlyで利用し、tagの上書きなし。AWS/production accessなし |
+| 対象外 | GitHub上の必須CI、PR/main review、ECR publish、final-image本番相当受入は未実行。R-07の本番反映は未承認・未実施 |
+
+### GitHub candidate follow-up
+
+- User approval was obtained before starting remote changes. Commit `483de49fdce558366335bece152461209f37aa98` was created on `release/r03-r05-r06-20261017` and pushed to `origin`. It contains 117 paths; the two pre-existing generated `.class` deletions remain unstaged and excluded.
+- Push triggered CI run [39039122038](https://github.com/toichan/programming-process-evaluator/actions/runs/39039122038), observed in progress. Do not report it passed until completed.
+- No PR exists yet. The integrated browser is signed out, and no GitHub PR-creation operation is available in the current toolset. The pushed branch's GitHub create-PR page is [Create pull request](https://github.com/toichan/programming-process-evaluator/pull/new/release/r03-r05-r06-20261017). The repository template is [`.github/pull_request_template.md`](../../../.github/pull_request_template.md); preserve its headings `概要`, `変更内容`, `補足`. Suggested body: summarize R-03 private full-seed rehearsal and R-05 synthetic-flow acceptance; list exact local commands/results from this report; state that ECR publication and production deployment are not included.
+- ECR publication was not started. It requires a separate approval with the exact successful main SHA and image-publication scope after PR/main CI and review; production deployment remains a further separately approved operation.
+
+## 2026-10-17 11:11 JST R-03〜R-05 合成縦断検証の再検証結果
+
+以下は11:11時点の履歴。R-03全量seedとR-05の最新判定は上記の追補を正本とする。
+
+R-01のローカル確定版棚卸しと本番read-only照合は完了。管理者fingerprintと標準rubric内容は一致し、
+アカウント・学校/クラス・権限・survey・prompt/evaluationには差分があった。
+本番へのwrite/deploy/restart、実データ取得、Gemini実API要求はしていない。
+具体的な集計は[本番R-01照合記録](../production-deployment.md#r-01-初期設定の棚卸しと本番read-only照合2026-10-17)を参照。
+
+隔離検証の最終run `sh scripts/testing/teacher-learning-flow-local.sh` は **exit 0**。
+R-03関連では標準rubricの初回/再実行と不一致内容の拒否が成功（1/1）。survey template SQLは設問6件・
+選択肢30件を投入し、再実行を`Target survey must not already have questions or responses.`で拒否した。
+故障注入によるoption挿入失敗も検出され、transaction rollback後の設問/選択肢は0件だった。
+ただし、空DBからローカル確定版の全アカウント・学校/クラス・権限・prompt/evaluation参照を
+再現するseed一式は未確立のためR-03は部分完了のまま。
+
+R-04の隔離MySQL/HTTPS/runtime試験はJUnit **7 passed / 0 failed / 0 errors / 0 skipped**:
+fixture 1、rubric conflict 1、teacher flow 2、student flow 1、survey flow 1、restart read-back 1。
+stale prompt versionのHTTP 409と状態/監査記録の不変、教師設定から合成評価例の保存・読戻し、
+生徒の同意・提出・評価・survey、再起動後の読戻しを確認した。
+DB保存件数はrubric 1、公開課題1、完了評価1、active survey 1、設問6、選択肢30、
+submitted response 1、answer 6。合成providerは3 generation、fluctuations/examples/evaluation各1段階。
+
+R-05のPlaywrightは **3 passed / 0 failed**。生徒の評価表示/再読込、生徒surveyの保存・再読込と375px幅、
+教師の回答一覧/詳細/CSV export/再読込を検証した。ブラウザーは外部Bootstrap CDNの取得のためtest時のみ
+Docker bridgeにも接続した。アプリ/DB/runtime/providerは引き続きinternal network内で、送信したのは合成データのみ。
+host Node.jsは未導入だが、Playwright containerでbrowser tierを実行できた。
+
+```yaml
+environment:
+  docker: AVAILABLE — disposable MySQL/Tomcat/provider services; cleanup verified
+  node: UNAVAILABLE — host node command absent
+  playwright: AVAILABLE — cached container; Bootstrap CDN reachable from browser-only bridge
+  test_data: SYNTHETIC — no real student/research data
+startup: PASS — isolated authenticated HTTPS flow
+integration: PASS — 7 passed, 0 failed, 0 errors, 0 skipped; MySQL, HTTP, restart read-back
+e2e: PASS — 3 passed, 0 failed; student evaluation/survey and teacher survey
+overall: PASS — targeted isolated R-04/R-05 technical acceptance; R-03 full seed and R-05 user acceptance remain open
+production: UNCHANGED — no production write/deploy/restart; no real Gemini request
+```
+
+初回runner/browserの失敗、原因、修正および再検証は[エラーレポート](../error-report.md)に記録した。
+今回の対象テスト成功を、R-03全量seed・R-05の利用者受入・実Gemini採点品質・本番受入の成功とは扱わない。
+
+## 2026-10-17 H-04 時刻契約の読み取り調査
+
+ユーザーが選択したmetadata/source調査を00:05〜00:07 JSTに完了した。
+**調査と時刻/デモ履歴の方針合意は完了 / UTC保存・日本時間入出力の実装・移行は未完了**であり、
+下記のデプロイPASSを取り消したり、新しい業務E2Eを実行したと扱ったりしない。
+
+- 同日ユーザー確認で[第181版の日時方針](../../function-specification.md#第181版-日時の統一方針)と、デモ履歴は継承不要・確定済み初期設定の保全/再投入検証後に再作成可能とする方針を合意した。本番初期化/更新・資格情報変更は対象/手順提示後の別承認。コード・設定・DB・既存鍵は変更しておらず、新しいtest結果はない。
+- 対象はcurrent `41228ca...` / publishedの既存EC2/DB。hostとcontainerはUTC、
+  実行中JVMは`Etc/UTC`、JDBCは`serverTimezone=UTC`。
+  MySQL systemはUTC、global/sessionはSYSTEM、実app pool3接続も同値、現在offset0。
+- hostの同期項目は初回selectorが空出力だったため、取得済み項目の全量再実行はせず
+  当該項目だけ補完した。`Timezone=Etc/UTC` / `NTP=yes` / `NTPSynchronized=yes`を確認。
+- 画面のtimezoneなし入力、DATETIME/LocalDateTime、直接format、ブラウザー既定zoneの
+  表示が混在し、UTC/JST統一の受入条件を満たしたとは判定しない。
+  実レコードの日時ずれや利用者端末のzoneは未測定。
+- metadata読取exit 0、OS補完読取exit 0、配布mainと調査sourceの一致確認exit 0。
+  本番5サービスのID/image/開始時刻/restart/health、config/current/state、DB/Volumeを保持。
+  business操作/worker手動実行/新規fixture/API要求/設定変更はない。
+- 今回はtests/build/browserを実行していない。既存の公開/期限/通知/配信テストは
+  対応コードと過去の成功証跡を参照し、相対日時のテストをcross-timezone保証へ拡大しない。
+
+具体的な値・コード根拠・次の停止条件は
+[H-04調査結果](../production-deployment.md#h-04-調査結果2026-10-17-00050007-jst)を正本とする。
+秘密値・業務レコード内容は取得/出力していない。
+
 ## 2026-10-16 最小デプロイの最終image gate
+
+### 本番更新と受入の最終判定（20:40:36 JST）
+
+**最小デプロイ: PASS / 完了。** 承認済みmain `41228ca58509ffbce02345d439caf950997c499c`
+を18:06:18 JSTにpublished確認。V34だけを適用し、既存DB image/container/Volumeを保持した。
+更新開始からpublished確認の4分51秒は実停止時間の測定値ではない。
+配布元CI/OCI、固定backupの3 S3 Version/size/hash/KMS、時刻・保持情報は
+[本番運用記録](../production-deployment.md#2026-10-16-最小デプロイの進捗)を正本とする。
+
+| 実行・検証 | 結果 | Exit |
+|---|---|---|
+| 既存`deploy-release.sh update`（承認後1回） | current41228ca / published / V34、5healthy、DB/Volume保持 | 0 |
+| 最終toolsによるprivate Java fixtureのoffline `javac` | compile成功、ネットワークなし | 0 |
+| 本番Runnerの`RuntimeTest.test_submission_check_suppresses_only_input_prompt` | 1 test / 2 subcases、通常prompt維持・提出前のみ抑制、failure/error/skip 0 | 0 |
+| `bash run-production-browser.sh active` | 実HTTPS/Chromium、教師認証・admin 403、生徒保存→reload→実行→履歴reload、2 passed / failed 0 / skipped 0（19.6秒） | 0 |
+| private `ProductionSmokeFixture.java verify` / `disable` | 所有コード・成功実行各1、既存account集約hash不変、合成2accountだけsuspended/version増分 | 各0 |
+| `bash run-production-browser.sh disabled` | 元teacher/student cookieによる旧session失効と正しいpasswordでの再login拒否、2 passed / failed 0 / skipped 0（6.9秒） | 0 |
+| `final-production-readback.sh`（修正版） | 固定4image＋旧DB、5healthy/restart 0、V34/failed 0/trust 0、運用config、fresh backupの3固定Version/remote manifest、両health/login、3timer/直近service、重大log0、queue/preview0 | 0 |
+| 限定cleanupとread-only再確認 | EC2の2password不在、既存DB secret維持、専用containerなし。ローカル6秘密file不在、予期しない秘密値コピー0 | 最終各0 |
+
+browserは既存認証helperと保存フローを最小編集で再利用した3 spec
+（teacher、persistence、disabledを2roleで実行）と専用configを用いた。
+trace/screenshotは無効、結果log/JSONはsecretを除外したprivate証拠のみ保持する。
+合成2accountは停止済み。監査・演習・実行履歴は合成データとして残した。
+Java fixture準備のUTF-8/学校trigger、最終検証器のbootstrap/containerd identity、
+cleanup後のファイル名確認の失敗と成功した再検証は
+[エラーレポート](../error-report.md)へ保持した。初回の非0を成功へ読み替えていない。
+
+```yaml
+environment:
+  docker: AVAILABLE — native EC2 Linux/amd64; local Docker 29.8.1 for browser
+  node: AVAILABLE — cached Playwright container Node v24.21.0
+  playwright: AVAILABLE — v1.64.0 / Chromium, certificate verification enabled
+  infra-tier: PRIMARY — actual production MySQL and fixed final images
+  browser-tier: PRIMARY — Playwright on the two public HTTPS domains
+startup: PASS — approved existing update, five healthy, restart_count: 0
+integration: PASS — exit_code: 0, runner_passed: 1, failed: 0, skipped: 0; owned DB readback and existing-account preservation passed
+e2e: PASS — exit_code: 0, passed: 4, failed: 0, skipped: 0, flaky: 0; auth, authorization, persistence, execution, suspended-session boundaries
+overall: PASS — minimum production deployment, scoped acceptance and synthetic-secret cleanup complete
+```
+
+新たなGemini呼出し、既存password/鍵/IAM変更、rollback/DB復元は行っていない。
+独立offline鍵保管、本番完全DR、正式な採点品質/手動E2E、全OSは別ゲートとして残す。
+次回の定期backup自動実行の結果は、その実行後に通常運用として確認する。
+
+### 修正版の配布・受入と本番前点検（16:38 JST）
+
+PR #61の修正source `8d7cf17...`と統合main
+`41228ca58509ffbce02345d439caf950997c499c`のtree一致を確認した。
+保護されたmainの必須CI `38862737820` attempt 1は2job成功。
+新設したPython unit stepの成功も確認後、ECR公開`38863619749` attempt 1を1回実行した。
+固定OCIは`sha256:6d2d1967be3187a8ae81539fbeee3bbe424cc83e88977f895c4472f546d53919`、
+source manifestは`9c23717062b6ede6504a3adfcd421ec41dc832687a4a6e0e32dd30bf7850eb65`。
+report ZIPのdigest/6 regular files、7imageのmanifest/config/source/platform/必要権限を照合した。
+
+| 検証 | 実測 | Exit |
+|---|---|---|
+| Python unit | Runner 24＋broker 10件、failure/error/skip 0 | 0 |
+| 修正最終imageの実Runner | 認証/サイズ、通常promptと提出前抑制、実行/出力/隔離 3/3件 | 0 |
+| 修正最終imageのブラウザー | 既存3件＋保存/再読込/実行/履歴の新規1件、4/4成功（55.3秒） | 0 |
+| DB保持 | 保存1/成功実行1、V34/failed 0/trust 0。app/nginx再作成後のSQLとDB ID/image/開始時刻/Volume一致 | 0 |
+| EC2への取得 | 固定7imageとREADY、旧5サービス/DB/Volume/current/state/運用config不変、両HTTPS health 200 | 0 |
+| native Linux/amd64 | 最終Runner/brokerで`test_production_runtime.py`全5件成功、skip 0、71.960秒。対話/同時実行/timeoutも含む | 再確認0（初回観測wrapperは1） |
+| native health/nginx | 元の3秒probeでhealthy。最終nginxの既存TLS読取/config/起動/health成功、native nginx error 0 | 再確認0 |
+| 本番Flyway | 最終toolsで`flywayValidate flywayInfo`成功。適用33、pendingはV34だけ。DDL未実行 | 0 |
+| バックアップ/復帰準備 | scheduled receiptの固定S3 3 Version/サイズ/SHA256/KMS/鮮度、既存private recovery reference一致。復帰referenceはCURRENT別のV34成功履歴に限定してローカル準備 | 0 |
+
+最初のbrowser起動は旧専用container名の衝突でexit 125。所有labelとexitedを確認して1個だけ除去し、
+同じfixtureからUI以降を再実行した。native test自体の成功と、外側SSM wrapperの観測不良を区別する。
+前点検のstdin消費による途中exit 0とnative側EXIT trap上書きを修正し、自己test、前点検全量、
+native既存証拠/資源cleanup確認を終了statusとmarkerの両方で受け入れた。
+native brokerのpolicy拒否warningは12件、Traceback 0。許可済み実行5testは成功し、policyは緩和していない。
+詳細な失敗履歴・制限は[エラーレポート](../error-report.md)を参照する。
+
+ローカル/EC2の専用検証container/network/Volume、専用token、ローカル合成Secrets/TLSは清掃済み。
+既存の共有開発3container、暗号化鍵、本番の既存5サービスは維持した。
+
+```yaml
+environment:
+  docker: AVAILABLE — local Docker 29.8.1 plus native EC2 daemon
+  node: AVAILABLE — cached Playwright container Node v24.21.0
+  playwright: AVAILABLE — v1.64.0 / Chromium
+  infra-tier: PRIMARY — real MySQL, seven final ECR images, native runner/broker follow-up
+  browser-tier: PRIMARY — Playwright, four multi-step flows
+startup: PASS — five local services; native original three-second runner/broker probes
+integration: PASS — exit_code: 0, local 3/3 and native 5/5, skipped: 0
+e2e: PASS — exit_code: 0, passed: 4, failed: 0, persisted code/execution and DB-preserving recreation
+overall: PASS — final-image and preflight scope only; production approval was pending at 16:38
+```
+
+16:38時点では本番current a6/V33は未変更だった。その後、fresh backup、V34適用、
+合成認証確認と復帰条件の範囲への明示承認を得て、上記の既存updateと本番受入を完了した。
+下記acf版の失敗を取り消して再利用したものではない。
+
+### 先行候補acfcd60の失敗とソース修正の履歴
 
 工程20の既存受入と、本番配布する最終imageの受入は分ける。
 PR #60のmain `acfcd60...`はpush/main CI `38855211776`成功後、
@@ -38,7 +297,8 @@ broker/runner probeの3秒→15秒と初回GETの15秒→90秒はローカル検
 - 専用Runner内の`python3 -B /dev/stdin RuntimeTest.test_authentication_and_size_limits RuntimeTest.test_submission_check_suppresses_only_input_prompt RuntimeTest.test_normal_error_output_and_filesystem_isolation < containers/python-runner/test_production_runtime.py`: exit 0、3/3成功。ローカル修正broker＋公開済みRunnerの実通信であり、モックではない。
 - 既存`ppe-ci-shell:local`で`bash scripts/production/tests/deployment-recovery-test.sh`: exit 0、60 assertion groups。migration後のnginx前後の失敗とold→old復帰を追加。状態機械のmock回帰であり実本番rollbackではない。
 
-新SHAの統合CI・再公開・固定image受入、本番Flyway validate/info、fresh backupと更新直前承認は未完了。
+この修正直後には新SHAの統合CI・再公開・固定image受入、本番Flyway validate/info、
+fresh backupと更新直前承認が残っていたが、その後の完了結果は本節冒頭を参照する。
 機能ソースの修正でDB/画面/状態遷移や隔離制限を変更しない。
 
 ## 2026-10-16 工程20の最終受入

@@ -20,7 +20,8 @@ import servlet.auth.CsrfTokens;
 public final class TeacherExerciseServlet extends HttpServlet {
 	private static final long serialVersionUID = 1L;
 	private static final Gson JSON = new GsonBuilder().registerTypeAdapter(java.time.LocalDateTime.class,
-			(JsonSerializer<java.time.LocalDateTime>) (value, type, context) -> new JsonPrimitive(value.toString())).create();
+			(JsonSerializer<java.time.LocalDateTime>) (value, type, context) ->
+					new JsonPrimitive(lib.time.DateTimeContract.toUserDisplay(value).toString())).create();
 	private final TeacherExerciseControl exercises = new TeacherExerciseControl();
 	@Override protected void doGet(HttpServletRequest request, HttpServletResponse response)
 			throws ServletException, IOException {

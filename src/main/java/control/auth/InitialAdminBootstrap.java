@@ -9,6 +9,7 @@ import java.util.Arrays;
 import dao.AuthenticationDao;
 import entity.UserCredential;
 import lib.mysql.Client;
+import lib.time.DateTimeContract;
 
 public final class InitialAdminBootstrap {
 	private InitialAdminBootstrap() {
@@ -45,7 +46,7 @@ public final class InitialAdminBootstrap {
 						throw new IllegalStateException("An administrator account already exists.");
 					}
 					dao.createAdmin(connection, loginId, new PasswordHasher().hash(password), loginId,
-							LocalDateTime.now());
+							DateTimeContract.utcNow());
 					connection.commit();
 				} catch (SQLException | RuntimeException e) {
 					connection.rollback();

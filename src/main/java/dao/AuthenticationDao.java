@@ -4,7 +4,6 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.Optional;
 
@@ -76,7 +75,7 @@ public final class AuthenticationDao {
 			if (lockedUntil == null) {
 				statement.setNull(2, java.sql.Types.TIMESTAMP);
 			} else {
-				statement.setTimestamp(2, Timestamp.valueOf(lockedUntil));
+				statement.setObject(2, lockedUntil);
 			}
 			statement.setLong(3, userId);
 			statement.executeUpdate();
@@ -102,7 +101,7 @@ public final class AuthenticationDao {
 			setNullableString(statement, 7, limit(ipAddress, 45));
 			setNullableString(statement, 8, limit(userAgent, 512));
 			setNullableString(statement, 9, sessionId);
-			statement.setTimestamp(10, Timestamp.valueOf(occurredAt));
+			statement.setObject(10, occurredAt);
 			statement.executeUpdate();
 		}
 	}
@@ -121,7 +120,7 @@ public final class AuthenticationDao {
 			statement.setLong(3, targetUserId);
 			statement.setString(4, "Login lockout was cleared.");
 			statement.setString(5, requestId);
-			statement.setTimestamp(6, Timestamp.valueOf(occurredAt));
+			statement.setObject(6, occurredAt);
 			statement.executeUpdate();
 		}
 	}
@@ -144,7 +143,7 @@ public final class AuthenticationDao {
 			statement.setLong(1, userId);
 			statement.setLong(2, userId);
 			statement.setString(3, firstChange ? "first_password_changed" : "password_changed");
-			statement.setTimestamp(4, Timestamp.valueOf(occurredAt));
+			statement.setObject(4, occurredAt);
 			statement.executeUpdate();
 		}
 	}
@@ -160,7 +159,7 @@ public final class AuthenticationDao {
 			statement.setString(1, loginId);
 			statement.setString(2, passwordHash);
 			statement.setString(3, displayName);
-			statement.setTimestamp(4, Timestamp.valueOf(createdAt));
+			statement.setObject(4, createdAt);
 			statement.executeUpdate();
 			try (ResultSet keys = statement.getGeneratedKeys()) {
 				if (!keys.next()) {

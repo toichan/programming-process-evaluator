@@ -27,6 +27,7 @@ import entity.TeacherTaskInput.HintInput;
 import entity.TeacherTaskPage;
 import entity.UserCredential.UserType;
 import lib.mysql.Client;
+import lib.time.DateTimeContract;
 
 public final class TeacherTaskControl {
 	private static final Logger LOGGER = Logger.getLogger(TeacherTaskControl.class.getName());
@@ -493,13 +494,15 @@ public final class TeacherTaskControl {
 							connection, user.userId(), taskId, expectedVersion);
 					beforeData = "{\"assignment_id\":" + assignmentId
 							+ ",\"assignment_status\":\"" + assignment.assignmentStatus()
-							+ "\",\"due_at\":\"" + assignment.dueAt() + "\",\"task_version\":"
+							+ "\",\"due_at\":\"" + DateTimeContract.toUserDisplay(assignment.dueAt())
+							+ "\",\"task_version\":"
 							+ expectedVersion + "}";
 					afterData = "{\"assignment_id\":" + assignmentId
 							+ ",\"assignment_status\":\""
 							+ ("expired".equals(assignment.assignmentStatus()) ? "published"
 									: assignment.assignmentStatus())
-							+ "\",\"due_at\":\"" + dueAt + "\",\"task_version\":" + nextVersion + "}";
+							+ "\",\"due_at\":\"" + DateTimeContract.toUserDisplay(dueAt)
+							+ "\",\"task_version\":" + nextVersion + "}";
 				} else {
 					permissionDao.requireAuthorizedClass(connection, user.userId(), classroomId, task.schoolId());
 					if (taskDao.hasAnyTaskAssignmentForClass(connection, taskId, classroomId)) {
@@ -575,7 +578,7 @@ public final class TeacherTaskControl {
 	}
 
 	private static String nullableDateJson(java.time.LocalDateTime value) {
-		return value == null ? "null" : "\"" + value + "\"";
+		return value == null ? "null" : "\"" + DateTimeContract.toUserDisplay(value) + "\"";
 	}
 
 	public void deleteTask(

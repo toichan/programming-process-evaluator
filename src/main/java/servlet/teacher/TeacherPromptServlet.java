@@ -33,6 +33,7 @@ import entity.TeacherPromptPage;
 import entity.TeacherPromptVersion;
 import entity.TeacherPromptVersion.FluctuationItem;
 import entity.UserCredential.UserType;
+import lib.time.DateTimeContract;
 import servlet.auth.CsrfTokens;
 
 @WebServlet("/teacher/prompt")
@@ -202,9 +203,12 @@ public final class TeacherPromptServlet extends HttpServlet {
 				if ("draft".equals(selected.promptStatus()) && values.containsKey("commonPrompt")) {
 					promptVersionId = saveDraft(user, taskId, promptVersionId, expectedRowVersion, values);
 					selected = reloadSelectedVersion(user, taskId, promptVersionId);
+					expectedRowVersion = selected.rowVersion();
+				} else if (selected.rowVersion() != expectedRowVersion) {
+					throw new TeacherPromptDao.PromptVersionConflictException();
 				}
 				PROMPTS.applyUnpublishedPrompt(user, taskId, promptVersionId,
-						nonNegativeLong(requiredScalar(values, "expectedTaskVersion")), selected.rowVersion(),
+						nonNegativeLong(requiredScalar(values, "expectedTaskVersion")), expectedRowVersion,
 						"yes".equals(scalar(values, "applyConfirmed")));
 				yield promptVersionId;
 			}
@@ -409,7 +413,7 @@ public final class TeacherPromptServlet extends HttpServlet {
 				? page.selectedTask() == null ? null : page.selectedTask().updatedAt()
 				: Objects.requireNonNullElse(selectedVersion.updatedAt(), selectedVersion.createdAt());
 		request.setAttribute("teacherPromptLastUpdated",
-				lastUpdated == null ? "—" : HERO_DATE_FORMAT.format(lastUpdated));
+				lastUpdated == null ? "—" : HERO_DATE_FORMAT.format(DateTimeContract.toUserDisplay(lastUpdated)));
 		request.setAttribute("teacherNavigationSummary", navigation);
 		request.setAttribute("teacherNavigationActiveItem", "prompt");
 		request.setAttribute("teacherPromptError", error);

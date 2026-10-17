@@ -32,6 +32,7 @@ import entity.StudentExerciseEntry.Type;
 import entity.StudentExerciseInput;
 import entity.StudentExercisePage.Scope;
 import entity.StudentExercisePage.State;
+import lib.time.DateTimeContract;
 
 public final class StudentExerciseDao {
 	public ExerciseExecutionResult findLatestExecution(Connection connection, long userId, long exerciseId,
@@ -58,7 +59,7 @@ public final class StudentExerciseDao {
 								rows.getString("standard_output"), rows.getString("standard_error"),
 								rows.getBoolean("standard_output_truncated"), rows.getBoolean("standard_error_truncated"),
 								rows.getString("error_code")), rows.getString("standard_input"),
-						rows.getTimestamp("executed_at").toLocalDateTime());
+						DateTimeContract.fromDatabaseTimestamp(rows.getTimestamp("executed_at")));
 			}
 		}
 	}
@@ -219,8 +220,8 @@ public final class StudentExerciseDao {
 							Type.fromValue(rows.getString("entry_type")), rows.getString("name"),
 							rows.getString("path"), rows.getString("description"),
 							rows.getString("current_content"), Status.fromValue(rows.getString("entry_status")),
-							updated == null ? null : updated.toLocalDateTime(), nullableTrashRoot,
-							trashed == null ? null : trashed.toLocalDateTime()));
+							updated == null ? null : DateTimeContract.fromDatabaseTimestamp(updated), nullableTrashRoot,
+							trashed == null ? null : DateTimeContract.fromDatabaseTimestamp(trashed)));
 				}
 				return List.copyOf(entries);
 			}
@@ -393,7 +394,7 @@ public final class StudentExerciseDao {
 		var entries = findEntries(connection, exerciseId);
 		var roots = normalizeRoots(entries, input.entryIds(), Status.ACTIVE);
 		var entryIndex = index(entries);
-		Timestamp now = Timestamp.from(java.time.Instant.now());
+		java.time.LocalDateTime now = DateTimeContract.utcNow();
 		try (PreparedStatement statement = connection.prepareStatement("""
 				UPDATE student_exercise_entries SET entry_status = ?, trash_root_entry_id = ?, trashed_at = ?,
 				  updated_at = CURRENT_TIMESTAMP WHERE student_exercise_id = ? AND exercise_entry_id = ?
@@ -405,7 +406,7 @@ public final class StudentExerciseDao {
 							&& (item.status() != Status.ACTIVE || item.trashRootEntryId() != null)) continue;
 					statement.setString(1, item.entryId() == root.entryId() ? "trashed" : "active");
 					statement.setLong(2, root.entryId());
-					statement.setTimestamp(3, now);
+					statement.setObject(3, now);
 					statement.setLong(4, exerciseId);
 					statement.setLong(5, item.entryId());
 					requireOne(statement.executeUpdate());
@@ -970,7 +971,7 @@ public final class StudentExerciseDao {
 				}
 			}
 		}
-		Timestamp now = Timestamp.from(java.time.Instant.now());
+		java.time.LocalDateTime now = DateTimeContract.utcNow();
 		try (PreparedStatement statement = connection.prepareStatement("""
 				UPDATE student_exercise_entries SET entry_status = ?, trash_root_entry_id = ?, trashed_at = ?,
 				  updated_at = CURRENT_TIMESTAMP WHERE student_exercise_id = ? AND exercise_entry_id = ?
@@ -978,7 +979,7 @@ public final class StudentExerciseDao {
 			for (long member : members) {
 				statement.setString(1, member == entryId ? "trashed" : "active");
 				statement.setLong(2, entryId);
-				statement.setTimestamp(3, now);
+				statement.setObject(3, now);
 				statement.setLong(4, exerciseId);
 				statement.setLong(5, member);
 				requireOne(statement.executeUpdate());

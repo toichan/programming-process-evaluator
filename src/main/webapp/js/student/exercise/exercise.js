@@ -1035,7 +1035,7 @@ window.addEventListener('DOMContentLoaded', () => {
     badge.textContent = `${restored ? '保存済み: ' : ''}${labels[status] || status}`;
     badge.className = `badge ${status === 'succeeded' ? 'text-bg-success' : status === 'running' ? 'text-bg-primary' : 'text-bg-danger'}`;
     document.querySelector('#runResultTime').textContent = status === 'running' ? '実行中…'
-      : restored ? `記録時刻（サーバー）: ${restored.replace('T', ' ')}` : `最終実行: ${new Date().toLocaleTimeString('ja-JP')}`;
+      : restored ? `記録時刻（サーバー）: ${restored.replace('T', ' ')}` : `最終実行: ${new Date().toLocaleTimeString('ja-JP', { timeZone: 'Asia/Tokyo' })}`;
   }
   function finishExecution(result) {
     if (result.errorCode === 'input_timeout') appendTerminal('\n30秒間入力がなかったため停止しました。\n', 'system');

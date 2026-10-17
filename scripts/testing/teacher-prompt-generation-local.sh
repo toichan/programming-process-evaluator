@@ -2,6 +2,9 @@
 set -eu
 cd "$(dirname "$0")/../.."
 
+mode=${1:-all}
+case "$mode" in all|datetime) ;; *) echo "Usage: sh scripts/testing/teacher-prompt-generation-local.sh [all|datetime]" >&2; exit 2 ;; esac
+
 owner=$$
 network=ppe-prompt-generation-test
 database=ppe-p20-prompt-generation-db-1
@@ -66,15 +69,29 @@ docker run --name "$builder" --label ppe.prompt-generation.owner="$owner" --netw
   -e DB_HOST="$database" -e DB_PORT=3306 -e DB_NAME="$db_name" -e DB_USER=root -e DB_PASSWORD=prompt-dummy-root \
   -e TEACHER_TASK_DB_TEST=true -e TEACHER_TASK_BROWSER_FIXTURE=true -e TEACHER_TASK_BROWSER_PASSWORD="$password" \
   --mount "type=bind,src=$(pwd),dst=/source,readonly" --entrypoint sh ppe-tools:local -c '
+  set -eu
   cp -R /source/src/. /workspace/src/
   cp /source/build.gradle /source/settings.gradle /workspace/
+  mkdir -p build/phase20-task-date-test-results
   gradle --offline --no-daemon flywayMigrate test \
+    --tests control.teacher.TeacherTaskDatabaseTest.extendsExpiredAssignmentAndAddsAClassWithoutChangingExistingHistory \
+    --console plain
+  cp -R build/test-results/test/. build/phase20-task-date-test-results/
+  gradle --offline --no-daemon test \
     --tests control.teacher.TeacherTaskDatabaseTest.createsRetainedSyntheticTeacherFixtureForIsolatedBrowserAcceptance \
     war --console plain
 ' > "$reports/build.log" 2>&1 || result=$?
-docker cp "$builder:/workspace/build/test-results/test/." "$reports/junit"
+docker cp "$builder:/workspace/build/phase20-task-date-test-results/." "$reports/junit-datetime-contract"
+docker cp "$builder:/workspace/build/test-results/test/." "$reports/junit-browser-fixture"
 if [ "$result" != 0 ]; then cat "$reports/build.log"; exit "$result"; fi
 docker cp "$builder:/workspace/build/libs/ROOT.war" "$reports/ROOT.war"
+docker cp "$builder:/workspace/build/phase20-prompt-datetime-fixture.properties" "$reports/datetime-fixture.properties"
+prompt_task_id=$(sed -n 's/^taskId=//p' "$reports/datetime-fixture.properties")
+case "$prompt_task_id" in ''|*[!0-9]*) echo "Invalid synthetic prompt task ID." >&2; exit 1 ;; esac
+prompt_version_id=$(sed -n 's/^promptVersionId=//p' "$reports/datetime-fixture.properties")
+case "$prompt_version_id" in ''|*[!0-9]*) echo "Invalid synthetic prompt version ID." >&2; exit 1 ;; esac
+preview_code=$(sed -n 's/^previewCode=//p' "$reports/datetime-fixture.properties")
+case "$preview_code" in ????????-????-????-????-????????????) ;; *) echo "Invalid synthetic preview code." >&2; exit 1 ;; esac
 docker run -d --name "$provider" --label ppe.prompt-generation.owner="$owner" --network "$network" \
   --mount "type=bind,src=$(pwd)/e2e/fixtures/prompt-provider.js,dst=/provider.js,readonly" \
   --entrypoint node mcr.microsoft.com/playwright:v1.64.0-noble /provider.js >/dev/null
@@ -124,14 +141,24 @@ docker run --name "$browser" --label ppe.prompt-generation.owner="$owner" --netw
   -e PPE_P20_BASE_URL=https://teacher.localhost:8443 -e PPE_P20_IGNORE_HTTPS_ERRORS=true \
   -e PPE_P20_HOST_RESOLVER_RULES="MAP teacher.localhost $proxy, MAP student.localhost $proxy" \
   -e PPE_P20_PROMPT_PASSWORD="$password" \
+  -e PPE_P20_PROMPT_TASK_ID="$prompt_task_id" -e PPE_P20_PROMPT_VERSION_ID="$prompt_version_id" \
+  -e PPE_P20_REEVALUATION_PREVIEW_CODE="$preview_code" \
+  -e PROMPT_GENERATION_MODE="$mode" \
   --mount "type=bind,src=$(pwd),dst=/source,readonly" \
   --entrypoint sh mcr.microsoft.com/playwright:v1.64.0-noble -c '
   cd /source/e2e
-  exec node node_modules/@playwright/test/cli.js test phase20/prompt-generation-queue.spec.js \
-    --output=/tmp/ppe-prompt-generation-results
+  if [ "$PROMPT_GENERATION_MODE" = datetime ]; then
+    exec node node_modules/@playwright/test/cli.js test phase20/teacher-datetime-contract.spec.js \
+      --output=/tmp/ppe-prompt-generation-results
+  else
+    exec node node_modules/@playwright/test/cli.js test \
+      phase20/teacher-datetime-contract.spec.js phase20/prompt-generation-queue.spec.js --workers=1 \
+      --output=/tmp/ppe-prompt-generation-results
+  fi
 ' > "$reports/browser.log" 2>&1 || result=$?
 cat "$reports/browser.log"
 docker cp "$browser:/tmp/ppe-prompt-generation-results/." "$reports/browser"
+if [ "$mode" = all ]; then
 docker exec "$provider" node -e '
 fetch("http://127.0.0.1:8099/stats").then(async response => {
   const stats = await response.json();
@@ -153,6 +180,7 @@ if [ "$result" = 0 ]; then
     echo "Unexpected persisted prompt-generation state." >&2
     result=1
   fi
+fi
 fi
 printf 'Prompt-generation exit=%s; reports: %s\n' "$result" "$reports"
 exit "$result"

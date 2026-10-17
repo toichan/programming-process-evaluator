@@ -2,6 +2,73 @@
 
 秘密情報・実際の生徒データ・研究データは記載しない。解消後も履歴を保持する。
 
+## 2026-10-17 R-03全量seedの調査SQL・JUnit集計エラーと解消
+
+- 発生日時: 2026-10-17 JST。同日の調査・再検証中。各失敗の開始時刻は保存されていないため不明とし、run識別子で区別する。
+- 対象/期待結果: 既存local DBをread-onlyで棚卸しし、確定設定25テーブルの非公開保全と、隔離空DBへの全量投入/不変/rollbackを検証する。本番、他projectのDB、実APIは対象外。
+- 調査中の失敗: local件数集計SQLのquote不整合でMySQL 1064、surveyを状態別集計する補完queryが`ONLY_FULL_GROUP_BY`違反1055となった。いずれもSELECTのみでDB変更なし。複雑なCONCAT/非集約列を除き、対象tableのCOUNTと状態別COUNTへ分割してexit 0を得た。パスワード引数のMySQL警告が出た読取コマンドは、後続で`MYSQL_PWD`による非表示注入に変更した。秘密値は出力していない。
+- 実装runnerの失敗: `initial-configuration-local.sh`のrun-56310は単体4件・DB統合1件が成功した後、JUnit集計に親ディレクトリを渡し、`No JUnit XML reports found.`でexit 1。既存集計helperは直下XMLのみを対象とするため、unit/databaseそれぞれのディレクトリを渡すよう修正した。テスト自体の失敗やseed破損ではないが、runner全体を成功扱いしない。
+- 文書更新の失敗: error-reportの見出しを誤認したpatch hunkだけが不一致で停止した。先行3文書への適用は保持し、失敗した見出し範囲だけ確認して追記を再実行した。ソース変更・他者変更のrevertは行わない。
+- 最終再検証: `PPE_INITIAL_SEED_PRIVATE_DIR=<private-dir> sh scripts/testing/initial-configuration-local.sh`のrun-57489はexit 0。単体4 passed、MySQL統合1 passed、失敗/error/skipはいずれも0。WAR成功。故障注入後0部分行、同一seedのno-op、不一致/並行/履歴混入拒否、再接続read-backに加え、同一保全ファイルを独立した空DB2つへmigration後にapply/verifyして全25テーブル一致を確認。export後の元DB verifyも成功し、元DBはread-onlyのみ。
+- R-05追試: `sh scripts/testing/teacher-learning-flow-local.sh`のrun-56660はexit 0、JUnit 7 passed/0 failed/errors/skipped、Playwright 3 passed/0 failed。これは合成fixtureの技術試験であり、本人による手動E2E/採点品質や確定設定全量の画面利用の確認とは区別する。
+- 残件/境界: 利用者受入の確認を依頼したがユーザー不在で回答未取得。受入済みとは記録しない。保全ファイルは非公開0600で保持し、値やhashをGit/レポートへ出さない。実装はlocal/simulation・隔離DB限定であり、本番投入、旧日時の意味確定、正式同意、R-06とR-07の承認は別ゲート。専用container/networkを清掃した。
+
+## 2026-10-17 09:56 JST R-01照合とR-03〜R-05隔離検証の失敗・保留
+
+- 対象・期待結果: 確定済みlocal初期設定の棚卸しとread-only production比較、隔離MySQLでの初期投入/再実行/rollback、合成教師→生徒→評価→survey→教師のHTTP/DB/browser縦断を確認する。本番書込み・deploy・restart、実データ、Gemini実APIは対象外。
+- R-01読取時の一時失敗: 最初のDBアクセスで誤ったsecret取得方法を使用、SSM commandのquote不一致、取得wrapperのcompletion sentinel欠落、local集計SQLのambiguous columnが発生した。誤りを除き各確認をread-onlyで再実行、最終照合queryはexit 0。認証値・生徒/研究データは出力せず、本番状態は変更していない。
+- runner準備の失敗と修正: Docker bind mount指定誤りは明示的な`type=bind,src,dst`へ修正。`--internal` networkのpublished portはhost loopbackから到達できなかったため、builder container内のHTTPS proxy経由readinessへ変更。simulationのHTTPは403となり、隔離生成証明書付きTLS proxyと一時truststoreを追加。absolute HTTPS redirectをrelative-onlyと比較していたtest helperはURI path比較へ修正。これらの修正後に隔離Tomcatはreadyとなった。
+- 非同期prompt生成: 初回testはqueue登録直後に`completed`をassertし、DBが`in_progress`のため失敗。30秒上限・100ms間隔のDB pollingへ変更し、合成providerの2段生成まで完了することを確認。evaluation-example生成時の400はtestがフォームhiddenの`aiModel`/`commonPrompt`を送っていなかったことが原因で追加した。次の409は既生成の揺らぎ候補の後にtestだけがadditional instructionを変更し、draft保存が候補をinvalidateしたため。testを同じinstruction値で進めるよう修正後、教師draft/prompt/合成評価例/read-back testは1/1成功した。
+- 未公開prompt適用の未解決: `sh scripts/testing/teacher-learning-flow-local.sh`はexit 1。`TeacherLearningFlowRuntimeTest`は2件中1 passed/1 failed。stale `expectedRowVersion=999`のPOSTがtest期待409に対して302を返した。`TeacherPromptServlet`の適用actionはPOST値ではなく再読込したcurrent row versionを`applyUnpublishedPrompt`へ渡す実装になっている。画面にはexpected row versionを送信するhidden fieldが存在するため、 stale表示からの適用を拒否する契約との不一致が疑われる。runtime testerとして本番コードは変更していない。担当実装で契約確認・修正し、 stale POSTの409および状態不変を再検証するまでR-04/R-05はFAIL/未完了。
+- survey SQL: `sh scripts/testing/teacher-learning-flow-local.sh survey-sql`の初回は`DROP TRIGGER`でERROR 1360（trigger does not exist）となったため、cleanupを`DROP TRIGGER IF EXISTS`に変更。次回はtemplate初回適用・設問6件/選択肢30件・既存設問ありのfail-closed再実行（ERROR 1644）は通過したが、rollback用triggerの作成後に`information_schema.triggers`で0件となり、失敗注入へ進まずexit 1。rollback behaviorは未検証。原因は確定していない。triggerの存在/DB scopeと失敗注入方法を、隔離DBで改めて確認する。
+- 検証境界: fixture test 1/1、rubric mismatch拒否test 1/1、教師の合成prompt flow 1/1は成功。全教師test commandは1 failureでexit 1。survey rollback、student evaluation/survey、restart read-back、Playwright browser stageは未到達/未実行。host Docker daemonはavailable、host Node.jsはunavailable。Playwright containerはrunnerに組み込まれているが、このrunnerはbrowser stage前に停止した。real provider/API要求は0、本番write/deploy/restartは0。
+- 再検証結果・残件: 2026-10-17 09:56 JST時点で`sh scripts/testing/teacher-learning-flow-local.sh survey-sql`を3回試し、いずれもexit 1（最初はtrigger cleanup、以後はfailure-injection trigger未確認）。上記の回数制限に従い同一failure-injectionを追加再試行せず、implementation ownerの調査とtrigger方式の再設計を待つ。調査用`.r01-readonly-probe.sh`は削除した。隔離runnerのtrap cleanupは各runに設定されている。詳細verdictは[runtime validation report](./feature-plans/runtime-validation-report.md#2026-10-17-1111-jst-r-03r-05-合成縦断検証の再検証結果)と[roadmap R-01〜R-05](./implementation-roadmap.md#残作業-テストから次回本番反映まで2026-10-17整理)を参照する。
+
+## 2026-10-17 05:37 JST UTC/JST候補レビューで見つかった初期画面の時刻表示漏れ
+
+- 対象・期待結果: UTC保存済み日時を持つページを初期HTTP表示した際、生徒演習の実行/ごみ箱日時、教師promptの再評価プレビュー有効期限/履歴日時がAsia/Tokyoで表示され、演習ツリーAPI・他の日時表示と一致すること。
+- 指摘: 読み取り専用候補レビューで2点を検出。`exercise.jsp`の初期bootstrapはUTCの`executedAt`/`trashedAt`/`updatedAt`をそのままdata属性へ渡し、JavaScriptがそのまま表示していた。`prompt.jsp`はUTCの`expiresAt`/`requestedAt`を直接出力していた。いずれも初期ページ表示だけ9時間早くなり、`ExerciseTree`など後続応答のJST表示と不一致となる。
+- 対応: Entityにnull安全なJST表示getterを追加し、両JSPを表示getter参照に変更。回帰テストでUTC時刻の変換値を固定して検証。生徒の隔離fixtureに既知UTCの実行/ごみ箱時刻を、教師の隔離fixtureに既知UTCのプレビュー期限/再評価履歴をseedし、Playwrightで描画済み画面の値を確認するよう追加した。promptの時刻fixtureはprompt queueの既存生成対象とは別の合成課題に隔離し、試験フローの独立性を維持した。
+- 初回失敗と修正: 1) `TeacherTaskDatabaseTest`のfixtureにファイル出力を追加後、初回コンパイルで`IOException`未宣言となりexit 1。fixtureテストのthrows宣言へIOExceptionを加えた。2) 最初の生徒browser試行では選択演習/entry IDを渡さずHTTP 400、続く試行はブラウザーcontainer外の`page.request`が`student.localhost`を解決できず失敗。ページ内DOMの実IDを使うよう直し、成功。3) 最初のprompt試行でpreviewを既存生成対象課題にseedしたため、後続の既存UIフローが404。fixtureを別の合成課題へ分離し修正。4) 一度、fixture IDを既存課題IDと誤比較しPlaywright assertion失敗。比較を除きfixture用途別IDとして扱うよう修正。これらはいずれも検証fixture/テスト導線の問題で、製品コードの別障害ではない。
+- 再検証: `sh scripts/testing/student-exercise-layout-local.sh` exit 0。DB fixture 1件成功、Playwright 3件成功/失敗0。initial JSPから選択済みファイルを開き、既知UTC `2026-10-04 06:00`の実行を`2026-10-04 15:00`、UTC `2026-10-04 07:00`の削除日時を`2026-10-04 16:00`と表示することを確認。`sh scripts/testing/teacher-prompt-generation-local.sh all` exit 0。課題DBテスト2件成功、Playwright 2件成功/失敗0。実prompt.jsp上のUTC preview期限`2026-10-18 06:00`が`2026-10-18T15:00`、履歴日時UTC`2026-10-16 07:00`が`2026-10-16T16:00`となり、従来のprompt generation/課題日時browserフローも成功。外部AIではなく合成providerを使用。
+- 全体検証: `docker compose run --rm --no-deps app gradle build --warning-mode all --no-daemon` exit 0。XML集計151ファイル、571 tests、381 passed、0 failed、0 errors、190 skipped。skipは成功として数えない。3 runnerの`sh -n`と`git diff --check`もexit 0。隔離browser用container/networkの残存なし。Compose orphan `programming-process-evaluator-app-live`とGradle `WarPluginConvention` deprecation警告は既存状態として保持し、変更していない。
+- 未確認/境界: 変更一式は作業ツリーにあり、未commit・未PR・未本番反映。全縦断利用者受入、初期設定の全量再現、本番更新/backup/復帰・本番browser受入は別ゲートのまま。skip 190件を合格とは扱わない。
+
+## 2026-10-17 05:05 JST 配信予約日時ブラウザー受入fixtureの版不一致と解消
+
+- 対象・期待結果: UTC保存/JST表示の配信予約について、隔離MySQL/Tomcat/Playwrightで予約日時を表示し、変更確認後の保存・再読込まで検証する。合成データのみを使い、本番・共有DBには触れない。
+- 初回実行: `sh scripts/testing/teacher-distribution-ui-local.sh`。migration/validateおよび配信DB統合テストは成功したが、browser fixture生成テストが1件失敗し、スクリプトはexit 1。例外は`IllegalArgumentException: テンプレートが更新またはアーカイブされています。再読み込みしてください。`。即時配信後にテンプレート版が進んだのに、fixture追加予約で古いversionを渡していた。
+- 影響・対応: 製品コードやDBの問題ではなく、追加した合成fixtureの版取得漏れ。fixture生成前に現在のテンプレートversionを再読込し、そのversionで予約を作るようテストを修正した。失敗した隔離環境はスクリプトのcleanupで破棄され、共有/本番データの変更はない。
+- 再検証: 2回目の同スクリプトはexit 0。専用DBの予約配信統合テスト1件とbrowser fixtureテスト1件が成功し、Playwright 1件成功/失敗0。教師ログイン・同一校教師の編集・別校拒否に加え、予約日時のJST初期表示、2030-05-01 12:30への変更、確認後の保存と画面再読込後の値を確認した。隔離container/networkの残存なし。
+- 全体回帰: `docker compose run --rm --no-deps app gradle test --no-daemon` exit 0、150 XML files、569 tests、379 passed、0 failures、0 errors、190 skipped。skipは成功に含めない。`git diff --check`と`sh -n scripts/testing/teacher-distribution-ui-local.sh`もexit 0。Composeの既存orphan container `programming-process-evaluator-app-live`警告とGradle 9.0向けdeprecation warningが出たが、いずれも変更・削除していない。
+- 追加build: `docker compose run --rm --no-deps app gradle build --warning-mode all --no-daemon` exit 0、WARを含むGradle `build`成功。`WarPluginConvention`のGradle 9.0 deprecationと同じorphan container警告が出たが、既存設定・containerは変更していない。
+- 未確認: 本番反映、初期設定の全量再現性、R-05の全縦断/利用者受入、skipした任意DB系ケースはこの検証に含まれない。UTC/JST変更セットは未レビュー・未commitであり、本番反映承認や完了を意味しない。
+- 追補 05:10 JST: `sh scripts/testing/teacher-prompt-generation-local.sh all`もexit 0。隔離MySQLの`extendsExpiredAssignmentAndAddsAClassWithoutChangingExistingHistory`とbrowser fixture生成が各1件成功し、Playwrightのprompt queueと課題日時入力/保存/再読込が2件成功。後者では同一のJST入力値が画面再読込後も保たれることを確認した。プロンプト生成はモックproviderであり、実外部APIは呼び出していない。隔離container/networkの残存なし。fixture作成runの`flywayMigrate`は、既存procedure dropのMySQL 1305通知を出したが、migration/test/WARは成功し、`flywayValidate`の対象範囲は別のdistribution runnerで成功を確認した。
+
+## 2026-10-17 03:22 JST UTC/JST変更後の全体テスト失敗と解消
+
+- 対象・期待結果: UTC保存/JST入力・表示への変更後、`docker compose run --rm --no-deps app gradle test --no-daemon`で全ユニット・DB関連テストを実行し、変更された日時契約を含むテストが成功する。
+- 初回実行・実際: 567件中3件失敗、189件skip。`ExerciseTreeTest`の2件はUTC値を画面表示として期待し、`TeacherTaskServletTest`の1件はJST入力値をUTC保存値として期待していた。実装の変換契約とテストの旧期待値が一致していなかった。
+- 対応: 演習表示の期待値をJSTへ、課題期限入力の期待値をUTCへ更新した。追加確認で教師演習詳細APIの日時シリアライズ、課題監査詳細、および配信日時変更履歴もUTC値をそのまま利用者へ返す箇所を見つけ、JST表示に統一した。配信履歴DBテストの期待値も同じ表示契約へ更新した。
+- 再検証: 2026-10-17 03:21 JSTに上記の全体Gradleテストを再実行し、BUILD SUCCESSFUL。XML集計は148ファイル、567 tests、0 failures、0 errors、189 skipped。03:22 JSTの`git diff --check`も成功。
+- 影響・未確認: skipは成功件数に含めない。Composeの`app`サービスは停止しており、当該runは`--no-deps`でDBを使わず、実DB統合テスト・migration・ブラウザー受入はこの実行では確認していない。Gradle 9.0互換性に関する既存deprecation warningが出ている。テスト初回失敗の正確な実行時刻はその実行ログに残っていないため、本記録の日時は再検証結果の記録時刻とする。
+
+## 2026-10-17 01:28 JST ローカル初期設定インベントリの未適用V34テーブル参照
+
+- 対象・期待結果: Docker ComposeのローカルMySQLで確定初期設定の件数・版をread-only集計し、V34共通プロンプト設定の存在も確認する。データ/schema変更や秘密値の出力はしない。
+- 実行・実際: 二つの集計コマンドが`school_common_prompt_versions`を直接参照し、MySQL `ERROR 1146 (42S02)`、exit 1。先行SELECT結果ではロール別users、schools/classes/memberships、rubric、surveyの各件数が出力されたが、コマンド全体を成功扱いしない。
+- 影響・原因: 現在のComposeローカルDBに`school_common_prompt_versions`表がなく、V34未適用であることと整合する。2回目も`information_schema`で存在確認した後に限った照会へ分割せず、存在しない表を再参照したため、同じ調査欠落を繰り返した。DBのデータ変更は発生していない。
+- 対応・再検証: まず`flyway_schema_history`と`information_schema.tables`だけを問い合わせ、適用済みschemaを確定する。その後は存在が確認できた表だけを別クエリで集計する。V34を必要に応じて適用する場合は、現在の合成データ・対象schemaを再確認し、読取調査と分けて記録する。秘密値・パスワード・回答本文は取得しない。
+
+## 2026-10-17 00:05〜00:07 JST H-04 時刻契約の読み取り調査
+
+- 対象・期待結果: ユーザーが選択したread-only範囲で、main `41228ca...`のOS/実行中JVM/DB/接続/日時変換を照合し、設定値と未確認範囲を根拠付きで記録する。修正・restart・業務データ更新・外部AI・worker手動起動は行わない。
+- 手順・結果: private `h04-production-clock-readback.sh`を既存SSM wrapperで実行、exit 0。host/container UTC、実行中JVM `Etc/UTC`、JDBC `serverTimezone=UTC`、MySQL global/session `SYSTEM` / system `UTC` / offset0、実pool接続3/3件のtimezone、対象日時列のDATETIME、定期backupの明示`Asia/Tokyo`を取得した。本番サービス/config/state/DB/Volumeを保持。
+- 検証器の不足と対応: `timedatectl show --property=Timezone,NTPSynchronized,NTP,TimeUSec`が当該hostでは空出力/exit 0となった。これを同期確認の成功とは扱わず、複数の`--property`指定と必須keyの存在検証で当該OS項目だけ補完し、exit 0。00:07:01 JSTに`Timezone=Etc/UTC` / `NTP=yes` / `NTPSynchronized=yes`を確認した。
+- 判定・影響: 時計同期障害は確認されない。一方、timezoneを持たない画面入力/LocalDateTime/DATETIMEと直接format、JVM nowとDB nowの混在があり、全体のUTC保存/日本時間入出力の統一は未対応。実レコードの予定日時や利用者端末のtimezoneは取得せず、実予約が何時間ずれているかの断定はしていない。
+- 未解決・次の対応: UTC保存/日本時間入出力を推奨案として記録したが、方針・影響範囲・既存データの扱いを先に合意する。timezoneだけの変更、一括9時間補正、実装/本番再反映は自動着手しない。詳細・コード根拠は[H-04調査結果](./production-deployment.md#h-04-調査結果2026-10-17-00050007-jst)を参照する。今回のデプロイPASSは維持し、機能テスト/buildの新規成功件数は計上しない。
+- 同日ユーザー確認追補: UTC保存/比較・日本時間（Asia/Tokyo）の入力/表示と、本番のデモ履歴は継承不要・確定済み初期設定の保全/再投入検証後に再作成可能とする方針を合意。[第181版](../function-specification.md#第181版-日時の統一方針)等へ反映した。上記の方針未合意は調査時点の履歴。本番の初期化/更新・資格情報変更の実行は対象/手順提示後に別承認とし、コード/設定/保存値/既存鍵は変更していない。
+
 ## 2026-10-16 15:07〜15:09 JST 最終ECRイメージの隔離起動初回
 
 - 対象・手順: ECR run `38856040632`の最終7imageをdigest指定でPullし、config Image ID/revision/linux amd64と必要ファイルの権限監査は7/7成功。専用project `ppe-ecr-acceptance-20261016`、合成Secrets/TLS、空の専用MySQLで本番Composeを隔離起動した。
@@ -16,6 +83,21 @@
 - 修正前のcross-contract unittestは10件中8 passed / 2 errors、exit 1で通常実行と提出前チェックの両方を再現した。VS Code test toolではPython testが検出されなかったため、既存Python 3.12 image/標準unittestを使用。修正後の最初の`test_*.py` selectorは、秘密tokenを必要とする別の実環境専用4件までunit環境で選択し、24 passed / 4 errors（`PYTHON_RUNNER_TOKEN_FILE`未設定）、exit 1となった。unitは既存`test_runner.py`/`test_broker.py`を明示し、実環境専用は合成tokenを設定した専用Runnerで別実行する。skipやsecretの偽造で成功扱いしない。
 - 修正後の正確なunit selectorはRunner 24/24、broker 10/10成功、skip/failure/error 0、exit 0。Pylanceによる変更Python 3ファイルの構文確認も成功。修正brokerのローカルamd64 imageと公開済み最終Runnerを専用環境で接続し、`test_production_runtime.py`の認証/サイズ、通常prompt維持と提出前prompt抑制、正常実行/実エラー/出力上限/非root/CPU/メモリー/ネットワーク/ファイルシステム隔離の3件を実行し、3/3成功、exit 0（6.568秒）。これはソース修正の受入であり、新しい固定ECR imageの受入ではない。
 - nginx失敗復帰の追加回帰: `deployment-recovery-test.sh`は60 assertion groups成功、exit 0。migration後の`before-nginx`/`after-nginx`で`nginx_started`、自動復帰なし、old→oldのCURRENT履歴referenceを使った明示rollback、DB lifecycle/Volume変更なし、config同期を確認。Docker/AWSをfake化した状態機械回帰であり、本番完全DRや実rollbackの再実行ではない。
+- 16:05 JST、修正版main `41228ca...`のCI `38862737820`、ECR公開`38863619749`、7image固定照合後の隔離受入で、古い専用browser containerの名前が残り`docker run`がexit 125。新しいDBのV1〜V34、5healthy、合成実Runner 3/3件、両HTTPS login 200までは成功したがbrowserは未実行。旧browserはCompose project labelがない別`docker run`資源のため`compose down --remove-orphans`の対象外だった。ID `95cd11fe8fbd...`がexited、専用acceptance label一致と確認し、この1個だけを削除して同じ新DB/fixtureのUI段階から再開する。初回失敗logは保持し、全体を成功扱いしない。本番は未変更。
+- browser名残の除去後は同じ新DB/fixtureから4/4件成功、exit 0。保存1件/成功実行1件、V34/failed migration 0/`log_bin_trust_function_creators=0`、app/nginx再作成前後のSQLとDB ID/image/StartedAt/Volume一致を確認。固定7imageはEC2にも取得してREADY作成済み。取得前後の既存5サービスID/開始時刻/restart/health、DB Volume、current/state、backup/TLS config hashは一致。本番サービス切替・migrationは行っていない。
+- 16:32 JST、private SSM実行wrapperの完了観測に2件の欠陥を確認。readinessの`docker compose run`が親Bashのheredoc stdinを消費し、inventory後で処理が終わったのにwrapperはexit 0を出した。予定したbackup/復帰確認等のmarkerがないため前点検合格とは扱わない。またnative専用5test（71.960秒、5/5成功）と元3秒health、nginx TLS設定/起動/health、専用資源cleanupは成功したが、内側のEXIT trap解除がwrapperの完了markerまで消し、SSMが終了待ちのまま残った。payloadをstdin `/dev/null`のsubshellへ隔離し、外側の終了status/trapを維持する修正を行う。元証拠は残して自己test・前点検再実行・native既存結果の確認を行う。
+- 終了待ちの自分のSSM sessionだけを`ppe-deployer`で`terminate-session`しようとしたが`AccessDeniedException`。IAMやroleを変更して回避しない。元wrapperの上限時のexit処理を待つ。nativeのbrokerには限定policy拒否warning 12件があるがTraceback 0、実実行/対話/同時実行/timeout等5testは成功。ローカルのBrokenPipe 1件（Traceback行2件）と区別して記録し、policyを緩和しない。
+- wrapperをstdin `/dev/null`のsubshell実行に直し、自己testでstdin非公開と内側EXIT trap/外側status両立を確認、exit 0。前点検v2は最終toolsのFlyway validate/info、適用33/pending V34のみ、固定S3 3 Version/サイズ/SHA256/KMS/鮮度（52,308秒）、既存recovery reference、DB/Volumeと運用config/state維持を全marker/exit 0で確認した。nativeの初回監視は上限時exit 1として記録し、修正版wrapperで既存5testの`OK`、元3秒probe、nginx設定/起動log、5旧サービス/DB/Volume/config/state一致、専用container/child/network/token cleanupを再確認してexit 0。core testを無駄に再実行して観測失敗を隠していない。
+- 16:38 JST、ローカルの専用browser/5サービス/network/Volume、今回だけのbroker source確認image、3検証rootの既知の合成Secrets/TLSを対象限定で削除。共有開発3container・ECR公開資産・暗号化鍵は維持。本番はa6/V33のままで、更新直前の明示承認待ち。
+- 本番更新承認後の最終guardはAWS SSO token expired/refresh failedで接続前にexit 1。17:48 JSTに既存`ppe-deployer`のbrowser認証を開始したが当該CLI待機はexit 255となった。ユーザーの「認証完了」後、別途STSで既定account/roleを確認し、guard v2でcurrent a6/V33・failed 0、外部評価queue/preview 0、active school 1、fixture衝突0、旧manifest/運用config/既存backup receiptの安全なarchive可否までexit 0で再確認した。SSO失敗を認証成功と読み替えず、旧本番を止める前に解消した。
+- 2026-10-16 JST（元terminalは時分未記録、19:59 JSTに記録）、41228ca/V34の切替成功後、合成受入fixtureを準備するprivate Ruby生成器が、日本語の既存フォルダ名を含むJava sourceをUS-ASCIIとして走査して`invalid byte sequence in US-ASCII`、exit 1。SSM接続より前に停止し、この失敗で本番DBへのfixture追加はない。生成済みの合成passwordを再生成せず、UTF-8を明示し、既存0600/0700資産だけを検証してrenderを再開した。Java fixtureは最終tools imageのoffline javac、browser 4ファイルは既存Nodeの構文確認に先行成功済み。
+- 2026-10-16 20:15:57 JST終了の再開処理で、UTF-8修正と既存private資産照合後のrenderは成功。本番fixture createは2合成accountのtransaction commit後、演習準備で`Active student authentication is required`、exit 1となった。学校方針を適用するV11のINSERT triggerが明示入力より優先して初回password変更必須にしたため。既存学校・ユーザー・passwordは変更せず、保存済みfixture ID/login・既存account集約hash・演習未作成を検証し、当該合成profileだけを初回処理完了へ更新して演習準備から再開した。アプリsource/migrationの不具合ではなく、private fixtureの前提漏れとして記録する。アカウントの再作成・秘密値の再生成はしていない。
+- 同fixtureの再開はoffline compile、ID/login/hash/未作成検証、実演習準備、本番Runnerのprompt維持/提出前抑制1 testでexit 0。公開HTTPSのPlaywrightは正常2/2件（19.6秒）と停止後2/2件（6.9秒）、各exit 0、failed/skip 0。所有コード・成功実行のDB読戻し、既存account集約hash不変と合成2accountの停止もexit 0で確認した。
+- 2026-10-16 20:34 JST、最終read-only inventoryが「project全containerが5件」という検証側の過剰条件でexit 1。実際には稼働中5サービスが全てhealthyで、8日前に正常終了した既存`acme-bootstrap`が第6のcontainerとして残っていた。対象一覧を読取確認し、この既知の終了0 bootstrapを明示区別する。bootstrapを削除せず、core5サービスのimage/health/restart・DB/Volume・backup等の検証を再実行する。
+- 続く20:35 JSTのinventoryはnginx image identityでexit 1。本番containerd storeの`.Image`は公開manifest digestであり、検証器がconfig digestと比較していた。実際の4サービスは固定release JSONのmanifest digestと全て一致し、restart 0/healthy。既存`prepare-ecr-release.sh`もこのstore差を区別して取得時にconfig blobまで照合済みである。最終検証は当該daemonでの正しいmanifest identityを使い、既存DBは以前の固定imageを維持する。imageの再取得・タグ変更・サービス再作成は行わない。
+- 20:38:10 JST、修正した最終read-only確認はexit 0。5サービスの正しい固定image/healthy/restart 0、DB/Volume維持、V34/failed 0/trust 0、queue/preview 0、合成2停止、運用config同期、fresh deployment backupの固定3 S3 Version/size/hash/KMS/remote manifest、両HTTPS health/login、3timer enabled/active/waiting、直近3service success/0、4サービス重大log 0を確認した。
+- 20:39 JSTのEC2秘密資産cleanupは2合成passwordの削除後、既存DB secretの存在確認で実ファイル名`db-password`を誤って`db_password`と指定してexit 1。削除対象は専用work内の2fileだけで既存secretには操作していない。後続は再削除せず、正しい既存secretと2file不在・専用container不在のread-only確認で受け入れる。ローカル6秘密fileの限定削除はexit 0、予期しない秘密値コピー0。
+- 20:40:36 JSTのEC2 read-only再確認はexit 0、2password不在、既存DB secret維持、専用container不在、DB ID不変。清掃の途中exit 1を隠さず、最終確認の成功をもって今回の最小デプロイ/合成受入/清掃を完了とする。既存accountのpassword・鍵/IAMは変更せず、追加Gemini要求・rollback・DB復元は行っていない。独立offline鍵保管、正式品質/手動E2E、全OS、本番完全DRは別ゲート。
 
 ### 2026-10-16 15:12 JST 本番read-onlyのoperations探索範囲
 
@@ -139,7 +221,7 @@
 
 ## 現在の未解決・未確認事項（2026-10-16 更新）
 
-ローカル再受入・合成Gemini診断と本番読取に加え、追加承認の実SNS配送、固定backupの隔離復元/V34互換更新/実Control読戻し、12:38 JSTまでの最終回帰・清掃とP20対応付けを反映した。**工程20のP20-01〜10はPASS / 完了**。[実装ロードマップ](./implementation-roadmap.md#20-機能横断のローカル検証を行う)、[最終受入表](./feature-plans/phase-20-cross-feature-validation.md)、[Runtime Validation Report](./feature-plans/runtime-validation-report.md)を併せて参照する。本番DB/deploy/既存alarm設定は変更せず、実生徒データを外部送信していない。
+ローカル再受入・合成Gemini診断と本番読取に加え、追加承認の実SNS配送、固定backupの隔離復元/V34互換更新/実Control読戻し、12:38 JSTまでの最終回帰・清掃とP20対応付けを反映した。**工程20のP20-01〜10はPASS / 完了**。その後、別の明示承認により18:06 JSTにmain `41228ca...`/V34へ本番更新し、20:40 JSTに最小デプロイ/合成受入/清掃まで完了した。既存DB container/Volumeと既存accountを維持し、実生徒データを外部送信していない。[実装ロードマップ](./implementation-roadmap.md#次の着手と意図的な保留2026-10-16-jst更新)、[最終受入表](./feature-plans/phase-20-cross-feature-validation.md)、[Runtime Validation Report](./feature-plans/runtime-validation-report.md)、[デプロイ後の受入候補](./production-deployment.md#デプロイ後の受入候補と開始条件)を併せて参照する。
 
 本文には時系列順でない追補や、後続で解消した「未解決」の記載がある。履歴は書き換えず、現在の着手判断にはこの一覧と各計画の最新記録を使う。「未確認」は不具合確定を意味せず、「別ゲート・保留」は工程20で無条件に実行する指示ではない。以下のIDは課題群の整理用で、失敗テスト件数やskip件数ではない。
 
@@ -148,7 +230,7 @@
 | ID | 現状・影響 | 次の対応・停止条件 | 根拠 |
 | --- | --- | --- | --- |
 | F-01 | **原因確定・現行アプリへの変更不要。** 承認済みの合成再診断もHTTP 404、`provider_code=not_found`。APIは2.5 Proが新規利用者に提供されない旨を返した。再診断4件中3成功/1失敗、exit 1を保持 | 既定/選択肢に2.5 Proは元々含まれていないため、現行設定・fallbackを変更しない。モデル一覧の掲載だけで採用可能とせず、再採用する場合はアクセス資格から別判断する。新たな再試行は不要 | [安全な再診断](#2026-10-16-07400748-jst-再診断取消フォーカスの再現)、[元の404](#合成運用候補-gemini-25-pro-structured-generation-のhttp-4042026-10-15-1122-jst) |
-| F-02 | **現行本番の解消を確認。** current `a6e90edf...`のnginx設定は0644、UID/GID 101:101の読取成功。5サービスhealthy/restarts 0、両HTTPS health200。これは今回のdeployではなく、10月13日起動の現行releaseの観測結果 | 失敗したef55を再受入したわけではない。将来のECR固定registry digest/CI/source照合と新旧releaseの復旧適合性は別のrelease gateとして維持し、現行停止継続とは扱わない | [本番実測](./production-deployment.md#2026-10-16-本番読み取り調査)、[元の障害](#2026-10-11-0324-jst-ef55本番updateのnginx起動失敗) |
+| F-02 | **解消。** 旧a6版のnginx読取/稼働確認後、固定7image・native受入・明示承認を経てmain `41228ca...`/V34へ更新し、公開HTTPSの合成browser4件と5サービスhealthy/restart 0を最終確認済み | 失敗したef55を再受入したわけではない。本releaseは完了として扱い、将来releaseでは固定CI/source/image照合・migration・復帰referenceを毎回確認する。解消済み障害を再オープンしない | [今回の本番受入](./production-deployment.md#2026-10-16-最小デプロイの進捗)、[元の障害](#2026-10-11-0324-jst-ef55本番updateのnginx起動失敗) |
 
 ### 工程20で閉じる検証・確認
 
@@ -163,10 +245,10 @@
 
 | ID | 現状 | 次の対応・境界 | 根拠 |
 | --- | --- | --- | --- |
-| H-01 | **実SNS配送・隔離業務復旧まで受入。** 定期7回/固定Version/独立監視に加え、合成alarm実評価→SNS Delivered1/Failed0、固定backup復元とV34互換更新、実Control/DAO読戻し/全表読取不変を確認、各最終exit 0。専用資源清掃済み | 残るのは独立offline鍵custody、人間の受信箱開封、復元先Tomcat/browser・本番完全DR/切替/RTO。今回のMac鍵による復号成功を別媒体保管とせず、本番DB上書きや再試験を自動実行しない | [追加承認の運用受入](./production-deployment.md#2026-10-16-追加承認による復元通知試験)、[鍵保管等の負債](./ecr-deployment-debt.md) |
-| H-02 | **正式な評価・アンケート全体の手動E2E/採点品質校正。** 現行アンケート6設問の合成回答保存・再読込は受入済みだが、実運用設定での全体受入、品質・大人数queue・予算/quota・本番SLAの確認は別 | 工程8/19の残ゲートとして扱う。合成API smoke成功を採点品質保証とせず、実提出/編集ログの送信・同意/契約・費用は別途承認条件を満たしてから進める | [現行アンケート受入](./feature-plans/phase-20-cross-feature-validation.md#現行アンケート設定を前提とする部分検証2026-10-14)、[AI計画](./feature-plans/teacher-prompt-ai.md)、[ロードマップの保留](./implementation-roadmap.md#次の着手と意図的な保留2026-10-16-jst更新) |
+| H-01 | **実SNS配送・隔離業務復旧と本番更新時backupまで受入。** 定期7回/固定Version/独立監視、合成alarm実評価→SNS Delivered1/Failed0、固定backup復元/V34互換更新/実Control・DAO読戻し、今回のfresh backupの固定3 Version/KMS/hash/remote manifestを確認、最終exit 0。専用資源清掃済み | 残るのは新releaseの次回定期実行、独立offline鍵custody、人間の受信箱開封、復元先Tomcat/browser・本番完全DR/切替/RTO/RPO。Mac鍵による復号成功を別媒体保管とせず、本番DB上書きや再試験を自動実行しない | [追加承認の運用受入](./production-deployment.md#2026-10-16-追加承認による復元通知試験)、[デプロイ後の開始条件](./production-deployment.md#デプロイ後の受入候補と開始条件)、[鍵保管等の負債](./ecr-deployment-debt.md) |
+| H-02 | **正式な評価・アンケート全体の手動E2E/採点品質校正。** 10月17日の確認で同意書以外の初期設定はローカル確定版を採用済み。現行6設問の合成回答保存・再読込は受入済みだが、投入手順・本番反映・全体受入、品質・大人数queue・予算/quota・本番SLAの確認は別 | 工程8/19の残ゲートとして扱い、設定内容を再び未確定扱いにしない。合成API smoke成功を採点品質保証とせず、実提出/編集ログの送信・同意/契約・費用は別途承認条件を満たしてから進める | [初期設定の採用基準](../function-specification.md#第180版-db初期化後の初期設定の採用基準)、[現行アンケート受入](./feature-plans/phase-20-cross-feature-validation.md#現行アンケート設定を前提とする部分検証2026-10-14)、[AI計画](./feature-plans/teacher-prompt-ai.md)、[ロードマップの保留](./implementation-roadmap.md#次の着手と意図的な保留2026-10-16-jst更新) |
 | H-03 | **他ブラウザー/OS・OS標準ダイアログ。** Chromiumの対象フロー、単体/ZIPの取得内容等に成功証跡はあるが、全組合せやOS-nativeの選択/保存操作は未確認 | 対象環境を定めた受入として別管理する。自動download/Blob確認とOSダイアログ操作を区別し、工程20の対象外を無条件に追加して完了条件を拡張しない | [工程20の対象外・別ゲート](./feature-plans/phase-20-cross-feature-validation.md#対象外別ゲート)、[Chrome取得確認](#2026-10-03-2253-jst-授業演習のchrome実ダウンロード表示追加確認) |
-| H-04 | **システム全体のUTC保存/日本時間表示の統一が未確認。** runtime timezoneが固定されていないため通知の「日本時間」断定ラベルを外したが、全体の運用条件までは検証していない | DB/JVM/表示の時刻契約と対象環境を確認する。通知の個別成功を全体統一と扱わず、本番timezone設定を自動変更しない | [第165版の時刻記録](#2026-10-12-第165版-通知基盤評価完了) |
+| H-04 | **時刻/デモ履歴の方針合意・実装/移行は未完了。** UTC保存/比較・Asia/Tokyo入出力、デモ履歴は初期設定保全/再投入検証後に再作成可能と合意済み | R-01の設定保全/照合とR-03以降の修正・テストへ進む。一括9時間補正はせず、本番初期化/更新・資格情報変更は手順提示後の別承認。方針合意を統一PASSと扱わない | [合意済み日時方針](../function-specification.md#第181版-日時の統一方針)、[最新の時刻調査](./production-deployment.md#h-04-調査結果2026-10-17-00050007-jst)、[第165版の時刻記録](#2026-10-12-第165版-通知基盤評価完了) |
 
 ### 検証基盤・非阻害の残件
 
@@ -2563,3 +2645,14 @@
 - 影響/原因: プロジェクトファイル・Compose環境・DBに影響なし。Homebrew経路が既存のCommand Line Tools不足で依存をbuildできなかった。`sudo rm -rf`やシステムCommand Line Toolsの削除/再導入は実施していない。
 - 対応/再検証: Homebrewを介さず、公式nodejs.orgの署名対象チェックサム一覧でARM64 Node v24.21.0 archiveを確認した。ユーザー領域への公式prebuilt導入を試み、SHA-256を検証してから展開する。
 - 未解決事項: Node.js/Playwright導入とbrowser受入は継続中。未完了の導入・受入を成功扱いしない。
+
+### R-03〜R-05 合成縦断browser初回失敗と最終再検証（追記 2026-10-17 11:11 JST）
+
+- 対象/期待結果: `sh scripts/testing/teacher-learning-flow-local.sh`で隔離MySQL/Tomcat/合成providerを使い、確定survey template、stale prompt version、student/teacher browser、restart read-backを検証する。各初回失敗runの正確な開始時刻はrunnerに記録されていないため、追記時刻を記し、推測の時刻は付さない。
+- 初回失敗と原因:
+  - Playwright初回runは学生評価selectorの重複、375px幅で閉じたnavbar dropdownがviewport幅へ含まれる問題、教師survey画面の0件表示で失敗した。selectorを対象理由要素へscopeし、閉状態のdropdownを非表示にした。教師0件表示はDAO条件ではなく、browserがinternal network内でBootstrap CDNを取得できず`bootstrap is not defined`で画面初期化が止まっていた。test専用browser containerのみDocker bridgeにも接続し、Bootstrap CDNからHTTP 200を得るようrunnerを修正した。app/DB/providerはinternal network内に残した。
+  - CDN取得後、survey設問の日本語promptが文字化けしてbrowser確認が失敗した。survey SQL fixtureを流すMySQL CLIのclient charsetが未指定だったため、apply/rerun/rollbackすべてに`--default-character-set=utf8mb4`を指定した。
+  - 教師surveyのCSV受入は、詳細modalを開いたまま背後のCSVボタンを押し、modalがpointer eventを遮ってtimeoutした。modalを閉じてからexportする実際の操作順へPlaywrightを修正した。`acceptDownloads: true`だけではこのpointer遮蔽は解消しない。
+- 影響/対応: いずれも隔離合成検証のbrowser/test fixture・test networkに限定。DB query/権限の製品コード変更、production write/deploy/restart、実学生/研究データ、Gemini実API要求はない。stale promptの本体修正は、submitされた`expectedRowVersion`を検証して409で拒否するようServlet側へ反映し、状態とapply auditの不変もruntime testに含めた。
+- 再検証: 2026-10-17 11:11 JSTまでに実行した最終`sh scripts/testing/teacher-learning-flow-local.sh`はexit 0。JUnit 7 passed/0 failed/0 errors/0 skipped、Playwright 3 passed/0 failed。survey SQLは6 questions/30 options、rerun fail-closed、挿入失敗後0 partial rows。DBの最終synthetic countsはrubric 1 / published task 1 / completed evaluation 1 / active survey 1 / questions 6 / options 30 / submitted responses 1 / answers 6。合成provider generation 3件はfluctuations/examples/evaluation。`sh -n scripts/testing/teacher-learning-flow-local.sh`と`git diff --check`もexit 0。Docker container/network cleanupを確認。
+- 未解決事項: R-03の空DBからローカル確定設定全量を作るseed一式、R-05の利用者受入、実Gemini/API・採点品質・本番設定投入/反映は未完了。実行エラーのない最終結果を、それらの別ゲートの成功へ読み替えない。

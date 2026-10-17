@@ -14,8 +14,24 @@ class ExerciseTreeTest {
 				"code.py", "code.py", null, "", StudentExerciseEntry.Status.ACTIVE, time);
 		var tree = ExerciseTree.from(new StudentExercisePage(List.of(), 1L, null, List.of(entry),
 				EditorPreferences.defaults(), null));
-		assertEquals("2026-10-04T09:00", tree.entries().get(0).updatedAt());
-		assertTrue(new Gson().toJson(tree).contains("\"updatedAt\":\"2026-10-04T09:00\""));
+		assertEquals("2026-10-04T18:00", tree.entries().get(0).updatedAt());
+		assertEquals("2026-10-04T18:00", entry.getUpdatedAtDisplay());
+		assertTrue(new Gson().toJson(tree).contains("\"updatedAt\":\"2026-10-04T18:00\""));
+	}
+
+	@Test
+	void exposesSavedExecutionAndTrashTimesAsTokyoDisplayValuesForInitialPage() {
+		var executedAtUtc = LocalDateTime.of(2026, 10, 4, 6, 0);
+		var trashedAtUtc = LocalDateTime.of(2026, 10, 4, 7, 0);
+		var entry = new StudentExerciseEntry(2, 1, null, StudentExerciseEntry.Type.FILE,
+				"code.py", "code.py", null, "", StudentExerciseEntry.Status.TRASHED,
+				executedAtUtc, 2L, trashedAtUtc);
+		var execution = new ExerciseExecutionResult(3,
+				new PythonExecutionResult("succeeded", 0, "ok", "", false, false, null), "", executedAtUtc);
+
+		assertEquals("2026-10-04T15:00", entry.getUpdatedAtDisplay());
+		assertEquals("2026-10-04T16:00", entry.getTrashedAtDisplay());
+		assertEquals("2026-10-04T15:00", execution.getExecutedAtDisplay());
 	}
 
 	@Test
@@ -25,7 +41,7 @@ class ExerciseTreeTest {
 				new ExerciseExecutionResult(3, result, "入力\n", LocalDateTime.of(2026, 10, 4, 6, 0)));
 		var tree = ExerciseTree.from(page);
 		assertEquals(2L, tree.selectedEntryId());
-		assertEquals("2026-10-04T06:00", tree.latestExecution().executedAt());
+		assertEquals("2026-10-04T15:00", tree.latestExecution().executedAt());
 		assertEquals("学\n", tree.latestExecution().result().getStandardOutput());
 		assertTrue(new Gson().toJson(tree).contains("\"selectedEntryId\":2"));
 	}

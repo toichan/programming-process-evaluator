@@ -3,6 +3,8 @@ package entity;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
+import lib.time.DateTimeContract;
+
 public record ReevaluationJobHistory(
 		long jobId,
 		long promptVersionId,
@@ -26,6 +28,9 @@ public record ReevaluationJobHistory(
 	public BigDecimal getProgressPercent() { return progressPercent; }
 	public String getRequestedByLoginId() { return requestedByLoginId; }
 	public LocalDateTime getRequestedAt() { return requestedAt; }
+	public String getRequestedAtDisplay() {
+		return requestedAt == null ? null : DateTimeContract.toUserDisplay(requestedAt).toString();
+	}
 	public LocalDateTime getStartedAt() { return startedAt; }
 	public LocalDateTime getCompletedAt() { return completedAt; }
 }

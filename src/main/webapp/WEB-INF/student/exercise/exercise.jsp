@@ -140,8 +140,8 @@
 					<c:forEach var="entry" items="${exercisePage.entries}">
 						<div data-entry-id="<c:out value='${entry.entryId}'/>" data-parent-id="<c:out value='${entry.parentEntryId}'/>"
 							data-type="<c:out value='${entry.type.value}'/>" data-status="<c:out value='${entry.status.value}'/>"
-							data-trash-root-entry-id="<c:out value='${entry.trashRootEntryId}'/>" data-trashed-at="<c:out value='${entry.trashedAt}'/>"
-							data-updated-at="<c:out value='${entry.updatedAt}'/>"
+							data-trash-root-entry-id="<c:out value='${entry.trashRootEntryId}'/>" data-trashed-at="<c:out value='${entry.trashedAtDisplay}'/>"
+							data-updated-at="<c:out value='${entry.updatedAtDisplay}'/>"
 							data-name="<c:out value='${entry.name}'/>" data-path="<c:out value='${entry.path}'/>"></div>
 					</c:forEach>
 				</div>
@@ -173,7 +173,7 @@
 			<%@ include file="/WEB-INF/student/shared/execution-terminal.jspf" %>
 				<c:if test="${not empty exercisePage.latestExecution}">
 					<div id="savedExecution" hidden data-id="<c:out value='${exercisePage.latestExecution.executionId}'/>"
-						data-executed-at="<c:out value='${exercisePage.latestExecution.executedAt}'/>"
+						data-executed-at="<c:out value='${exercisePage.latestExecution.executedAtDisplay}'/>"
 						data-status="<c:out value='${exercisePage.latestExecution.result.status}'/>"
 						data-output-truncated="<c:out value='${exercisePage.latestExecution.result.standardOutputTruncated}'/>"
 						data-error-truncated="<c:out value='${exercisePage.latestExecution.result.standardErrorTruncated}'/>"

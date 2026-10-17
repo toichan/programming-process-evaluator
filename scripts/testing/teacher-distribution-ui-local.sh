@@ -56,18 +56,32 @@ docker run --name "$builder" --label ppe.distribution-ui.owner="$owner" --networ
   -e DB_HOST="$database" -e DB_PORT=3306 -e DB_NAME="$db_name" -e DB_USER=root -e DB_PASSWORD=distribution-dummy-root \
   -e TEACHER_DISTRIBUTION_DB_TEST=true -e TEACHER_DISTRIBUTION_BROWSER_FIXTURE=true \
   --mount "type=bind,src=$(pwd),dst=/source,readonly" --entrypoint sh ppe-tools:local -c '
+  set -eu
   cp -R /source/src/. /workspace/src/
   cp /source/build.gradle /source/settings.gradle /workspace/
+  mkdir -p build/phase20-distribution-db-test-results build/test-results/test
   gradle --offline --no-daemon flywayMigrate flywayValidate test \
+    --tests control.teacher.TeacherDistributionDatabaseTest.savesDistributesAppendsIdempotentlyAndResumesScheduledTargets \
+    --console plain
+  mkdir -p build/phase20-distribution-db-test-results
+  cp -R build/test-results/test/. build/phase20-distribution-db-test-results/
+  gradle --offline --no-daemon test \
     --tests control.teacher.TeacherDistributionDatabaseTest.createsRetainedPeerTemplateForPhase20BrowserAcceptance \
     war --console plain
 ' > "$reports/build.log" 2>&1 || result=$?
-docker cp "$builder:/workspace/build/test-results/test/." "$reports/junit"
+docker cp "$builder:/workspace/build/phase20-distribution-db-test-results/." "$reports/junit-db-contract"
+docker cp "$builder:/workspace/build/test-results/test/." "$reports/junit-browser-fixture"
 if [ "$result" != 0 ]; then cat "$reports/build.log"; exit "$result"; fi
 docker cp "$builder:/workspace/build/libs/ROOT.war" "$reports/ROOT.war"
 docker cp "$builder:/workspace/build/phase20-distribution-fixture.properties" "$reports/fixture.properties"
 template_id=$(sed -n 's/^templateId=//p' "$reports/fixture.properties")
 case "$template_id" in ''|*[!0-9]*) echo "Invalid synthetic template ID." >&2; exit 1 ;; esac
+distribution_id=$(sed -n 's/^distributionId=//p' "$reports/fixture.properties")
+case "$distribution_id" in ''|*[!0-9]*) echo "Invalid synthetic distribution ID." >&2; exit 1 ;; esac
+target_id=$(sed -n 's/^targetId=//p' "$reports/fixture.properties")
+case "$target_id" in ''|*[!0-9]*) echo "Invalid synthetic distribution target ID." >&2; exit 1 ;; esac
+scheduled_at_display=$(sed -n 's/^scheduledAtDisplay=//p' "$reports/fixture.properties")
+case "$scheduled_at_display" in ????-??-??T??:??) ;; *) echo "Invalid synthetic scheduled display datetime." >&2; exit 1 ;; esac
 docker run -d --name "$runtime" --label ppe.distribution-ui.owner="$owner" --network "$network" \
   -e PPE_ENV=development -e 'CATALINA_OPTS=-DPPE_TRUSTED_PROXY_REGEX=^$' \
   -e TEACHER_PORTAL_HOST=teacher.localhost -e STUDENT_PORTAL_HOST=student.localhost \
@@ -87,6 +101,8 @@ docker run --name "$browser" --label ppe.distribution-ui.owner="$owner" --networ
   -e PPE_P20_BASE_URL=http://teacher.localhost:8080 -e PPE_P20_TEACHER_BASE_URL=http://teacher.localhost:8080 \
   -e PPE_P20_HOST_RESOLVER_RULES="MAP teacher.localhost $runtime, MAP student.localhost $runtime" \
   -e PPE_P20_DISTRIBUTION_TEMPLATE_ID="$template_id" -e PPE_P20_DISTRIBUTION_PASSWORD='Synthetic12!Aa' \
+  -e PPE_P20_DISTRIBUTION_ID="$distribution_id" -e PPE_P20_DISTRIBUTION_TARGET_ID="$target_id" \
+  -e PPE_P20_DISTRIBUTION_SCHEDULED_AT_DISPLAY="$scheduled_at_display" \
   -e PPE_P20_DISTRIBUTION_PEER_LOGIN=teacher-distribution-peer \
   -e PPE_P20_DISTRIBUTION_OWNER_LOGIN=teacher-distribution-test \
   -e PPE_P20_DISTRIBUTION_FOREIGN_LOGIN=teacher-distribution-foreign \

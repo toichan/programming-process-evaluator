@@ -185,7 +185,7 @@ document.addEventListener('DOMContentLoaded', () => {
       copy.truncated = true;
     }
     copy.status = result.status;
-    copy.time = result.status === 'running' ? '実行中...' : `最終実行: ${new Date().toLocaleTimeString('ja-JP')}`;
+    copy.time = result.status === 'running' ? '実行中...' : `最終実行: ${new Date().toLocaleTimeString('ja-JP', { timeZone: 'Asia/Tokyo' })}`;
     if (result.status !== 'running') {
       copy.sessionId = null;
       if (!copy.segments.length) copy.segments.push({ text: '（出力なし）\n', style: '' });

@@ -25,6 +25,7 @@ import entity.SchoolInput;
 import entity.TeacherAccountDetails;
 import entity.TeacherAccountInput;
 import entity.UserCredential.UserType;
+import lib.time.DateTimeContract;
 import servlet.auth.CsrfTokens;
 
 import servlet.auth.ApplicationUrls;
@@ -171,7 +172,8 @@ public final class TeacherAccountServlet extends HttpServlet {
 			var cells = new java.util.ArrayList<String>(List.of(account.loginId(), account.getStatusLabel()));
 			schools.forEach(school -> cells.add(account.schools().stream().anyMatch(option -> option.schoolId() == school.id()) ? "1" : "0"));
 			TeacherAccountInput.FEATURE_ORDER.forEach(feature -> cells.add(account.features().contains(feature) ? "1" : "0"));
-			cells.add(account.createdAt().toString()); cells.add(text(account.createdBy()));
+			cells.add(DateTimeContract.toUserDisplay(account.createdAt()).toString());
+			cells.add(text(account.createdBy()));
 			writer.write(cells.stream().map(TeacherAccountServlet::csvCell).collect(Collectors.joining(",")) + "\r\n");
 		}
 	}

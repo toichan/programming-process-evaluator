@@ -5,6 +5,7 @@ import java.util.*;
 import entity.TeacherSurveyResponse;
 import entity.TeacherSurveyResponse.Answer;
 import entity.TeacherSurveyResponse.Option;
+import lib.time.DateTimeContract;
 
 public final class TeacherSurveyDao {
 	public List<TeacherSurveyResponse> rows(Connection c, long teacherId) throws SQLException {
@@ -92,7 +93,8 @@ public final class TeacherSurveyDao {
 		}
 	}
 	private static String date(ResultSet r,String column)throws SQLException{
-		var value=r.getTimestamp(column);return value==null?"":value.toLocalDateTime().toString();
+		var value=r.getTimestamp(column);return value==null?"":DateTimeContract.toUserDisplay(
+				DateTimeContract.fromDatabaseTimestamp(value)).toString();
 	}
 	private static Double number(ResultSet r,String column)throws SQLException{
 		double value=r.getDouble(column);return r.wasNull()?null:value;
